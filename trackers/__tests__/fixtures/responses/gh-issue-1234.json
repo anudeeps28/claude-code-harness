@@ -1,0 +1,9 @@
+{
+  "number": 1234,
+  "title": "Implement login flow",
+  "body": "Users need to be able to log in.\n\n## Acceptance criteria\n- Valid credentials authenticate the user\n",
+  "labels": [{ "name": "feature" }, { "name": "priority-high" }],
+  "assignees": [{ "login": "testuser" }],
+  "state": "OPEN",
+  "milestone": { "title": "Sprint 5" }
+}

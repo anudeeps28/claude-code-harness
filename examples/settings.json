@@ -1,0 +1,67 @@
+{
+  "_comment": "Example settings.json for a global install. Cross-platform via Node.js (>= 20). Paths are filled in by the installer. Set CLAUDE_HARNESS_WORK_ROOT in env to the folder containing all your projects (consumed by catalog-skills.js).",
+  "env": {
+    "CLAUDE_HARNESS_WORK_ROOT": "/home/username/projects"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/safety-check.js\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/catalog-trigger.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/drift-check.js\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/pre-compact.js\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"SESSION START: Before doing anything else — read tasks/lessons.md, todo.md, pr-queue.md, and flags-and-notes.md\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/session-log.js\""
+          }
+        ]
+      }
+    ]
+  }
+}

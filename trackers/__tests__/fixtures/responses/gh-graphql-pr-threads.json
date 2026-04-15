@@ -1,0 +1,18 @@
+[
+  {
+    "id": 555001,
+    "threadId": "PRRT_kwDOABCDEFG",
+    "file": "src/auth/login.ts",
+    "line": 42,
+    "content": "Consider extracting this into a helper.",
+    "author": "reviewer1"
+  },
+  {
+    "id": 555002,
+    "threadId": "PRRT_kwDOABCDEFH",
+    "file": "src/auth/login.ts",
+    "line": 88,
+    "content": "Missing error handling for the 401 case.",
+    "author": "reviewer2"
+  }
+]

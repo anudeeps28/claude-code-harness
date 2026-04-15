@@ -1,0 +1,22 @@
+{
+  "name": "claude-code-harness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dev-only manifest for tests and lint. Not copied by the installer; runtime stays zero-dep.",
+  "scripts": {
+    "test": "node --test hooks/__tests__/*.test.js trackers/__tests__/*.test.js install/__tests__/*.test.js",
+    "test:hooks": "node --test hooks/__tests__/*.test.js",
+    "test:trackers": "node --test trackers/__tests__/*.test.js",
+    "test:install": "node --test install/__tests__/*.test.js",
+    "test:coverage": "c8 --reporter=text --reporter=html node --test hooks/__tests__/*.test.js trackers/__tests__/*.test.js install/__tests__/*.test.js",
+    "lint": "eslint hooks/ trackers/__tests__/ install/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "c8": "^10.1.3",
+    "eslint": "^9.18.0"
+  }
+}

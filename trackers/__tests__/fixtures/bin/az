@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Stub `az` for tracker conformance tests. Pattern-matches all-args against
+# adapter call signatures and returns canned JSON, or simulates failures via
+# FIXTURE_* env vars.
+
+fixture_dir="$(dirname "$0")/../responses"
+all="$*"
+
+# ── Auth surface (called by lib/auth-check.sh, never via with_retry) ──
+case "$1 $2" in
+  "account show")
+    if [ "$FIXTURE_AUTH" = "expired" ]; then
+      echo '{"error": "AADSTS50173: refresh token expired"}' >&2
+      exit 1
+    fi
+    cat "$fixture_dir/az-account-show.json"
+    exit 0
+    ;;
+  "account get-access-token")
+    cat "$fixture_dir/az-token.json"
+    exit 0
+    ;;
+esac
+
+# ── Retry simulator (data-plane calls only — auth surface returns above) ──
+if [ -n "$FIXTURE_RETRY_COUNTER" ]; then
+  count=0
+  if [ -f "$FIXTURE_RETRY_COUNTER" ]; then
+    count=$(cat "$FIXTURE_RETRY_COUNTER")
+  fi
+  count=$((count + 1))
+  echo "$count" > "$FIXTURE_RETRY_COUNTER"
+  if [ "$count" -lt "${FIXTURE_RETRY_SUCCEED_AT:-2}" ]; then
+    echo '{"error": "transient 503"}' >&2
+    exit 1
+  fi
+fi
+
+# ── Failure-mode injection ────────────────────────────────────────────
+case "$FIXTURE_MODE" in
+  not-found)
+    echo '{"error": "TF401232: Work item does not exist"}' >&2
+    exit 1
+    ;;
+  auth-failed)
+    echo '{"error": "Unauthenticated"}' >&2
+    exit 1
+    ;;
+  malformed)
+    echo 'not json at all'
+    exit 0
+    ;;
+esac
+
+# ── Known calls ───────────────────────────────────────────────────────
+case "$all" in
+  *"boards work-item show --id 1234"*)
+    cat "$fixture_dir/az-workitem-1234.json"
+    exit 0
+    ;;
+  *"boards work-item show --id 9999"*)
+    echo '{"error": "TF401232: Work item 9999 does not exist"}' >&2
+    exit 1
+    ;;
+  *"boards iteration team list"*)
+    cat "$fixture_dir/az-iteration-list.json"
+    exit 0
+    ;;
+  *"boards query"*)
+    cat "$fixture_dir/az-query-result.json"
+    exit 0
+    ;;
+  *"boards work-item show"*)
+    cat "$fixture_dir/az-workitem-1234.json"
+    exit 0
+    ;;
+  *"repos pr "*)
+    echo '{"id":1,"status":"active"}'
+    exit 0
+    ;;
+esac
+
+echo "{\"error\": \"stub az: no fixture for: $all\"}" >&2
+exit 1

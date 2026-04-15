@@ -1,0 +1,13 @@
+{
+  "id": 1234,
+  "fields": {
+    "System.WorkItemType": "User Story",
+    "System.Title": "Implement login flow",
+    "System.State": "Active",
+    "Microsoft.VSTS.Common.Priority": 2,
+    "Microsoft.VSTS.Scheduling.StoryPoints": 5,
+    "System.AssignedTo": { "displayName": "Test User" },
+    "System.Description": "<p>Users need to be able to log in.</p>",
+    "Microsoft.VSTS.Common.AcceptanceCriteria": "<p>Given a registered user, when they enter valid credentials, they are authenticated.</p>"
+  }
+}

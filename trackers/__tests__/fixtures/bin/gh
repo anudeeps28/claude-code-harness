@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Stub `gh` for tracker conformance tests. Pattern-matches argv against
+# known adapter call signatures and returns canned JSON.
+
+set -e
+
+fixture_dir="$(dirname "$0")/../responses"
+
+# Auth check.
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  if [ "$FIXTURE_AUTH" = "expired" ]; then
+    echo "Token has expired" >&2
+    exit 1
+  fi
+  echo "✓ Logged in to github.com as testuser"
+  exit 0
+fi
+
+# Repo metadata.
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      ".owner.login") echo "testorg"; exit 0 ;;
+      ".name") echo "testrepo"; exit 0 ;;
+    esac
+  done
+  cat "$fixture_dir/gh-repo-view.json"
+  exit 0
+fi
+
+# Retry-mode fixture.
+if [ -n "$FIXTURE_RETRY_COUNTER" ]; then
+  count=0
+  if [ -f "$FIXTURE_RETRY_COUNTER" ]; then
+    count=$(cat "$FIXTURE_RETRY_COUNTER")
+  fi
+  count=$((count + 1))
+  echo "$count" > "$FIXTURE_RETRY_COUNTER"
+  if [ "$count" -lt "${FIXTURE_RETRY_SUCCEED_AT:-2}" ]; then
+    echo '{"error": "transient 503"}' >&2
+    exit 1
+  fi
+fi
+
+# Failure modes.
+case "$FIXTURE_MODE" in
+  not-found)
+    echo '{"error": "Could not resolve to an Issue with the number"}' >&2
+    exit 1
+    ;;
+  auth-failed)
+    echo '{"error": "401 Unauthorized"}' >&2
+    exit 1
+    ;;
+  malformed)
+    echo 'not json at all'
+    exit 0
+    ;;
+esac
+
+# Issue / PR specific dispatch.
+case "$1 $2" in
+  "issue view")
+    if [ "$3" = "9999" ]; then
+      echo '{"error": "issue 9999 not found"}' >&2
+      exit 1
+    fi
+    cat "$fixture_dir/gh-issue-1234.json"
+    exit 0
+    ;;
+  "issue list")
+    cat "$fixture_dir/gh-issue-list.json"
+    exit 0
+    ;;
+  "api graphql")
+    cat "$fixture_dir/gh-graphql-pr-threads.json"
+    exit 0
+    ;;
+  "api repos/"*)
+    if [[ "$*" == *"-X PATCH"* ]] || [[ "$*" == *"--method PATCH"* ]]; then
+      echo '{}'; exit 0
+    fi
+    cat "$fixture_dir/gh-pr-comment-create.json"
+    exit 0
+    ;;
+  "pr comment")
+    cat "$fixture_dir/gh-pr-comment-create.json"
+    exit 0
+    ;;
+esac
+
+echo "{\"error\": \"stub gh: no fixture for: $*\"}" >&2
+exit 1

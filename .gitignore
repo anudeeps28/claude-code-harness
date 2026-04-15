@@ -1,0 +1,47 @@
+# Task files (per-project working state — not shared)
+tasks/todo.md
+tasks/lessons.md
+tasks/pr-queue.md
+tasks/flags-and-notes.md
+tasks/people.md
+tasks/admin.md
+tasks/tracker-config.md
+tasks/sprint*.md
+tasks/sessions.jsonl
+tasks/sessions.*.jsonl
+tasks/sessions.*.jsonl.gz
+tasks/metrics.jsonl
+tasks/metrics.*.jsonl
+tasks/metrics.*.jsonl.gz
+tasks/stories/
+
+# Auto-generated catalog (produced by catalog-skills.js)
+SKILLS_CATALOG.md
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/settings.json
+
+# Node — devDeps for tests/lint live at repo root; never copied by installer
+node_modules/
+coverage/
+package-lock.json
+
+# Python (if design scripts use venv)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+*.env.local
+local.settings.json
+appsettings.Development.json

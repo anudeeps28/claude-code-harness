@@ -1,0 +1,5 @@
+{"timestamp":"2026-04-08T10:00:00Z","session_id":"s1","branch":"feature/9001-add-filter","story_id":"9001","source":"unknown"}
+{"timestamp":"2026-04-09T11:00:00Z","session_id":"s2","branch":"feature/9001-add-filter","story_id":"9001","source":"unknown"}
+{"timestamp":"2026-04-10T12:00:00Z","session_id":"s3","branch":"feature/9001-add-filter","story_id":"9001","source":"unknown"}
+{"timestamp":"2026-04-11T13:00:00Z","session_id":"s4","branch":"feature/9002-other","story_id":"9002","source":"unknown"}
+{"timestamp":"2026-04-12T14:00:00Z","session_id":"s5","branch":"feature/9003-third","story_id":"9003","source":"unknown"}
