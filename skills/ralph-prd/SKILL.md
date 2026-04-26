@@ -258,6 +258,28 @@ Also create `progress.txt`:
 
 ---
 
+## Running the Ralph Loop
+
+Once `PRD.md` and `progress.txt` exist, execute the loop runner from this skill folder:
+
+**macOS / Linux:**
+```bash
+./ralph.sh                                  # 10 iterations, defaults
+./ralph.sh --max 25 --sleep 5               # custom budget
+./ralph.sh --prd specs/PRD.md --progress specs/progress.txt
+```
+
+**Windows / cross-platform PowerShell:**
+```powershell
+./ralph.ps1                                 # 10 iterations, defaults
+./ralph.ps1 -MaxIterations 25 -SleepSeconds 5
+./ralph.ps1 -PrdPath specs/PRD.md -ProgressPath specs/progress.txt
+```
+
+Each iteration spawns a fresh `claude -p` instance that picks the first user story with unchecked `[ ]` acceptance criteria, implements it, runs the verify command from the criteria, and only commits if it passes. The loop terminates when Ralph emits `<promise>COMPLETE</promise>` or when `--max` is reached.
+
+---
+
 ## Checklist Before Saving
 
 - [ ] Asked clarifying questions with lettered options

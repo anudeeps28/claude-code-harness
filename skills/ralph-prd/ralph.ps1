@@ -1,12 +1,16 @@
 param(
     [int]$MaxIterations = 10,
-    [int]$SleepSeconds = 2
+    [int]$SleepSeconds = 2,
+    [string]$PrdPath = "PRD.md",
+    [string]$ProgressPath = "progress.txt"
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 Write-Host "Starting Ralph - Max $MaxIterations iterations"
+Write-Host "  PRD:      $PrdPath"
+Write-Host "  Progress: $ProgressPath"
 Write-Host ""
 
 for ($i = 1; $i -le $MaxIterations; $i++) {
@@ -17,30 +21,37 @@ for ($i = 1; $i -le $MaxIterations; $i++) {
     $prompt = @"
 You are Ralph, an autonomous coding agent. Do exactly ONE task per iteration.
 
+## Paths
+- PRD file:      $PrdPath
+- Progress file: $ProgressPath
+
+All relative paths in the PRD (e.g. ``src/...``, ``tests/...``) are relative to the current working directory, NOT the PRD's folder. Do not try to resolve them relative to the PRD file.
+
 ## Steps
 
-1. Read PRD.md and find the first task that is NOT complete (marked [ ]).
-2. Read progress.txt - check the Learnings section first for patterns from previous iterations.
-3. Implement that ONE task only.
-4. Run tests/typecheck to verify it works.
+1. Read $PrdPath and find the first user story that has at least one unchecked acceptance criterion (``[ ]``). Skip any story whose acceptance criteria are all ``[x]`` or whose header contains ``STATUS: DONE``. If a story has a mix of ``[x]`` and ``[ ]``, only implement the unchecked bullets — do NOT re-do completed work.
+2. Read $ProgressPath - check the Learnings section first for patterns from previous iterations.
+3. Implement that ONE story only (or the remaining unchecked bullets of a partial story).
+4. Run the verify command named in the story's acceptance criteria (build, test, typecheck).
 
 ## Critical: Only Complete If Tests Pass
 
 - If tests PASS:
-  - Update PRD.md to mark the task complete (change [ ] to [x])
-  - Commit your changes with message: feat: [task description]
-  - Append what worked to progress.txt
+  - Update $PrdPath to mark the implemented acceptance criteria as ``[x]``
+  - Commit your changes with message: feat: [story title]
+  - Append what worked to $ProgressPath
+  - NEVER add ``Co-Authored-By: Claude`` to commit messages — the user explicitly prohibits this
 
 - If tests FAIL:
   - Do NOT mark the task complete
   - Do NOT commit broken code
-  - Append what went wrong to progress.txt (so next iteration can learn)
+  - Append what went wrong to $ProgressPath (so next iteration can learn)
 
 ## Progress Notes Format
 
-Append to progress.txt using this format:
+Append to $ProgressPath using this format:
 
-## Iteration [N] - [Task Name]
+## Iteration [N] - [Story Title]
 - What was implemented
 - Files changed
 - Learnings for future iterations:
@@ -58,9 +69,9 @@ If you discover a reusable pattern that future work should know about:
 
 ## End Condition
 
-After completing your task, check PRD.md:
-- If ALL tasks are [x], output exactly: <promise>COMPLETE</promise>
-- If tasks remain [ ], just end your response (next iteration will continue)
+After completing your task, check ${PrdPath}:
+- If ALL user stories are fully ``[x]`` (every acceptance criterion checked), output exactly: <promise>COMPLETE</promise>
+- If any story has remaining ``[ ]`` bullets, just end your response (next iteration will continue)
 "@
 
     # Capture stdout+stderr and preserve newlines for reliable printing + COMPLETE token detection
