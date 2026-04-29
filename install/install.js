@@ -296,6 +296,16 @@ async function main() {
   }
   console.log('');
 
+  if (mode === 'project') {
+    console.log('  Optional: git worktree workflow');
+    console.log('  ────────────────────────────────────────────────────────────────');
+    console.log('  A worktree workflow rule was installed at:');
+    console.log('    .claude/rules/git-worktrees.md');
+    console.log('  To enable parallel-branch development, add this line to CLAUDE.md:');
+    console.log('    @.claude/rules/git-worktrees.md');
+    console.log('  To disable later, comment that line out. See the rule file for details.\n');
+  }
+
   reportUnfilled({ userName, projectName, tracker, workflowPack,
     adoProject, adoRepo, adoOrgPath, orgName, leadDev, infraPerson, devopsPerson, qaPerson });
 
