@@ -236,6 +236,31 @@ async function main() {
     );
   }
 
+  // ── CONTEXT.md + ADR convention (project installs only) ───────────────────
+  if (mode === 'project') {
+    console.log('  Optional: CONTEXT.md + ADR convention\n');
+    console.log('    CONTEXT.md — domain glossary, module map, codebase conventions');
+    console.log('    docs/adr/  — lightweight records of hard-to-reverse decisions\n');
+    const ctxChoice = (await ask('  Set up CONTEXT.md + ADR convention? [y/N]: ')).trim().toLowerCase();
+    console.log('');
+    if (ctxChoice === 'y') {
+      const ctxTemplateSrc = path.join(REPO_DIR, 'templates/CONTEXT.md.template');
+      const ctxDest = path.join(projectDir, 'CONTEXT.md');
+      const adrSrc = path.join(REPO_DIR, 'templates/docs/adr');
+      const adrDest = path.join(projectDir, 'docs/adr');
+
+      if (fs.existsSync(ctxDest)) {
+        console.log('    Skipped (exists): CONTEXT.md');
+      } else {
+        fs.copyFileSync(ctxTemplateSrc, ctxDest);
+        console.log('    Created: CONTEXT.md');
+      }
+
+      fs.mkdirSync(adrDest, { recursive: true });
+      copyTemplatesNoClobber(adrSrc, adrDest, 'docs/adr');
+    }
+  }
+
   // ── Path variables for placeholders ────────────────────────────────────────
   const hooksUnix = mode === 'global'
     ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`

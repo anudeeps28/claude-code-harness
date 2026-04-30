@@ -68,7 +68,7 @@ The harness covers the full software development lifecycle. Each phase has dedic
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me<br/>/decision-brief ✦"]
-    P1["Define<br/>/research ✦ · /prototype ✦<br/>/prd · /prd-critique ✦<br/>/architect ✦ · /to-issues ✦"]
+    P1["Define<br/>/research ✦ · /prototype ✦<br/>/prd · /prd-critique ✦<br/>/architect ✦ · /to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
     P4["Learn<br/>/retro<br/>/triage ✦ · /improve-arch ✦"]
@@ -90,7 +90,7 @@ flowchart LR
 | Write a PRD | `/prd` |
 | Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` ✦ |
 | Design the system architecture | `/architect` ✦ |
-| Break a PRD into executable vertical-slice tickets | `/to-issues` ✦ |
+| Break a PRD into executable vertical-slice tickets | `/to-issues` |
 | Build a feature from an issue | `/story` or `/implement` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
 | Debug a hard or recurring bug | `/debug` |
@@ -118,6 +118,7 @@ The installer asks:
 2. **Global or project?** — `~/.claude/` (all projects) or `.claude/` (one repo)
 3. **Tracker** — GitHub (solo default) or ADO + GitHub (enterprise)
 4. **Your details** — Name, org, project paths. Fills in all placeholders automatically.
+5. **CONTEXT.md + ADR** (project only) — Copies a domain glossary template and ADR convention to your project root.
 
 Then:
 - **Solo:** `/implement #42` or `/plan`
@@ -165,6 +166,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **retro** | `/retro [days]` | Self-improvement loop — finds recurring friction in recent sessions/evaluations and proposes harness edits. Never auto-applies |
 | **grill-me** | `/grill-me <plan or design>` | Decision-tree interrogation of a plan, design, or proposal — serial questions with recommendations until shared understanding is reached |
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
+| **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |
 
 ---
 
@@ -299,15 +301,16 @@ Skills don't know if you use ADO or GitHub. The adapter layer abstracts it:
 skill → trackers/active/get-issue.sh → ado/get-issue.sh  (or)  github/get-issue.sh
 ```
 
-Both adapters implement the same 6-script interface:
+Both adapters implement the same 7-script interface:
 - `get-issue.sh <ID>` — Returns work item details
 - `get-issue-children.sh <ID>` — Returns child tasks
 - `get-pr-review-threads.sh <PR_ID>` — Returns review threads
 - `reply-pr-thread.sh <PR_ID> <THREAD_ID> "<text>"` — Posts a reply
 - `resolve-pr-thread.sh <PR_ID> <THREAD_ID>` — Resolves a thread
 - `get-sprint-issues.sh <SPRINT_NUM>` — Returns all sprint issues
+- `create-issue.sh "<title>" "<body>" "<label>"` — Creates a new issue or work item
 
-To add a new tracker (Linear, Jira): implement these 6 scripts and drop them in `trackers/your-tracker/`.
+To add a new tracker (Linear, Jira): implement these 7 scripts and drop them in `trackers/your-tracker/`.
 
 ---
 

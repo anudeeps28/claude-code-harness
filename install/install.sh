@@ -427,6 +427,38 @@ if [[ "$MODE" == "project" ]]; then
   done
 fi
 
+# ── CONTEXT.md + ADR convention (project installs only) ──────────────────────
+if [[ "$MODE" == "project" ]]; then
+  echo "  Optional: CONTEXT.md + ADR convention"
+  echo ""
+  echo "    CONTEXT.md — domain glossary, module map, codebase conventions"
+  echo "    docs/adr/  — lightweight records of hard-to-reverse decisions"
+  echo ""
+  read -p "  Set up CONTEXT.md + ADR convention? [y/N]: " ctx_choice
+  echo ""
+  if [[ "$ctx_choice" == "y" || "$ctx_choice" == "Y" ]]; then
+    if [[ -f "$PROJECT_DIR/CONTEXT.md" ]]; then
+      echo "    Skipped (exists): CONTEXT.md"
+    else
+      cp "$REPO_DIR/templates/CONTEXT.md.template" "$PROJECT_DIR/CONTEXT.md"
+      echo "    Created: CONTEXT.md"
+    fi
+
+    mkdir -p "$PROJECT_DIR/docs/adr"
+    for f in "$REPO_DIR/templates/docs/adr/"*; do
+      [[ -f "$f" ]] || continue
+      fname=$(basename "$f")
+      dest="$PROJECT_DIR/docs/adr/$fname"
+      if [[ -f "$dest" ]]; then
+        echo "    Skipped (exists): docs/adr/$fname"
+      else
+        cp "$f" "$dest"
+        echo "    Created: docs/adr/$fname"
+      fi
+    done
+  fi
+fi
+
 # ── Build path variables ──────────────────────────────────────────────────────
 # Unix path for bash hook commands
 if [[ "$MODE" == "global" ]]; then
