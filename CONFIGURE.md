@@ -19,7 +19,7 @@ The installer (`install/install.sh`) handles all of this automatically. Use this
 | `YOUR_INFRA_PERSON` | Infrastructure/cloud person | Enterprise |
 | `YOUR_DEVOPS_PERSON` | CI/CD/deployments person | Enterprise |
 | `YOUR_QA_PERSON` | QA/UAT person | Enterprise |
-| `YOUR_HARNESS_REPO_PATH` | Absolute path to your local clone of `claude-code-harness` (used by `/retro` to reference harness files in its proposals) | Both |
+| `YOUR_HARNESS_REPO_PATH` | Absolute path to your local clone of `claude-code-harness` (used by `/improve-harness` to reference harness files in its proposals) | Both |
 | `CLAUDE_HARNESS_WORK_ROOT` | Env var in `settings.json` consumed by `catalog-skills.js` — folder containing all your projects | Global install only |
 
 ---

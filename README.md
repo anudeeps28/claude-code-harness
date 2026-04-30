@@ -71,7 +71,7 @@ flowchart LR
     P1["Define<br/>/research ✦ · /prototype ✦<br/>/prd · /prd-critique ✦<br/>/architect ✦ · /to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
-    P4["Learn<br/>/retro<br/>/triage ✦ · /improve-arch ✦"]
+    P4["Learn<br/>/improve-harness<br/>/triage ✦ · /improve-arch ✦"]
 
     P0 --> P1 --> P2 --> P3 --> P4
     P4 -.->|"next cycle"| P1
@@ -100,7 +100,7 @@ flowchart LR
 | Run build + tests at 3 levels | `/local-test` |
 | Plan a sprint from the tracker | `/sprint-plan` |
 | Ask about sprint status, blockers, or todos | `/pa` |
-| Run a weekly self-improvement loop on the harness | `/retro` |
+| Run a weekly self-improvement loop on the harness | `/improve-harness` |
 
 ---
 
@@ -163,7 +163,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **prd** | `/prd` | Generate a Product Requirements Document |
 | **pa** | `/pa <question>` | Personal assistant — answers from task files, keeps them in sync |
 | **sync-tasks** | `/sync-tasks` | Report drift across the 7 enterprise task files. Auto-suggested when `drift-check` hook hard-blocks |
-| **retro** | `/retro [days]` | Self-improvement loop — finds recurring friction in recent sessions/evaluations and proposes harness edits. Never auto-applies |
+| **improve-harness** | `/improve-harness [days]` | Self-improvement loop — finds recurring friction in recent sessions/evaluations and proposes harness edits. Never auto-applies |
 | **grill-me** | `/grill-me <plan or design>` | Decision-tree interrogation of a plan, design, or proposal — serial questions with recommendations until shared understanding is reached |
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 | **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |

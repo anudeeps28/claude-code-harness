@@ -99,7 +99,7 @@ Add to either `BASH_RULES` or `WRITE_RULES` in [safety-check.js](safety-check.js
 { id: 'short-id', re: /\bsome\s+regex\b/i, reason: 'human-readable reason' }
 ```
 
-- **`id`**: short identifier emitted to `tasks/metrics.jsonl` so you can track which rules fire most often via `/retro`.
+- **`id`**: short identifier emitted to `tasks/metrics.jsonl` so you can track which rules fire most often via `/improve-harness`.
 - **`re`**: a regex applied with `.test()`. Use word boundaries (`\b`) to avoid substring matches (e.g. `confirm` matching `rm`).
 - **`reason`**: shown to Claude when the deny fires; should suggest the safer alternative.
 

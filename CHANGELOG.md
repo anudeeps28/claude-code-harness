@@ -14,7 +14,7 @@ First public release. A supervised Claude Code workflow framework with two workf
 
 - **Enterprise pack** — sprint-based: `/sprint-plan`, `/story`, `/babysit-pr`, `/run-tasks`, `/sync-tasks`, `/pa`, `/deploy`. Designed for teams with formal sprints, code review cycles, and shared task files.
 - **Solo pack** — issue-based: `/plan`, `/implement`. Lighter ceremony for individual developers.
-- **Shared skills** — `/evaluate`, `/debug`, `/troubleshoot`, `/local-test`, `/ralph-prd`, `/skill-creator`, `/retro`.
+- **Shared skills** — `/evaluate`, `/debug`, `/troubleshoot`, `/local-test`, `/ralph-prd`, `/skill-creator`, `/improve-harness`.
 - **End-to-end story execution** (`/story <id>`): understand → plan → execute → evaluate → PR. Adversarial evaluator (different prompt than the executor) reviews build, tests, plan compliance, and security before PR.
 - **3-attempt rule**: same error 3× triggers automatic escalation to `/debug` instead of infinite retry loops.
 
@@ -46,14 +46,14 @@ Five stdin-driven hooks (Node ≥ 20, zero runtime deps), wired through `setting
 - Every hook is wrapped in `runHook(name, fn)` (in `hooks/lib/hook-io.js`) which provides:
   - **5-second timeout** — a hung hook can't block Claude (fail-open, exit 0).
   - **try/catch + uncaughtException + unhandledRejection handlers** — a crashed hook can't block Claude (fail-open, exit 0).
-  - **Per-invocation metric** appended to `tasks/metrics.jsonl`: `{ts, hook, duration_ms, decision, rule?}`. Feeds `/retro`.
+  - **Per-invocation metric** appended to `tasks/metrics.jsonl`: `{ts, hook, duration_ms, decision, rule?}`. Feeds `/improve-harness`.
   - **Errors logged to stderr as JSON** — `{error, hook, message}` — instead of swallowing silently.
 - See [hooks/SECURITY.md](hooks/SECURITY.md) for the explicit threat model: oversight gate, **not** a sandbox. Bypassable by base64 encoding, variable indirection, `$IFS` tricks, MCP tool surfaces.
 
 ### Self-improvement loop
 
-- `/retro [days]` reads the last N days of `tasks/sessions.jsonl`, `tasks/lessons.md`, `tasks/flags-and-notes.md`, and every `tasks/stories/<id>/evaluation.md`. Detects 6 friction patterns with a strict ≥2 recurrence threshold (≥3 for re-attempts) so single anomalies don't turn into noisy proposals.
-- Output: `tasks/retro-<YYYY-MM-DD>.md` with concrete file:line edits to harness source. **Never auto-applied** — same supervised-agent principle as the rest of the harness.
+- `/improve-harness [days]` reads the last N days of `tasks/sessions.jsonl`, `tasks/lessons.md`, `tasks/flags-and-notes.md`, and every `tasks/stories/<id>/evaluation.md`. Detects 6 friction patterns with a strict ≥2 recurrence threshold (≥3 for re-attempts) so single anomalies don't turn into noisy proposals.
+- Output: `tasks/improve-harness-<YYYY-MM-DD>.md` with concrete file:line edits to harness source. **Never auto-applied** — same supervised-agent principle as the rest of the harness.
 - Idempotent via `<!-- last-retro: <date>/<session-id> -->` marker.
 
 ### Path-scoped rules

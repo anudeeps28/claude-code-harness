@@ -1,11 +1,11 @@
 ---
-name: retro
-description: Self-improvement loop for the harness. Reads recent sessions, evaluations, blockers, and lessons, surfaces recurring friction patterns, and proposes specific harness edits. Never auto-applies. Usage: /retro [days]
+name: improve-harness
+description: Self-improvement loop for the harness. Reads recent sessions, evaluations, blockers, and lessons, surfaces recurring friction patterns, and proposes specific harness edits. Never auto-applies. Usage: /improve-harness [days]
 ---
 
 **Core Philosophy:** The harness should learn from its own use. Friction patterns are signal — surface them with evidence, propose concrete edits, and let the user decide what lands in the harness repo.
 
-**Triggers:** User runs `/retro` (default 7-day lookback) or `/retro <N>` (custom days).
+**Triggers:** User runs `/improve-harness` (default 7-day lookback) or `/improve-harness <N>` (custom days).
 
 ---
 
@@ -101,7 +101,7 @@ Across evaluation.md files, count adversarial findings where Confidence ≥ 85% 
 
 If **fewer than 2 patterns qualified**, output `✅ No actionable patterns found this lookback window.` and stop. **Do NOT write a proposal file or update the marker** — there's nothing to record.
 
-Otherwise, write `tasks/retro-<YYYY-MM-DD>.md` (use today's date) with this structure:
+Otherwise, write `tasks/improve-harness-<YYYY-MM-DD>.md` (use today's date) with this structure:
 
 ```markdown
 # Retro: <window_start> → <window_end>
@@ -176,18 +176,18 @@ Show the user the proposed edit (one-line marker insertion or replacement). **Wa
 Also output a one-line summary at the end:
 
 ```
-Wrote tasks/retro-<date>.md with <P> proposals. Review and apply to the harness repo at YOUR_HARNESS_REPO_PATH.
+Wrote tasks/improve-harness-<date>.md with <P> proposals. Review and apply to the harness repo at YOUR_HARNESS_REPO_PATH.
 ```
 
 ---
 
-## What `/retro` must NOT do
+## What `/improve-harness` must NOT do
 
 - **Don't propose a change from a single occurrence.** Pattern detection requires ≥ 2 (or ≥ 3 for re-attempts).
 - **Don't propose vague edits.** Every change cites a specific file path and includes the exact Before/After text. If you can't quote the existing text, you can't propose the change.
 - **Don't edit any file in the harness repo at `YOUR_HARNESS_REPO_PATH`.** Your output is the proposal file; the user applies changes themselves.
 - **Don't update the marker if no proposal was written** (i.e. on the "no actionable patterns" path).
 - **Don't analyze in-progress stories.** If a story has no `evaluation.md`, skip it.
-- **Don't re-include previous retro proposals.** Filter out files matching `tasks/retro-*.md` from your reads.
+- **Don't re-include previous retro proposals.** Filter out files matching `tasks/improve-harness-*.md` from your reads.
 - **Don't fabricate evidence.** Every pattern claim cites a real file:line. If the model can't find a citation, drop the pattern.
 - **Don't propose changes to `tasks/` files.** The proposal targets the harness repo (skills, agents, hooks, rules), not the user's project state.

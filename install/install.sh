@@ -253,7 +253,7 @@ if [[ "$MODE" == "global" ]]; then
   read -p "    Work root (folder containing projects) : " WORK_ROOT
 fi
 
-# Where the user cloned the harness source — the /retro skill needs this so
+# Where the user cloned the harness source — the /improve-harness skill needs this so
 # its proposals can reference real file paths to edit. Default to REPO_DIR
 # (the directory the installer is running from) since that's almost always right.
 read -p "    Harness repo path [${REPO_DIR}]: " HARNESS_REPO_PATH
