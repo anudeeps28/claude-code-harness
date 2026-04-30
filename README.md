@@ -121,6 +121,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **sync-tasks** | `/sync-tasks` | Report drift across the 7 enterprise task files. Auto-suggested when `drift-check` hook hard-blocks |
 | **retro** | `/retro [days]` | Self-improvement loop — finds recurring friction in recent sessions/evaluations and proposes harness edits. Never auto-applies |
 | **grill-me** | `/grill-me <plan or design>` | Decision-tree interrogation of a plan, design, or proposal — serial questions with recommendations until shared understanding is reached |
+| **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 
 ---
 
