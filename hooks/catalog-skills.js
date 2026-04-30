@@ -155,6 +155,14 @@ for (const proj of listProjects(WORK_ROOT)) {
   for (const sp of skills) { out.push(skillBlock(sp, `Project: ${proj}`)); skillCount++; }
 }
 
+for (const proj of listProjects(WORK_ROOT)) {
+  const skillsDir = path.join(WORK_ROOT, proj, 'skills');
+  const skills = findSkills(skillsDir);
+  if (!skills.length) continue;
+  out.push(`### Source: ${proj}`, '');
+  for (const sp of skills) { out.push(skillBlock(sp, `Source: ${proj}`)); skillCount++; }
+}
+
 out.push('---', '');
 
 // Section 2: Agents ────────────────────────────────────────────────────
