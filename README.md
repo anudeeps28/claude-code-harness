@@ -61,6 +61,49 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 
 ---
 
+## SDLC lifecycle at a glance
+
+The harness covers the full software development lifecycle. Each phase has dedicated skills — use the table below to find the right one for where you are.
+
+```mermaid
+flowchart LR
+    P0["Decide<br/>/grill-me<br/>/decision-brief ✦"]
+    P1["Define<br/>/research ✦ · /prototype ✦<br/>/prd · /prd-critique ✦<br/>/architect ✦ · /to-issues ✦"]
+    P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
+    P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
+    P4["Learn<br/>/retro<br/>/triage ✦ · /improve-arch ✦"]
+
+    P0 --> P1 --> P2 --> P3 --> P4
+    P4 -.->|"next cycle"| P1
+```
+
+> ✦ = coming soon
+
+### When to use what
+
+| I want to... | Use this |
+|---|---|
+| Stress-test an idea, plan, or design | `/grill-me` |
+| Kill a bad feature before spending a sprint | `/decision-brief` ✦ |
+| Cache research on an external API or integration | `/research` ✦ |
+| Test a UI or architecture approach before committing | `/prototype` ✦ |
+| Write a PRD | `/prd` |
+| Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` ✦ |
+| Design the system architecture | `/architect` ✦ |
+| Break a PRD into executable vertical-slice tickets | `/to-issues` ✦ |
+| Build a feature from an issue | `/story` or `/implement` |
+| Adversarially evaluate code before opening a PR | `/evaluate` |
+| Debug a hard or recurring bug | `/debug` |
+| Investigate a behavioral bug (wrong output, wrong logic) | `/troubleshoot` |
+| Drive a PR to zero review threads | `/babysit-pr` |
+| Deploy and verify (branch-test or post-merge) | `/deploy` |
+| Run build + tests at 3 levels | `/local-test` |
+| Plan a sprint from the tracker | `/sprint-plan` |
+| Ask about sprint status, blockers, or todos | `/pa` |
+| Run a weekly self-improvement loop on the harness | `/retro` |
+
+---
+
 ## Quick start
 
 ```bash

@@ -29,6 +29,9 @@ desktop.ini
 *~
 .vscode/settings.json
 
+# Local-only working state (planning notes, scratch work)
+_local/
+
 # Node — devDeps for tests/lint live at repo root; never copied by installer
 node_modules/
 coverage/
