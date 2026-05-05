@@ -61,6 +61,21 @@ Where PHASE is DECIDE, DEFINE, BUILD, SHIP, or LEARN.
 - `tasks/stories/<id>/decision-brief.md` → read by `story-understand-agent` (brief section 8) and `story-plan-agent` (dealbreaker coverage check)
 - `decision-brief.md` (repo root) → read by `implement-planner-agent` (fallback location for solo pack)
 
+### Gate taxonomy
+
+Every checkpoint in a skill should be one of these 4 types:
+
+| Type | Purpose | Behavior | Example |
+|---|---|---|---|
+| **Pre-flight** | Validate preconditions before starting | Block entry if unmet | Decision Brief input gate (refuse without strategy doc + research) |
+| **Revision** | Evaluate output quality, loop back with feedback | Bounded by iteration cap + stall detection | Plan-checker loop (max 3 iterations, escalate if stalling) |
+| **Escalation** | Surface unresolvable issues to the developer | Present options, wait for human decision | 3-attempt rule (stop retrying, invoke /debug) |
+| **Abort** | Terminate to prevent damage | Preserve state, stop immediately | safety-check.js (block destructive git commands) |
+
+**Selection heuristic:** Start with pre-flight. After work is produced → revision. Can't resolve → escalate. Dangerous to continue → abort.
+
+When adding gates to a new skill, classify each one in your SKILL.md so reviewers can verify the behavior matches the type.
+
 ### Skill guidelines
 
 - Use `YOUR_NAME`, `YOUR_PROJECT_ROOT`, `YOUR_ORG` placeholders — never hardcode names or paths

@@ -134,6 +134,17 @@ This agent runs with `permissionMode: bypassPermissions` — tool calls execute 
 - You may NOT access files outside `YOUR_PROJECT_ROOT`
 - You may NOT install packages, modify configs, or change infrastructure
 
+## Files you must NEVER modify
+
+These are orchestrator-owned. If a task's `<action>` implies modifying one of these, report BLOCKED — do not proceed.
+
+- Anything in `tasks/` — `todo.md`, `lessons.md`, `flags-and-notes.md`, `pr-queue.md`, `people.md`, `tracker-config.md`, `sprint*.md`, `stories/*/brief.md`, `stories/*/plan.md`, `stories/*/test-strategy.md`
+- `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json`
+- Anything in `docs/` — architecture docs are reference specifications
+- `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md`
+
+---
+
 ## What NOT to do
 
 - Do NOT commit or stage anything — Phase 4 handles all git operations
