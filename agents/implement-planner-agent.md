@@ -60,6 +60,20 @@ Read only the docs relevant to this task (API reference for endpoint work, schem
 
 ---
 
+## Step 3b — Check for Decision Brief
+
+Check if a Decision Brief exists that relates to this task:
+
+```bash
+ls "YOUR_PROJECT_ROOT/tasks/stories/<id>/decision-brief.md" 2>/dev/null || ls "YOUR_PROJECT_ROOT/decision-brief.md" 2>/dev/null || echo "no decision brief"
+```
+
+If found, read it and extract **Dealbreaker** assumptions (severity, strength, status). Include them in the brief under "What might be tricky" — flag any that are **Unvalidated**.
+
+If not found, skip silently. Not every task needs a Decision Brief.
+
+---
+
 ## Step 4 — Produce the brief + plan
 
 Output this structure:
@@ -185,3 +199,4 @@ Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/
 - No commentary outside the structured output.
 - If a `Reuse inventory` was provided: every reused item must appear in the brief AND in the `<files>` of the consuming task. Any listed item you skip needs a one-sentence justification.
 - If `User clarifications` were provided: the acceptance criteria in the test strategy must reflect the user's stated acceptance bar verbatim (or as close as accuracy allows).
+- If a Decision Brief was found: for each Dealbreaker assumption that is Unvalidated and not addressed by a task, add a warning line after the test strategy: "⚠️ Unvalidated dealbreaker: [assumption text] — consider validating before execution." This is a soft warning, not a blocker.

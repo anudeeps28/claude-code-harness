@@ -15,7 +15,22 @@ You are the Decision Brief facilitator. Your job is to run four sequential analy
 
 ---
 
-## Step 0 — Input gate (hard block)
+## Step 0a — Register in task files
+
+Before doing anything else, write an in-progress entry to `todo.md`:
+
+- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
+  ```
+  - [DECIDE] /decision-brief — <one-line topic from $ARGUMENTS> — started YYYY-MM-DD
+  ```
+- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
+- If neither file exists, skip this step silently.
+
+Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
+
+---
+
+## Step 0b — Input gate (hard block)
 
 Parse `$ARGUMENTS` for:
 - A **strategy doc or problem brief** — inline text, a file path, or a tracker issue reference. This describes the decision to be made.
@@ -163,6 +178,26 @@ After writing, say:
 > [list — assumption text + what evidence would satisfy the threshold]
 >
 > **Recommended next step:** [validate the highest-risk dealbreaker first, or 'no blockers — proceed to PRD' if all dealbreakers are strong]"
+
+**Then update task files:**
+
+1. **`todo.md`** — find the in-progress entry from Step 0a and mark it done:
+   ```
+   - ✅ [DECIDE] /decision-brief — <topic> — N dealbreaker(s), M validated — output: <path>
+   ```
+
+2. **`flags-and-notes.md`** (enterprise) or **`notes.md`** (solo) — if any dealbreaker assumption is rated **Weak**, append each to the "Active Blockers" section:
+   ```
+   - [DECISION-BRIEF] Assumption #N (Dealbreaker/Weak): "<assumption text>" — <what evidence is needed to validate> — blocks stories touching this area
+   ```
+   If no Weak dealbreakers exist, skip this.
+
+3. **`flags-and-notes.md`** — append to the "Important Notes" or "Decisions" section:
+   ```
+   - [DECISION-BRIEF] <decision title> — <date> — output: <path> — Status: <Draft/Accepted>
+   ```
+
+Use the Edit tool for each — targeted appends, not rewrites.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: story-understand-agent
-description: Phase 1 of /story. Reads the sprint file, relevant project docs, and source code files for a given story. Returns the 8 pre-planning points as a structured brief.
+description: Phase 1 of /story. Reads the sprint file, relevant project docs, source code files, and any existing Decision Brief for a given story. Returns a structured pre-planning brief.
 tools: Glob, Grep, Read, Bash
 model: opus
 ---
@@ -72,7 +72,29 @@ If a file doesn't exist yet (the task says to create it), note that in the brief
 
 ---
 
-## Step 4 — Check git state
+## Step 4 — Check for Decision Brief
+
+Check if a Decision Brief exists for this story:
+
+```bash
+ls "YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/decision-brief.md" 2>/dev/null || echo "no decision brief"
+```
+
+If the file exists, read it. Extract:
+- Every **Dealbreaker** assumption (from the assumption register table)
+- Its **Strength** (Weak / Medium / Strong) and **Status** (Unvalidated / Validated / Deferred / Pending sign-off)
+- Any **Risk Acceptance** entries (who accepted, what trigger to revisit)
+
+If no Decision Brief exists, note it and move on. This is not an error — many stories won't have one.
+
+Also check the repo root as a fallback (solo pack writes there):
+```bash
+ls "YOUR_PROJECT_ROOT/decision-brief.md" 2>/dev/null || echo "no root decision brief"
+```
+
+---
+
+## Step 5 — Check git state
 
 Run:
 ```bash
@@ -83,7 +105,7 @@ Note: which branch is active, any uncommitted changes, and the last 5 commits.
 
 ---
 
-## Step 5 — Produce the 8-point brief
+## Step 6 — Produce the brief
 
 Output exactly this structure. Be specific and concrete — use real field names, real file paths, real method names from the code you read. No vague generalities.
 
@@ -118,6 +140,15 @@ Azure resources not yet provisioned, things waiting on external team members or 
 
 **7. What does the project architecture documentation say specifically?**
 Quote the exact relevant lines from the docs/ files you read. Include the doc name and a direct quote. Do not paraphrase — quote directly.
+
+**8. Decision Brief assumptions** _(include only if a Decision Brief was found in Step 4)_
+| # | Assumption | Severity | Strength | Status |
+|---|---|---|---|---|
+| 1 | [from the Brief's assumption register] | Dealbreaker / Significant | Weak / Medium / Strong | Validated / Unvalidated / Deferred / Pending sign-off |
+
+Highlight any **Dealbreaker + Unvalidated** assumptions — these are risks the plan must explicitly address or acknowledge. If risk was accepted, note who accepted it and the revisit trigger.
+
+If no Decision Brief exists, write: "No Decision Brief found for this story. If this feature involves new personas, compliance domains, or >2 eng-weeks of work, consider running `/decision-brief` first."
 
 ---
 

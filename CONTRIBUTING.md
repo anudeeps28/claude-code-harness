@@ -32,6 +32,35 @@ Your skill instructions here...
 3. Add supporting files in the same folder if needed (templates, scripts, reference docs)
 4. Add your skill to the table in `README.md`
 
+### Cross-phase task file convention
+
+Every skill — including DECIDE and DEFINE phase skills (not just BUILD skills) — must write to task files so that state is recoverable across sessions:
+
+**On start:** append an in-progress entry to `todo.md`:
+```
+- [PHASE] /skill-name — <one-line topic> — started YYYY-MM-DD
+```
+Where PHASE is DECIDE, DEFINE, BUILD, SHIP, or LEARN.
+
+**On completion:** find the in-progress entry and mark it done:
+```
+- ✅ [PHASE] /skill-name — <topic> — <one-line outcome summary> — output: <path or "no file">
+```
+
+**If a blocker is surfaced:** write to `flags-and-notes.md` under "Active Blockers" with the skill name prefix:
+```
+- [SKILL-NAME] <blocker description> — <what's needed to unblock>
+```
+
+**If a major artifact is produced** (Decision Brief, PRD, Architecture doc): log it in `flags-and-notes.md` under "Important Notes" or "Decisions":
+```
+- [SKILL-NAME] <artifact title> — <date> — output: <path> — Status: <Draft/Accepted>
+```
+
+**Downstream integration:** if your skill produces artifacts that BUILD phase agents should read (e.g., decision briefs, research docs), document which agent reads them and where it looks. Currently:
+- `tasks/stories/<id>/decision-brief.md` → read by `story-understand-agent` (brief section 8) and `story-plan-agent` (dealbreaker coverage check)
+- `decision-brief.md` (repo root) → read by `implement-planner-agent` (fallback location for solo pack)
+
 ### Skill guidelines
 
 - Use `YOUR_NAME`, `YOUR_PROJECT_ROOT`, `YOUR_ORG` placeholders — never hardcode names or paths

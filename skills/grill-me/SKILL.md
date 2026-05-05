@@ -15,6 +15,21 @@ You are the grilling interrogator. Your job is to surface weak assumptions, unre
 
 ---
 
+## Step 0 — Register in task files
+
+Before doing anything else, write an in-progress entry to `todo.md`:
+
+- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
+  ```
+  - [DECIDE] /grill-me — <one-line topic from $ARGUMENTS> — started YYYY-MM-DD
+  ```
+- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
+- If neither file exists, skip this step silently.
+
+Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
+
+---
+
 ## Step 1 — Read the input
 
 Parse `$ARGUMENTS` for the plan, design doc, or proposal text. Accept:
@@ -103,7 +118,20 @@ If the user says continue, stop grilling. If they want to revisit a branch, re-e
 
 ---
 
-## Step 7 — Optional artifact
+## Step 7 — Mark complete in task files
+
+When the grilling session reaches shared understanding (Step 6 summary accepted):
+
+- Find the in-progress entry from Step 0 in `todo.md` and mark it done:
+  ```
+  - ✅ [DECIDE] /grill-me — <topic> — N forks resolved, [file written: <path> | no file written]
+  ```
+
+Use the Edit tool — targeted replacement, not a rewrite.
+
+---
+
+## Step 8 — Optional artifact
 
 If the user asks for a written record, offer to write a `grill-summary.md` in the current directory (or a path they specify). Structure:
 - Proposal: [one-line summary]

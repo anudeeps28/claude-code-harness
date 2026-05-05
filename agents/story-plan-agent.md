@@ -136,6 +136,31 @@ Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
 ---
 
+## Decision Brief coverage check
+
+If the brief includes section "8. Decision Brief assumptions" with dealbreaker entries, run this check after generating the plan:
+
+For each **Dealbreaker** assumption listed in section 8:
+- Does at least one task in the plan directly address or validate it?
+- Is the assumption's status **Validated**, **Deferred (risk accepted)**, or still **Unvalidated**?
+
+Output a **Decision Brief coverage table** between the parallelism rationale table and the XML block:
+
+| Assumption # | Assumption | Status | Covered by task(s) | Notes |
+|---|---|---|---|---|
+| 1 | [text] | Validated | Task 2, Task 4 | — |
+| 2 | [text] | Unvalidated | — | ⚠️ No task addresses this — YOUR_NAME should validate before execution or accept the risk |
+
+If any Dealbreaker assumption is **Unvalidated** and not covered by a task, add a warning:
+
+> "⚠️ [N] dealbreaker assumption(s) from the Decision Brief are unvalidated and not addressed by any task in this plan. Review these at STOP 2 before approving execution."
+
+This is a **soft warning** — it does not block plan generation. YOUR_NAME decides whether to proceed, add a task, or validate the assumption first.
+
+If section 8 says "No Decision Brief found", skip this check entirely.
+
+---
+
 ## Quality checklist — verify each task before outputting
 
 - [ ] `<files>` lists every file that will be touched (not just modified — also files that must be read to implement correctly)
