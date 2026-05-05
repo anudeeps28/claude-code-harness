@@ -17,13 +17,31 @@ Create detailed Product Requirements Documents that are clear, actionable, and s
 
 ---
 
+## Step 0 — Determine output mode
+
+Before starting, read the PRD output mode from the project's task configuration:
+
+1. **Enterprise pack:** read `tasks/tracker-config.md` and look for a `## PRD Configuration` section with a `prd_mode` value.
+2. **Solo pack:** read `tasks/notes.md` and look for a `## PRD Configuration` section with a `prd_mode` value.
+3. **If no config found:** default to `file` mode.
+
+Valid modes:
+- `file` — write `PRD.md` to the repo (default)
+- `tracker` — publish as a single tracker issue with label `needs-triage`
+- `both-file-canonical` — write `PRD.md` AND publish to tracker; file is canonical
+- `both-tracker-canonical` — write `PRD.md` AND publish to tracker; tracker is canonical
+
+Store the resolved mode for use in the Output step.
+
+---
+
 ## The Job
 
 1. Receive a feature description from the user
 2. Ask 3-5 essential clarifying questions (with lettered options)
 3. Generate a structured PRD based on answers
-4. Save to `PRD.md`
-5. Create empty `progress.txt`
+4. Output the PRD according to the configured mode (see Step 0 and Output section)
+5. If mode includes `file`: create empty `progress.txt`
 
 **Important:** Do NOT start implementing. Just create the PRD.
 
@@ -244,9 +262,11 @@ Add priority levels to tasks so users can focus on what matters most. Tasks can 
 
 ## Output
 
-Save to `PRD.md` in the current directory.
+Output according to the mode resolved in Step 0:
 
-Also create `progress.txt`:
+### Mode: `file` (default)
+
+Save to `PRD.md` in the current directory. Also create `progress.txt`:
 ```markdown
 # Progress Log
 
@@ -255,6 +275,32 @@ Also create `progress.txt`:
 
 ---
 ```
+
+### Mode: `tracker`
+
+Publish the PRD as a single tracker issue using `trackers/active/create-issue.sh`:
+```bash
+bash trackers/active/create-issue.sh "PRD: <feature title>" "<full PRD content as markdown>" "needs-triage"
+```
+Do NOT create `PRD.md` or `progress.txt`.
+
+### Mode: `both-file-canonical`
+
+1. Save `PRD.md` and `progress.txt` as in `file` mode — this is the canonical copy.
+2. Publish to the tracker as in `tracker` mode.
+3. Add a note at the top of the tracker issue: `> Canonical source: PRD.md in the repo. This tracker copy is a mirror — update the file, not this issue.`
+
+### Mode: `both-tracker-canonical`
+
+1. Publish to the tracker as in `tracker` mode — this is the canonical copy.
+2. Save `PRD.md` and `progress.txt` as in `file` mode.
+3. Add a note at the top of `PRD.md`: `<!-- Canonical source: tracker issue. This file is a mirror — update the tracker issue, not this file. -->`
+
+### After output
+
+Report which mode was used and where the PRD was written:
+> "PRD written to [location(s)]. Mode: `[mode]`.
+> [If both mode:] Canonical source is [file / tracker]. The other copy is a mirror — update only the canonical source."
 
 ---
 

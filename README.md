@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-16 skills, 14 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+17 skills, 14 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -68,7 +68,7 @@ The harness covers the full software development lifecycle. Each phase has dedic
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me<br/>/decision-brief ✦"]
-    P1["Define<br/>/research ✦ · /prototype ✦<br/>/prd · /prd-critique ✦<br/>/architect ✦ · /to-issues"]
+    P1["Define<br/>/research ✦ · /prototype ✦<br/>/prd · /prd-critique<br/>/architect ✦ · /to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness<br/>/triage ✦ · /improve-arch ✦"]
@@ -88,7 +88,7 @@ flowchart LR
 | Cache research on an external API or integration | `/research` ✦ |
 | Test a UI or architecture approach before committing | `/prototype` ✦ |
 | Write a PRD | `/prd` |
-| Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` ✦ |
+| Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` |
 | Design the system architecture | `/architect` ✦ |
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
 | Build a feature from an issue | `/story` or `/implement` |
@@ -117,8 +117,9 @@ The installer asks:
 1. **Solo or Enterprise?** — Simpler issues workflow or full sprint ceremony
 2. **Global or project?** — `~/.claude/` (all projects) or `.claude/` (one repo)
 3. **Tracker** — GitHub (solo default) or ADO + GitHub (enterprise)
-4. **Your details** — Name, org, project paths. Fills in all placeholders automatically.
-5. **CONTEXT.md + ADR** (project only) — Copies a domain glossary template and ADR convention to your project root.
+4. **PRD output mode** — File only, tracker only, or both (with canonical source choice)
+5. **Your details** — Name, org, project paths. Fills in all placeholders automatically.
+6. **CONTEXT.md + ADR** (project only) — Copies a domain glossary template and ADR convention to your project root.
 
 Then:
 - **Solo:** `/implement #42` or `/plan`
@@ -166,6 +167,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **improve-harness** | `/improve-harness [days]` | Self-improvement loop — finds recurring friction in recent sessions/evaluations and proposes harness edits. Never auto-applies |
 | **grill-me** | `/grill-me <plan or design>` | Decision-tree interrogation of a plan, design, or proposal — serial questions with recommendations until shared understanding is reached |
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
+| **prd-critique** | `/prd-critique <path> [--brief <path>]` | Run 6 critique checks on a PRD — metric validity, NFR specificity, failure modes, assumption traceability, rollback plan, intent clarity. Read-only |
 | **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |
 
 ---
@@ -360,11 +362,12 @@ The installer creates different task files based on your workflow pack:
 ## Customization
 
 ### Works out of the box
-`/implement`, `/plan`, `/story`, `/babysit-pr`, `/sprint-plan`, `/run-tasks`, `/debug`, `/troubleshoot`, `/evaluate`, `/prd`, `/pa`
+`/implement`, `/plan`, `/story`, `/babysit-pr`, `/sprint-plan`, `/run-tasks`, `/debug`, `/troubleshoot`, `/evaluate`, `/prd`, `/prd-critique`, `/pa`
 
 ### Needs configuration
 - **`/deploy`** — Fill in cloud resource names in `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo).
 - **`/local-test`** — Fill in the "Test Commands" section of `tasks/lessons.md` with your stack's build/test/integration commands. The skill is stack-agnostic and reads commands from there.
+- **`/prd` output mode** — The installer asks where PRDs should live (file, tracker, or both). To change later, edit `prd_mode` in `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo). Options: `file`, `tracker`, `both-file-canonical`, `both-tracker-canonical`.
 - **Task files** — Add your project's code conventions, known fixes, and build commands.
 
 ### Stack-agnostic
@@ -376,7 +379,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 16 skills
+├── skills/           ← 17 skills
 ├── agents/           ← 14 sub-agents
 ├── hooks/            ← 6 automated hooks
 ├── rules/            ← 5 path-scoped rules

@@ -249,6 +249,23 @@ if [[ "$WORKFLOW_PACK" == "enterprise" ]]; then
   read -p "    QA / UAT person                        : " QA_PERSON
 fi
 
+# ── PRD output mode ──────────────────────────────────────────────────────
+echo "  Where should PRDs live?"
+echo ""
+echo "    1) File in repo          — PRD.md (default)"
+echo "    2) Tracker issue         — published to your issue tracker"
+echo "    3) Both — file canonical — PRD.md is source of truth, tracker is mirror"
+echo "    4) Both — tracker canonical — tracker issue is source of truth, file is mirror"
+echo ""
+read -p "  Choice [1/2/3/4]: " prd_choice
+echo ""
+case "$prd_choice" in
+  2) PRD_MODE="tracker" ;;
+  3) PRD_MODE="both-file-canonical" ;;
+  4) PRD_MODE="both-tracker-canonical" ;;
+  *) PRD_MODE="file" ;;
+esac
+
 if [[ "$MODE" == "global" ]]; then
   read -p "    Work root (folder containing projects) : " WORK_ROOT
 fi
@@ -425,6 +442,16 @@ if [[ "$MODE" == "project" ]]; then
       echo "    Skipped (exists): tasks/stories/$fname"
     fi
   done
+
+  # Substitute PRD mode in newly-created task files
+  if [[ "$WORKFLOW_PACK" == "solo" ]]; then
+    TASK_CONFIG="$PROJECT_DIR/tasks/notes.md"
+  else
+    TASK_CONFIG="$PROJECT_DIR/tasks/tracker-config.md"
+  fi
+  if [[ -f "$TASK_CONFIG" ]]; then
+    sed -i "s|YOUR_PRD_MODE|$PRD_MODE|g" "$TASK_CONFIG" 2>/dev/null || true
+  fi
 fi
 
 # ── CONTEXT.md + ADR convention (project installs only) ──────────────────────
@@ -510,6 +537,7 @@ find "${SED_DIRS[@]}" -type f 2>/dev/null | while read -r file; do
     -e "s|YOUR_DEVOPS_PERSON|$DEVOPS_PERSON|g" \
     -e "s|YOUR_QA_PERSON|$QA_PERSON|g" \
     -e "s|YOUR_HARNESS_REPO_PATH|$HARNESS_REPO_PATH|g" \
+    -e "s|YOUR_PRD_MODE|$PRD_MODE|g" \
     "$file" 2>/dev/null || true
 
   # Work root (global only) — legacy PowerShell catalog-skills.ps1 placeholder.

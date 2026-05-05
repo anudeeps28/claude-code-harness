@@ -32,6 +32,22 @@ Required when `sprint_mode = project`. This is the number from your project URL:
 
 ---
 
+## PRD Configuration
+
+Where PRDs are stored. The `/prd` skill reads this at start to determine output mode.
+
+```
+prd_mode = YOUR_PRD_MODE
+```
+
+Options:
+- `file` — write `PRD.md` to the repo (default)
+- `tracker` — publish as a tracker issue only
+- `both-file-canonical` — file + tracker; file is canonical
+- `both-tracker-canonical` — file + tracker; tracker is canonical
+
+---
+
 ## Environments
 
 | Environment | API Base URL | Notes |

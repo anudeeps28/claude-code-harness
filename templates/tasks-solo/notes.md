@@ -25,6 +25,22 @@ Running log of decisions, conventions, known fixes, and things to remember. Clau
 
 ---
 
+## PRD Configuration
+
+Where PRDs are stored. The `/prd` skill reads this at start to determine output mode.
+
+```
+prd_mode = YOUR_PRD_MODE
+```
+
+Options:
+- `file` — write `PRD.md` to the repo (default)
+- `tracker` — publish as a tracker issue only
+- `both-file-canonical` — file + tracker; file is canonical
+- `both-tracker-canonical` — file + tracker; tracker is canonical
+
+---
+
 ## Git Rules
 
 - **Branch naming:** `implement/<issue-id>-<short-description>` (e.g. `implement/42-dark-mode`)

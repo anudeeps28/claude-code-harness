@@ -161,6 +161,17 @@ async function main() {
     qaPerson     = (await ask('    QA / UAT person                        : ')).trim() || qaPerson;
   }
 
+  // ── PRD output mode ──────────────────────────────────────────────────────
+  console.log('  Where should PRDs live?\n');
+  console.log('    1) File in repo          — PRD.md (default)');
+  console.log('    2) Tracker issue         — published to your issue tracker');
+  console.log('    3) Both — file canonical — PRD.md is source of truth, tracker is mirror');
+  console.log('    4) Both — tracker canonical — tracker issue is source of truth, file is mirror\n');
+  const prdChoice = (await ask('  Choice [1/2/3/4]: ')).trim();
+  console.log('');
+  const prdModeMap = { '1': 'file', '2': 'tracker', '3': 'both-file-canonical', '4': 'both-tracker-canonical' };
+  const prdMode = prdModeMap[prdChoice] || 'file';
+
   let workRoot = '';
   if (mode === 'global') {
     workRoot = (await ask('    Work root (folder containing projects) : ')).trim() || 'C:\\YOUR_WORK_FOLDER';
@@ -234,6 +245,14 @@ async function main() {
       path.join(projectDir, 'tasks/stories'),
       'tasks/stories',
     );
+
+    // Substitute PRD mode in newly-created task files
+    const taskConfigFile = workflowPack === 'solo'
+      ? path.join(projectDir, 'tasks/notes.md')
+      : path.join(projectDir, 'tasks/tracker-config.md');
+    if (fs.existsSync(taskConfigFile)) {
+      substituteInFile(taskConfigFile, [['YOUR_PRD_MODE', prdMode]]);
+    }
   }
 
   // ── CONTEXT.md + ADR convention (project installs only) ───────────────────
@@ -282,6 +301,7 @@ async function main() {
     adoProject, adoRepo, adoOrgPath,
     orgName, leadDev, infraPerson, devopsPerson, qaPerson,
     harnessRepoPath, workRoot, isGlobal: mode === 'global',
+    prdMode,
   });
 
   const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers']
@@ -444,6 +464,7 @@ function buildSubstitutions(opts) {
     ['YOUR_DEVOPS_PERSON', opts.devopsPerson],
     ['YOUR_QA_PERSON', opts.qaPerson],
     ['YOUR_HARNESS_REPO_PATH', opts.harnessRepoPath],
+    ['YOUR_PRD_MODE', opts.prdMode || 'file'],
   ];
   if (opts.isGlobal && opts.workRoot) {
     subs.push(['C:\\YOUR_WORK_FOLDER', opts.workRoot]);
