@@ -95,7 +95,7 @@ Then output the **parallelism rationale table**:
 
 Then output the XML block. No markdown wrapper around the XML, no preamble, no explanation.
 
-Then immediately save the summary, test strategy, rationale table, and XML block to `todo.md` (see "Save to todo.md" below). Also save the test strategy separately to `YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/test-strategy.md`.
+Then immediately save the summary, test strategy, rationale table, and XML block to `todo.md` (see "Save to todo.md" below). Also save the test strategy as a standalone file (see "Save test-strategy.md" below).
 
 ```xml
 <tasks story="<STORY_ID>">
@@ -135,6 +135,37 @@ Find the section for this story (search for the story ID, e.g. `## #10165` or `#
 ```
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
+
+---
+
+## Save test-strategy.md
+
+After saving to todo.md, write the test strategy to a standalone file at `YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/test-strategy.md`. This file is the contract between Phase 2 (planning) and Phase 3.6 (acceptance testing). The acceptance-test-agent reads it to verify the feature works.
+
+Create the directory if it doesn't exist:
+```bash
+mkdir -p YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>
+```
+
+Write the file with this exact structure:
+
+```markdown
+# Test Strategy — Story #<STORY_ID>
+
+## Acceptance Criteria
+1. [User/system does X] → [expected outcome Y]
+...
+
+## Integration Test Scenarios
+1. [Component A calls Component B] → [expected behavior]
+...
+
+## Regression Guardrails
+1. [Existing feature X must still do Y]
+...
+```
+
+**Do not skip this step.** If the acceptance-test-agent cannot read `test-strategy.md`, it has no criteria to verify against.
 
 ---
 
@@ -199,4 +230,5 @@ The following are **NOT valid reasons** to split, defer, or reduce scope:
 - [ ] **Test tasks exist** — at least one `type="test"` task in the plan that writes unit/integration tests for the new code
 - [ ] **Test tasks are properly ordered** — in the same wave or next wave after the code they test, never deferred
 - [ ] **Every acceptance criterion is testable** — no vague criteria like "it should work well"
+- [ ] **Test strategy was saved** to `tasks/stories/<STORY_ID>/test-strategy.md` as a standalone file (not just inline in the plan output)
 - [ ] **No scope reduction language** — task actions must NOT contain: "v1", "v2", "simplified", "static for now", "hardcoded", "future enhancement", "placeholder", "minimal", "will wire later", "dynamic later". If you find yourself writing any of these, you are silently reducing scope. Either deliver the full committed scope OR propose splitting the work into a separate task with an explicit phase split rationale.

@@ -99,6 +99,13 @@ Wait for it to return the brief + plan. Output it under:
 
 ### Implementation plan
 
+**Verify the handoff contracts:** The planner agent should have saved these files. Confirm each exists:
+- `tasks/stories/<id>/plan.md` — the brief + XML task plan
+- `tasks/stories/<id>/test-strategy.md` — acceptance criteria, integration scenarios, regression guardrails
+- `tasks/todo.md` — contains the `<tasks>` XML block for `/run-tasks` resumability
+
+If any are missing, extract the relevant section from the plan output and save it. The `test-strategy.md` file is critical — the acceptance-test-agent in Phase 3 reads it.
+
 Then say **exactly:**
 
 ---
@@ -139,6 +146,8 @@ For **each wave:**
 | Task | Name | Result | Summary |
 |---|---|---|---|
 | 1 | "..." | PASS/FAIL/BLOCKED | [one line] |
+
+**C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection.
 
 **D. STOP after each wave:**
 

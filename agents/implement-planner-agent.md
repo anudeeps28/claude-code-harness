@@ -205,6 +205,27 @@ Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/
 
 ---
 
+## Step 6 — Save to todo.md
+
+After saving the plan files, write the `<tasks>` XML block to `YOUR_PROJECT_ROOT/tasks/todo.md` so that `/run-tasks` can find and resume the work if the session is interrupted.
+
+Find a section for this task (search for the issue ID or task name). If the section exists, append the plain English summary and XML block at the end of that section. If no section exists, append to the bottom of the file:
+
+```
+## #<ID> — Execution Plan
+
+1. Task name — one sentence what it does
+...
+
+<tasks story="<ID_OR_NAME>">
+  ... (full XML here)
+</tasks>
+```
+
+Use the Edit tool — one targeted append. Do NOT rewrite the whole file. If `todo.md` does not exist, create it with just the section above.
+
+---
+
 ## Planner authority limits
 
 You have only 3 legitimate reasons to split a task, defer work, or flag something as out of scope:

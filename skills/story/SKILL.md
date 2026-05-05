@@ -73,6 +73,7 @@ Wait for it to return the XML task plan and test strategy. Output it under the h
 **Write the handoff contracts:**
 - Save the full plan (XML + wave summary + rationale) to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/plan.md` using the structure from the plan template.
 - Verify the test strategy was saved to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/test-strategy.md`. If it wasn't, extract the test strategy section from the plan output and save it there.
+- Verify the XML tasks were also written to `YOUR_PROJECT_ROOT/tasks/todo.md` by the plan agent. If missing, append the `<tasks story="$ARGUMENTS">` block to `todo.md`. This enables `/run-tasks` to resume execution if the session is interrupted.
 
 Then say **exactly**:
 
