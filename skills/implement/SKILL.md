@@ -166,7 +166,7 @@ If tests pass → proceed to Phase 3.
 
 **If `--quick` was passed:** Skip evaluation and acceptance testing, go straight to PR preparation.
 
-**Otherwise:** Spawn **both agents in parallel** (foreground):
+**Otherwise:** Spawn **all four review agents in parallel** (foreground):
 
 **Agent 1 — Evaluator:** Spawn an **`evaluator-agent`** with:
 
@@ -180,13 +180,23 @@ If tests pass → proceed to Phase 3.
 > Test strategy path: YOUR_PROJECT_ROOT/tasks/stories/<id>/test-strategy.md
 > Plan path: YOUR_PROJECT_ROOT/tasks/stories/<id>/plan.md
 
-Wait for **both** to return. Show both reports.
+**Agent 3 — Architect Reviewer:** Spawn an **`architect-reviewer-agent`** with:
+
+> Story ID: [issue ID or "implement/<branch-name>"]
+
+**Agent 4 — Security Reviewer:** Spawn a **`security-reviewer-agent`** with:
+
+> Story ID: [issue ID or "implement/<branch-name>"]
+
+Wait for **all four** to return. Show all reports.
 
 **If evaluator hard gates fail:** Fix first, re-run evaluation.
 
 **If acceptance test says NOT ACCEPTED:** Fix the failed criteria first. The feature doesn't work as intended.
 
-**If findings >= 75% confidence or acceptance gaps exist:** Show them. For each: YOUR_NAME says "fix" or "skip".
+**If architect-reviewer or security-reviewer has BLOCK findings:** Fix first. Architectural violations and security vulnerabilities cannot ship.
+
+**If findings >= 75% confidence, acceptance gaps, or ADVISORY findings exist:** Show them. For each: YOUR_NAME says "fix" or "skip".
 
 **After evaluation + acceptance pass (or were skipped with `--quick`):**
 

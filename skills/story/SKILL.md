@@ -182,9 +182,9 @@ If `/local-test` passes, proceed directly to Phase 3.6.
 
 ---
 
-## Phase 3.6 — Evaluation + Acceptance Testing
+## Phase 3.6 — Evaluation + Acceptance Testing + Architecture + Security Review
 
-After local tests pass, spawn **both agents in parallel** (foreground):
+After local tests pass, spawn **all four agents in parallel** (foreground). Each has fresh context and a different adversarial lens:
 
 **Agent 1 — Evaluator:** Spawn an **`evaluator-agent`** with:
 
@@ -198,13 +198,27 @@ After local tests pass, spawn **both agents in parallel** (foreground):
 > Test strategy path: YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/test-strategy.md
 > Plan path: YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/plan.md
 
-Wait for **both** to return.
+**Agent 3 — Architect Reviewer:** Spawn an **`architect-reviewer-agent`** with:
+
+> Story ID: $ARGUMENTS
+
+_(This agent finds its own architecture artifacts via Glob. No path needed.)_
+
+**Agent 4 — Security Reviewer:** Spawn a **`security-reviewer-agent`** with:
+
+> Story ID: $ARGUMENTS
+
+_(This agent reads security rules and architecture security section on its own.)_
+
+Wait for **all four** to return.
 
 **Write the handoff contracts:**
 - Save the evaluation report to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/evaluation.md`
 - Save the acceptance report to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/acceptance.md`
+- Save the architecture review to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/architecture-review.md`
+- Save the security review to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/security-review.md`
 
-Output both reports under headings:
+Output all reports under headings:
 
 ### Evaluation report for #$ARGUMENTS
 
@@ -214,7 +228,15 @@ Output both reports under headings:
 
 [acceptance report]
 
-Then act on the **combined** verdict:
+### Architecture review for #$ARGUMENTS
+
+[architect-reviewer report]
+
+### Security review for #$ARGUMENTS
+
+[security-reviewer report]
+
+Then act on the **combined** verdict from all four:
 
 **If evaluator says ❌ NO (hard gates failed):**
 This should not happen if Phase 3.5 passed — but if it does, do NOT proceed. Show the failures and fix them first.
@@ -222,13 +244,18 @@ This should not happen if Phase 3.5 passed — but if it does, do NOT proceed. S
 **If acceptance test says NOT ACCEPTED:**
 Do NOT proceed. Show the failed acceptance criteria. These must be fixed — the feature doesn't work as intended.
 
-**If either has findings (⚠️ WITH CAVEATS or ACCEPTED WITH GAPS):**
+**If architect-reviewer or security-reviewer has BLOCK findings:**
+Do NOT proceed. Show the BLOCK findings. These must be fixed — architectural violations and security vulnerabilities cannot ship.
+
+**If any agent has findings (⚠️ WITH CAVEATS, ACCEPTED WITH GAPS, or ADVISORY findings):**
 
 ---
-**STOP 3.6 — Review found issues in both reports.**
+**STOP 3.6 — Review found issues across all four reports.**
 
 **Evaluation:** [N] findings with >= 75% confidence.
 **Acceptance:** [M] criteria FAIL/PARTIAL, [K] integration gaps, [J] regression concerns.
+**Architecture:** [N] findings ([B] BLOCK, [A] ADVISORY).
+**Security:** [N] findings ([B] BLOCK, [A] ADVISORY, [P] PHI/PII risks).
 
 Review each finding above. For each: say "fix" (I'll address it before PR) or "skip" (acceptable, proceed). Or say "proceed" to move to Phase 4 with findings as-is.
 
@@ -236,12 +263,12 @@ Review each finding above. For each: say "fix" (I'll address it before PR) or "s
 
 Do NOT proceed until YOUR_NAME responds.
 
-**If both pass (✅ YES and ACCEPTED):**
+**If all four pass (✅ YES, ACCEPTED, CLEAR, CLEAR):**
 
 Say:
 
 ---
-**Evaluation passed and feature accepted — no blockers, no failed criteria. Ready for Phase 4 — Commit + PR?**
+**All reviews passed — evaluation clear, feature accepted, architecture aligned, security clear. Ready for Phase 4 — Commit + PR?**
 
 ---
 
@@ -278,7 +305,7 @@ Wait for YOUR_NAME to run the git commands and confirm. Only then raise the PR u
 ## Hard rules (never break these)
 
 - Never chain phases — always wait for explicit confirmation at each STOP
-- Never skip Phase 3.6 (evaluation + acceptance testing) — even if changes look trivial, always run both agents
+- Never skip Phase 3.6 (evaluation + acceptance + architecture + security review) — even if changes look trivial, always run all four agents
 - Never commit during Phase 3 — all commits happen in Phase 4
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - Always follow the git commit format from `tasks/lessons.md`

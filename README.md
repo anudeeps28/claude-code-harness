@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-21 skills, 14 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+21 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -95,7 +95,7 @@ flowchart LR
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
 | Build a feature from an issue | `/story` or `/implement` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
-| Debug a hard or recurring bug | `/debug` |
+| Debug a hard or recurring bug | `/debug` (or `/diagnose`) |
 | Investigate a behavioral bug (wrong output, wrong logic) | `/troubleshoot` |
 | Drive a PR to zero review threads | `/babysit-pr` |
 | Deploy and verify (branch-test or post-merge) | `/deploy` |
@@ -159,7 +159,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | Skill | Usage | What it does |
 |---|---|---|
 | **evaluate** | `/evaluate` | Adversarial quality check before PR |
-| **debug** | `/debug` | Root cause diagnosis when the 3-attempt rule triggers |
+| **debug** | `/debug` (alias: `/diagnose`) | Feedback-loop-first diagnosis — builds a deterministic pass/fail signal, then tests ranked falsifiable hypotheses one at a time |
 | **troubleshoot** | `/troubleshoot` | Deep behavioral bug investigation (up to 5 iterations) |
 | **deploy** | `/deploy` | Deploy and verify (branch-test or post-merge modes) |
 | **local-test** | `/local-test [1\|2\|3]` | Build, test, and Docker integration at 3 levels |
@@ -235,12 +235,14 @@ Phase 3: EXECUTE (wave by wave)
 Phase 3.5: LOCAL VERIFICATION
   → Runs /local-test to verify full build + all tests pass (stack-agnostic, reads lessons.md)
 
-Phase 3.6: EVALUATION + ACCEPTANCE TESTING (parallel)
-  → Spawns evaluator-agent + acceptance-test-agent in parallel
-  → Evaluator: build, tests, plan compliance, test coverage, security, code quality
+Phase 3.6: EVALUATION + ACCEPTANCE + ARCHITECTURE + SECURITY REVIEW (parallel)
+  → Spawns 4 agents in parallel, each with fresh adversarial context
+  → Evaluator: build, tests, plan compliance, test coverage, code quality
   → Acceptance tester: verifies acceptance criteria, integration points, regression guardrails
-  → Writes handoff contracts: evaluation.md + acceptance.md
-  → STOP 3.6: Review findings from both — "fix" or "skip" each
+  → Architect reviewer: architecture drift, NFR compliance, data-flow integrity
+  → Security reviewer: OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns
+  → Writes handoff contracts: evaluation.md + acceptance.md + architecture-review.md + security-review.md
+  → STOP 3.6: Review findings from all four — "fix" or "skip" each
 
 Phase 4: COMMIT + PR
   → Drafts atomic commit messages
@@ -259,8 +261,10 @@ Phase 4: COMMIT + PR
 | `story-plan-agent` | opus | `/story` Phase 2 | Produces XML task plan |
 | `story-executor-agent` | sonnet | `/story`, `/implement` | Writes code for one task |
 | `story-pr-agent` | sonnet | `/story` Phase 4 | Commit messages + PR description |
-| `evaluator-agent` | opus | `/evaluate`, `/story` 3.6 | Adversarial quality check + test coverage |
+| `evaluator-agent` | opus | `/evaluate`, `/story` 3.6 | Adversarial quality check + test coverage (no security/arch overlap) |
 | `acceptance-test-agent` | opus | `/story` 3.6, `/implement` 3 | Verifies acceptance criteria, integration, regression |
+| `architect-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 | Architecture drift, NFR compliance, data-flow integrity |
+| `security-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns |
 | `babysit-pr-analyst` | sonnet | `/babysit-pr` | Categorizes threads as fix/reply |
 | `babysit-pr-fixer` | sonnet | `/babysit-pr` | Applies code fixes |
 | `sprint-plan-tracker-reader` | haiku | `/sprint-plan` | Calls tracker CLI |
@@ -332,8 +336,10 @@ tasks/stories/<story-id>/
 ├── plan.md            ← Phase 2 output (XML task plan + rationale)
 ├── test-strategy.md   ← Phase 2 output (acceptance criteria + integration scenarios + regression guardrails)
 ├── executor-state.md  ← Phase 3 output (per-task results, updated per wave)
-├── evaluation.md      ← Phase 3.6 output (evaluator findings + verdict)
-└── acceptance.md      ← Phase 3.6 output (acceptance criteria PASS/FAIL + verdict)
+├── evaluation.md          ← Phase 3.6 output (evaluator findings + verdict)
+├── acceptance.md          ← Phase 3.6 output (acceptance criteria PASS/FAIL + verdict)
+├── architecture-review.md ← Phase 3.6 output (architecture drift + NFR compliance)
+└── security-review.md     ← Phase 3.6 output (security findings + PHI/PII risks)
 ```
 
 This prevents goal drift, makes debugging easier, and lets the evaluator check work against the original plan.

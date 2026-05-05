@@ -25,6 +25,13 @@ These rules apply when reading or modifying any code file.
 - Store secrets in a vault or environment variables — reference by name, not value
 - Use HTTPS for all external API calls
 
+## PHI/PII handling
+- Never log, cache, or return PHI/PII in error messages (SSNs, DOBs, member IDs, health records)
+- Never use PII as cache keys, log correlation IDs, or URL parameters
+- Mask or redact PII in non-production environments and test fixtures
+- If a code change handles regulated data, verify it flows through a path documented in the architecture's data classification table
+- PHI/PII patterns to watch for: `memberId`, `subscriberId`, `ssn`, `dateOfBirth`, `dob`, `socialSecurityNumber`, fields matching `\d{3}-\d{2}-\d{4}`
+
 ## If you spot a vulnerability
 - Flag it immediately in your output — don't silently fix it
 - Describe: what the vulnerability is, where it is (file:line), and how to fix it
