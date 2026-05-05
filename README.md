@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-19 skills, 14 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+21 skills, 14 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -68,7 +68,7 @@ The harness covers the full software development lifecycle. Each phase has dedic
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief ✦"]
-    P1["Define<br/>/research · /prototype ✦<br/>/prd · /prd-critique<br/>/architect ✦ · /to-issues"]
+    P1["Define<br/>/research · /prototype ✦<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness<br/>/triage ✦ · /improve-arch ✦"]
@@ -90,7 +90,8 @@ flowchart LR
 | Test a UI or architecture approach before committing | `/prototype` ✦ |
 | Write a PRD | `/prd` |
 | Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` |
-| Design the system architecture | `/architect` ✦ |
+| Design the system architecture | `/architect` |
+| Critique an architecture doc for gaps and risks | `/architect-critique` |
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
 | Build a feature from an issue | `/story` or `/implement` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
@@ -172,6 +173,8 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |
 | **grill-with-docs** | `/grill-with-docs <plan or design>` | Like /grill-me but anchored in CONTEXT.md and ADRs — challenges vague terms against the glossary, surfaces plan-vs-decision contradictions, updates CONTEXT.md with resolved terms |
 | **research** | `/research <topic> [--urls ...]` | Research an external API, integration, or library — caches provenance-tagged findings in research.md for downstream agents to read |
+| **architect** | `/architect <path-to-PRD>` | Design system architecture from a PRD — interactive 8-section ARCHITECTURE.md with Mermaid diagrams, cost model, and compliance gates |
+| **architect-critique** | `/architect-critique <path> [--prd <path>]` | Run 5 critique axes on an architecture doc — NFR fit, failure modes, cost stress-test, security posture, operability. Read-only |
 
 ---
 
