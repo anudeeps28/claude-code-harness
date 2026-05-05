@@ -108,6 +108,8 @@ Then say **exactly:**
 
 Do NOT proceed until YOUR_NAME responds.
 
+**Plan revision stall detection:** If YOUR_NAME requests changes, re-run the planner with corrections. Track issue count across iterations. If issues don't decrease between consecutive iterations, stop: "Plan revision is stalling — (A) approve as-is, (B) adjust scope, (C) manual control." Max 3 revision iterations before escalating.
+
 ---
 
 ## Phase 2 — Execute (wave by wave)

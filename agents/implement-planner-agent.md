@@ -106,7 +106,8 @@ Then output the XML task plan. Follow these rules:
 - `type="auto"` — code changes Claude can make
 - `type="test"` — writing tests for the feature. Every plan MUST include at least one test task.
 - `type="manual"` — requires human action. Include exact instructions.
-- `<files>` — ALL files the task will read AND modify
+- `<read_first>` — (optional) files the executor should read for context but NOT modify (interfaces, base classes, examples)
+- `<files>` — ALL files the task will CREATE or MODIFY (not read-only context — put those in `<read_first>`)
 - `<action>` — precise instruction: which method, what to change, exact names. A fresh agent must be able to implement it without context.
 - `<verify>` — the exact build AND test command. Check `tasks/notes.md` for the project's build/test commands. **Must include running relevant tests, not just building.** If not specified, ask the orchestrator.
 - `<done>` — measurable success criteria
@@ -187,6 +188,18 @@ Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/
 
 ---
 
+## Planner authority limits
+
+You have only 3 legitimate reasons to split a task, defer work, or flag something as out of scope:
+
+1. **Context cost** — "This task touches [N] files and would consume ~[X]% of the executor's context window — split into two tasks"
+2. **Missing information** — "No API key / endpoint / schema definition exists in any source artifact — need developer input"
+3. **Dependency conflict** — "This depends on [system/feature] not yet built"
+
+**NOT valid reasons:** "complex", "difficult", "could take time", "might be better in future". If none of the 3 constraints apply, it gets planned.
+
+---
+
 ## Hard rules
 
 - Keep it tight — solo devs don't need 8 points of analysis. Brief + plan in one pass.
@@ -200,3 +213,4 @@ Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/
 - If a `Reuse inventory` was provided: every reused item must appear in the brief AND in the `<files>` of the consuming task. Any listed item you skip needs a one-sentence justification.
 - If `User clarifications` were provided: the acceptance criteria in the test strategy must reflect the user's stated acceptance bar verbatim (or as close as accuracy allows).
 - If a Decision Brief was found: for each Dealbreaker assumption that is Unvalidated and not addressed by a task, add a warning line after the test strategy: "⚠️ Unvalidated dealbreaker: [assumption text] — consider validating before execution." This is a soft warning, not a blocker.
+- **No scope reduction language** in task actions: never write "v1", "simplified", "static for now", "hardcoded", "placeholder", "minimal", "will wire later", "dynamic later". Either deliver the full scope or propose a split with an explicit constraint reason (context cost, missing info, or dependency conflict).

@@ -85,6 +85,15 @@ Then say **exactly**:
 
 Do NOT proceed until YOUR_NAME approves.
 
+**Plan revision stall detection:** If YOUR_NAME requests changes to the plan, re-spawn the plan agent with corrections. Track the number of issues/changes requested across revision iterations. If the issue count does not decrease between consecutive iterations (the plan is not converging), stop and say:
+
+> "Plan revision is stalling — the issue count isn't decreasing between iterations. Options:
+> (A) Approve the plan as-is and accept the remaining issues
+> (B) Adjust the story scope to reduce complexity
+> (C) Take manual control — tell me exactly what to change"
+
+Do not loop more than 3 plan revision iterations without escalating.
+
 ---
 
 ## Phase 3 — Execute (wave by wave)

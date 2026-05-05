@@ -132,6 +132,12 @@ Read every changed file in full. For each change, actively try to find:
 - Resource leaks (disposable objects not disposed)
 - Edge cases: empty collections, zero values, max-length strings
 
+### Completeness (confidence-scored, 0-100)
+- Scope reduction: code contains "TODO", "placeholder", "hardcoded for now", "static for now", "will wire later", "v1 only", "simplified", "future enhancement", "minimal implementation" — these indicate the executor silently reduced scope instead of implementing the full requirement
+- Hollow implementations: files exist but contain stub/empty logic (empty method bodies, hardcoded return values, components that render static text instead of real data)
+- Unwired code: new files/classes created but never imported or called by any consumer
+- Missing data flow: components exist but no real data flows through them (hardcoded props, mocked data left in production code)
+
 ### Code Quality (advisory only — never blocks)
 - Dead code introduced
 - Duplicated logic that should be extracted
@@ -218,7 +224,8 @@ Output in this exact format:
 |---|---|---|---|---|
 | 1 | Security | [file:line] | [score]% | [description] |
 | 2 | Robustness | [file:line] | [score]% | [description] |
-| 3 | Quality | [file:line] | — | [description] |
+| 3 | Completeness | [file:line] | [score]% | [description — scope reduction, hollow impl, unwired, missing data flow] |
+| 4 | Quality | [file:line] | — | [description] |
 
 **Findings >= 75% confidence:** [count] (recommend fixing before PR)
 **Findings 50-74% confidence:** [count] (review, human judgment)

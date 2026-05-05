@@ -20,7 +20,8 @@ Convert the brief into atomic, executable `<task>` blocks — one per ADO child 
 - `type="auto"` — code changes Claude can make (edit files, run build)
 - `type="manual"` — requires human action (Azure Portal, or a team member). Include exact instructions.
 - `type="test"` — writing tests for the feature. Every plan MUST include test tasks. Test tasks verify the feature works, not just that it compiles.
-- `<files>` — comma-separated list of ALL files the task will read AND modify. Missing a file = executor fails.
+- `<read_first>` — (optional) comma-separated list of files the executor should read for context BEFORE implementing, but NOT modify. Use this for interface definitions, base classes, or examples the executor needs to understand but won't change. Keeps the executor from accidentally modifying context files.
+- `<files>` — comma-separated list of ALL files the task will CREATE or MODIFY. Missing a file = executor fails. Do NOT include read-only context files here — put those in `<read_first>`.
 - `<action>` — precise implementation instruction: which method, what the current behaviour is, what the new behaviour should be, exact field/property/class names. Specific enough that a fresh agent with no story context could implement it correctly.
 - `<verify>` — the exact command to verify the task succeeded. Check `tasks/lessons.md` for the project's build AND test commands. **Must include running relevant tests, not just building.** Examples: `dotnet build src/<Project>/<Project>.csproj && dotnet test src/<Project>.Tests/<Project>.Tests.csproj --filter "RelevantClass"`, `npm run build && npm test -- --grep "feature"`, `go build ./... && go test ./pkg/feature/...`. Use real project paths.
 - `<done>` — measurable success criteria. What specific output or observable behaviour confirms success?
@@ -100,6 +101,7 @@ Then immediately save the summary, test strategy, rationale table, and XML block
 <tasks story="<STORY_ID>">
   <task id="1" parallel_group="1" type="auto">
     <name>Short name matching the ADO child task title</name>
+    <read_first>src/YOUR_PROJECT_NAMESPACE.Application/Interfaces/IExampleService.cs</read_first>
     <files>src/YOUR_PROJECT_NAMESPACE.Application/DTOs/ExampleDto.cs, src/YOUR_PROJECT_NAMESPACE.API/Controllers/ExampleController.cs</files>
     <action>
       In ExampleController.cs, change GetByIdAsync (line ~45) to call _service.GetDetailAsync instead of GetSummaryAsync.
@@ -161,6 +163,24 @@ If section 8 says "No Decision Brief found", skip this check entirely.
 
 ---
 
+## Planner authority limits
+
+You have only 3 legitimate reasons to split a task, defer work, or flag something as out of scope:
+
+1. **Context cost** — "This task touches [N] files and would consume ~[X]% of the executor's context window — split into two tasks"
+2. **Missing information** — "No API key / endpoint / schema definition exists in any source artifact — need developer input"
+3. **Dependency conflict** — "This depends on [system/feature] built in a different story that is not yet complete"
+
+The following are **NOT valid reasons** to split, defer, or reduce scope:
+- "This is complex and would be difficult to implement correctly"
+- "Integrating with [X] could take a long time"
+- "This might be better left to a future phase/story"
+- "This is a challenging feature"
+
+**Rule: if a feature has none of the 3 legitimate constraints, it gets planned. Period.**
+
+---
+
 ## Quality checklist — verify each task before outputting
 
 - [ ] `<files>` lists every file that will be touched (not just modified — also files that must be read to implement correctly)
@@ -179,3 +199,4 @@ If section 8 says "No Decision Brief found", skip this check entirely.
 - [ ] **Test tasks exist** — at least one `type="test"` task in the plan that writes unit/integration tests for the new code
 - [ ] **Test tasks are properly ordered** — in the same wave or next wave after the code they test, never deferred
 - [ ] **Every acceptance criterion is testable** — no vague criteria like "it should work well"
+- [ ] **No scope reduction language** — task actions must NOT contain: "v1", "v2", "simplified", "static for now", "hardcoded", "future enhancement", "placeholder", "minimal", "will wire later", "dynamic later". If you find yourself writing any of these, you are silently reducing scope. Either deliver the full committed scope OR propose splitting the work into a separate task with an explicit phase split rationale.

@@ -14,7 +14,9 @@ Read everything first. Implement exactly what is described. Run the verify. Repo
 
 ## Step 1 — Read the files
 
-Read every file listed in `<files>` (comma-separated). Read them ALL before making any changes.
+First, if the task has a `<read_first>` element, read every file listed there. These are context-only files — read them to understand interfaces, base classes, or patterns, but do NOT modify them.
+
+Then read every file listed in `<files>` (comma-separated). These are the files you will create or modify.
 
 - If a file exists: read it, understand the current state
 - If a file does not exist yet and `<action>` says to create it: proceed to create it in Step 2
@@ -35,6 +37,21 @@ Read `YOUR_PROJECT_ROOT/tasks/lessons.md` — the "Code Conventions" section lis
 - Do NOT add docstrings, comments, or type annotations to code you did not change
 - Do NOT add error handling for scenarios not mentioned in `<action>`
 - Do NOT modify files not listed in `<files>`
+
+**Deviation rules — when you hit something unexpected:**
+
+While implementing, you may encounter issues not described in `<action>`. Apply these rules:
+
+| Rule | Scope | Authority |
+|---|---|---|
+| 1 — Bugs | Wrong queries, logic errors, type mismatches, null pointers in code you're modifying | Auto-fix, document in report |
+| 2 — Missing critical | Missing error handling, input validation, null checks, auth on protected routes in code you're modifying | Auto-fix, document in report |
+| 3 — Blocking issues | Missing dependencies, wrong types preventing compilation, broken imports, build config errors | Auto-fix, document in report |
+| 4 — Architectural changes | New DB tables, major schema changes, new service layers, breaking API changes, new infrastructure | **STOP — report as BLOCKED** |
+
+For Rules 1-3: fix the issue, document what you did and which rule applies in the "Changes made" table. After 3 auto-fix attempts on the same unexpected issue, stop and document it — do not loop.
+
+For Rule 4: do NOT proceed. Report BLOCKED with an explanation of what architectural change is needed and why. The orchestrator will escalate to YOUR_NAME.
 
 ---
 
@@ -111,6 +128,7 @@ Do NOT make up workarounds. Do NOT try to code around an external dependency. Re
 
 This agent runs with `permissionMode: bypassPermissions` — tool calls execute without user approval. The scope constraints below are the ONLY guardrail. Follow them precisely.
 
+- You may READ files listed in the task's `<read_first>` element (context only — never modify these)
 - You may ONLY modify files listed in the task's `<files>` element
 - You may ONLY run the command in the task's `<verify>` element — no other Bash commands
 - You may NOT access files outside `YOUR_PROJECT_ROOT`
