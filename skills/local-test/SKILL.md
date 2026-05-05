@@ -1,6 +1,6 @@
 ---
 name: local-test
-description: Run local build, tests, and integration testing at 3 levels. Stack-agnostic — reads commands from tasks/lessons.md. Use before committing, after code changes, or when another skill asks you to verify. Usage: /local-test [1|2|3]
+description: Run local build, tests, and integration testing at 3 levels. Stack-agnostic — reads commands from tasks/lessons.md (enterprise) or tasks/notes.md (solo). Use before committing, after code changes, or when another skill asks you to verify. Usage: /local-test [1|2|3]
 argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev server for manual testing). Default=2
 ---
 
@@ -12,7 +12,7 @@ argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev serve
 
 You run local verification at the requested level. If no level is given, default to **Level 2**.
 
-**First:** Read `YOUR_PROJECT_ROOT/tasks/lessons.md` to find the project's test configuration. All commands come from `lessons.md` — nothing is hardcoded.
+**First:** Read `YOUR_PROJECT_ROOT/tasks/lessons.md` to find the project's test configuration. If `lessons.md` does not exist, read `YOUR_PROJECT_ROOT/tasks/notes.md` instead — solo projects store the same test commands there under the "Test Commands" section. All commands come from one of these two files — nothing is hardcoded.
 
 ---
 
@@ -102,8 +102,8 @@ If any step fails:
 - Never commit anything
 - Always clean up dependencies on exit (even on failure) — don't leave Docker containers or background processes running
 - If Docker/emulators are not available at Level 2+, fall back to Level 1 and say why
-- All commands come from `tasks/lessons.md` — never guess or hardcode test commands
-- If `lessons.md` doesn't define a required command (e.g., no integration test command), skip that step and note it in the report
+- All commands come from `tasks/lessons.md` (enterprise) or `tasks/notes.md` (solo) — never guess or hardcode test commands
+- If neither file defines a required command (e.g., no integration test command), skip that step and note it in the report
 
 ---
 
