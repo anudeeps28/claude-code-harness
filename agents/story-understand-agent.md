@@ -94,7 +94,21 @@ ls "YOUR_PROJECT_ROOT/decision-brief.md" 2>/dev/null || echo "no root decision b
 
 ---
 
-## Step 5 — Check git state
+## Step 5 — Check for research.md
+
+Check if a research cache exists for this story:
+
+```bash
+ls "YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/research.md" 2>/dev/null || ls "YOUR_PROJECT_ROOT/research.md" 2>/dev/null || echo "no research cache"
+```
+
+If found, read it. Extract key findings, gotchas, and any `[ASSUMED]` claims that need verification. This context will be included in the brief under "What is already set up for us?" (for verified patterns) and "What might be tricky" (for gotchas and assumed claims).
+
+If not found, skip silently.
+
+---
+
+## Step 6 — Check git state
 
 Run:
 ```bash
@@ -105,7 +119,7 @@ Note: which branch is active, any uncommitted changes, and the last 5 commits.
 
 ---
 
-## Step 6 — Produce the brief
+## Step 7 — Produce the brief
 
 Output exactly this structure. Be specific and concrete — use real field names, real file paths, real method names from the code you read. No vague generalities.
 

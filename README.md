@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-17 skills, 14 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+19 skills, 14 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -67,8 +67,8 @@ The harness covers the full software development lifecycle. Each phase has dedic
 
 ```mermaid
 flowchart LR
-    P0["Decide<br/>/grill-me<br/>/decision-brief ✦"]
-    P1["Define<br/>/research ✦ · /prototype ✦<br/>/prd · /prd-critique<br/>/architect ✦ · /to-issues"]
+    P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief ✦"]
+    P1["Define<br/>/research · /prototype ✦<br/>/prd · /prd-critique<br/>/architect ✦ · /to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness<br/>/triage ✦ · /improve-arch ✦"]
@@ -84,8 +84,9 @@ flowchart LR
 | I want to... | Use this |
 |---|---|
 | Stress-test an idea, plan, or design | `/grill-me` |
+| Stress-test a plan against your domain glossary and ADRs | `/grill-with-docs` |
 | Kill a bad feature before spending a sprint | `/decision-brief` ✦ |
-| Cache research on an external API or integration | `/research` ✦ |
+| Cache research on an external API or integration | `/research` |
 | Test a UI or architecture approach before committing | `/prototype` ✦ |
 | Write a PRD | `/prd` |
 | Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` |
@@ -169,6 +170,8 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 | **prd-critique** | `/prd-critique <path> [--brief <path>]` | Run 6 critique checks on a PRD — metric validity, NFR specificity, failure modes, assumption traceability, rollback plan, intent clarity. Read-only |
 | **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |
+| **grill-with-docs** | `/grill-with-docs <plan or design>` | Like /grill-me but anchored in CONTEXT.md and ADRs — challenges vague terms against the glossary, surfaces plan-vs-decision contradictions, updates CONTEXT.md with resolved terms |
+| **research** | `/research <topic> [--urls ...]` | Research an external API, integration, or library — caches provenance-tagged findings in research.md for downstream agents to read |
 
 ---
 

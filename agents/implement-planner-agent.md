@@ -60,7 +60,24 @@ Read only the docs relevant to this task (API reference for endpoint work, schem
 
 ---
 
-## Step 3b — Check for Decision Brief
+## Step 3b — Check for research.md
+
+Check if a research cache exists for this task:
+
+```bash
+ls "YOUR_PROJECT_ROOT/tasks/stories/<id>/research.md" 2>/dev/null || ls "YOUR_PROJECT_ROOT/research.md" 2>/dev/null || echo "no research cache"
+```
+
+If found, read it. Use it as authoritative context for external APIs, integrations, or libraries referenced by the task. Pay special attention to:
+- **Gotchas** — incorporate into "What might be tricky" in the brief
+- **Code patterns to follow / avoid** — reference in task `<action>` instructions
+- **[ASSUMED] claims** — note in the brief that these are unverified
+
+If not found, skip silently.
+
+---
+
+## Step 3c — Check for Decision Brief
 
 Check if a Decision Brief exists that relates to this task:
 

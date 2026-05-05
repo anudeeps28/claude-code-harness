@@ -60,6 +60,8 @@ Where PHASE is DECIDE, DEFINE, BUILD, SHIP, or LEARN.
 **Downstream integration:** if your skill produces artifacts that BUILD phase agents should read (e.g., decision briefs, research docs), document which agent reads them and where it looks. Currently:
 - `tasks/stories/<id>/decision-brief.md` → read by `story-understand-agent` (brief section 8) and `story-plan-agent` (dealbreaker coverage check)
 - `decision-brief.md` (repo root) → read by `implement-planner-agent` (fallback location for solo pack)
+- `tasks/stories/<id>/research.md` → read by `story-understand-agent` (step 5) and `implement-planner-agent` (step 3b) for external API/integration context
+- `research.md` (repo root) → fallback location for solo pack, read by both agents
 
 ### Gate taxonomy
 
