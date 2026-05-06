@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-27 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+28 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -68,7 +68,7 @@ The harness covers the full software development lifecycle. Each phase has dedic
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief ✦"]
-    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/to-issues"]
+    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage · /improve-codebase-architecture"]
@@ -90,6 +90,7 @@ flowchart LR
 | Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` |
 | Design the system architecture | `/architect` |
 | Critique an architecture doc for gaps and risks | `/architect-critique` |
+| Generate the full spec stack (DB schema, API ref, diagrams) | `/design-artifacts` |
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
 | Build a feature from an issue | `/story` or `/implement` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
@@ -180,6 +181,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **zoom-out** | `/zoom-out [file or module]` | High-level map of unfamiliar code — callers, dependencies, patterns, architecture context. Conversational, no file artifact |
 | **improve-codebase-architecture** | `/improve-codebase-architecture [area]` | Find shallow modules, apply the deletion test, propose deepening refactors. Updates CONTEXT.md, proposes ADRs for rejected ideas |
 | **triage** | `/triage <issue-id>` | Route incoming issues through a 5-state workflow with bug/enhancement categorization, reproduction attempts, and tracker label management |
+| **design-artifacts** | `/design-artifacts [all \| doc-name ...]` | Generate the project-level spec stack from ARCHITECTURE.md + PRD — database schema, API reference, sequence diagrams, data flow, deployment, dev guide, debugging guide |
 
 ---
 
