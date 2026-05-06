@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-21 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+26 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -68,16 +68,16 @@ The harness covers the full software development lifecycle. Each phase has dedic
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief ✦"]
-    P1["Define<br/>/research · /prototype ✦<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/to-issues"]
+    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
-    P4["Learn<br/>/improve-harness<br/>/triage ✦ · /improve-arch ✦"]
+    P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage ✦ · /improve-codebase-architecture"]
 
     P0 --> P1 --> P2 --> P3 --> P4
     P4 -.->|"next cycle"| P1
 ```
 
-> ✦ = coming soon
+> ✦ = coming soon (triage)
 
 ### When to use what
 
@@ -85,9 +85,9 @@ flowchart LR
 |---|---|
 | Stress-test an idea, plan, or design | `/grill-me` |
 | Stress-test a plan against your domain glossary and ADRs | `/grill-with-docs` |
-| Kill a bad feature before spending a sprint | `/decision-brief` ✦ |
+| Kill a bad feature before spending a sprint | `/decision-brief` |
 | Cache research on an external API or integration | `/research` |
-| Test a UI or architecture approach before committing | `/prototype` ✦ |
+| Test a UI or architecture approach before committing | `/prototype` |
 | Write a PRD | `/prd` |
 | Critique a PRD for gaps, bad metrics, missing rollback | `/prd-critique` |
 | Design the system architecture | `/architect` |
@@ -102,6 +102,8 @@ flowchart LR
 | Run build + tests at 3 levels | `/local-test` |
 | Plan a sprint from the tracker | `/sprint-plan` |
 | Ask about sprint status, blockers, or todos | `/pa` |
+| Get a high-level map of unfamiliar code | `/zoom-out` |
+| Find shallow modules and propose deepening refactors | `/improve-codebase-architecture` |
 | Run a weekly self-improvement loop on the harness | `/improve-harness` |
 
 ---
@@ -175,6 +177,9 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **research** | `/research <topic> [--urls ...]` | Research an external API, integration, or library — caches provenance-tagged findings in research.md for downstream agents to read |
 | **architect** | `/architect <path-to-PRD>` | Design system architecture from a PRD — interactive 8-section ARCHITECTURE.md with Mermaid diagrams, cost model, and compliance gates |
 | **architect-critique** | `/architect-critique <path> [--prd <path>]` | Run 5 critique axes on an architecture doc — NFR fit, failure modes, cost stress-test, security posture, operability. Read-only |
+| **prototype** | `/prototype <feature or question>` | Throwaway prototyping — creates 1-3 candidate approaches in `_prototype/`, compares trade-offs in decision.md, cleans up losers after user picks |
+| **zoom-out** | `/zoom-out [file or module]` | High-level map of unfamiliar code — callers, dependencies, patterns, architecture context. Conversational, no file artifact |
+| **improve-codebase-architecture** | `/improve-codebase-architecture [area]` | Find shallow modules, apply the deletion test, propose deepening refactors. Updates CONTEXT.md, proposes ADRs for rejected ideas |
 
 ---
 
@@ -392,7 +397,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 17 skills
+├── skills/           ← 26 skills
 ├── agents/           ← 14 sub-agents
 ├── hooks/            ← 6 automated hooks
 ├── rules/            ← 5 path-scoped rules
