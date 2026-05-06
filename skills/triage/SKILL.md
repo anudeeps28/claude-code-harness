@@ -1,0 +1,179 @@
+---
+name: triage
+description: Route incoming issues through a 5-state workflow (needs-triage → needs-info / ready-for-agent / ready-for-human / wontfix) with bug/enhancement categorization. Applies labels, adds context notes, reproduces bugs. Usage: /triage <issue-id>
+---
+
+**Core Philosophy:** Every incoming issue deserves a routing decision within one pass. Gather context, categorize, attempt reproduction if it's a bug, grill for missing details, then route to the right state. One issue per invocation.
+
+**Triggers:** "triage this issue", "route this issue", "categorize this bug", "what should we do with this issue", "/triage"
+
+---
+
+You are the issue triage facilitator. Your job is to take a single incoming issue, gather context, categorize it, attempt to reproduce bugs, and route it to the correct state by applying labels.
+
+**One issue per invocation. AI-generated comments must include the disclaimer.**
+
+---
+
+## Step 0 — Read configuration
+
+Read triage label overrides from `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo). Look for a `triage_labels` section. If present, use the custom labels. If not, use defaults:
+
+**5 states (default labels):**
+| State | Default label | Meaning |
+|---|---|---|
+| Needs triage | `needs-triage` | New issue, not yet categorized |
+| Needs info | `needs-info` | Missing details — can't route without more from the reporter |
+| Ready for agent | `ready-for-agent` | Well-defined, can be picked up by `/story` or `/implement` |
+| Ready for human | `ready-for-human` | Requires human judgment, domain expertise, or manual testing |
+| Won't fix | `wontfix` | Intentional behavior, duplicate, or out of scope |
+
+**2 categories:**
+| Category | Default label |
+|---|---|
+| Bug | `bug` |
+| Enhancement | `enhancement` |
+
+---
+
+## Step 1 — Fetch the issue
+
+Parse `$ARGUMENTS` for an issue ID.
+
+If missing, ask: "Which issue should I triage? Give me an issue ID or number."
+
+Fetch the issue using the tracker adapter:
+```bash
+bash trackers/active/get-issue.sh <ID>
+```
+
+Read the full issue: title, description, labels, state, comments. If the issue doesn't exist, stop and report.
+
+---
+
+## Step 2 — Gather codebase context
+
+Based on the issue description, explore the relevant area of the codebase:
+- Grep for keywords, error messages, or class/function names mentioned in the issue
+- Read relevant source files to understand the current behavior
+- Check if the issue area has existing tests
+
+This context informs your categorization and reproduction attempt.
+
+---
+
+## Step 3 — Categorize
+
+Recommend a category and state:
+
+> **Category recommendation: [Bug / Enhancement]**
+> - Reasoning: [1-2 sentences — why this is a bug vs. enhancement]
+>
+> **State recommendation: [one of the 5 states]**
+> - Reasoning: [1-2 sentences — why this state]
+
+Wait for user confirmation before applying labels. *(Gate type: escalation)*
+
+---
+
+## Step 4 — Reproduce (bugs only)
+
+If categorized as a bug:
+
+1. **Build a reproduction** — from the issue description, identify the steps to reproduce
+2. **Attempt reproduction** — run the relevant code, tests, or checks to confirm the bug exists
+3. **Report result:**
+   - Reproduced: "Confirmed — [what I observed] matches the reported behavior."
+   - Not reproduced: "Could not reproduce with [what I tried]. May need more info from the reporter."
+   - Can't test: "This requires [deployed environment / specific data / manual UI interaction] — can't reproduce locally."
+
+If not reproduced, recommend changing state to `needs-info`.
+
+Skip this step for enhancements.
+
+---
+
+## Step 5 — Grill for missing details
+
+If the issue is missing critical information for routing:
+
+Ask targeted questions (one at a time, with recommendations):
+
+> **Q1: [Missing detail]**
+> My recommendation: **(A)** [suggested answer based on codebase exploration]
+> Other options: **(B)** Mark as `needs-info` and ask the reporter
+
+Common missing details:
+- Expected vs. actual behavior (bugs)
+- Steps to reproduce (bugs)
+- Success criteria (enhancements)
+- Priority / business impact
+- Affected users or systems
+
+If you can fill in the gaps from codebase exploration, do so. Otherwise, recommend `needs-info`.
+
+---
+
+## Step 6 — Apply labels and write notes
+
+After user confirms the category and state:
+
+1. **Apply labels** using the tracker adapter:
+```bash
+bash trackers/active/add-label.sh <ID> "<category-label>"
+bash trackers/active/add-label.sh <ID> "<state-label>"
+```
+
+2. **Remove conflicting labels** — if the issue already has a different state label, remove it:
+```bash
+bash trackers/active/remove-label.sh <ID> "<old-state-label>"
+```
+
+3. **Add a triage note** to the issue if routed to `ready-for-agent` or `ready-for-human`:
+
+For `ready-for-agent`, draft a structured note:
+```
+**Triage summary:**
+- Category: [bug/enhancement]
+- Reproduction: [confirmed/not-reproduced/can't-test]
+- Relevant code: [file paths explored]
+- Suggested approach: [1-2 sentences]
+
+_Generated by AI during triage. Verify before acting on this summary._
+```
+
+For `needs-info`, draft a question to the reporter:
+```
+Could you provide more details on [specific missing information]?
+
+_Generated by AI during triage._
+```
+
+Show the draft to the user before posting. *(Gate type: escalation)*
+
+If the user approves, post using create-issue.sh or the appropriate tracker mechanism.
+
+---
+
+## Step 7 — Update task files
+
+After triage is complete:
+
+- **`todo.md`** — no entry needed (triage is a quick routing decision, not a tracked task)
+- **`flags-and-notes.md`** — if the issue is a high-priority bug or blocker, add to "Active Blockers":
+  ```
+  - [TRIAGE] Issue #<ID>: <title> — routed to <state> — <what's needed next>
+  ```
+
+---
+
+## Rules
+
+- One issue per invocation. Don't batch triage.
+- Every AI-generated comment posted to the tracker must include: "_Generated by AI during triage._"
+- Never auto-post comments without user approval. Show the draft, wait for confirmation.
+- Never close an issue during triage — only route it. Closing is a human decision.
+- If the 5 state labels don't fit the project's existing conventions, read overrides from tracker-config.md / notes.md.
+- For `wontfix`: always explain why — "Intentional behavior: [reasoning]" or "Duplicate of #[ID]" or "Out of scope: [reasoning]".
+- Reproduce bugs before routing to `ready-for-agent` when possible. If you can't reproduce, say why.
+- No emoji. Keep the format tight.

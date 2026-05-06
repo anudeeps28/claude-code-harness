@@ -181,6 +181,59 @@ Wrote tasks/improve-harness-<date>.md with <P> proposals. Review and apply to th
 
 ---
 
+## Step 6 — Write to cross-project learnings store
+
+After the proposal is written, extract actionable learnings and write them to the global store at `~/.claude/learnings/`. Each learning is a JSON file with content-hash deduplication.
+
+**Format:**
+```json
+{
+  "hash": "<sha256 of category+learning>",
+  "project": "<project name from CLAUDE.md or directory name>",
+  "date": "YYYY-MM-DD",
+  "category": "<pattern-type: build-fix | code-rabbit | evaluator | executor | planning>",
+  "learning": "<one-sentence actionable takeaway>",
+  "context": "<the evidence that surfaced this — file paths, error messages>"
+}
+```
+
+**Deduplication:** Before writing, compute the SHA-256 hash of `category + learning`. If a file with that hash already exists in `~/.claude/learnings/`, skip it (already recorded from a prior retro or different project).
+
+**File naming:** `~/.claude/learnings/<hash>.json`
+
+Only write learnings that are genuinely cross-project (patterns that would help any project using this harness). Skip project-specific fixes (e.g., "add column X to table Y").
+
+---
+
+## Step 7 — Emit agent-feedback tickets (optional)
+
+If any pattern qualifies and the user wants to track it in the issue tracker, offer to create structured agent-feedback tickets:
+
+> "Want me to create tracker issues for any of these proposals? Each gets the `agent-feedback` label."
+
+For each approved proposal, create an issue via the tracker adapter:
+
+```bash
+bash trackers/active/create-issue.sh "<title>" "<body>" "agent-feedback"
+```
+
+**Ticket structure:**
+
+```markdown
+## Agent Feedback
+
+- **Skill or agent:** [e.g., story-executor-agent, evaluator-agent]
+- **Work item:** [story ID or "N/A" if pattern is cross-story]
+- **What happened:** [observed behavior — cite evidence from evaluation.md or executor-state.md]
+- **What should have happened:** [expected behavior per the skill/agent spec]
+- **Root cause hypothesis:** [why the agent behaved this way]
+- **Proposed fix:** [specific edit to the harness — same as the proposal in the retro file]
+```
+
+Only create tickets if the user approves. Skip this step if no tracker adapter is configured.
+
+---
+
 ## What `/improve-harness` must NOT do
 
 - **Don't propose a change from a single occurrence.** Pattern detection requires ≥ 2 (or ≥ 3 for re-attempts).

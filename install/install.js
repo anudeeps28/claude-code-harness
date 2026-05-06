@@ -39,6 +39,7 @@ for (let i = 0; i < args.length; i++) {
     if (next && !next.startsWith('-')) { projectDir = next; i++; }
   } else if (a === '--uninstall') uninstall = true;
   else if (a === '--dry-run') dryRun = true;
+  else if (a === '--seed') { /* handled post-install — seeds lessons.md from ~/.claude/learnings/ */ }
   else if (a === '--help' || a === '-h') {
     console.log(`  Usage:
     node install/install.js                     # interactive install
@@ -277,6 +278,39 @@ async function main() {
 
       fs.mkdirSync(adrDest, { recursive: true });
       copyTemplatesNoClobber(adrSrc, adrDest, 'docs/adr');
+    }
+  }
+
+  // ── Seed from cross-project learnings store (--seed flag) ──────────────────
+  if (mode === 'project' && args.includes('--seed')) {
+    const learningsDir = path.join(os.homedir(), '.claude', 'learnings');
+    const lessonsFile = path.join(projectDir, 'tasks', 'lessons.md');
+    if (fs.existsSync(learningsDir) && fs.existsSync(lessonsFile)) {
+      console.log('  Seeding lessons.md from global learnings store...');
+      try {
+        const files = fs.readdirSync(learningsDir).filter(f => f.endsWith('.json'));
+        let seeded = 0;
+        const lessonsText = fs.readFileSync(lessonsFile, 'utf8');
+        const additions = [];
+        for (const f of files) {
+          const entry = JSON.parse(fs.readFileSync(path.join(learningsDir, f), 'utf8'));
+          if (entry.learning && !lessonsText.includes(entry.learning)) {
+            additions.push(`- [${entry.category}] ${entry.learning}`);
+            seeded++;
+          }
+        }
+        if (seeded > 0) {
+          fs.appendFileSync(lessonsFile,
+            '\n\n## Seeded from global learnings\n\n' + additions.join('\n') + '\n');
+          console.log(`    Seeded ${seeded} learnings into lessons.md`);
+        } else {
+          console.log('    No new learnings to seed (all already present or store empty)');
+        }
+      } catch (e) {
+        console.log(`    Seed skipped: ${e.message}`);
+      }
+    } else {
+      console.log('  Seed skipped: no global learnings store or lessons.md not found');
     }
   }
 

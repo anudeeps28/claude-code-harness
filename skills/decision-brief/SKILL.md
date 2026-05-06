@@ -30,7 +30,26 @@ Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
 ---
 
-## Step 0b — Read compliance owners
+## Step 0b — Check for existing checkpoint
+
+Determine the output directory:
+- Enterprise: `tasks/stories/<id>/` (if a story ID is in context)
+- Solo: repo root
+
+Check for `decision-brief.checkpoint.json` in that directory. If found, read it and offer:
+
+> "Found a checkpoint from [date] — you were in Phase [N] ([phase name]).
+>
+> **(A)** Resume from Phase [N] (reuses prior inputs and phase outputs)
+> **(B)** Start fresh (discards the checkpoint)"
+
+If the user picks A, load the checkpoint data (inputs, tiering answer, completed phase outputs) and skip to the next incomplete phase. If B, delete the checkpoint file and proceed normally.
+
+If no checkpoint exists, proceed normally.
+
+---
+
+## Step 0c — Read compliance owners
 
 Read `tasks/compliance-owners.md` (enterprise) or check for it at repo root. If it exists, extract the named owners for each regulated domain (PHI/HIPAA, PII/GDPR, SOC 2, PCI-DSS). Store these for use in Phase 4.
 
@@ -234,3 +253,4 @@ Add the Risk Acceptance section to the written file.
 - Never invent evidence. If a claim can't be cited to the provided research, it's Weak.
 - Confirm Phase 1 decomposition with the user before running Phases 2–4.
 - Write the file only after all four phases are complete.
+- **Checkpoint resilience:** After each phase completes (Steps 2-5), write a checkpoint file to `<output-dir>/decision-brief.checkpoint.json` containing: `{ "date": "YYYY-MM-DD", "phase": <1-4>, "inputs": { strategy, research }, "tiering": "yes/no", "phases": { "decompose": [...], "dataQuality": {...}, "assumptions": [...], "evidenceRank": [...] } }`. Only populate the phases completed so far. On successful completion (Step 6 writes the final file), delete the checkpoint. This protects against mid-session crashes.

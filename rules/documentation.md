@@ -32,6 +32,20 @@ These rules apply when reading or modifying documentation and markdown files.
 - Read it before proposing refactors or architecture changes — use the vocabulary it defines
 - Do not write ADR-level reasoning here; that goes in `docs/adr/`
 
+## Tier-0 exceptions
+
+Low-severity findings from critique skills (`/prd-critique`, `/architect-critique`, evaluator ADVISORY findings) can be resolved without PM escalation using a Tier-0 exception:
+
+- **Who can grant:** Developer + Tech Lead (both must agree)
+- **Scope:** ADVISORY-severity findings only. BLOCK findings always require PM or Compliance Owner.
+- **When to use:** The finding is valid but the fix would delay the sprint with no meaningful risk reduction.
+- **How to log:** Add an entry to `tasks/exceptions.md` (create from `templates/tasks/exceptions.md` if it doesn't exist):
+  ```
+  | Date | Finding | Source | Severity | Resolution | Granted by |
+  | YYYY-MM-DD | <finding summary> | /architect-critique Axis 3 | ADVISORY | Accepted as-is: <rationale> | Dev + Tech Lead names |
+  ```
+- **PM escalation required for:** scope disputes, intent disagreements, any BLOCK finding, anything touching regulated data.
+
 ## ADRs (`docs/adr/`)
 - Capture significant, hard-to-reverse decisions — not routine implementation choices
 - Write an ADR when a decision is: hard to reverse, surprising to a future reader, AND has load-bearing trade-offs

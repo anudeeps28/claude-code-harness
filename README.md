@@ -1,13 +1,13 @@
 # claude-code-harness
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](CHANGELOG.md)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
-[![Tests](https://img.shields.io/badge/tests-129%20passing-success.svg)](hooks/__tests__)
+[![Tests](https://img.shields.io/badge/tests-133%20passing-success.svg)](hooks/__tests__)
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-26 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+27 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -71,13 +71,11 @@ flowchart LR
     P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/to-issues"]
     P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
-    P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage ✦ · /improve-codebase-architecture"]
+    P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage · /improve-codebase-architecture"]
 
     P0 --> P1 --> P2 --> P3 --> P4
     P4 -.->|"next cycle"| P1
 ```
-
-> ✦ = coming soon (triage)
 
 ### When to use what
 
@@ -104,6 +102,7 @@ flowchart LR
 | Ask about sprint status, blockers, or todos | `/pa` |
 | Get a high-level map of unfamiliar code | `/zoom-out` |
 | Find shallow modules and propose deepening refactors | `/improve-codebase-architecture` |
+| Route and categorize an incoming issue | `/triage` |
 | Run a weekly self-improvement loop on the harness | `/improve-harness` |
 
 ---
@@ -180,6 +179,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **prototype** | `/prototype <feature or question>` | Throwaway prototyping — creates 1-3 candidate approaches in `_prototype/`, compares trade-offs in decision.md, cleans up losers after user picks |
 | **zoom-out** | `/zoom-out [file or module]` | High-level map of unfamiliar code — callers, dependencies, patterns, architecture context. Conversational, no file artifact |
 | **improve-codebase-architecture** | `/improve-codebase-architecture [area]` | Find shallow modules, apply the deletion test, propose deepening refactors. Updates CONTEXT.md, proposes ADRs for rejected ideas |
+| **triage** | `/triage <issue-id>` | Route incoming issues through a 5-state workflow with bug/enhancement categorization, reproduction attempts, and tracker label management |
 
 ---
 
@@ -318,7 +318,7 @@ Skills don't know if you use ADO or GitHub. The adapter layer abstracts it:
 skill → trackers/active/get-issue.sh → ado/get-issue.sh  (or)  github/get-issue.sh
 ```
 
-Both adapters implement the same 7-script interface:
+Both adapters implement the same 9-script interface:
 - `get-issue.sh <ID>` — Returns work item details
 - `get-issue-children.sh <ID>` — Returns child tasks
 - `get-pr-review-threads.sh <PR_ID>` — Returns review threads
@@ -326,8 +326,10 @@ Both adapters implement the same 7-script interface:
 - `resolve-pr-thread.sh <PR_ID> <THREAD_ID>` — Resolves a thread
 - `get-sprint-issues.sh <SPRINT_NUM>` — Returns all sprint issues
 - `create-issue.sh "<title>" "<body>" "<label>"` — Creates a new issue or work item
+- `add-label.sh <ID> "<label>"` — Adds a label/tag to an issue or work item
+- `remove-label.sh <ID> "<label>"` — Removes a label/tag from an issue or work item
 
-To add a new tracker (Linear, Jira): implement these 7 scripts and drop them in `trackers/your-tracker/`.
+To add a new tracker (Linear, Jira): implement these 9 scripts and drop them in `trackers/your-tracker/`.
 
 ---
 

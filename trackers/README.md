@@ -34,7 +34,7 @@ Skills and agents always call `trackers/active/<script>`. The installer copies t
 
 ## Script interface
 
-Every adapter implements the same 7 scripts with identical signatures:
+Every adapter implements the same 9 scripts with identical signatures:
 
 | Script | Args | What it returns |
 |---|---|---|
@@ -45,6 +45,8 @@ Every adapter implements the same 7 scripts with identical signatures:
 | `resolve-pr-thread.sh` | `<PR_ID> <THREAD_ID>` | Marks a review thread as resolved |
 | `get-sprint-issues.sh` | `<SPRINT_NUMBER>` | All issues in the given sprint |
 | `create-issue.sh` | `"<title>" "<body>" "<label>"` | Creates a new issue/work item; prints the URL |
+| `add-label.sh` | `<ID> "<label>"` | Adds a label/tag to an issue/work item |
+| `remove-label.sh` | `<ID> "<label>"` | Removes a label/tag from an issue/work item |
 
 ---
 
@@ -148,7 +150,7 @@ RETRY_MAX_ATTEMPTS=5 RETRY_BACKOFF_1=2 RETRY_BACKOFF_2=5 bash get-issue.sh 12345
 
 ## Adding a new adapter
 
-Create a folder under `trackers/` with all 7 scripts implementing the same interface. Each script must:
+Create a folder under `trackers/` with all 9 scripts implementing the same interface. Each script must:
 - Accept the same arguments as the interface above
 - Exit with code 0 on success, non-zero on failure
 - Print errors as `{"error": "..."}` to stderr

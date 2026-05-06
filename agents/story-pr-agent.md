@@ -92,11 +92,20 @@ Apply the edit with the Edit tool.
 
 ## Step 7 — Draft PR description
 
-Output a ready-to-use PR description:
+Output a ready-to-use PR description with an Approach Note section:
 
 ```
 ## Summary
 [2-3 bullet points: what changed and why — focus on the "why" not the "what"]
+
+## Approach note
+- **Work item:** #<STORY_ID> — <title>
+- **Intent:** [one sentence — the problem being solved, not the implementation]
+- **Linked assumptions:** [Decision Brief assumptions this builds on, or "none"]
+- **Scope:** [what's in vs. explicitly out of this PR]
+- **Key conventions followed:** [patterns from lessons.md applied — e.g., "repository pattern", "CQRS handler"]
+- **Gotchas:** [non-obvious things a reviewer should know — or "none"]
+- **Success check:** [how to verify this works — the golden-path test]
 
 ## ADO tasks completed
 [List: - #<child_task_id> <child_task_title>]
