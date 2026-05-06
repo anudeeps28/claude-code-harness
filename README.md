@@ -165,7 +165,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **local-test** | `/local-test [1\|2\|3]` | Build, test, and Docker integration at 3 levels |
 | **prd** | `/prd` | Generate a Product Requirements Document |
 | **pa** | `/pa <question>` | Personal assistant — answers from task files, keeps them in sync |
-| **sync-tasks** | `/sync-tasks` | Report drift across the 7 enterprise task files. Auto-suggested when `drift-check` hook hard-blocks |
+| **sync-tasks** | `/sync-tasks` | Report drift across task files and project artifacts (PRD, architecture, ADRs). Auto-suggested when `drift-check` hook hard-blocks |
 | **improve-harness** | `/improve-harness [days]` | Self-improvement loop — finds recurring friction in recent sessions/evaluations and proposes harness edits. Never auto-applies |
 | **grill-me** | `/grill-me <plan or design>` | Decision-tree interrogation of a plan, design, or proposal — serial questions with recommendations until shared understanding is reached |
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
@@ -285,7 +285,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 |---|---|---|
 | `safety-check.js` | PreToolUse (Bash\|Write) | Blocks destructive git/file/cloud operations + Write of hardcoded secrets |
 | `catalog-trigger.js` | PostToolUse (Write/Edit) | Rebuilds SKILLS_CATALOG.md when skills change |
-| `drift-check.js` | PostToolUse (Write/Edit) | Detects cross-file drift in the 7 enterprise task files — soft warnings + hard block that forces `/sync-tasks` |
+| `drift-check.js` | PostToolUse (Write/Edit) | Detects cross-file drift in task files and project artifacts (PRD, ARCHITECTURE.md, ADRs) — 11 invariants covering enum consistency, cross-references, NFR coverage, ADR contradictions, and more |
 | `pre-compact.js` | PreCompact | Saves in-progress state before context compression |
 | `session-log.js` | SessionEnd | Appends session metadata to sessions.jsonl |
 
@@ -380,6 +380,7 @@ The installer creates different task files based on your workflow pack:
 - **`/deploy`** — Fill in cloud resource names in `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo).
 - **`/local-test`** — Fill in the "Test Commands" section of `tasks/lessons.md` with your stack's build/test/integration commands. The skill is stack-agnostic and reads commands from there.
 - **`/prd` output mode** — The installer asks where PRDs should live (file, tracker, or both). To change later, edit `prd_mode` in `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo). Options: `file`, `tracker`, `both-file-canonical`, `both-tracker-canonical`.
+- **`compliance-owners.md`** — If your project handles regulated data (PHI/PII/SOC 2), fill in `tasks/compliance-owners.md` with your org's Privacy Officer and Security Lead. Skills like `/decision-brief`, `/architect`, and `/architect-critique` use these names for sign-off fields and will warn if the file is missing.
 - **Task files** — Add your project's code conventions, known fixes, and build commands.
 
 ### Stack-agnostic

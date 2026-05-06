@@ -30,7 +30,17 @@ Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
 ---
 
-## Step 0b — Input gate (hard block)
+## Step 0b — Read compliance owners
+
+Read `tasks/compliance-owners.md` (enterprise) or check for it at repo root. If it exists, extract the named owners for each regulated domain (PHI/HIPAA, PII/GDPR, SOC 2, PCI-DSS). Store these for use in Phase 4.
+
+If the file doesn't exist, proceed — but if any assumption later touches regulated data, warn:
+
+> "No `compliance-owners.md` found. Regulated-data assumptions require named Compliance Owner sign-off. Create `tasks/compliance-owners.md` from the template (see `templates/tasks/compliance-owners.md`) and fill in your org's owners."
+
+---
+
+## Step 0c — Input gate (hard block)
 
 Parse `$ARGUMENTS` for:
 - A **strategy doc or problem brief** — inline text, a file path, or a tracker issue reference. This describes the decision to be made.
@@ -158,7 +168,7 @@ Output as an extended assumption table:
 
 Flag any **Dealbreaker** assumption rated **Weak** as a hard block — these must be validated before work proceeds.
 
-Flag any assumption touching **regulated data** (PHI, PII, SOC 2): Compliance Owner sign-off is required to mark it Validated, regardless of evidence strength.
+Flag any assumption touching **regulated data** (PHI, PII, SOC 2, PCI-DSS): Compliance Owner sign-off is required to mark it Validated, regardless of evidence strength. Use the named owner from `compliance-owners.md` (loaded in Step 0b). Set Status to "Pending sign-off ([Owner Name], [Role])" — never "Validated" until sign-off is obtained.
 
 ---
 
@@ -181,7 +191,7 @@ After writing, say:
 
 **Then update task files:**
 
-1. **`todo.md`** — find the in-progress entry from Step 0a and mark it done:
+1. **`todo.md`** — find the in-progress entry from Step 0a and mark it done (update the step reference if needed):
    ```
    - ✅ [DECIDE] /decision-brief — <topic> — N dealbreaker(s), M validated — output: <path>
    ```
@@ -220,7 +230,7 @@ Add the Risk Acceptance section to the written file.
 - Never skip the input gate. Both inputs are required.
 - Never skip the tiering question. A brief for a minor decision wastes everyone's time.
 - Never proceed past Step 1 without a "yes" on the tiering question.
-- Never mark a regulated-data assumption as Validated without Compliance Owner sign-off — leave Status as "Pending sign-off (Compliance Owner)".
+- Never mark a regulated-data assumption as Validated without named Compliance Owner sign-off. Use the name from `compliance-owners.md` — leave Status as "Pending sign-off ([Owner Name], [Role])". If `compliance-owners.md` doesn't exist and regulated data is in scope, warn the user and leave Status as "Pending sign-off (Compliance Owner — not configured)".
 - Never invent evidence. If a claim can't be cited to the provided research, it's Weak.
 - Confirm Phase 1 decomposition with the user before running Phases 2–4.
 - Write the file only after all four phases are complete.

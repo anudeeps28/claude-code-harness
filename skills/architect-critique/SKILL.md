@@ -134,18 +134,19 @@ Examine the security architecture for gaps:
 - **Network** — Are services exposed only as needed? Is internal traffic encrypted?
 - **Data classification** — Is every data type classified (regulated/internal/public)? Are protections appropriate per tier?
 - **Secret handling** — Are secrets in a vault? Is rotation automated? Is access audited?
-- **Regulated data** — If PHI/PII is in scope, is there a Compliance Owner sign-off section? Is it filled in?
+- **Regulated data** — If PHI/PII is in scope, is there a Compliance Owner sign-off section? Is it filled in with named owners from `tasks/compliance-owners.md`?
 
 | Severity | Condition |
 |---|---|
 | BLOCK | No security section at all |
 | BLOCK | PHI/PII in scope but no data classification table |
 | BLOCK | PHI/PII in scope but no Compliance Owner sign-off section |
+| BLOCK | PHI/PII in scope and sign-off section uses placeholders instead of named owners (check against `compliance-owners.md` loaded in Step 0b) |
 | BLOCK | Secrets stored in config files, env vars, or code — not in a vault |
 | ADVISORY | Service-to-service auth not specified |
 | ADVISORY | Secret rotation policy missing or > 90 days |
 | ADVISORY | Data classification exists but access control column is empty |
-| ADVISORY | Compliance Owner sign-off section exists but is unsigned |
+| ADVISORY | Compliance Owner sign-off section has named owners but is unsigned — document cannot move to Accepted status |
 
 ---
 

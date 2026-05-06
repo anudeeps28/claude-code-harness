@@ -75,8 +75,13 @@ Read if they exist (skip silently if not):
 - `CONTEXT.md` — domain glossary and module map
 - `docs/adr/*.md` — prior architecture decisions
 - `tasks/cloud-context.md` — org cloud platform defaults
+- `tasks/compliance-owners.md` — named owners for regulated-data sign-offs (PHI/PII/SOC 2/PCI-DSS)
 - `research.md` or `tasks/stories/<id>/research.md` — cached external API research
 - `decision-brief.md` or `tasks/stories/<id>/decision-brief.md` — assumption register
+
+If `tasks/compliance-owners.md` exists, extract the named owners — use them in Section 6 (Security architecture) sign-off fields. If it doesn't exist and the PRD references regulated data, warn the user early:
+
+> "The PRD references regulated data but no `compliance-owners.md` found. Create one from `templates/tasks/compliance-owners.md` so sign-off fields have named owners."
 
 ### 2d — Cloud platform
 
@@ -161,7 +166,10 @@ Present:
 - Data classification table (regulated/internal/public with encryption and access controls)
 - Secret handling (storage, rotation, audit)
 
-If the PRD mentions regulated data (PHI/PII/SOC 2), add a **Compliance Owner sign-off** section with named roles from `tasks/compliance-owners.md` (if present).
+If the PRD mentions regulated data (PHI/PII/SOC 2/PCI-DSS), add a **Compliance Owner sign-off** section:
+- If `tasks/compliance-owners.md` was loaded in Step 2c, use the named owners (e.g., "Privacy Officer: Jane Doe", "Security Lead: John Smith")
+- If not loaded, use placeholder text and warn: "Fill in named owners from `tasks/compliance-owners.md`"
+- The architecture document cannot move from Draft to Accepted status until all required sign-offs are obtained
 
 Ask: "Any security requirements I'm missing? Any compliance constraints not in the PRD?"
 
@@ -246,7 +254,7 @@ Use the Edit tool — targeted appends, not rewrites.
 - Every section must get user confirmation before moving on.
 - Use Mermaid for all diagrams — no external tools.
 - Cloud-agnostic by default. Only add platform-specific services when the user chooses a platform.
-- Compliance Owner sign-off is mandatory when regulated data is in scope — not optional.
+- Compliance Owner sign-off is mandatory when regulated data is in scope — not optional. Use named owners from `compliance-owners.md`. If the file doesn't exist, use placeholders and warn. The document cannot be marked Accepted without sign-off.
 - Cost estimates must include steady-state, burst, and unit economics. Vague cost notes ("it depends") are not acceptable.
 - Anchor module names and terminology in CONTEXT.md if present.
 - If a Decision Brief exists, cross-reference dealbreaker assumptions in relevant sections.

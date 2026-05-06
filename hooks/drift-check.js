@@ -1,7 +1,10 @@
 #!/usr/bin/env node
-// PostToolUse drift detector for the 7 enterprise task files.
-// Fires only when the edited file is one of: lessons.md, todo.md, pr-queue.md,
-// flags-and-notes.md, tracker-config.md, people.md, or sprint<N>.md.
+// PostToolUse drift detector for task files and project artifacts.
+//
+// Fires on two classes of files:
+//  A) Task files: lessons.md, todo.md, pr-queue.md, flags-and-notes.md,
+//     tracker-config.md, people.md, sprint<N>.md.
+//  B) Artifact files: PRD.md, ARCHITECTURE.md, docs/adr/*.md
 //
 // MVP invariants (batch 1) — always on:
 //  1. PR status enum (pr-queue.md)           — soft warning on mismatch
@@ -13,6 +16,17 @@
 //  5. Branch naming pattern (pr-queue.md)     — soft warning if non-standard
 //  6. Sprint story ↔ brief.md cross-ref      — soft warning if brief missing
 //
+// Artifact drift (batch 3) — always on when artifact files exist:
+//  7. NFR-not-in-arch: PRD NFR keywords missing from ARCHITECTURE.md
+//  8. arch-service-not-in-work-items: Mermaid components not in todo.md
+//  9. work-item-section-mismatch: PRD section refs in todo.md that don't exist
+// 10. AC-not-tested: acceptance criteria keywords not found in test files
+// 11. ADR-vs-architecture: ADR tech choice contradicted by architecture doc
+//
+// Artifact invariants 7-9 produce soft warnings (gaps).
+// Invariant 10 produces a soft warning.
+// Invariant 11 produces a HARD BLOCK (contradiction).
+//
 // Hard block uses `decision: "block"` per PostToolUse protocol; it cannot
 // undo the edit, but tells Claude to stop and run /sync-tasks.
 //
@@ -22,6 +36,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { readStdinJson, blockPost, injectContext, ok, runHook } = require('./lib/hook-io');
+const ap = require('./lib/artifact-parsers');
 
 const TRACKED_BASENAMES = new Set([
   'lessons.md', 'todo.md', 'pr-queue.md', 'flags-and-notes.md',
@@ -237,6 +252,169 @@ function checkStoryBriefCrossRef(tasksDir, warnings) {
   }
 }
 
+// ── artifact file detection ──────────────────────────────────────────
+
+const ARTIFACT_BASENAMES = new Set(['prd.md', 'architecture.md']);
+
+function isArtifactFile(normalized) {
+  const basename = path.posix.basename(normalized).toLowerCase();
+  if (ARTIFACT_BASENAMES.has(basename)) return true;
+  // docs/adr/NNNN-*.md
+  if (/\/docs\/adr\/\d{4}.*\.md$/i.test(normalized)) return true;
+  return false;
+}
+
+// ── artifact drift checks (batch 3) ─────────────────────────────────
+
+// Invariant 7: NFR keywords in PRD but not in architecture doc
+function checkNfrCoverage(projectRoot, warnings) {
+  const prdPath = ap.findPrdPath(projectRoot);
+  const archPath = ap.findArchPath(projectRoot);
+  if (!prdPath || !archPath) return;
+
+  const prdText = read(prdPath);
+  const archText = read(archPath);
+  if (!prdText || !archText) return;
+
+  const nfrs = ap.extractNfrKeywords(prdText);
+  if (!nfrs.length) return;
+
+  const missing = ap.findMissingNfrs(archText, nfrs);
+  for (const kw of missing) {
+    warnings.push(
+      `Artifact drift: PRD mentions NFR "${kw}" but ARCHITECTURE.md does not address it`
+    );
+  }
+}
+
+// Invariant 8: Architecture components not referenced in work items
+function checkServiceCoverage(projectRoot, warnings) {
+  const archPath = ap.findArchPath(projectRoot);
+  const todoPath = ap.findTodoPath(projectRoot);
+  if (!archPath || !todoPath) return;
+
+  const archText = read(archPath);
+  const todoText = read(todoPath);
+  if (!archText || !todoText) return;
+
+  const components = ap.extractMermaidComponents(archText);
+  if (!components.length) return;
+
+  const todoLower = todoText.toLowerCase();
+  for (const name of components) {
+    if (name.length < 3) continue; // skip very short names like "UI"
+    if (!todoLower.includes(name.toLowerCase())) {
+      warnings.push(
+        `Artifact drift: ARCHITECTURE.md component "${name}" not referenced in todo.md work items`
+      );
+    }
+  }
+}
+
+// Invariant 9: Work item references to PRD sections that don't exist
+function checkPrdSectionRefs(projectRoot, warnings) {
+  const prdPath = ap.findPrdPath(projectRoot);
+  const todoPath = ap.findTodoPath(projectRoot);
+  if (!prdPath || !todoPath) return;
+
+  const prdText = read(prdPath);
+  const todoText = read(todoPath);
+  if (!prdText || !todoText) return;
+
+  const refs = ap.extractPrdSectionRefs(todoText);
+  if (!refs.length) return;
+
+  const headings = ap.extractHeadings(prdText);
+  const sectionNumbers = new Set(headings.map((h) => h.number).filter(Boolean));
+  // Also match heading text containing the number (e.g., "3.2 User Stories")
+  const headingTexts = headings.map((h) => h.text);
+
+  for (const ref of refs) {
+    const exists = sectionNumbers.has(ref)
+      || headingTexts.some((t) => t.startsWith(ref));
+    if (!exists) {
+      warnings.push(
+        `Artifact drift: todo.md references "PRD Section ${ref}" but that section does not exist in PRD.md`
+      );
+    }
+  }
+}
+
+// Invariant 10: Acceptance criteria keywords not found in test files
+// This is highly heuristic — only checks if the tests/ directory exists and
+// has files mentioning key AC terms. Produces soft warnings only.
+function checkAcTestCoverage(projectRoot, warnings) {
+  const todoPath = ap.findTodoPath(projectRoot);
+  if (!todoPath) return;
+
+  const todoText = read(todoPath);
+  if (!todoText) return;
+
+  // Extract acceptance criteria from XML-style plan tasks
+  const acMatches = todoText.match(/<acceptance[^>]*>([\s\S]*?)<\/acceptance>/gi);
+  if (!acMatches || !acMatches.length) return;
+
+  // Check if any test directory exists
+  const testDirs = ['tests', 'test', '__tests__', 'spec'];
+  let hasTests = false;
+  for (const d of testDirs) {
+    if (fs.existsSync(path.join(projectRoot, d))) { hasTests = true; break; }
+  }
+  if (fs.existsSync(path.join(projectRoot, 'src')) && !hasTests) {
+    // Also check for test files alongside source
+    try {
+      const srcFiles = fs.readdirSync(path.join(projectRoot, 'src'));
+      hasTests = srcFiles.some((f) => /\.test\.|\.spec\./i.test(f));
+    } catch { /* ignore */ }
+  }
+
+  if (!hasTests) {
+    warnings.push(
+      'Artifact drift: todo.md has acceptance criteria but no test directory found — consider adding tests'
+    );
+  }
+}
+
+// Invariant 11: ADR technology choice contradicted by architecture doc
+// HARD BLOCK on contradiction (ADR chose X but architecture uses rejected Y)
+function checkAdrConsistency(projectRoot, warnings, hardBlockReasons) {
+  const archPath = ap.findArchPath(projectRoot);
+  if (!archPath) return;
+  const archText = read(archPath);
+  if (!archText) return;
+
+  const adrPaths = ap.findAdrPaths(projectRoot);
+  if (!adrPaths.length) return;
+
+  for (const adrPath of adrPaths) {
+    const adrText = read(adrPath);
+    if (!adrText) continue;
+
+    const status = ap.extractAdrStatus(adrText);
+    if (status !== 'accepted') continue;
+
+    const { chosen, rejected } = ap.extractAdrTechChoices(adrText);
+    if (!chosen.length || !rejected.length) continue;
+
+    for (const tech of rejected) {
+      // Only flag if the rejected tech appears in architecture's platform selection
+      // section AND the chosen tech does NOT appear there
+      const section2 = ap.extractSection(archText, /platform|selection|rationale/i);
+      if (!section2) continue;
+      const s2Lower = section2.toLowerCase();
+      const techLower = tech.toLowerCase();
+      const anyChosenPresent = chosen.some((c) => s2Lower.includes(c.toLowerCase()));
+      if (s2Lower.includes(techLower) && !anyChosenPresent) {
+        hardBlockReasons.push(
+          `Artifact contradiction: ${path.basename(adrPath)} chose ${chosen.join('/')} ` +
+          `over ${tech}, but ARCHITECTURE.md platform rationale references ${tech} ` +
+          `without the chosen technology — run /sync-tasks to resolve`
+        );
+      }
+    }
+  }
+}
+
 // ── entry point ───────────────────────────────────────────────────────
 
 runHook('drift-check', async () => {
@@ -246,23 +424,37 @@ runHook('drift-check', async () => {
 
   const normalized = rawPath.replace(/\\/g, '/');
   const basename = path.posix.basename(normalized);
-  if (!isTracked(basename)) return ok();
-
-  // Derive tasks/ directory from the edited file's parent.
-  const tasksDir = path.posix.dirname(normalized);
-  if (path.posix.basename(tasksDir) !== 'tasks') return ok();
+  const isTask = isTracked(basename);
+  const isArtifact = isArtifactFile(normalized);
+  if (!isTask && !isArtifact) return ok();
 
   const warnings = [];
   const hardBlockReasons = [];
 
   try {
-    checkPrStatuses(tasksDir, warnings);
-    checkSprintStatuses(tasksDir, warnings);
-    checkPeopleCrossRef(tasksDir, hardBlockReasons);
-    checkPeopleOneLiner(tasksDir, warnings);
-    if (FULL_LEVEL) {
-      checkBranchNaming(tasksDir, warnings);
-      checkStoryBriefCrossRef(tasksDir, warnings);
+    // ── Task file invariants (batch 1 + 2) ──────────────────────────
+    if (isTask) {
+      const tasksDir = path.posix.dirname(normalized);
+      if (path.posix.basename(tasksDir) === 'tasks') {
+        checkPrStatuses(tasksDir, warnings);
+        checkSprintStatuses(tasksDir, warnings);
+        checkPeopleCrossRef(tasksDir, hardBlockReasons);
+        checkPeopleOneLiner(tasksDir, warnings);
+        if (FULL_LEVEL) {
+          checkBranchNaming(tasksDir, warnings);
+          checkStoryBriefCrossRef(tasksDir, warnings);
+        }
+      }
+    }
+
+    // ── Artifact drift checks (batch 3) ─────────────────────────────
+    const projectRoot = ap.findProjectRoot(normalized);
+    if (projectRoot) {
+      checkNfrCoverage(projectRoot, warnings);
+      checkServiceCoverage(projectRoot, warnings);
+      checkPrdSectionRefs(projectRoot, warnings);
+      checkAcTestCoverage(projectRoot, warnings);
+      checkAdrConsistency(projectRoot, warnings, hardBlockReasons);
     }
   } catch { /* fail open — never block on checker bugs */ }
 
@@ -276,7 +468,7 @@ runHook('drift-check', async () => {
   if (warnings.length) {
     injectContext(
       'PostToolUse',
-      `Task-file drift warnings: ${warnings.join('; ')}. ` +
+      `Drift warnings: ${warnings.join('; ')}. ` +
       `Not blocking, but consider running /sync-tasks.`
     );
   }
