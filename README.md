@@ -34,6 +34,7 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 /implement #42 --discuss          ← 3 clarifying questions before planning
 /implement #42 --research         ← scan codebase for reusable utilities first
 /implement #42 --full             ← --discuss + --research (max understanding)
+/implement #42 --auto             ← run all waves without pausing between them
 /implement #42 --full --quick     ← max understanding, skip post-build evaluation
 /plan                             ← prioritize your open issues
 ```
@@ -42,11 +43,13 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 - `--discuss` — pre-plan Q&A (intent, acceptance bar, constraints, free-form notes)
 - `--research` — codebase scan produces a reuse inventory before the plan
 - `--quick` — skip Phase 3 (evaluation + acceptance testing)
-- `--full` — sugar for `--discuss --research`; orthogonal to `--quick`
+- `--auto` — auto-run all waves without pausing between them (still stops on failure)
+- `--full` — sugar for `--discuss --research`; orthogonal to `--quick` and `--auto`
 
 ### Enterprise teams
 ```
 /story 9950                 ← 5-phase story lifecycle with human gates
+/story 9950 --auto          ← same, but auto-run waves (pause only on failure)
 /sprint-plan 8              ← reads tracker, creates sprint file, surfaces gaps
 /babysit-pr 163             ← loops PR reviews until zero threads remain
 ```

@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Build a feature from a GitHub issue or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id or description> [--discuss] [--research] [--quick] [--full]
+description: Build a feature from a GitHub issue or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id or description> [--discuss] [--research] [--quick] [--auto] [--full]
 argument-hint: "#42 or 'add dark mode to settings page'"
 ---
 
@@ -30,9 +30,10 @@ Parse `$ARGUMENTS`:
    - `--discuss` → run a pre-plan clarification step (Phase 1a)
    - `--research` → run a codebase-scan step before the planner (Phase 1b)
    - `--quick` → skip Phase 3 (evaluation + acceptance testing)
-   - `--full` → sugar for `--discuss` + `--research` (does NOT imply `--quick`)
+   - `--auto` → auto-run all waves without pausing between them (still stops on failure)
+   - `--full` → sugar for `--discuss` + `--research` (does NOT imply `--quick` or `--auto`)
 
-   `--full` and `--quick` are orthogonal and may be combined. Expand `--full` into the underlying two flags before proceeding.
+   `--full`, `--quick`, and `--auto` are orthogonal and may be combined. Expand `--full` into the underlying two flags before proceeding.
 
 2. **Classify the remaining arguments:**
    - If they start with `#` or are a number → it's a **GitHub issue ID**
@@ -111,6 +112,12 @@ Then say **exactly:**
 ---
 **STOP 1 — Review the plan above. [N] tasks planned. Say "go" to start building, or describe what to change.**
 
+**Execution mode** (only show if the plan has 2+ waves AND `--auto` was NOT passed — omit entirely otherwise):
+- **(A) Wave-by-wave** — I'll pause after each wave for your approval before continuing (default)
+- **(B) Auto-run** — I'll run all waves back-to-back and pause only at the end (or on failure)
+
+*(Say "go" or "go A" for wave-by-wave, "go B" for auto-run. Tip: use `--auto` flag to skip this question next time.)*
+
 ---
 
 Do NOT proceed until YOUR_NAME responds.
@@ -121,11 +128,11 @@ Do NOT proceed until YOUR_NAME responds.
 
 ## Phase 2 — Execute (wave by wave)
 
-Once YOUR_NAME approves:
+Once YOUR_NAME approves, note the **execution mode**: if `--auto` flag was set, use mode B. Otherwise use what they chose at STOP 1 (A = wave-by-wave, B = auto-run; default A if not specified).
 
 Parse the XML task plan from Phase 1. Group tasks by `parallel_group` into waves.
 
-If there's only 1 task: skip the wave table, just execute it directly.
+If there's only 1 wave (including the single-task case): execution mode is always A — skip the wave table and execute directly.
 
 If there are multiple tasks, show the wave summary:
 
@@ -149,12 +156,22 @@ For **each wave:**
 
 **C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection.
 
-**D. STOP after each wave:**
+**D. STOP after each wave (behavior depends on execution mode):**
+
+**If mode A (wave-by-wave):**
 
 ---
 **Wave [n] complete: [passed] PASS, [failed] FAIL. Continue?**
 
 ---
+
+Do NOT start the next wave until YOUR_NAME responds.
+
+**If mode B (auto-run):**
+- Show the wave result table so YOUR_NAME can see progress in real-time.
+- **If all tasks passed**: say "Wave [n] ✅ — continuing to Wave [n+1]..." and proceed immediately. Do NOT wait for confirmation.
+- **If any task FAILED or BLOCKED**: STOP and show the full wave result — auto-run pauses on failure. YOUR_NAME must respond before continuing.
+- After the **final wave** (all waves done, all passed), show the full summary and proceed to Phase 2.5.
 
 **On failure — 3-attempt rule:**
 - Attempt 1-2 failed → re-spawn with error context

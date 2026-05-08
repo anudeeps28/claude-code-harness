@@ -1,6 +1,6 @@
 ---
 name: story
-description: End-to-end story execution — understand → plan → execute → PR. Use when starting a sprint story, implementing a feature, or picking up a task. Usage: /story <story-id>
+description: End-to-end story execution — understand → plan → execute → PR. Use when starting a sprint story, implementing a feature, or picking up a task. Usage: /story <story-id> [--auto]
 argument-hint: Story ID e.g. 9950
 ---
 
@@ -10,7 +10,13 @@ argument-hint: Story ID e.g. 9950
 
 ---
 
-You are the story execution orchestrator for YOUR_PROJECT_NAME. The story to execute is: **#$ARGUMENTS**
+You are the story execution orchestrator for YOUR_PROJECT_NAME.
+
+Parse `$ARGUMENTS`:
+1. **Extract flags:** strip `--auto` if present. `--auto` → auto-run all waves without pausing between them (still stops on failure).
+2. **Story ID:** the remaining argument after stripping flags.
+
+The story to execute is: **#[story ID]**
 
 Run these 4 phases in strict order. Each phase ends with a mandatory STOP checkpoint. **Do not advance to the next phase without YOUR_NAME's explicit confirmation.**
 
@@ -80,7 +86,11 @@ Then say **exactly**:
 ---
 **STOP 2 — Review each task above. The plan has [N] tasks including [M] test tasks. Review the test strategy — acceptance criteria, integration scenarios, and regression guardrails. Approve to begin execution, or request changes.**
 
-*(Say "approve" or describe what to change.)*
+**Execution mode** (only show if the plan has 2+ waves AND `--auto` was NOT passed — omit entirely otherwise):
+- **(A) Wave-by-wave** — I'll pause after each wave for your approval before continuing (default)
+- **(B) Auto-run** — I'll run all waves back-to-back and pause only at the end (or on failure)
+
+*(Say "approve" or "approve A" for wave-by-wave, "approve B" for auto-run, or describe what to change. Tip: use `--auto` flag to skip this question next time.)*
 
 ---
 
@@ -99,7 +109,7 @@ Do not loop more than 3 plan revision iterations without escalating.
 
 ## Phase 3 — Execute (wave by wave)
 
-Once YOUR_NAME approves the plan, parse the `parallel_group` attribute on each `<task>` and group tasks into waves. Show the wave summary table before starting:
+Once YOUR_NAME approves the plan, note the **execution mode**: if `--auto` flag was set, use mode B. Otherwise use what they chose at STOP 2 (A = wave-by-wave, B = auto-run; default A if not specified). If there is only 1 wave, execution mode is always A (no point asking — there's nothing to auto-continue through). Parse the `parallel_group` attribute on each `<task>` and group tasks into waves. Show the wave summary table before starting:
 
 | Wave | Task IDs | Task Names | Type |
 |---|---|---|---|
@@ -146,7 +156,9 @@ Collect all results before proceeding.
 
 **E2. Update the executor state handoff:** Write/update `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the source of truth for what's been done.
 
-**F. STOP after every wave** — say exactly:
+**F. STOP after every wave (behavior depends on execution mode):**
+
+**If mode A (wave-by-wave)** — say exactly:
 
 ---
 **STOP 3 — Wave [n] complete: [k passed] ✅  [j failed] ❌  [m blocked] ⚠️**
@@ -160,6 +172,12 @@ Collect all results before proceeding.
 ---
 
 Do NOT start the next wave until YOUR_NAME says "yes".
+
+**If mode B (auto-run):**
+- Show the wave result table (step D) so YOUR_NAME can see progress in real-time.
+- **If all tasks passed**: say "Wave [n] ✅ — continuing to Wave [n+1]..." and proceed immediately. Do NOT wait for confirmation.
+- **If any task FAILED or is BLOCKED**: STOP and show the full STOP 3 message above — auto-run pauses on failure. YOUR_NAME must respond before continuing.
+- After the **final wave** (all waves done, all passed), show the full summary and proceed to Phase 3.5.
 
 **G. On failure — 3-attempt rule (per task, tracked independently):**
 - Attempt 1 failed: re-spawn that task only as a background worktree agent with the error included. Other passing tasks in the wave are not re-run.

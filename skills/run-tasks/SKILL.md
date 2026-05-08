@@ -1,6 +1,6 @@
 ---
 name: run-tasks
-description: Execute XML tasks from todo.md wave by wave (Phase 3 only — no understand, no plan, no PR). Use when resuming a story that already has a task plan. Usage: /run-tasks <story-id>
+description: Execute XML tasks from todo.md wave by wave (Phase 3 only — no understand, no plan, no PR). Use when resuming a story that already has a task plan. Usage: /run-tasks <story-id> [--auto]
 argument-hint: Story ID e.g. 9950
 ---
 
@@ -10,7 +10,11 @@ argument-hint: Story ID e.g. 9950
 
 ---
 
-You run the pending XML tasks for story **#$ARGUMENTS** from `todo.md`. No planning, no PR — just execution.
+Parse `$ARGUMENTS`:
+1. **Extract flags:** strip `--auto` if present. `--auto` → auto-run all waves without pausing between them (still stops on failure).
+2. **Story ID:** the remaining argument after stripping flags.
+
+You run the pending XML tasks for story **#[story ID]** from `todo.md`. No planning, no PR — just execution.
 
 ---
 
@@ -52,7 +56,20 @@ Build a wave summary table and show it before starting execution:
 | 3 | 4 | "Update DependencyInjection.cs" | auto |
 | 4 | 5 | "Deploy to Azure" | manual |
 
-Say: **"[N] waves planned. Starting Wave 1."**
+If `--auto` was passed, use mode B. If there is only 1 wave, use mode A. In both cases, skip the mode question and say **"[N] wave(s) planned. Starting Wave 1."**
+
+Otherwise (2+ waves, no `--auto`), ask YOUR_NAME:
+
+---
+**[N] waves planned. Choose execution mode:**
+- **(A) Wave-by-wave** — I'll pause after each wave for your approval before continuing (default)
+- **(B) Auto-run** — I'll run all waves back-to-back and pause only at the end (or on failure)
+
+*(Say "A" or "B", or just "go" for wave-by-wave. Tip: use `--auto` flag to skip this question next time.)*
+
+---
+
+Do NOT start execution until YOUR_NAME responds.
 
 ---
 
@@ -98,7 +115,9 @@ For any BLOCKED task, show:
 
 For each task that returned PASS: mark it done in `tasks/todo.md` by prepending `✅` to its task name line. Do all updates in one Edit pass — not one per task.
 
-### F. STOP after every wave — say exactly:
+### F. STOP after every wave (behavior depends on execution mode):
+
+**If mode A (wave-by-wave)** — say exactly:
 
 ---
 **STOP — Wave [n] complete: [k passed] ✅ [j failed] ❌ [m blocked] ⚠️**
@@ -112,6 +131,12 @@ For each task that returned PASS: mark it done in `tasks/todo.md` by prepending 
 ---
 
 Do NOT start the next wave until YOUR_NAME says "yes" (or "retry" / "continue" for failures/blockers).
+
+**If mode B (auto-run):**
+- Show the wave result table (step D) so YOUR_NAME can see progress in real-time.
+- **If all tasks passed**: say "Wave [n] ✅ — continuing to Wave [n+1]..." and proceed immediately. Do NOT wait for confirmation.
+- **If any task FAILED or BLOCKED**: STOP and show the full STOP message above — auto-run pauses on failure. YOUR_NAME must respond before continuing.
+- After the **final wave** (all waves done, all passed), show the full summary and proceed to Step 5.
 
 ### G. On failure — 3-attempt rule (per task, not per wave)
 
@@ -149,7 +174,7 @@ Say:
 ## Hard rules
 
 - Never commit anything — that is Phase 4's job
-- Never skip a STOP checkpoint between waves
+- In mode A, never skip a STOP checkpoint between waves. In mode B, always stop on failure/blocked — never auto-continue past errors
 - Never start Wave N+1 while Wave N has an unresolved FAIL or BLOCKED
 - If YOUR_NAME says "stop" at any point — stop immediately, show which tasks are ✅ done and which are pending, and which wave you were on
 - 3 failures on any single task → invoke `/debug`, never attempt a 4th time
