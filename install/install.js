@@ -15,6 +15,16 @@ const { walk } = require('../hooks/lib/walk.js');
 const REPO_DIR = path.resolve(__dirname, '..');
 const IS_WINDOWS = process.platform === 'win32';
 
+const ENTERPRISE_ONLY_AGENTS = new Set([
+  'story-understand-agent.md',
+  'story-plan-agent.md',
+  'story-executor-agent.md',
+  'story-pr-agent.md',
+  'sprint-plan-gap-analyzer.md',
+  'sprint-plan-docs-reader.md',
+  'sprint-plan-tracker-reader.md',
+]);
+
 // ── Node version gate ────────────────────────────────────────────────────────
 const major = parseInt(process.versions.node.split('.')[0], 10);
 if (!Number.isFinite(major) || major < 20) {
@@ -150,9 +160,10 @@ async function main() {
     adoOrgPath = (await ask('    ADO org path (sprint IterationPath)    : ')).trim() || adoOrgPath;
   }
 
-  let orgName = 'YOUR_ORG', leadDev = 'YOUR_LEAD_DEV', infraPerson = 'YOUR_INFRA_PERSON',
-      devopsPerson = 'YOUR_DEVOPS_PERSON', qaPerson = 'YOUR_QA_PERSON';
+  let orgName, leadDev, infraPerson, devopsPerson, qaPerson;
   if (workflowPack === 'enterprise') {
+    orgName = 'YOUR_ORG'; leadDev = 'YOUR_LEAD_DEV'; infraPerson = 'YOUR_INFRA_PERSON';
+    devopsPerson = 'YOUR_DEVOPS_PERSON'; qaPerson = 'YOUR_QA_PERSON';
     console.log('');
     console.log('    Team (press Enter to skip — leaves placeholders in skill text):');
     orgName      = (await ask('    Org / company short name               : ')).trim() || orgName;
@@ -160,6 +171,12 @@ async function main() {
     infraPerson  = (await ask('    Infrastructure / cloud person          : ')).trim() || infraPerson;
     devopsPerson = (await ask('    DevOps / CI/CD / deployments person    : ')).trim() || devopsPerson;
     qaPerson     = (await ask('    QA / UAT person                        : ')).trim() || qaPerson;
+  } else {
+    orgName = projectName !== 'YOUR_PROJECT_NAME' ? projectName : 'our';
+    leadDev = userName !== 'YOUR_NAME' ? userName : 'the lead dev';
+    infraPerson = userName !== 'YOUR_NAME' ? userName : 'the infra person';
+    devopsPerson = userName !== 'YOUR_NAME' ? userName : 'the devops person';
+    qaPerson = userName !== 'YOUR_NAME' ? userName : 'the QA person';
   }
 
   // ── PRD output mode ──────────────────────────────────────────────────────
@@ -219,7 +236,8 @@ async function main() {
   }
 
   console.log('  Copying agents...');
-  copyFilesWithLog(path.join(REPO_DIR, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents');
+  const agentSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_AGENTS : null;
+  copyFilesWithLog(path.join(REPO_DIR, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip);
 
   console.log('  Copying hooks...');
   copyFilesWithLog(path.join(REPO_DIR, 'hooks'), path.join(target, 'hooks'), null, 'hooks', /* filesOnly */ true);
@@ -358,7 +376,7 @@ async function main() {
   fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n', 'utf8');
 
   // ── Verify ─────────────────────────────────────────────────────────────────
-  verifyInstall(target, sedDirs);
+  verifyInstall(target, sedDirs, workflowPack);
 
   // ── Done ───────────────────────────────────────────────────────────────────
   console.log('\n  ────────────────────────────────────────────────────────────────');
@@ -421,12 +439,16 @@ function copyDirsWithLog(srcRoot, destRoot, label) {
   }
 }
 
-function copyFilesWithLog(srcRoot, destRoot, nameRegex, label, filesOnly = false) {
+function copyFilesWithLog(srcRoot, destRoot, nameRegex, label, filesOnly = false, skipSet = null) {
   if (!fs.existsSync(srcRoot)) return;
   for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
     if (!entry.isFile()) continue;
     if (nameRegex && !nameRegex.test(entry.name)) continue;
     if (filesOnly && entry.isDirectory()) continue;
+    if (skipSet && skipSet.has(entry.name)) {
+      console.log(`    Skipped:   ${label}/${entry.name} (enterprise-only)`);
+      continue;
+    }
     const destPath = path.join(destRoot, entry.name);
     const existed = fs.existsSync(destPath);
     console.log(`    ${existed ? 'Updating:  ' : 'Installing:'} ${label}/${entry.name}`);
@@ -542,11 +564,11 @@ function buildSettings({ hooksUnix, sessionStartMsg, workRoot, isGlobal }) {
   return settings;
 }
 
-function verifyInstall(target, sedDirs) {
+function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
   console.log('  Verifying installation...');
   let fail = 0;
   const required = [
-    'skills/story/SKILL.md',
+    ...(workflowPack === 'enterprise' ? ['skills/story/SKILL.md'] : ['skills/implement/SKILL.md']),
     'hooks/safety-check.js',
     'rules/code-style.md',
     'trackers/active/get-issue.sh',
