@@ -66,18 +66,48 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 
 ## SDLC lifecycle at a glance
 
-The harness covers the full software development lifecycle. Each phase has dedicated skills — use the table below to find the right one for where you are.
+The harness covers the full software development lifecycle. Both solo and enterprise workflows share the same five phases — the difference is which skills you reach for in each one.
 
 ```mermaid
 flowchart LR
-    P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief ✦"]
-    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues"]
-    P2["Build<br/>/story · /implement<br/>/evaluate · /debug"]
-    P3["Ship<br/>/babysit-pr<br/>/local-test · /deploy"]
+    P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief · /plan ●"]
+    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues<br/>/sprint-plan ◆"]
+    P2["Build<br/>/implement ● · /story ◆<br/>/run-tasks ◆<br/>/evaluate · /debug"]
+    P3["Ship<br/>/babysit-pr ◆<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage · /improve-codebase-architecture"]
 
     P0 --> P1 --> P2 --> P3 --> P4
     P4 -.->|"next cycle"| P1
+```
+
+> ● = solo only &nbsp;&nbsp; ◆ = enterprise only &nbsp;&nbsp; unmarked = both
+
+#### Solo developer path
+
+```mermaid
+flowchart LR
+    D["Decide<br/>/plan · /grill-me"]
+    Def["Define<br/>/prd · /architect<br/>/research"]
+    B["Build<br/>/implement #42<br/>/evaluate · /debug"]
+    S["Ship<br/>/local-test"]
+    L["Learn<br/>/zoom-out<br/>/improve-harness"]
+
+    D --> Def --> B --> S --> L
+    L -.->|"next issue"| D
+```
+
+#### Enterprise team path
+
+```mermaid
+flowchart LR
+    D["Decide<br/>/grill-me<br/>/decision-brief"]
+    Def["Define<br/>/sprint-plan<br/>/prd · /architect"]
+    B["Build<br/>/story 9950<br/>/evaluate · /debug"]
+    S["Ship<br/>/babysit-pr<br/>/deploy"]
+    L["Learn<br/>/zoom-out<br/>/improve-harness"]
+
+    D --> Def --> B --> S --> L
+    L -.->|"next sprint"| Def
 ```
 
 ### When to use what
