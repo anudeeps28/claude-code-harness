@@ -42,6 +42,14 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+*.egg-info/
+*.egg
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
 
 # Secrets
 .env
