@@ -40,6 +40,7 @@ PROJECT_DIR=""
 
 UNINSTALL=false
 DRY_RUN=false
+NON_INTERACTIVE=false
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
@@ -59,11 +60,15 @@ while [[ "$#" -gt 0 ]]; do
     --dry-run)
       DRY_RUN=true
       ;;
+    --yes|-y)
+      NON_INTERACTIVE=true
+      ;;
     --help|-h)
       echo "  Usage:"
       echo "    bash install/install.sh                     # interactive install"
       echo "    bash install/install.sh --global            # global install"
       echo "    bash install/install.sh --project /my/app   # project install"
+      echo "    bash install/install.sh --yes --global      # non-interactive (solo pack, defaults)"
       echo "    bash install/install.sh --uninstall         # remove installed files"
       echo "    bash install/install.sh --dry-run           # show what would be done"
       echo ""
@@ -80,6 +85,27 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
+# --yes requires explicit --global or --project
+if $NON_INTERACTIVE && [[ -z "$MODE" ]]; then
+  echo "  Error: --yes requires --global or --project <path>" >&2
+  exit 1
+fi
+if $NON_INTERACTIVE && [[ "$MODE" == "project" && -z "$PROJECT_DIR" ]]; then
+  echo "  Error: --yes requires --project <path>" >&2
+  exit 1
+fi
+
+# Helper: return default immediately in non-interactive mode, else prompt
+ask_or_default() {
+  local question="$1" default="$2"
+  if $NON_INTERACTIVE; then
+    echo "$default"
+    return
+  fi
+  read -p "$question" ans
+  echo "${ans:-$default}"
+}
+
 # ── Interactive mode selection ────────────────────────────────────────────────
 if [[ -z "$MODE" ]]; then
   echo "  Install mode:"
@@ -87,7 +113,7 @@ if [[ -z "$MODE" ]]; then
   echo "    1) Global  — skills available in every project  (~/.claude/)"
   echo "    2) Project — install into one specific project"
   echo ""
-  read -p "  Choice [1/2]: " choice
+  choice=$(ask_or_default "  Choice [1/2]: " "2")
   echo ""
   if [[ "$choice" == "1" ]]; then
     MODE="global"
@@ -97,7 +123,7 @@ if [[ -z "$MODE" ]]; then
 fi
 
 if [[ "$MODE" == "project" && -z "$PROJECT_DIR" ]]; then
-  read -p "  Project path: " PROJECT_DIR
+  PROJECT_DIR=$(ask_or_default "  Project path: " "")
   echo ""
 fi
 
@@ -133,7 +159,7 @@ if [[ "$UNINSTALL" == true ]]; then
   echo "    - settings.json (your hook configuration)"
   echo "    - tasks/ files (your project data)"
   echo ""
-  read -p "  Continue? [y/N]: " uninstall_confirm
+  uninstall_confirm=$(ask_or_default "  Continue? [y/N]: " "y")
   [[ "$uninstall_confirm" != "y" && "$uninstall_confirm" != "Y" ]] && echo "  Cancelled." && exit 0
 
   # Create a timestamped backup before removing
@@ -158,7 +184,7 @@ fi
 # Warn if project directory is not a git repository
 if [[ "$MODE" == "project" && ! -d "$PROJECT_DIR/.git" ]]; then
   echo "  Warning: $PROJECT_DIR does not appear to be a git repository."
-  read -p "  Continue anyway? [y/N]: " git_confirm
+  git_confirm=$(ask_or_default "  Continue anyway? [y/N]: " "y")
   echo ""
   [[ "$git_confirm" != "y" && "$git_confirm" != "Y" ]] && exit 1
 fi
@@ -169,7 +195,7 @@ echo ""
 echo "    1) Enterprise — sprints, stories, team coordination (/story, /sprint-plan)"
 echo "    2) Solo       — issues, simple priorities (/implement, /plan)"
 echo ""
-read -p "  Choice [1/2]: " pack_choice
+pack_choice=$(ask_or_default "  Choice [1/2]: " "2")
 echo ""
 
 case "$pack_choice" in
@@ -184,7 +210,7 @@ if [[ "$WORKFLOW_PACK" == "enterprise" ]]; then
   echo "    1) Azure DevOps  (uses az devops CLI)"
   echo "    2) GitHub        (uses gh CLI)"
   echo ""
-  read -p "  Choice [1/2]: " tracker_choice
+  tracker_choice=$(ask_or_default "  Choice [1/2]: " "2")
   echo ""
   case "$tracker_choice" in
     2) TRACKER="github" ;;
@@ -228,13 +254,13 @@ echo ""
 # ── Collect personalization ───────────────────────────────────────────────────
 echo "  Personalization (press Enter to skip and fill in manually later):"
 echo ""
-read -p "    Your name                              : " USER_NAME
-read -p "    Project name (human-readable)           : " PROJECT_NAME
+USER_NAME=$(ask_or_default "    Your name                              : " "")
+PROJECT_NAME=$(ask_or_default "    Project name (human-readable)           : " "")
 
 if [[ "$WORKFLOW_PACK" == "enterprise" && "$TRACKER" == "ado" ]]; then
-  read -p "    ADO project name                       : " ADO_PROJECT
-  read -p "    ADO repo name                          : " ADO_REPO
-  read -p "    ADO org path (sprint IterationPath)    : " ADO_ORG_PATH
+  ADO_PROJECT=$(ask_or_default "    ADO project name                       : " "")
+  ADO_REPO=$(ask_or_default "    ADO repo name                          : " "")
+  ADO_ORG_PATH=$(ask_or_default "    ADO org path (sprint IterationPath)    : " "")
 fi
 
 # Enterprise-only team placeholders (referenced by skills/agents that talk about
@@ -242,11 +268,11 @@ fi
 if [[ "$WORKFLOW_PACK" == "enterprise" ]]; then
   echo ""
   echo "    Team (press Enter to skip — leaves placeholders in skill text):"
-  read -p "    Org / company short name               : " ORG_NAME
-  read -p "    Lead developer name (architecture)     : " LEAD_DEV
-  read -p "    Infrastructure / cloud person          : " INFRA_PERSON
-  read -p "    DevOps / CI/CD / deployments person    : " DEVOPS_PERSON
-  read -p "    QA / UAT person                        : " QA_PERSON
+  ORG_NAME=$(ask_or_default "    Org / company short name               : " "")
+  LEAD_DEV=$(ask_or_default "    Lead developer name (architecture)     : " "")
+  INFRA_PERSON=$(ask_or_default "    Infrastructure / cloud person          : " "")
+  DEVOPS_PERSON=$(ask_or_default "    DevOps / CI/CD / deployments person    : " "")
+  QA_PERSON=$(ask_or_default "    QA / UAT person                        : " "")
 fi
 
 # ── PRD output mode ──────────────────────────────────────────────────────
@@ -257,7 +283,7 @@ echo "    2) Tracker issue         — published to your issue tracker"
 echo "    3) Both — file canonical — PRD.md is source of truth, tracker is mirror"
 echo "    4) Both — tracker canonical — tracker issue is source of truth, file is mirror"
 echo ""
-read -p "  Choice [1/2/3/4]: " prd_choice
+prd_choice=$(ask_or_default "  Choice [1/2/3/4]: " "1")
 echo ""
 case "$prd_choice" in
   2) PRD_MODE="tracker" ;;
@@ -267,13 +293,13 @@ case "$prd_choice" in
 esac
 
 if [[ "$MODE" == "global" ]]; then
-  read -p "    Work root (folder containing projects) : " WORK_ROOT
+  WORK_ROOT=$(ask_or_default "    Work root (folder containing projects) : " "")
 fi
 
 # Where the user cloned the harness source — the /improve-harness skill needs this so
 # its proposals can reference real file paths to edit. Default to REPO_DIR
 # (the directory the installer is running from) since that's almost always right.
-read -p "    Harness repo path [${REPO_DIR}]: " HARNESS_REPO_PATH
+HARNESS_REPO_PATH=$(ask_or_default "    Harness repo path [${REPO_DIR}]: " "")
 HARNESS_REPO_PATH="${HARNESS_REPO_PATH:-$REPO_DIR}"
 echo ""
 
@@ -338,7 +364,7 @@ if [[ -d "$TARGET/skills" || -d "$TARGET/agents" || -d "$TARGET/hooks" ]]; then
   echo "  Skills, agents, hooks, and rules will be overwritten with the latest versions."
   echo "  Task files (tasks/) will NOT be overwritten."
   echo ""
-  read -p "  Continue with upgrade? [y/N]: " upgrade_confirm
+  upgrade_confirm=$(ask_or_default "  Continue with upgrade? [y/N]: " "y")
   echo ""
   [[ "$upgrade_confirm" != "y" && "$upgrade_confirm" != "Y" ]] && echo "  Aborted." && exit 0
 fi
@@ -364,9 +390,31 @@ chmod +x "$TARGET/trackers/active/"*.sh
 mkdir -p "$TARGET/trackers/lib"
 cp "$REPO_DIR/trackers/lib/"*.sh "$TARGET/trackers/lib/" 2>/dev/null || true
 
+ENTERPRISE_ONLY_AGENTS=(
+  story-understand-agent.md
+  story-plan-agent.md
+  story-executor-agent.md
+  story-pr-agent.md
+  sprint-plan-gap-analyzer.md
+  sprint-plan-docs-reader.md
+  sprint-plan-tracker-reader.md
+)
+
+is_enterprise_only() {
+  local name="$1"
+  for e in "${ENTERPRISE_ONLY_AGENTS[@]}"; do
+    [[ "$e" == "$name" ]] && return 0
+  done
+  return 1
+}
+
 echo "  Copying agents..."
 for agent_file in "$REPO_DIR/agents/"*.md; do
   agent_name=$(basename "$agent_file")
+  if [[ "$WORKFLOW_PACK" == "solo" ]] && is_enterprise_only "$agent_name"; then
+    echo "    Skipped:   agents/$agent_name (enterprise-only)"
+    continue
+  fi
   if [[ -f "$TARGET/agents/$agent_name" ]]; then
     echo "    Updating:   agents/$agent_name"
   else
@@ -461,7 +509,7 @@ if [[ "$MODE" == "project" ]]; then
   echo "    CONTEXT.md — domain glossary, module map, codebase conventions"
   echo "    docs/adr/  — lightweight records of hard-to-reverse decisions"
   echo ""
-  read -p "  Set up CONTEXT.md + ADR convention? [y/N]: " ctx_choice
+  ctx_choice=$(ask_or_default "  Set up CONTEXT.md + ADR convention? [y/N]: " "n")
   echo ""
   if [[ "$ctx_choice" == "y" || "$ctx_choice" == "Y" ]]; then
     if [[ -f "$PROJECT_DIR/CONTEXT.md" ]]; then

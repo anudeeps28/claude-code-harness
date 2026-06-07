@@ -39,6 +39,7 @@ let mode = '';
 let projectDir = '';
 let uninstall = false;
 let dryRun = false;
+let nonInteractive = false;
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -49,12 +50,14 @@ for (let i = 0; i < args.length; i++) {
     if (next && !next.startsWith('-')) { projectDir = next; i++; }
   } else if (a === '--uninstall') uninstall = true;
   else if (a === '--dry-run') dryRun = true;
+  else if (a === '--yes' || a === '-y') nonInteractive = true;
   else if (a === '--seed') { /* handled post-install — seeds lessons.md from ~/.claude/learnings/ */ }
   else if (a === '--help' || a === '-h') {
     console.log(`  Usage:
     node install/install.js                     # interactive install
     node install/install.js --global            # global install
     node install/install.js --project /my/app   # project install
+    node install/install.js --yes --global      # non-interactive (solo pack, defaults)
     node install/install.js --uninstall         # remove installed files
     node install/install.js --dry-run           # show what would be done
 `);
@@ -69,7 +72,23 @@ const ask = (q) => new Promise((resolve) => rl.question(q, (ans) => resolve(ans)
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  if (nonInteractive && !mode) {
+    console.error('  Error: --yes requires --global or --project <path>');
+    process.exit(1);
+  }
+  if (nonInteractive && mode === 'project' && !projectDir) {
+    console.error('  Error: --yes requires --project <path>');
+    process.exit(1);
+  }
+
+  if (!nonInteractive) {
+    rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  }
+  const prompt = (q, fallback) => {
+    if (nonInteractive) return Promise.resolve(fallback);
+    return ask(q);
+  };
+
   console.log('\n  claude-code-harness');
   console.log('  ────────────────────────────────────────────────────────────────\n');
 
@@ -77,13 +96,13 @@ async function main() {
     console.log('  Install mode:\n');
     console.log('    1) Global  — skills available in every project  (~/.claude/)');
     console.log('    2) Project — install into one specific project\n');
-    const choice = (await ask('  Choice [1/2]: ')).trim();
+    const choice = (await prompt('  Choice [1/2]: ', '2')).trim();
     console.log('');
     mode = choice === '1' ? 'global' : 'project';
   }
 
   if (mode === 'project' && !projectDir) {
-    projectDir = (await ask('  Project path: ')).trim();
+    projectDir = (await prompt('  Project path: ', '')).trim();
     console.log('');
   }
 
@@ -100,14 +119,14 @@ async function main() {
   // ── Uninstall ──────────────────────────────────────────────────────────────
   if (uninstall) {
     await runUninstall(target);
-    rl.close();
+    if (rl) rl.close();
     return;
   }
 
   // Git-repo warning
   if (mode === 'project' && !fs.existsSync(path.join(projectDir, '.git'))) {
     console.log(`  Warning: ${projectDir} does not appear to be a git repository.`);
-    const go = (await ask('  Continue anyway? [y/N]: ')).trim().toLowerCase();
+    const go = (await prompt('  Continue anyway? [y/N]: ', 'y')).trim().toLowerCase();
     console.log('');
     if (go !== 'y') process.exit(1);
   }
@@ -116,7 +135,7 @@ async function main() {
   console.log('  Workflow pack:\n');
   console.log('    1) Enterprise — sprints, stories, team coordination (/story, /sprint-plan)');
   console.log('    2) Solo       — issues, simple priorities (/implement, /plan)\n');
-  const packChoice = (await ask('  Choice [1/2]: ')).trim();
+  const packChoice = (await prompt('  Choice [1/2]: ', '2')).trim();
   console.log('');
   const workflowPack = packChoice === '2' ? 'solo' : 'enterprise';
 
@@ -126,7 +145,7 @@ async function main() {
     console.log('  Issue tracker:\n');
     console.log('    1) Azure DevOps  (uses az devops CLI)');
     console.log('    2) GitHub        (uses gh CLI)\n');
-    const trackerChoice = (await ask('  Choice [1/2]: ')).trim();
+    const trackerChoice = (await prompt('  Choice [1/2]: ', '2')).trim();
     console.log('');
     tracker = trackerChoice === '2' ? 'github' : 'ado';
   } else {
@@ -148,16 +167,16 @@ async function main() {
 
   // ── Personalization ────────────────────────────────────────────────────────
   console.log('  Personalization (press Enter to skip and fill in manually later):\n');
-  const userName    = (await ask('    Your name                              : ')).trim() || 'YOUR_NAME';
-  const projectName = (await ask('    Project name (human-readable)           : ')).trim() || 'YOUR_PROJECT_NAME';
+  const userName    = (await prompt('    Your name                              : ', '')).trim() || 'YOUR_NAME';
+  const projectName = (await prompt('    Project name (human-readable)           : ', '')).trim() || 'YOUR_PROJECT_NAME';
 
   let adoProject = 'YOUR_ADO_PROJECT';
   let adoRepo = 'YOUR_ADO_REPO';
   let adoOrgPath = 'YOUR_ADO_ORG_PATH';
   if (workflowPack === 'enterprise' && tracker === 'ado') {
-    adoProject = (await ask('    ADO project name                       : ')).trim() || adoProject;
-    adoRepo    = (await ask('    ADO repo name                          : ')).trim() || adoRepo;
-    adoOrgPath = (await ask('    ADO org path (sprint IterationPath)    : ')).trim() || adoOrgPath;
+    adoProject = (await prompt('    ADO project name                       : ', '')).trim() || adoProject;
+    adoRepo    = (await prompt('    ADO repo name                          : ', '')).trim() || adoRepo;
+    adoOrgPath = (await prompt('    ADO org path (sprint IterationPath)    : ', '')).trim() || adoOrgPath;
   }
 
   let orgName, leadDev, infraPerson, devopsPerson, qaPerson;
@@ -166,11 +185,11 @@ async function main() {
     devopsPerson = 'YOUR_DEVOPS_PERSON'; qaPerson = 'YOUR_QA_PERSON';
     console.log('');
     console.log('    Team (press Enter to skip — leaves placeholders in skill text):');
-    orgName      = (await ask('    Org / company short name               : ')).trim() || orgName;
-    leadDev      = (await ask('    Lead developer name (architecture)     : ')).trim() || leadDev;
-    infraPerson  = (await ask('    Infrastructure / cloud person          : ')).trim() || infraPerson;
-    devopsPerson = (await ask('    DevOps / CI/CD / deployments person    : ')).trim() || devopsPerson;
-    qaPerson     = (await ask('    QA / UAT person                        : ')).trim() || qaPerson;
+    orgName      = (await prompt('    Org / company short name               : ', '')).trim() || orgName;
+    leadDev      = (await prompt('    Lead developer name (architecture)     : ', '')).trim() || leadDev;
+    infraPerson  = (await prompt('    Infrastructure / cloud person          : ', '')).trim() || infraPerson;
+    devopsPerson = (await prompt('    DevOps / CI/CD / deployments person    : ', '')).trim() || devopsPerson;
+    qaPerson     = (await prompt('    QA / UAT person                        : ', '')).trim() || qaPerson;
   } else {
     orgName = projectName !== 'YOUR_PROJECT_NAME' ? projectName : 'our';
     leadDev = userName !== 'YOUR_NAME' ? userName : 'the lead dev';
@@ -185,23 +204,23 @@ async function main() {
   console.log('    2) Tracker issue         — published to your issue tracker');
   console.log('    3) Both — file canonical — PRD.md is source of truth, tracker is mirror');
   console.log('    4) Both — tracker canonical — tracker issue is source of truth, file is mirror\n');
-  const prdChoice = (await ask('  Choice [1/2/3/4]: ')).trim();
+  const prdChoice = (await prompt('  Choice [1/2/3/4]: ', '1')).trim();
   console.log('');
   const prdModeMap = { '1': 'file', '2': 'tracker', '3': 'both-file-canonical', '4': 'both-tracker-canonical' };
   const prdMode = prdModeMap[prdChoice] || 'file';
 
   let workRoot = '';
   if (mode === 'global') {
-    workRoot = (await ask('    Work root (folder containing projects) : ')).trim() || 'C:\\YOUR_WORK_FOLDER';
+    workRoot = (await prompt('    Work root (folder containing projects) : ', '')).trim() || 'C:\\YOUR_WORK_FOLDER';
   }
 
-  const harnessRepoPath = (await ask(`    Harness repo path [${REPO_DIR}]: `)).trim() || REPO_DIR;
+  const harnessRepoPath = (await prompt(`    Harness repo path [${REPO_DIR}]: `, '')).trim() || REPO_DIR;
   console.log('');
 
   // ── Dry run ────────────────────────────────────────────────────────────────
   if (dryRun) {
     printDryRun({ mode, target, workflowPack, tracker, userName, adoProject, adoRepo, adoOrgPath, workRoot, projectDir });
-    rl.close();
+    if (rl) rl.close();
     return;
   }
 
@@ -212,9 +231,9 @@ async function main() {
     console.log(`  An existing installation was detected at ${target}.`);
     console.log('  Skills, agents, hooks, and rules will be overwritten with the latest versions.');
     console.log('  Task files (tasks/) will NOT be overwritten.\n');
-    const go = (await ask('  Continue with upgrade? [y/N]: ')).trim().toLowerCase();
+    const go = (await prompt('  Continue with upgrade? [y/N]: ', 'y')).trim().toLowerCase();
     console.log('');
-    if (go !== 'y') { console.log('  Aborted.'); rl.close(); return; }
+    if (go !== 'y') { console.log('  Aborted.'); if (rl) rl.close(); return; }
   }
 
   // ── Copy files ─────────────────────────────────────────────────────────────
@@ -279,7 +298,7 @@ async function main() {
     console.log('  Optional: CONTEXT.md + ADR convention\n');
     console.log('    CONTEXT.md — domain glossary, module map, codebase conventions');
     console.log('    docs/adr/  — lightweight records of hard-to-reverse decisions\n');
-    const ctxChoice = (await ask('  Set up CONTEXT.md + ADR convention? [y/N]: ')).trim().toLowerCase();
+    const ctxChoice = (await prompt('  Set up CONTEXT.md + ADR convention? [y/N]: ', 'n')).trim().toLowerCase();
     console.log('');
     if (ctxChoice === 'y') {
       const ctxTemplateSrc = path.join(REPO_DIR, 'templates/CONTEXT.md.template');
@@ -406,7 +425,7 @@ async function main() {
   reportUnfilled({ userName, projectName, tracker, workflowPack,
     adoProject, adoRepo, adoOrgPath, orgName, leadDev, infraPerson, devopsPerson, qaPerson });
 
-  rl.close();
+  if (rl) rl.close();
 }
 
 if (require.main === module) {
@@ -689,7 +708,7 @@ async function runUninstall(target) {
   console.log('\n  This will NOT remove:');
   console.log('    - settings.json (your hook configuration)');
   console.log('    - tasks/ files (your project data)\n');
-  const go = (await ask('  Continue? [y/N]: ')).trim().toLowerCase();
+  const go = nonInteractive ? 'y' : (await ask('  Continue? [y/N]: ')).trim().toLowerCase();
   if (go !== 'y') { console.log('  Cancelled.'); return; }
 
   const stamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 15);
