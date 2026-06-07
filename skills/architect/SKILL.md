@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Design system architecture from a PRD — produces ARCHITECTURE.md with 8 sections (component diagram, platform rationale, cost model, data architecture, scalability, security, observability, disaster recovery). Cloud-agnostic with optional platform-specific extensions. Usage: /architect <path-to-PRD>
+description: Design system architecture from a PRD or grill-summary — produces ARCHITECTURE.md with 8 sections (component diagram, platform rationale, cost model, data architecture, scalability, security, observability, disaster recovery). Cloud-agnostic with optional platform-specific extensions. Usage: /architect [<path-to-PRD-or-grill-summary>]
 ---
 
 **Core Philosophy:** Architecture is the set of decisions that are expensive to change later. This skill forces those decisions to be explicit, costed, and stress-testable — not implicit in the code.
@@ -33,17 +33,25 @@ Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 ## Step 1 — Input gate (pre-flight)
 
 Parse `$ARGUMENTS` for:
-- **PRD file path** — REQUIRED. The PRD to architect from.
+- **Requirements source path** — a PRD or grill-summary file.
 
-If the PRD path is missing, stop immediately:
+**Resolution order (try each until one succeeds):**
+1. If `$ARGUMENTS` contains a file path, use that (PRD or grill-summary)
+2. If `grill-summary.md` exists in repo root, use that
+3. If `PRD.md` exists in repo root, use that
+4. If neither exists, stop:
 
-> "I need a path to the PRD file to architect from.
+> "I need a requirements source to architect from. Provide one of:
 >
-> Usage: `/architect path/to/PRD.md`
+> - `/architect path/to/PRD.md` — if you have a PRD (from `/prd`)
+> - `/architect path/to/grill-summary.md` — if you ran `/grill-me`
+> - `/architect` — auto-detects `grill-summary.md` or `PRD.md` in the repo root
 >
-> The PRD defines the features, NFRs, and constraints that drive architecture decisions."
+> If you're starting from scratch, run `/grill-me` first to establish shared understanding."
 
-Read the PRD file. If it doesn't exist, stop and report the error. *(Gate type: pre-flight)*
+Read the requirements file. If it doesn't exist, stop and report the error. *(Gate type: pre-flight)*
+
+**Note:** A grill-summary provides the "what" and "why" at a higher level than a PRD. When working from a grill-summary, extract features from the "What we're building" section, scope from "Scope boundaries", and derive NFRs from the resolved forks. The architecture may be lighter (fewer sections marked N/A) since a grill-summary has less specification detail than a PRD.
 
 ---
 
@@ -51,15 +59,16 @@ Read the PRD file. If it doesn't exist, stop and report the error. *(Gate type: 
 
 Read the following (silently, in parallel where possible):
 
-### 2a — PRD analysis
+### 2a — Requirements analysis
 
-Extract from the PRD:
-- Feature scope and user stories
+Extract from the requirements source (PRD or grill-summary):
+- Feature scope and user stories (PRD) or "What we're building" + resolved forks (grill-summary)
 - Non-functional requirements (performance, availability, latency, throughput, storage)
 - Data requirements (what data is stored, regulated data flags, retention needs)
 - External integrations mentioned
 - Scale expectations (user count, transaction volume, growth projections)
 - Compliance requirements (PHI/PII, SOC 2, GDPR, etc.)
+- Scope boundaries — in scope vs out of scope (from grill-summary "Scope boundaries" or PRD "Non-Goals")
 
 ### 2b — Existing codebase
 

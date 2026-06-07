@@ -1,8 +1,9 @@
 #!/bin/bash
 # get-issue-children.sh — GitHub Issues adapter
 # Usage: bash .claude/trackers/active/get-issue-children.sh <ISSUE_NUMBER>
-# GitHub has no native parent/child relationship. Returns the issue body so Claude
-# can identify sub-tasks from inline task lists (- [ ] items) or referenced issues (#123).
+# Lists native sub-issues of the given parent. Falls back to body parsing
+# if the sub-issues API returns empty (for repos not using sub-issues).
+# Output: markdown-formatted list of children.
 
 set -o pipefail
 
@@ -18,20 +19,54 @@ if ! command -v gh &>/dev/null; then
   exit 1
 fi
 
-# Source shared libraries
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
 check_auth_github
 
-echo "# Child Tasks for Issue #$ISSUE"
-echo ""
-echo "_Note: GitHub has no native sub-task relationships. Showing issue body — look for task list items (\`- [ ]\`) or referenced issues (\`#N\`)._"
-echo ""
+REPO_INFO=$(gh repo view --json owner,name --jq '.owner.login + " " + .name')
+OWNER=$(echo "$REPO_INFO" | cut -d' ' -f1)
+REPO=$(echo "$REPO_INFO" | cut -d' ' -f2)
 
-# Format as readable markdown (consistent with ADO adapter)
-with_retry gh issue view "$ISSUE" --json number,title,body | jq -r '
-  "## #" + (.number|tostring) + ": " + .title,
-  "",
-  "### Body",
-  (.body // "_No description_")
-'
+SUB_ISSUES=$(gh api graphql \
+  -H "GraphQL-Features: sub_issues" \
+  -f owner="$OWNER" -f repo="$REPO" -F number="$ISSUE" \
+  -f query='
+    query($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        issue(number: $number) {
+          subIssues(first: 100) {
+            totalCount
+            nodes {
+              number
+              title
+              state
+              url
+            }
+          }
+        }
+      }
+    }' 2>/dev/null)
+
+TOTAL=$(echo "$SUB_ISSUES" | jq -r '.data.repository.issue.subIssues.totalCount // 0' 2>/dev/null)
+
+if [ "$TOTAL" -gt 0 ] 2>/dev/null; then
+  echo "# Sub-issues for Issue #$ISSUE"
+  echo ""
+  echo "$SUB_ISSUES" | jq -r '.data.repository.issue.subIssues.nodes[] |
+    "- [" + (if .state == "CLOSED" then "x" else " " end) + "] #" + (.number|tostring) + " " + .title + " (" + .state + ")"'
+  echo ""
+  OPEN=$(echo "$SUB_ISSUES" | jq '[.data.repository.issue.subIssues.nodes[] | select(.state == "OPEN")] | length')
+  CLOSED=$(echo "$SUB_ISSUES" | jq '[.data.repository.issue.subIssues.nodes[] | select(.state == "CLOSED")] | length')
+  echo "_Progress: $CLOSED/$TOTAL complete ($OPEN open)_"
+else
+  echo "# Child Tasks for Issue #$ISSUE"
+  echo ""
+  echo "_No native sub-issues found. Showing issue body for inline task references._"
+  echo ""
+  with_retry gh issue view "$ISSUE" --json number,title,body | jq -r '
+    "## #" + (.number|tostring) + ": " + .title,
+    "",
+    "### Body",
+    (.body // "_No description_")
+  '
+fi

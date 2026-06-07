@@ -114,31 +114,82 @@ When all major forks are resolved:
 >
 > Anything you'd like to revisit, or shall we continue?"
 
-If the user says continue, stop grilling. If they want to revisit a branch, re-enter the loop from that fork.
+If the user says continue, proceed to Step 7. If they want to revisit a branch, re-enter the loop from that fork.
 
 ---
 
-## Step 7 — Mark complete in task files
+## Step 7 — Write grill-summary.md (MANDATORY)
 
-When the grilling session reaches shared understanding (Step 6 summary accepted):
+Always write a `grill-summary.md` file when shared understanding is reached. This artifact is consumed by downstream skills (`/research`, `/architect`, `/to-issues`) — without it, the decide phase has no handoff contract.
+
+Write to the repo root (or `tasks/stories/<id>/grill-summary.md` if a story context exists).
+
+Structure:
+
+```markdown
+# Grill Summary: <topic>
+
+**Date:** YYYY-MM-DD
+**Status:** Shared understanding reached — N forks resolved
+
+---
+
+## What we're building
+
+<2-3 sentence summary of the agreed concept — what it is, who it's for, why it matters>
+
+---
+
+## Resolved forks
+
+| # | Question | Decision | Key tradeoff |
+|---|----------|----------|--------------|
+| 1 | [question] | [chosen option] | [what was traded off] |
+| 2 | ... | ... | ... |
+
+---
+
+## Scope boundaries
+
+**In scope:**
+- [agreed inclusions]
+
+**Out of scope:**
+- [agreed exclusions]
+
+---
+
+## Open items
+
+- [anything explicitly deferred or flagged for later]
+
+---
+
+## Recommended next steps
+
+- `/research <topic>` — if external APIs or unfamiliar tech need investigation
+- `/architect` — to design the system architecture from this shared understanding
+- `/to-issues` — to break this directly into implementable GitHub issues
+```
+
+After writing, say:
+
+> "Shared understanding written to `grill-summary.md`. Downstream skills (`/research`, `/architect`, `/to-issues`) will read this file as input.
+>
+> Suggested next step: [recommend based on what was discussed — research if tech is uncertain, architect if the system needs designing, or to-issues if it's straightforward enough to decompose now]"
+
+---
+
+## Step 8 — Mark complete in task files
+
+When the grilling session reaches shared understanding (Step 7 file written):
 
 - Find the in-progress entry from Step 0 in `todo.md` and mark it done:
   ```
-  - ✅ [DECIDE] /grill-me — <topic> — N forks resolved, [file written: <path> | no file written]
+  - ✅ [DECIDE] /grill-me — <topic> — N forks resolved, output: grill-summary.md
   ```
 
 Use the Edit tool — targeted replacement, not a rewrite.
-
----
-
-## Step 8 — Optional artifact
-
-If the user asks for a written record, offer to write a `grill-summary.md` in the current directory (or a path they specify). Structure:
-- Proposal: [one-line summary]
-- Decision tree: [each resolved fork as a Q/A pair with chosen option and rationale]
-- Open items: [anything explicitly deferred]
-
-Do not write the file unless the user requests it.
 
 ---
 
