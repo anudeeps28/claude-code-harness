@@ -270,6 +270,16 @@ async function main() {
   console.log('  Copying rules...');
   copyFilesWithLog(path.join(REPO_DIR, 'rules'), path.join(target, 'rules'), /\.md$/, 'rules');
 
+  // Learnings directories (proactive learning loop)
+  const globalLearningsDir = path.join(os.homedir(), '.claude', 'learnings');
+  fs.mkdirSync(globalLearningsDir, { recursive: true });
+  console.log('    Created: ~/.claude/learnings/');
+  if (mode === 'project') {
+    const projectLearningsDir = path.join(projectDir, '.claude', 'learnings');
+    fs.mkdirSync(projectLearningsDir, { recursive: true });
+    console.log(`    Created: ${path.relative(process.cwd(), projectLearningsDir)}/`);
+  }
+
   // Task templates (project installs only)
   if (mode === 'project') {
     fs.mkdirSync(path.join(projectDir, 'tasks/stories'), { recursive: true });
@@ -573,7 +583,10 @@ function buildSettings({ hooksUnix, sessionStartMsg, workRoot, isGlobal }) {
         ],
       }],
       PreCompact: [{ matcher: '*', hooks: [{ type: 'command', command: nodeCmd('pre-compact.js') }] }],
-      SessionStart: [{ matcher: '*', hooks: [{ type: 'command', command: `echo "${sessionStartMsg}"` }] }],
+      SessionStart: [{ matcher: '*', hooks: [
+        { type: 'command', command: `echo "${sessionStartMsg}"` },
+        { type: 'command', command: nodeCmd('session-context.js') },
+      ] }],
       SessionEnd: [{ matcher: '*', hooks: [{ type: 'command', command: nodeCmd('session-log.js') }] }],
     },
   };

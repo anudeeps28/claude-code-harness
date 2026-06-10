@@ -181,27 +181,50 @@ Wrote tasks/improve-harness-<date>.md with <P> proposals. Review and apply to th
 
 ---
 
-## Step 6 — Write to cross-project learnings store
+## Step 6 — Write to learnings store (proactive learning loop)
 
-After the proposal is written, extract actionable learnings and write them to the global store at `~/.claude/learnings/`. Each learning is a JSON file with content-hash deduplication.
+After the proposal is written, extract actionable learnings and write them to the learnings store. The learnings store powers the **proactive learning loop**: learnings written here are automatically injected into future sessions via the `session-context.js` hook, scored for effectiveness by `session-log.js`, and visible via `/calibrate`.
 
-**Format:**
+### Scope decision
+
+For each qualifying pattern, decide scope:
+
+- **Project-local** (`.claude/learnings/`) — patterns specific to this codebase (e.g., "this repo's CI requires Node 20", "the auth module uses a custom token format")
+- **Global** (`~/.claude/learnings/`) — cross-project patterns that would help any project using this harness (e.g., "pg_dump requires --no-owner on Azure Flex", "always validate enum inputs in API handlers")
+
+Skip patterns that are too specific to a single story (e.g., "add column X to table Y").
+
+### Writing learnings
+
+For each learning, write a JSON file using this structure:
+
 ```json
 {
-  "hash": "<sha256 of category+learning>",
+  "hash": "<first 16 chars of sha256(category + ':' + learning)>",
   "project": "<project name from CLAUDE.md or directory name>",
   "date": "YYYY-MM-DD",
   "category": "<pattern-type: build-fix | code-rabbit | evaluator | executor | planning>",
   "learning": "<one-sentence actionable takeaway>",
-  "context": "<the evidence that surfaced this — file paths, error messages>"
+  "context": "<the evidence that surfaced this — file paths, error messages>",
+  "score": 0,
+  "injections": 0,
+  "recurrences_after": 0
 }
 ```
 
-**Deduplication:** Before writing, compute the SHA-256 hash of `category + learning`. If a file with that hash already exists in `~/.claude/learnings/`, skip it (already recorded from a prior retro or different project).
+**File naming:** `<scope-dir>/<hash>.json`
 
-**File naming:** `~/.claude/learnings/<hash>.json`
+**Deduplication:** Compute `sha256(category + ':' + learning)`, take the first 16 hex chars. If a file with that hash already exists in the target scope, skip it — already recorded from a prior retro or different project.
 
-Only write learnings that are genuinely cross-project (patterns that would help any project using this harness). Skip project-specific fixes (e.g., "add column X to table Y").
+### How the scoring loop works (for context)
+
+Once written, the learning enters the proactive loop automatically:
+1. **SessionStart** (`session-context.js`): top-5 learnings by score+relevance are injected as context hints
+2. **SessionEnd** (`session-log.js`): each injected learning is scored — `+1` if the pattern didn't recur, `-1` if it did
+3. **Auto-archive**: learnings that drop to score ≤ -2 are moved to `archived/`
+4. **Promotion**: learnings with score ≥ 5 are flagged by `/calibrate` as candidates for permanent rules
+
+Report what was written: `Wrote <N> learnings (<P> project, <G> global). Run /calibrate to see their effectiveness over time.`
 
 ---
 
