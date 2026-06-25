@@ -586,6 +586,7 @@ function buildSettings({ hooksUnix, sessionStartMsg, workRoot, isGlobal }) {
       SessionStart: [{ matcher: '*', hooks: [
         { type: 'command', command: `echo "${sessionStartMsg}"` },
         { type: 'command', command: nodeCmd('session-context.js') },
+        { type: 'command', command: nodeCmd('session-router.js') },
       ] }],
       SessionEnd: [{ matcher: '*', hooks: [{ type: 'command', command: nodeCmd('session-log.js') }] }],
     },

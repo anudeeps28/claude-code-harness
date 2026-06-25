@@ -184,6 +184,21 @@ test('buildSettings_HookCommandsReferenceHooksUnix', () => {
   assert.equal(safety, 'node "/my/hooks/safety-check.js"');
 });
 
+test('buildSettings_SessionStart_IncludesRouterAndPreservesEchoAndContext', () => {
+  const s = buildSettings({
+    hooksUnix: '/h',
+    workflowPack: 'solo',
+    sessionStartMsg: 'hi',
+    workRoot: '',
+    isGlobal: false,
+  });
+  const cmds = s.hooks.SessionStart[0].hooks.map(h => h.command);
+  assert.ok(cmds.some(c => /echo "hi"/.test(c)), 'echo preserved');
+  assert.ok(cmds.includes('node "/h/session-context.js"'), 'session-context hook preserved');
+  assert.ok(cmds.includes('node "/h/session-router.js"'), 'session-router wired');
+  assert.equal(cmds.length, 3);
+});
+
 test('buildSettings_SerializesToValidJson', () => {
   // Guard: if someone accidentally injects an unescaped backslash via template
   // interpolation, JSON.stringify would throw or produce invalid output.
