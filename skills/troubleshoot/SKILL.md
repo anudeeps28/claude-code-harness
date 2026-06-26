@@ -64,6 +64,13 @@ Tell YOUR_NAME: **"Problem captured. Starting investigation."**
 
 ## Step 2 — Investigation loop (up to 5 iterations)
 
+**Seed the live progress checklist.** Create a `TodoWrite` list so YOUR_NAME can follow the
+investigation: one item per planned iteration (`Iteration 1` … `Iteration 5`), plus `Design test +
+plan` (Step 3) and `Write XML tasks` (Step 4). Mark `Iteration 1` `in_progress` now; mark each
+iteration `completed` as its agent returns, and the rest `completed`/dropped if the early-exit rule
+fires. This skill produces a plan, not code — see the `/troubleshoot` exception in
+`rules/progress-tracking.md`.
+
 ### Iteration 1 — Fresh investigation
 
 Spawn a **`troubleshoot-investigator`** agent (foreground) with this prompt:

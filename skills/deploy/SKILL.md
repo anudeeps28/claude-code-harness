@@ -39,6 +39,17 @@ Read the resource names from `YOUR_PROJECT_ROOT/tasks/tracker-config.md`. That f
 
 ---
 
+## Live progress checklist
+
+Once the mode is determined, **seed a `TodoWrite` list with that mode's steps** (e.g. for
+`branch-test`: pre-flight → build images → deploy to staging → re-ingest → restart API → smoke tests)
+before running any of them. Deployment steps are easy to skip — a visible checklist is the guardrail
+this skill exists to provide. Mark each step `completed` only when it actually succeeds; a failed step
+stays `in_progress` until fixed. Keep exactly one step `in_progress` at a time. See
+`rules/progress-tracking.md`.
+
+---
+
 ## Mode: `branch-test`
 
 Use this to test code from your branch BEFORE merging. Deploys to staging/branch-test resources (separate from production).

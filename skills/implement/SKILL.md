@@ -140,6 +140,11 @@ If there are multiple tasks, show the wave summary:
 |---|---|---|---|
 | 1 | 1, 2 | "...", "..." | auto, auto |
 
+**Seed the live progress checklist first.** Before launching Wave 1, create a `TodoWrite` list with one
+item per pending task (across all waves), using the plan's task names — for live visibility and to lock
+in the work order before any code changes. (Skip for the single-task case — a one-item list is noise.)
+`todo.md` stays the source of truth; this is its in-session mirror. See `rules/progress-tracking.md`.
+
 For **each wave:**
 
 **A. Announce:** "Wave [n]/[total] — [task names]"
@@ -154,7 +159,7 @@ For **each wave:**
 |---|---|---|---|
 | 1 | "..." | PASS/FAIL/BLOCKED | [one line] |
 
-**C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection.
+**C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved.
 
 **D. STOP after each wave (behavior depends on execution mode):**
 

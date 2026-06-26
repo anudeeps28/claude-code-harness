@@ -118,6 +118,11 @@ Once YOUR_NAME approves the plan, note the **execution mode**: if `--auto` flag 
 
 Say: **"[N] waves planned. Starting Wave 1."**
 
+**Seed the live progress checklist first.** Before launching Wave 1, create a `TodoWrite` list with
+one item per pending `<task>` (across all waves), using the plan's task names — so YOUR_NAME sees
+progress live and the work order is locked in before any code changes. `todo.md` stays the source of
+truth; this is its in-session mirror. See `rules/progress-tracking.md`.
+
 For **each wave**, in ascending group order:
 
 **A0. Conflict detection (before launching):**
@@ -152,7 +157,7 @@ Collect all results before proceeding.
 | 2 | "Task B" | ❌ FAIL | [error summary] |
 | 3 | "Task C" | ⚠️ BLOCKED | [who/what is needed] |
 
-**E. Update todo.md for all PASSed tasks** — mark each done with `✅` in one Edit pass.
+**E. Update todo.md for all PASSed tasks** — mark each done with `✅` in one Edit pass. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved.
 
 **E2. Update the executor state handoff:** Write/update `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the source of truth for what's been done.
 

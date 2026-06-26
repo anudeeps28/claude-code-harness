@@ -72,6 +72,10 @@ Wait for user approval of both the interface and the behavior list. *(Gate type:
 
 > "Interface and behaviors confirmed. Starting TDD cycles — one behavior at a time."
 
+**Seed the live progress checklist.** Create a `TodoWrite` list with one item per confirmed behavior,
+in priority order — so the user sees the cycles tick off and the work is locked in before the first
+test. Mark behavior 1 `in_progress` as you begin its cycle. See `rules/progress-tracking.md`.
+
 ---
 
 ## Step 3 — RED-GREEN-REFACTOR cycles
@@ -153,7 +157,7 @@ If no refactoring is needed, say so and move on:
 
 ### Cycle checkpoint
 
-After each complete RED-GREEN-REFACTOR cycle:
+After each complete RED-GREEN-REFACTOR cycle, mark this behavior `completed` in the `TodoWrite` list and mark the next behavior `in_progress`. Then:
 
 > "Cycle [N] complete — behavior: `[behavior description]`
 >

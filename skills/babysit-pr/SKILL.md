@@ -91,6 +91,11 @@ Review the table above. You can:
 
 Do NOT proceed until YOUR_NAME says "go". If corrections are given, apply them to the analyst's output and re-show the updated table, then wait again.
 
+**Seed the live progress checklist for this loop.** Once YOUR_NAME says "go", create (or, on later
+loops, extend) a `TodoWrite` list with one item per approved thread — labelled fix or reply — so
+YOUR_NAME can watch each thread get resolved before anything is committed. Mark items `completed` as
+fixes are committed (2D) and replies posted (3B). See `rules/progress-tracking.md`.
+
 ---
 
 ## Phase 2 — Apply Fixes
@@ -154,7 +159,7 @@ cd YOUR_PROJECT_ROOT && git add -A && git commit -m "Fix Code Rabbit review comm
 
 **CRITICAL: Never add "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" or any Co-Authored-By line to the commit message.**
 
-Confirm: **"Committed and pushed. Code Rabbit will re-analyze within ~10 minutes."**
+Confirm: **"Committed and pushed. Code Rabbit will re-analyze within ~10 minutes."** Mark each committed fix item `completed` in the `TodoWrite` list.
 
 ---
 
@@ -196,7 +201,7 @@ bash "YOUR_PROJECT_ROOT/.claude/trackers/active/reply-pr-thread.sh" $ARGUMENTS <
 bash "YOUR_PROJECT_ROOT/.claude/trackers/active/resolve-pr-thread.sh" $ARGUMENTS <THREAD_ID>
 ```
 
-After all are done, confirm: **"[Y] threads replied to and resolved."**
+After all are done, confirm: **"[Y] threads replied to and resolved."** Mark each replied thread `completed` in the `TodoWrite` list.
 
 Also increment the attempt counter for each reply item (same as fix items — these are addressed attempts).
 

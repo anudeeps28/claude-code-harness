@@ -75,6 +75,12 @@ Do NOT start execution until YOUR_NAME responds.
 
 ## Step 4 — Execute wave by wave
 
+**Seed the live progress checklist first.** Before launching Wave 1, create a `TodoWrite` list with
+one item per pending `<task>` (across all waves), using the task names from the plan. This gives
+YOUR_NAME live visibility and locks in the work order before any code changes. Mark the first wave's
+task(s) `in_progress` as you launch them. `todo.md` stays the source of truth — this is its in-session
+mirror. See `rules/progress-tracking.md`.
+
 For **each wave**, in ascending group order:
 
 ### A. Announce the wave
@@ -113,7 +119,7 @@ For any BLOCKED task, show:
 
 ### E. Update todo.md for all PASSed tasks in this wave
 
-For each task that returned PASS: mark it done in `tasks/todo.md` by prepending `✅` to its task name line. Do all updates in one Edit pass — not one per task.
+For each task that returned PASS: mark it done in `tasks/todo.md` by prepending `✅` to its task name line. Do all updates in one Edit pass — not one per task. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list, and mark the next wave's task(s) `in_progress`.** A FAILed or BLOCKED task stays `in_progress` until resolved.
 
 ### F. STOP after every wave (behavior depends on execution mode):
 
