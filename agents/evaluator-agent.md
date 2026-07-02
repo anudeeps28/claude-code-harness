@@ -102,7 +102,7 @@ Check whether the new/changed code has adequate test coverage:
 1. **Identify what was added/changed** — from the git diff, list every new public method, endpoint, class, or behavior.
 2. **Search for corresponding tests** — for each new/changed item, search the test directories for a test that exercises it. Use filename patterns, class names, and method names to find matches.
 3. **Check test quality** — for each test found, read it. Does it test the actual behavior (not just that the method exists)? Does it cover the happy path AND at least one edge case?
-4. **Check the test strategy** — if a test strategy file exists (`tasks/stories/<id>/test-strategy.md`), verify each acceptance criterion has a corresponding test.
+4. **Check the test strategy + goal** — if a test strategy file exists (`tasks/stories/<id>/test-strategy.md`), verify it defines a **Goal** (an e2e modality + concrete gate) and an **observability plan**, and that each acceptance criterion has a corresponding check (the criteria ARE the e2e gate — one unified list). For a structured-human-acceptance modality (no machine oracle), a criterion without an automated test is expected — flag only that its evidence must be surfaced for sign-off, not as a coverage gap.
 
 Rate overall test coverage:
 - **GOOD** — New code has tests, tests cover behavior, acceptance criteria are tested

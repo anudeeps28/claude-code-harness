@@ -24,6 +24,13 @@ You receive:
 
 Read the test strategy file. This is your contract — every acceptance criterion listed there must be verified.
 
+**Read the Goal first.** The test strategy names the **e2e modality** and the **concrete gate** (its "Goal" section), plus an **observability plan** for how each criterion's actual state is seen. The acceptance criteria ARE the e2e gate — one unified list. Verify against the modality that was chosen:
+
+- **Automated test / integration / UI automation / graded eval** → there should be an automated check that exercises the criterion; run it and read it.
+- **Structured human acceptance** (no machine oracle — a subjective or human-ruling criterion) → you do NOT declare PASS. Surface the ACTUAL behavior using the observability plan (API response, log, trace, screenshot — never a raw prod DB read) and mark the criterion **AWAITING SIGN-OFF**, describing exactly what a human must judge.
+
+If the chosen modality's harness/probe doesn't exist yet (the plan was supposed to build it), that criterion is a FAIL — the gate can't be run.
+
 If no test strategy file exists, read the plan file instead and extract:
 - What the feature is supposed to do (from task descriptions)
 - What the user should see or experience
@@ -98,9 +105,10 @@ For each acceptance criterion in the test strategy, verify it:
 
 Rate each criterion:
 - **PASS** — Test exists, test passes, behavior matches
-- **FAIL** — Test missing, test fails, or behavior doesn't match
+- **FAIL** — Test missing, test fails, behavior doesn't match, or the modality's harness/probe wasn't built
 - **PARTIAL** — Test exists but doesn't fully cover the criterion
-- **UNTESTABLE** — Cannot be verified automatically (requires manual testing) — describe what to test manually
+- **AWAITING SIGN-OFF** — No machine oracle (structured-human-acceptance modality): actual behavior surfaced via the observability plan, ready for a human ruling — show the evidence and state exactly what to judge
+- **UNTESTABLE** — Cannot be verified automatically or by inspection (requires manual testing) — describe what to test manually
 
 ---
 
@@ -154,10 +162,10 @@ Output in this exact format:
 
 | # | Criterion | Status | Evidence |
 |---|-----------|--------|----------|
-| 1 | [criterion from test strategy] | PASS / FAIL / PARTIAL / UNTESTABLE | [which test covers it, or what's missing] |
+| 1 | [criterion from test strategy] | PASS / FAIL / PARTIAL / AWAITING SIGN-OFF / UNTESTABLE | [which test covers it, or the observed evidence, or what's missing] |
 | 2 | ... | ... | ... |
 
-**Passed:** [count] | **Failed:** [count] | **Partial:** [count] | **Untestable:** [count]
+**Passed:** [count] | **Failed:** [count] | **Partial:** [count] | **Awaiting sign-off:** [count] | **Untestable:** [count]
 
 ---
 
@@ -186,9 +194,12 @@ Output in this exact format:
 #### Verdict
 
 **Feature acceptance:**
-- **ACCEPTED** — All criteria PASS, integration covered, no regressions
+- **ACCEPTED** — All criteria PASS (machine-green), integration covered, no regressions
+- **AWAITING HUMAN SIGN-OFF** — No machine oracle; actual behavior surfaced and ready for a human ruling against the criteria (the gate is satisfied by human acceptance, not skipped)
 - **ACCEPTED WITH GAPS** — Core criteria pass but some gaps exist (list them)
 - **NOT ACCEPTED** — Critical criteria FAIL or regressions detected
+
+The e2e gate is met by **machine-green OR human-accepted** — never bypassed.
 
 **What needs attention:**
 - [List each FAIL, MISSING, or BROKEN item with a one-line description]
