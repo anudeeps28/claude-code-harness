@@ -55,7 +55,7 @@ git checkout -b implement/<issue-id-or-short-name>
 Ask YOUR_NAME these 3 fixed questions in order, one at a time, waiting for an answer after each. If YOUR_NAME has already answered any of them in the original `$ARGUMENTS`, **skip that question** and note it as "(already answered)":
 
 1. **Intent:** "In one sentence — what problem does this solve, or what does the user get out of it?"
-2. **Acceptance bar:** "How will we know this is done? What must be true for you to call it shipped?"
+2. **Acceptance bar + how we'll prove it:** "How will we know this is done? What must be true for you to call it shipped — and how should we verify it end-to-end (an automated test, driving the UI, a graded eval, or your own sign-off if there's no machine check)?" The answer is the **goal**: acceptance criteria + the e2e gate that proves them. If the needed verification doesn't exist yet, it becomes a task to build.
 3. **Hidden constraints:** "Anything I can't see from the code — perf budgets, compat requirements, related work in flight, stuff to avoid touching?"
 
 Then ask one **optional free-form tail:**
@@ -89,7 +89,7 @@ Spawn an **`implement-planner-agent`** (foreground) with:
 >
 > [If Phase 1a ran] User clarifications:
 > 1. Intent: [answer]
-> 2. Acceptance bar: [answer]
+> 2. Acceptance bar + e2e verification (the goal — criteria + modality/gate): [answer]
 > 3. Hidden constraints: [answer]
 > 4. Anything else: [answer or "skipped"]
 >
@@ -150,7 +150,7 @@ For **each wave:**
 **A. Announce:** "Wave [n]/[total] — [task names]"
 
 **B. Launch tasks:**
-- `type="auto"`: spawn each as a **background** `story-executor-agent` with `isolation: "worktree"`. Launch all in the same wave simultaneously.
+- `type="auto"` and `type="test"`: spawn each as a **background** `story-executor-agent` with `isolation: "worktree"`. Launch all in the same wave simultaneously. (A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its verify.)
 - `type="manual"`: display instructions for YOUR_NAME.
 
 **C. Wait for all to complete.** Show results:
@@ -229,7 +229,9 @@ Wait for **all four** to return. Show all reports.
 
 **If findings >= 75% confidence, acceptance gaps, or ADVISORY findings exist:** Show them. For each: YOUR_NAME says "fix" or "skip".
 
-**After evaluation + acceptance pass (or were skipped with `--quick`):**
+**e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1a / the test strategy. Run `/local-test e2e` for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) for YOUR_NAME to sign off. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs implemented vs observed → root-cause (route behavioral gaps to `/troubleshoot`, the 3-attempt trigger to `/debug`) → fix → re-run. The gate blocks PR until green or human-accepted.
+
+**After evaluation + acceptance + the e2e gate pass (or were skipped with `--quick`):**
 
 Spawn a **`story-pr-agent`** (foreground) with:
 - Story ID: [issue ID or branch name]
@@ -257,7 +259,8 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 - Never commit during Phase 2 — all commits happen in Phase 3
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - If YOUR_NAME says "stop" at any point → stop immediately
-- `--quick` skips evaluation and acceptance testing — never skips human gates or local tests
+- `--quick` skips evaluation, acceptance testing, and the e2e goal gate — never skips human gates or local tests
+- **"Done" is goal-met, not "compiles"** — outside `--quick`, the feature ships only when acceptance criteria are met and the e2e gate is green (or human-accepted for no-oracle features)
 - `--discuss` and `--research` are additive, opt-in, and never change any STOP checkpoint — they run *before* the planner, not instead of it
 - `--full` expands to `--discuss --research` at parse time; it does NOT imply `--quick`, so `--full --quick` is a valid, meaningful combo
 - For 1-2 file changes, don't over-decompose into multiple tasks
