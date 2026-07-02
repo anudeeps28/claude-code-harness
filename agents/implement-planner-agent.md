@@ -121,7 +121,7 @@ Then output the XML task plan. Follow these rules:
 
 **Task rules:**
 - `type="auto"` — code changes Claude can make
-- `type="test"` — writing tests for the feature. Every plan MUST include at least one test task.
+- `type="test"` — writing tests for the feature (executed exactly like `auto` — the executor writes the test/eval and runs its verify). Every plan MUST include at least one test task; pair test coverage with the code it exercises.
 - `type="manual"` — requires human action. Include exact instructions.
 - `<read_first>` — (optional) files the executor should read for context but NOT modify (interfaces, base classes, examples)
 - `<files>` — ALL files the task will CREATE or MODIFY (not read-only context — put those in `<read_first>`)
@@ -158,8 +158,16 @@ Then the **test strategy** (mandatory for every plan):
 ```
 ### Test Strategy
 
-**Acceptance criteria:**
+**Goal:**
+- E2E modality: [how this is verified end-to-end — automated test / UI automation / graded eval / structured human acceptance; menu is OPEN, define a new one if none fit]
+- Concrete gate: [the exact check that must go green — the story's definition of done]
+
+**Acceptance criteria (= the e2e gate, one unified list):**
 1. [User/system does X] → [expected outcome Y]
+2. ...
+
+**Observability plan** (how the actual state behind each criterion is seen — API response / log / trace / screenshot; if it can't be seen, add a task to build a probe, respecting data-access rules):
+1. [Criterion 1] → [how to observe]
 2. ...
 
 **Integration test scenarios:**
@@ -170,6 +178,8 @@ Then the **test strategy** (mandatory for every plan):
 1. [Existing feature X must still do Y]
 2. ...
 ```
+
+If the chosen e2e modality doesn't exist in the project yet, add a `type="test"` task to build that probe/harness — coverage is never dropped because tooling is missing. For no-oracle features (a subjective/human call), the gate is a structured human acceptance check — still gated, never skipped.
 
 Then the parallelism rationale (if more than 1 task):
 | Wave | Task IDs | Reason |
