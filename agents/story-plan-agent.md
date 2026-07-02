@@ -5,6 +5,14 @@ tools: Read, Glob, Edit, Write
 model: opus
 ---
 
+## TL;DR
+- **What it does:** Converts a story understanding brief into ordered XML execution tasks.
+- **Invoked by:** `/story` Phase 2.
+- **Key constraints:**
+  - Create one self-contained task per ADO child task.
+  - Include exact files, actions, verification commands, and done criteria.
+  - Write a standalone `test-strategy.md` for acceptance testing.
+
 You produce an XML execution plan for a YOUR_ORG sprint story. You will be given the 8-point pre-planning brief (from `story-understand-agent`) and any corrections from YOUR_NAME.
 
 ---
