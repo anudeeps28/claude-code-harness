@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-29 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub). Install once, ship faster.
+30 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -71,7 +71,7 @@ The harness covers the full software development lifecycle. Both solo and enterp
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief · /plan ●"]
-    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues<br/>/sprint-plan ◆"]
+    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues · /to-todoist<br/>/sprint-plan ◆"]
     P2["Build<br/>/implement ● · /story ◆<br/>/run-tasks ◆<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr ◆<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage · /improve-codebase-architecture"]
@@ -125,6 +125,7 @@ flowchart LR
 | Critique an architecture doc for gaps and risks | `/architect-critique` |
 | Generate the full spec stack (DB schema, API ref, diagrams) | `/design-artifacts` |
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
+| Break a PRD into Todoist milestones and tasks | `/to-todoist` |
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
 | Build a feature from an issue | `/story` or `/implement` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
@@ -207,6 +208,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 | **prd-critique** | `/prd-critique <path> [--brief <path>]` | Run 6 critique checks on a PRD — metric validity, NFR specificity, failure modes, assumption traceability, rollback plan, intent clarity. Read-only |
 | **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |
+| **to-todoist** | `/to-todoist --project "X" --section "Y"` | Decompose planning artifacts into Todoist milestones and tasks via the `td` CLI — milestones as uncompletable parents, tasks as prioritized subtasks |
 | **grill-with-docs** | `/grill-with-docs <plan or design>` | Like /grill-me but anchored in CONTEXT.md and ADRs — challenges vague terms against the glossary, surfaces plan-vs-decision contradictions, updates CONTEXT.md with resolved terms |
 | **research** | `/research <topic> [--urls ...]` | Research an external API, integration, or library — caches provenance-tagged findings in research.md for downstream agents to read |
 | **architect** | `/architect <path-to-PRD>` | Design system architecture from a PRD — interactive 8-section ARCHITECTURE.md with Mermaid diagrams, cost model, and compliance gates |
@@ -436,7 +438,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 26 skills
+├── skills/           ← 27 skills
 ├── agents/           ← 14 sub-agents
 ├── hooks/            ← 6 automated hooks
 ├── rules/            ← 5 path-scoped rules

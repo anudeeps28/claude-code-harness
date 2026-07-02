@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ---
 
+## [Unreleased]
+
+### New skills
+
+- `/to-todoist` — Decompose planning artifacts into Todoist milestones and tasks via the `td` CLI. Milestones as uncompletable parent tasks, work items as prioritized subtasks with descriptions, acceptance criteria, and dependency notes. Supports `--project`, `--section`, and `--dry-run` flags. Reads defaults from `tasks/notes.md` Todoist section.
+
+---
+
 ## [2.0.0] - 2026-05-06
 
 Major expansion of the harness: adds DECIDE and DEFINE phase skills, extends drift detection to artifacts, adds reviewer agents, and introduces cross-project learnings. The harness now covers the full SDLC from decision validation through post-ship learning. Sources: James's AI-Augmented SDLC v1.1, Matt Pocock's 7-phase framework, GSD project patterns.
