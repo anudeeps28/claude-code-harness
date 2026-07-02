@@ -1,10 +1,10 @@
 ---
 name: story
-description: End-to-end story execution — understand → plan → execute → PR. Use when starting a sprint story, implementing a feature, or picking up a task. Usage: /story <story-id> [--auto]
+description: Goal-driven story execution — understand → define goal → plan → execute → verify → e2e gate → PR. Done = goal met (acceptance + e2e gate green), not just compiles. Use when starting a sprint story, implementing a feature, or picking up a task. Usage: /story <story-id> [--auto]
 argument-hint: Story ID e.g. 9950
 ---
 
-**Core Philosophy:** Every story runs through four gates — understand, plan, execute, PR — and nothing advances without your explicit confirmation at each one.
+**Core Philosophy:** Every story is **goal-driven** — planning defines the goal (acceptance criteria + the right e2e gate), and the session iterates toward it until the goal is genuinely met. "Done" is goal-met (acceptance criteria satisfied AND the e2e gate green or human-accepted), not "compiles + tasks ran." Nothing advances without your explicit confirmation at each STOP gate.
 
 **Triggers:** "work on story 9950", "implement story #123", "start on story", "pick up this story", "execute story"
 
@@ -18,7 +18,7 @@ Parse `$ARGUMENTS`:
 
 The story to execute is: **#[story ID]**
 
-Run these 4 phases in strict order. Each phase ends with a mandatory STOP checkpoint. **Do not advance to the next phase without YOUR_NAME's explicit confirmation.**
+Run these phases in strict order — Understand → **Goal Definition (1.5)** → Plan → Execute → Local Verify → Review → **e2e Goal Gate (3.7)** → PR. Each phase ends with a mandatory STOP checkpoint. **Do not advance to the next phase without YOUR_NAME's explicit confirmation.**
 
 ---
 
@@ -64,13 +64,60 @@ Do NOT proceed until YOUR_NAME responds.
 
 ---
 
+## Phase 1.5 — Goal Definition
+
+Once YOUR_NAME confirms Phase 1, define the **goal** before planning. This is what makes the story goal-driven: "done" is not "compiles + tasks ran" — it's this goal being met. See `rules/test-philosophy.md` (Level 3).
+
+Work through this with YOUR_NAME — it is a short, mandatory branch, not a full interview:
+
+1. **What does end-to-end verification look like for this story?** Classify it against the e2e modality menu:
+
+   | Modality | What it proves | Typical story |
+   |---|---|---|
+   | **Automated test** (API / integration) | The system returns the right result through its real interface | backend / pipeline / multi-component |
+   | **UI automation** | User clicks through and sees the right thing | UI-facing |
+   | **Domain-specific graded evaluation** | Non-deterministic / AI output is correct, judged vs a ground truth | AI / generative / extraction |
+   | **Structured human acceptance** | A human ruling / subjective UX call, signed off against the criteria | no machine oracle exists |
+
+   **The menu is OPEN.** If none fit, define a new modality — and note that the plan must include a task to build that probe/harness. Pick one or more.
+
+2. **Is there a machine oracle for this story's goal?** Yes → the gate is an automated check. No (needs a human ruling / subjective call) → the gate is a **structured human acceptance check** — the actual behavior is still shown (observability, below) and YOUR_NAME signs off. Either way the story is gated; the gate is never skipped.
+
+3. **Write the acceptance criteria AS the gate.** Each criterion is phrased so the e2e gate directly checks it — one unified list, no paper-vs-test drift. Define the **concrete gate**: the exact check that must go green.
+
+4. **Decide observability.** For each criterion, how will the ACTUAL state be seen (API response, log, trace, screenshot, structured query)? If it can't be seen with what exists, the plan must include a task to build a probe — respecting the project's data-access rules (observe via API/logs, never raw prod DB reads).
+
+**Escape hatch:** for a change with zero runtime behavior (docs, comments, pure rename), YOUR_NAME may say "skip gate — no runtime impact"; log it and proceed. This is the only way to skip the gate.
+
+Output the goal under the heading:
+
+### Goal for #$ARGUMENTS
+- **E2E modality:** [chosen — or new modality to build]
+- **Machine oracle?** [yes → automated gate / no → structured human acceptance]
+- **Concrete gate:** [the exact check that must go green]
+- **Acceptance criteria (= the gate):** [the unified list]
+- **Observability:** [how the actual state is seen per criterion, or "probe to be built as a task"]
+
+Then say **exactly**:
+
+---
+**STOP 1.5 — This is the goal for #$ARGUMENTS: [one-line modality + gate]. The story is done only when these acceptance criteria are met and this gate is green (or human-accepted). Approve this goal, or adjust it?**
+
+*(Confirm to proceed to Phase 2. The plan is built to satisfy this goal.)*
+
+---
+
+Do NOT proceed until YOUR_NAME responds. The confirmed goal is the input to Phase 2 — the plan agent turns it into the test strategy + test/eval tasks.
+
+---
+
 ## Phase 2 — Plan
 
-Once YOUR_NAME confirms Phase 1 (with or without corrections):
+Once YOUR_NAME confirms Phase 1 (with or without corrections) and the Phase 1.5 goal:
 
 If YOUR_NAME gave corrections, append them to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/brief.md` under the "Corrections from YOUR_NAME" section.
 
-Spawn a **`story-plan-agent`** (foreground) with the full Phase 1 brief as input, plus any corrections YOUR_NAME gave.
+Spawn a **`story-plan-agent`** (foreground) with the full Phase 1 brief as input, the **Phase 1.5 goal** (modality + concrete gate + acceptance-criteria-as-gate + observability), plus any corrections YOUR_NAME gave. The plan agent turns the goal into the test-strategy block and the matching test/eval tasks.
 
 Wait for it to return the XML task plan and test strategy. Output it under the heading:
 
@@ -84,7 +131,7 @@ Wait for it to return the XML task plan and test strategy. Output it under the h
 Then say **exactly**:
 
 ---
-**STOP 2 — Review each task above. The plan has [N] tasks including [M] test tasks. Review the test strategy — acceptance criteria, integration scenarios, and regression guardrails. Approve to begin execution, or request changes.**
+**STOP 2 — Review each task above. The plan has [N] tasks including [M] test tasks. Review the test strategy — the goal (e2e modality + concrete gate), acceptance-criteria-as-gate, observability plan, integration scenarios, and regression guardrails. Confirm the plan satisfies the Phase 1.5 goal. Approve to begin execution, or request changes.**
 
 **Execution mode** (only show if the plan has 2+ waves AND `--auto` was NOT passed — omit entirely otherwise):
 - **(A) Wave-by-wave** — I'll pause after each wave for your approval before continuing (default)
@@ -114,7 +161,7 @@ Once YOUR_NAME approves the plan, note the **execution mode**: if `--auto` flag 
 | Wave | Task IDs | Task Names | Type |
 |---|---|---|---|
 | 1 | 1, 2 | "Task A", "Task B" | auto, auto |
-| 2 | 3 | "Task C" | auto |
+| 2 | 3 | "Test Task C" | test |
 
 Say: **"[N] waves planned. Starting Wave 1."**
 
@@ -143,7 +190,7 @@ Do NOT skip this check. The plan agent is supposed to prevent file overlaps, but
 Say: **"Wave [n]/[total] — launching [k] task(s) in parallel: [task names]"**
 
 **B. Launch all tasks in the wave:**
-- `type="auto"` tasks: spawn each as a **background** `story-executor-agent` with `isolation: "worktree"`, passing the single `<task>` XML block and story ID. Launch ALL in the same message simultaneously.
+- `type="auto"` and `type="test"` tasks: spawn each as a **background** `story-executor-agent` with `isolation: "worktree"`, passing the single `<task>` XML block and story ID. Launch ALL in the same message simultaneously. (A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its `<verify>`.)
 - `type="manual"` tasks: display the `<action>` as instructions for YOUR_NAME. Do not spawn an agent. Treat as BLOCKED pending human confirmation.
 
 **C. Wait for all background agents to complete.**
@@ -292,7 +339,7 @@ Do NOT proceed until YOUR_NAME responds.
 Say:
 
 ---
-**All reviews passed — evaluation clear, feature accepted, architecture aligned, security clear. Ready for Phase 4 — Commit + PR?**
+**All reviews passed — evaluation clear, feature accepted, architecture aligned, security clear. Ready for Phase 3.7 — the e2e goal gate?**
 
 ---
 
@@ -300,9 +347,43 @@ Do NOT proceed until YOUR_NAME confirms.
 
 ---
 
+## Phase 3.7 — Goal-seeking e2e gate
+
+This is the terminal check: the story is **not done** until its goal is met. Run the **e2e gate defined in Phase 1.5** (the chosen modality + concrete gate, recorded in `tasks/stories/$ARGUMENTS/test-strategy.md`). Phase 3.6 asks "is the code sound?"; Phase 3.7 asks "does it actually meet the goal end-to-end?"
+
+_(If YOUR_NAME took the "skip gate — no runtime impact" escape hatch at Phase 1.5, note it and skip straight to Phase 4.)_
+
+**Run the gate:**
+- **Automated modality** (API/integration test, UI automation, graded eval): run it via `/local-test e2e` (the gate command comes from `tasks/lessons.md` — never hardcoded here).
+- **Structured human acceptance** (no machine oracle): show the ACTUAL behavior using the story's observability plan (API response, log, trace, screenshot — never a raw prod DB read), then ask YOUR_NAME to sign off against each acceptance criterion.
+
+**If the gate is green (or YOUR_NAME accepts the human check):** the goal is met. Say:
+
+---
+**Goal met for #$ARGUMENTS — acceptance criteria satisfied and the e2e gate is green (or human-accepted). Ready for Phase 4 — Commit + PR?**
+
+---
+
+Do NOT proceed until YOUR_NAME confirms.
+
+**If the gate FAILS — diagnostic re-approach (evidence-driven, NOT blind retry):**
+
+A failed gate never triggers a blind re-run. Each iteration runs an explicit cycle, in-session with YOUR_NAME at the gates (no background autonomous loop — only a slow deploy/build step, if any, may run in the background):
+
+1. **Observe the ACTUAL state** using the story's observability plan. If you can't see what the system actually did, build a probe (endpoint, query, log line) — respecting data-access rules.
+2. **Compare three things:** *intended* (the acceptance criterion) vs *implemented* (what we actually changed) vs *observed* (what the system actually does/returns).
+3. **Root-cause the gap.** For a behavioral gap (compiles but does the wrong thing), route through `/troubleshoot`. For the 3-attempt-rule trigger, route through `/debug`. Do NOT reimplement those — invoke them.
+4. **Decide the next concrete action** from the diagnosis, apply the fix, then re-run the gate. A re-approach only counts against the 3-attempt rule if it is evidence-based — a blind repeat is not allowed.
+
+**Brakes:** the 3-attempt rule applies to the gate too. Three evidence-based re-approaches without a green gate → **STOP, invoke `/debug`.** Do not attempt a 4th.
+
+**Blocks PR.** Goal not met = no PR. Phase 4 is only reachable once the gate is green or human-accepted.
+
+---
+
 ## Phase 4 — Commit + Sync + PR
 
-Once all tasks are done and YOUR_NAME confirms:
+Once the goal is met (Phase 3.7 gate green or human-accepted) and YOUR_NAME confirms:
 
 Spawn a **`story-pr-agent`** (foreground) with:
 - Story ID: $ARGUMENTS
@@ -329,7 +410,10 @@ Wait for YOUR_NAME to run the git commands and confirm. Only then raise the PR u
 ## Hard rules (never break these)
 
 - Never chain phases — always wait for explicit confirmation at each STOP
+- **"Done" is goal-met, not "compiles"** — the story is done only when all tasks pass, acceptance criteria are satisfied, AND the Phase 3.7 e2e gate is green (or human-accepted). Phase 4 is unreachable until then
+- Never skip Phase 1.5 (goal definition) — the goal is the input to planning and the terminal condition; the only way past the gate is the explicit "skip gate — no runtime impact" escape hatch
 - Never skip Phase 3.6 (evaluation + acceptance + architecture + security review) — even if changes look trivial, always run all four agents
+- Never skip Phase 3.7 (e2e goal gate) — a failed gate blocks PR; re-approach is evidence-driven (observe → compare → root-cause → decide), never a blind retry, and never a background autonomous loop
 - Never commit during Phase 3 — all commits happen in Phase 4
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - Always follow the git commit format from `tasks/lessons.md`
