@@ -91,13 +91,15 @@ Say: **"Wave [n]/[total] — launching [k] task(s) in parallel: [task names]"**
 
 For **each task** in the wave:
 
-- If `type="auto"`: spawn a `story-executor-agent` as a **background agent** with `isolation: "worktree"`, passing:
+- If `type="auto"` or `type="test"`: spawn a `story-executor-agent` as a **background agent** with `isolation: "worktree"`, passing:
   - The single `<task>` XML block
   - Story ID: $ARGUMENTS
 
+  A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its `<verify>`. No special handling.
+
 - If `type="manual"`: do NOT spawn an agent. Instead, display the full `<action>` content as instructions for YOUR_NAME to follow, then treat it as BLOCKED pending human confirmation.
 
-Launch ALL auto tasks in the wave simultaneously (one Agent call per task, all in the same message). Do not wait for one before launching the next.
+Launch ALL auto/test tasks in the wave simultaneously (one Agent call per task, all in the same message). Do not wait for one before launching the next.
 
 ### C. Wait for all background agents to complete
 
