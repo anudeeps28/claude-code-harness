@@ -19,7 +19,7 @@ Convert the brief into atomic, executable `<task>` blocks — one per ADO child 
 
 - `type="auto"` — code changes Claude can make (edit files, run build)
 - `type="manual"` — requires human action (Azure Portal, or a team member). Include exact instructions.
-- `type="test"` — writing tests for the feature. Every plan MUST include test tasks. Test tasks verify the feature works, not just that it compiles.
+- `type="test"` — writing tests for the feature (executed exactly like `type="auto"` — a fresh executor writes the test/eval and runs its verify). Every plan MUST include test tasks, and **every code task gets a paired test task** (same wave or the next). Test tasks verify the feature works, not just that it compiles. Where the story's e2e modality doesn't exist yet, add a `type="test"` task to **build that probe/harness**.
 - `<read_first>` — (optional) comma-separated list of files the executor should read for context BEFORE implementing, but NOT modify. Use this for interface definitions, base classes, or examples the executor needs to understand but won't change. Keeps the executor from accidentally modifying context files.
 - `<files>` — comma-separated list of ALL files the task will CREATE or MODIFY. Missing a file = executor fails. Do NOT include read-only context files here — put those in `<read_first>`.
 - `<action>` — precise implementation instruction: which method, what the current behaviour is, what the new behaviour should be, exact field/property/class names. Specific enough that a fresh agent with no story context could implement it correctly.
@@ -68,10 +68,21 @@ Then output the **test strategy** (this is mandatory for every plan):
 
 ### Test Strategy for #<STORY_ID>
 
-**Acceptance criteria** (what proves the feature works — written as testable scenarios):
+**Goal** (from the Phase 1.5 goal definition — the story is done when this is met):
+- **E2E modality:** [which modality from the menu below verifies this story end-to-end — or the new one being built]
+- **Concrete gate:** [the exact check that must go green — e.g. "integration test `X` passes", "UI spec `Y` green", "human sign-off against criteria 1-3"]
+
+**Acceptance criteria** (what proves the feature works — written as testable scenarios; **these ARE the e2e gate, one unified list** — each criterion is phrased so the gate directly checks it):
 1. [User/system does X] → [expected outcome Y]
 2. [User/system does X] → [expected outcome Y]
 ...
+
+**Observability plan** (how the ACTUAL state behind each criterion will be seen — never assumed):
+| Criterion | What to observe | How (API response / log / trace / screenshot / structured query) |
+|---|---|---|
+| 1 | [the real value/output] | [the concrete way to see it] |
+...
+_If any criterion's actual state cannot be observed with what exists, add a task to build a probe (endpoint, query, or log line) — respecting the project's data-access rules (observe via API/logs, never raw prod DB reads)._
 
 **Integration test scenarios** (how this feature interacts with other components):
 1. [Component A calls Component B] → [expected behavior]
@@ -82,6 +93,19 @@ Then output the **test strategy** (this is mandatory for every plan):
 1. [Existing feature X must still do Y]
 2. [Existing endpoint Z must still return W]
 ...
+
+---
+
+**E2E modality menu (OPEN — pick one or more, or define a new one):**
+
+| Modality | What it proves | Typical feature |
+|---|---|---|
+| **Automated test** (API / integration) | The system returns the right result through its real interface | backend / pipeline / multi-component |
+| **UI automation** | User clicks through and sees the right thing | UI-facing |
+| **Domain-specific graded evaluation** | Non-deterministic / AI output is correct, judged vs a ground truth | AI / generative / extraction |
+| **Structured human acceptance** | A human ruling / subjective UX call, signed off against the criteria | no machine oracle exists |
+
+**The menu is open.** If no modality fits this story, **define a new one and add a task to build that probe/harness** — coverage is never dropped because the tooling is missing. For no-oracle stories, the gate is a structured human acceptance check (actual behavior shown per the observability plan, then human sign-off) — still gated, never skipped.
 
 Then output the **parallelism rationale table**:
 
@@ -152,9 +176,18 @@ Write the file with this exact structure:
 ```markdown
 # Test Strategy — Story #<STORY_ID>
 
-## Acceptance Criteria
+## Goal
+- **E2E modality:** [chosen modality — or the new one being built]
+- **Concrete gate:** [the exact check that must go green]
+
+## Acceptance Criteria (= the e2e gate, one unified list)
 1. [User/system does X] → [expected outcome Y]
 ...
+
+## Observability Plan
+| Criterion | What to observe | How |
+|---|---|---|
+| 1 | ... | ... |
 
 ## Integration Test Scenarios
 1. [Component A calls Component B] → [expected behavior]
@@ -165,7 +198,7 @@ Write the file with this exact structure:
 ...
 ```
 
-**Do not skip this step.** If the acceptance-test-agent cannot read `test-strategy.md`, it has no criteria to verify against.
+**Do not skip this step.** If the acceptance-test-agent cannot read `test-strategy.md`, it has no criteria to verify against — and Phase 3.7's e2e gate has no defined gate to run.
 
 ---
 
@@ -226,8 +259,11 @@ The following are **NOT valid reasons** to split, defer, or reduce scope:
 - [ ] Any task touching `DependencyInjection.cs` has its own `parallel_group` (not shared)
 - [ ] All `type="manual"` tasks have their own `parallel_group` (not shared with auto tasks)
 - [ ] The parallelism rationale table is present in the output
-- [ ] **Test strategy is present** — acceptance criteria, integration scenarios, regression guardrails
-- [ ] **Test tasks exist** — at least one `type="test"` task in the plan that writes unit/integration tests for the new code
+- [ ] **Test strategy is present** — goal (e2e modality + concrete gate), acceptance criteria, observability plan, integration scenarios, regression guardrails
+- [ ] **Goal is defined** — the test strategy names the chosen e2e modality and the concrete gate that must go green (the story's definition of done)
+- [ ] **Acceptance criteria ARE the e2e gate** — one unified list; each criterion phrased so the gate directly checks it (no paper-vs-test drift)
+- [ ] **Observability plan is present** — every criterion has a concrete way to see the actual state; if none exists, a `type="test"` task builds a probe (respecting data-access rules)
+- [ ] **Test tasks exist** — at least one `type="test"` task, and **every code task has a paired test task** (same wave or next)
 - [ ] **Test tasks are properly ordered** — in the same wave or next wave after the code they test, never deferred
 - [ ] **Every acceptance criterion is testable** — no vague criteria like "it should work well"
 - [ ] **Test strategy was saved** to `tasks/stories/<STORY_ID>/test-strategy.md` as a standalone file (not just inline in the plan output)
