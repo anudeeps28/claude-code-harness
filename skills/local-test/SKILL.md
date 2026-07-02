@@ -1,7 +1,7 @@
 ---
 name: local-test
-description: Run local build, tests, and integration testing at 3 levels. Stack-agnostic — reads commands from tasks/lessons.md (enterprise) or tasks/notes.md (solo). Use before committing, after code changes, or when another skill asks you to verify. Usage: /local-test [1|2|3]
-argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev server for manual testing). Default=2
+description: Run local build, tests, integration testing, and the feature's e2e goal gate. Stack-agnostic — reads commands from tasks/lessons.md (enterprise) or tasks/notes.md (solo). Use before committing, after code changes, or when another skill asks you to verify. Usage: /local-test [1|2|3|e2e]
+argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev server for manual testing, e2e=run the story's e2e goal gate). Default=2
 ---
 
 **Core Philosophy:** Verify locally at the right level — Level 1 for quick build checks, Level 2 for full integration, Level 3 when you need to manually interact with the running application.
@@ -10,7 +10,7 @@ argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev serve
 
 ---
 
-You run local verification at the requested level. If no level is given, default to **Level 2**.
+You run local verification at the requested level. If no level is given, default to **Level 2**. `e2e` is a distinct capability (not a numeric level) — the goal gate for `/story` Phase 3.7.
 
 **First:** Read `YOUR_PROJECT_ROOT/tasks/lessons.md` to find the project's test configuration. If `lessons.md` does not exist, read `YOUR_PROJECT_ROOT/tasks/notes.md` instead — solo projects store the same test commands there under the "Test Commands" section. All commands come from one of these two files — nothing is hardcoded.
 
@@ -47,6 +47,21 @@ Everything in Level 2, plus a running application for manual interaction.
 2. **Start dev server** — run the dev server command from `lessons.md`
 3. **Print the URL** — tell YOUR_NAME the localhost URL to open in a browser
 4. **Stay running** — does NOT auto-stop. YOUR_NAME closes it when done.
+
+### e2e — Run the story's e2e goal gate
+
+The end-to-end gate for the current feature — the terminal check `/story` Phase 3.7 runs. Unlike Levels 1-3 (which are fixed build/test stages), the e2e gate is **per-feature**: its modality and concrete command were chosen during planning and recorded in the story's `test-strategy.md` ("Goal" + "Concrete gate").
+
+1. **Read the gate.** Find the story's `tasks/stories/<id>/test-strategy.md` and read its **Goal** (chosen e2e modality) and **Concrete gate**. If a story ID wasn't passed, ask which story's gate to run.
+2. **Find the gate command.** The actual command comes from `tasks/lessons.md` / `tasks/notes.md` under an "E2E gate" (or modality-specific) entry — **never hardcode it here**. Different modalities run differently:
+   - **Automated test / integration:** the e2e/acceptance test command from the lessons file.
+   - **UI automation:** the UI e2e command (e.g. the project's browser-driver suite).
+   - **Domain-specific graded eval:** the project's eval runner (defined in the project's own skills/docs, not here).
+   - **Structured human acceptance** (no machine oracle): there is no command to run — instead surface the ACTUAL behavior using the story's **observability plan** (API response, log, trace, screenshot; never a raw prod DB read) and report it for a human sign-off. Do NOT declare PASS yourself.
+3. **Run it and report** PASS/FAIL against each acceptance criterion (the criteria ARE the gate). For the human-acceptance case, report "AWAITING HUMAN SIGN-OFF" with the evidence shown.
+4. **Never fix on failure** — report the failure back to the caller (`/story` Phase 3.7 owns the diagnostic re-approach).
+
+If neither lessons file defines an e2e gate command and the modality isn't structured-human-acceptance, say so and report SKIPPED — do not invent a command.
 
 ---
 
