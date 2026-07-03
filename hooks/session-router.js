@@ -19,11 +19,13 @@ runHook('session-router', async () => {
   await readStdinJson();
   const projectRoot = git(['rev-parse', '--show-toplevel']) || process.cwd();
   const { state, signals } = detectProjectState(projectRoot);
-  // Only fetch the first issue when detection already confirmed an open issue
-  // exists (signals.openIssues >= 1). This skips a redundant ~1.5s gh subprocess
-  // for active-by-artifact projects and when gh is unavailable (openIssues null).
+  // Only fetch the first issue/task when detection already confirmed an open
+  // one exists (signals.openIssues >= 1). This skips a redundant CLI subprocess
+  // for active-by-artifact projects and when the tracker is unavailable.
   let firstIssue = null;
-  if (state === 'active' && signals.openIssues >= 1) firstIssue = detectFirstOpenIssue();
+  if (state === 'active' && signals.openIssues >= 1) {
+    firstIssue = detectFirstOpenIssue({ activeTracker: signals.tracker });
+  }
   const message = renderGuidance(state, signals, firstIssue);
   if (!message) return ok();
   injectContext('SessionStart', '## Next step\n' + message);
