@@ -29,6 +29,7 @@ Skills and agents always call `trackers/active/<script>`. The installer copies t
 |---|---|---|
 | Azure DevOps | `trackers/ado/` | `az` + `az devops` extension |
 | GitHub | `trackers/github/` | `gh` |
+| Todoist | `trackers/todoist/` | `td` (or set `$TODOIST_CLI`) |
 
 ---
 
@@ -116,6 +117,45 @@ GitHub has no native parent/child issue relationship. `get-issue-children.sh` re
 
 ---
 
+## Todoist adapter notes
+
+Requires:
+- `td` CLI (Todoist command-line client)
+- Authenticated with a valid API token
+
+### Concept mapping
+
+Todoist doesn't have native equivalents for all GitHub/ADO concepts. The adapter maps them:
+
+| Tracker concept | Todoist equivalent |
+|---|---|
+| Issue / Work item | Task |
+| Sub-issue | Sub-task (`--parent`) |
+| Sprint / Iteration | Section within a project |
+| Label | Label |
+| Milestone | Uncompletable parent task |
+| PR review threads | N/A (no-op stubs — returns empty) |
+
+### Sprint / section mapping
+
+`get-sprint-issues.sh` lists tasks in a named Todoist section. Configure the project in `tasks/tracker-config.md`:
+
+```
+todoist_project = My Project
+```
+
+Call with a section name to filter: `get-sprint-issues.sh "Sprint 1"`. Without arguments, lists all open tasks in the configured project.
+
+### CLI resolution
+
+The adapter resolves the `td` binary from:
+1. `$TODOIST_CLI` environment variable (if set)
+2. `td` on `$PATH`
+
+This makes the adapter portable across macOS (Homebrew) and Linux installs without hardcoding a path.
+
+---
+
 ## Switching trackers after install
 
 Re-run the installer and choose a different tracker:
@@ -127,6 +167,10 @@ Or manually copy an adapter:
 ```bash
 # Switch to GitHub
 cp trackers/github/*.sh ~/.claude/trackers/active/
+chmod +x ~/.claude/trackers/active/*.sh
+
+# Switch to Todoist
+cp trackers/todoist/*.sh ~/.claude/trackers/active/
 chmod +x ~/.claude/trackers/active/*.sh
 ```
 
