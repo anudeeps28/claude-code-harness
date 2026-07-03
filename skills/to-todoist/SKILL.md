@@ -8,7 +8,7 @@ triggers: /to-todoist
 
 Decompose planning artifacts into Todoist tasks. Each task is an independently demoable story. Stories are grouped under milestone parent tasks and created as subtasks.
 
-Uses the `td` CLI at `/opt/homebrew/bin/td` to create tasks in Todoist.
+Uses the `td` CLI (resolved from `$TODOIST_CLI` or `PATH`) to create tasks in Todoist. When the Todoist tracker adapter is installed (`trackers/active/` contains Todoist scripts), this skill also works through the adapter layer for standard operations.
 
 Reads from ALL available planning artifacts in the decide/define phases. No single artifact is required — uses whatever exists.
 
@@ -28,7 +28,7 @@ Reads from ALL available planning artifacts in the decide/define phases. No sing
 
 Before doing anything else:
 
-1. Check that `/opt/homebrew/bin/td` exists and is executable. If not, halt: *"Todoist CLI (td) not found at /opt/homebrew/bin/td. Install it first."*
+1. Check that `trackers/active/create-issue.sh` exists (Todoist adapter installed). Also verify the `td` CLI is available in PATH (or via `$TODOIST_CLI`). If neither is found, halt: *"Todoist tracker adapter not installed. Run the installer and select Todoist, or install the td CLI."*
 2. Scan for at least ONE planning artifact (see Phase 1). If none exist, halt: *"No planning artifacts found. Run `/grill-me` to establish shared understanding first, then optionally `/research` and `/architect`."*
 3. Resolve project and section:
    - If `--project` is provided, use it.
@@ -139,7 +139,7 @@ Do not proceed to Phase 5 without explicit user approval (unless `--dry-run`).
 ### 5a — Verify project exists
 
 ```bash
-/opt/homebrew/bin/td project list --json 2>/dev/null | grep -i "<project-name>"
+td project list --json 2>/dev/null | grep -i "<project-name>"
 ```
 
 If the project doesn't exist, inform the user and halt: *"Project '<name>' not found in Todoist. Create it first or provide a different project name."*
@@ -148,12 +148,12 @@ If the project doesn't exist, inform the user and halt: *"Project '<name>' not f
 
 Check if section exists:
 ```bash
-/opt/homebrew/bin/td section list "<project-name>" --json 2>/dev/null
+td section list "<project-name>" --json 2>/dev/null
 ```
 
 If the section doesn't exist, create it:
 ```bash
-/opt/homebrew/bin/td section create --project "<project-name>" --name "<section-name>"
+td section create --project "<project-name>" --name "<section-name>"
 ```
 
 ## Phase 6 — Create tasks in Todoist
@@ -163,7 +163,7 @@ If the section doesn't exist, create it:
 For each milestone, create an uncompletable parent task:
 
 ```bash
-/opt/homebrew/bin/td task add "<Milestone: name>" \
+td task add "<Milestone: name>" \
   --project "<project>" \
   --section "<section>" \
   --priority p1 \
@@ -179,7 +179,7 @@ Capture the returned task ID from the JSON output. Print the milestone name and 
 For each task within the milestone:
 
 ```bash
-/opt/homebrew/bin/td task add "<title>" \
+td task add "<title>" \
   --project "<project>" \
   --parent "id:<milestone-task-id>" \
   --priority <p1-p4> \
@@ -213,7 +213,7 @@ Print each created task (title + ID) as it's created. If creation fails, print t
 
 List tasks to confirm creation:
 ```bash
-/opt/homebrew/bin/td task list --project "<project>" --json
+td task list --project "<project>" --json
 ```
 
 ### 7b — Print summary
