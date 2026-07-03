@@ -24,6 +24,17 @@ _Anything Claude should know at the start of every session._
 
 ---
 
+## Todoist
+
+_Used by `/to-todoist` to set default project and section. Delete this section if not using Todoist._
+
+```
+project: YOUR_TODOIST_PROJECT
+section: YOUR_DEFAULT_SECTION
+```
+
+---
+
 ## Seeds
 
 _Forward-looking ideas that aren't ready yet. Each has a trigger condition — when the condition is met during work, surface the seed._

@@ -1,7 +1,7 @@
 ---
 name: implement
-description: Build a feature from a GitHub issue or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id or description> [--discuss] [--research] [--quick] [--auto] [--full]
-argument-hint: "#42 or 'add dark mode to settings page'"
+description: Build a feature from a tracker task (GitHub issue, Todoist task) or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id, task-title, or description> [--discuss] [--research] [--quick] [--auto] [--full]
+argument-hint: "#42, 'Build login flow', or 'add dark mode to settings page'"
 ---
 
 **Core Philosophy:** Understand it, plan it, build it, check it, ship it — with a human gate at each step. Like `/story` but without the sprint ceremony.
@@ -37,13 +37,21 @@ Parse `$ARGUMENTS`:
 
 2. **Classify the remaining arguments:**
    - If they start with `#` or are a number → it's a **GitHub issue ID**
+   - If the active tracker is Todoist (check `tasks/tracker-config.md` for `**Type:** Todoist`):
+     - Quoted strings or task titles → it's a **Todoist task title** — search for it using `trackers/active/get-sprint-issues.sh` and match by title
+     - Numeric IDs without `#` → it's a **Todoist task ID** — fetch via `trackers/active/get-issue.sh <ID>`
    - Otherwise → it's a **plain text description**
 
-3. **Echo back** the parsed intent on one line, e.g. `Task: #42  |  Flags: --discuss --research`, so YOUR_NAME can catch a typo before anything else runs.
+3. **Echo back** the parsed intent on one line, e.g. `Task: #42  |  Flags: --discuss --research` or `Task: "Build login flow" (Todoist)  |  Flags: --research`, so YOUR_NAME can catch a typo before anything else runs.
+
+4. **Fetch task context** (if from a tracker):
+   - For GitHub issues: `bash trackers/active/get-issue.sh <NUMBER>`
+   - For Todoist tasks: `bash trackers/active/get-issue.sh <TASK_ID>`
+   - Use the fetched title, description, and acceptance criteria to enrich the planner's input.
 
 Create a branch for this work:
 ```bash
-git checkout -b implement/<issue-id-or-short-name>
+git checkout -b implement/<issue-id-or-slugified-title>
 ```
 
 ---

@@ -10,7 +10,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ### New skills
 
-- `/to-todoist` — Decompose planning artifacts into Todoist milestones and tasks via the `td` CLI. Milestones as uncompletable parent tasks, work items as prioritized subtasks with descriptions, acceptance criteria, and dependency notes. Supports `--project`, `--section`, and `--dry-run` flags. Reads defaults from `tasks/notes.md` Todoist section.
+- `/to-todoist` — Decompose planning artifacts into Todoist milestones and tasks. Milestones as uncompletable parent tasks, work items as prioritized subtasks with descriptions, acceptance criteria, and dependency notes. Supports `--project`, `--section`, and `--dry-run` flags. Reads defaults from `tasks/notes.md` Todoist section.
+
+### Tracker integration
+
+- **Todoist tracker adapter** — Full 9-script adapter in `trackers/todoist/` implementing the same interface as GitHub and ADO. Resolves `td` CLI from `$TODOIST_CLI` or `$PATH`.
+- **Tracker-agnostic session routing** — `session-router.js` and `project-state.js` now detect which tracker is active (GitHub, ADO, or Todoist) and route accordingly. Projects using Todoist get task-based guidance instead of issue-based.
+- **Installer Todoist support** — Both solo and enterprise workflow packs now offer Todoist as a tracker option during installation.
+- **`/implement` Todoist support** — Accepts Todoist task titles and IDs in addition to GitHub issue numbers. Fetches task context from the active tracker adapter.
+- **`/grill-me` downstream routing** — Now recommends `/to-todoist` alongside `/to-issues` as a downstream skill.
+- **`tracker-config.md` template** — Includes Todoist settings (`todoist_project`, `todoist_default_section`).
 
 ---
 

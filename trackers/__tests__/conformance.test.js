@@ -76,6 +76,7 @@ function runScript(adapter, script, args, { fixtureMode, fixtureAuth, retryCount
       RETRY_BACKOFF_1: '0',
       RETRY_BACKOFF_2: '0',
     };
+    if (adapter === 'todoist') env.TODOIST_CLI = path.join(FIXTURES_BIN, 'td');
     if (fixtureMode) env.FIXTURE_MODE = fixtureMode;
     if (fixtureAuth) env.FIXTURE_AUTH = fixtureAuth;
     if (retryCounter) {
@@ -106,7 +107,7 @@ function normalize(s) {
 // ── Argument validation contract ──────────────────────────────────────
 
 describe('arg-validation', () => {
-  for (const adapter of ['ado', 'github']) {
+  for (const adapter of ['ado', 'github', 'todoist']) {
     test(`${adapter}_GetIssue_NoArg_Exits1WithJsonError`, () => {
       const r = runScript(adapter, 'get-issue.sh', []);
       assert.equal(r.exitCode, 1);
@@ -139,6 +140,20 @@ describe('happy-path-stdout', () => {
     const r = runScript('github', 'get-issue.sh', ['1234']);
     assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
     assert.equal(normalize(r.stdout), normalize(readGolden('github', 'get-issue.happy.md')));
+  });
+
+  test('todoist_GetIssue_HappyPath_MatchesGoldenMarkdown', () => {
+    const r = runScript('todoist', 'get-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.equal(normalize(r.stdout), normalize(readGolden('todoist', 'get-issue.happy.md')));
+  });
+
+  test('todoist_GetPrReviewThreads_HappyPath_ReturnsEmptyArray', () => {
+    const r = runScript('todoist', 'get-pr-review-threads.sh', ['42']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    const parsed = JSON.parse(r.stdout);
+    assert.ok(Array.isArray(parsed), 'expected JSON array');
+    assert.equal(parsed.length, 0, 'Todoist PR threads stub must return empty array');
   });
 
   test('github_GetPrReviewThreads_HappyPath_ReturnsJsonArrayWithRequiredKeys', () => {
@@ -183,6 +198,18 @@ describe('failure-modes', () => {
     assert.equal(r.exitCode, 1);
     assert.match(r.stderr, /gh auth|expired/i);
   });
+
+  test('todoist_GetIssue_NotFound_Exits1WithJsonStderr', () => {
+    const r = runScript('todoist', 'get-issue.sh', ['9999']);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('todoist_GetIssue_AuthExpired_Exits1WithAuthError', () => {
+    const r = runScript('todoist', 'get-issue.sh', ['1234'], { fixtureAuth: 'expired' });
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /auth/i);
+  });
 });
 
 // ── Retry behaviour ──────────────────────────────────────────────────
@@ -221,12 +248,27 @@ describe('retry', () => {
       try { fs.unlinkSync(counter); } catch { /* ignore */ }
     }
   });
+
+  test('todoist_GetIssue_TransientFailure_RetriesAndSucceeds', () => {
+    const counter = path.join(os.tmpdir(), `retry-counter-${process.pid}-${Date.now()}`);
+    try {
+      const r = runScript('todoist', 'get-issue.sh', ['1234'], {
+        retryCounter: counter,
+        retrySucceedAt: 2,
+      });
+      assert.equal(r.exitCode, 0, `expected success after retry: ${r.stderr}`);
+      const count = parseInt(fs.readFileSync(counter, 'utf8'), 10);
+      assert.ok(count >= 2);
+    } finally {
+      try { fs.unlinkSync(counter); } catch { /* ignore */ }
+    }
+  });
 });
 
 // ── Tracker README + lib presence ────────────────────────────────────
 
 describe('contract-presence', () => {
-  for (const adapter of ['ado', 'github']) {
+  for (const adapter of ['ado', 'github', 'todoist']) {
     test(`${adapter}_HasAllSixContractScripts`, () => {
       const required = [
         'get-issue.sh',

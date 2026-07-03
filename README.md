@@ -208,7 +208,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 | **prd-critique** | `/prd-critique <path> [--brief <path>]` | Run 6 critique checks on a PRD — metric validity, NFR specificity, failure modes, assumption traceability, rollback plan, intent clarity. Read-only |
 | **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |
-| **to-todoist** | `/to-todoist --project "X" --section "Y"` | Decompose planning artifacts into Todoist milestones and tasks via the `td` CLI — milestones as uncompletable parents, tasks as prioritized subtasks |
+| **to-todoist** | `/to-todoist --project "X" --section "Y"` | Decompose planning artifacts into Todoist milestones and tasks — milestones as uncompletable parents, tasks as prioritized subtasks. Full tracker adapter integration (session routing, `/plan`, `/implement`) |
 | **grill-with-docs** | `/grill-with-docs <plan or design>` | Like /grill-me but anchored in CONTEXT.md and ADRs — challenges vague terms against the glossary, surfaces plan-vs-decision contradictions, updates CONTEXT.md with resolved terms |
 | **research** | `/research <topic> [--urls ...]` | Research an external API, integration, or library — caches provenance-tagged findings in research.md for downstream agents to read |
 | **architect** | `/architect <path-to-PRD>` | Design system architecture from a PRD — interactive 8-section ARCHITECTURE.md with Mermaid diagrams, cost model, and compliance gates |

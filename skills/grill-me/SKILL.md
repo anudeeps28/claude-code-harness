@@ -120,7 +120,7 @@ If the user says continue, proceed to Step 7. If they want to revisit a branch, 
 
 ## Step 7 — Write grill-summary.md (MANDATORY)
 
-Always write a `grill-summary.md` file when shared understanding is reached. This artifact is consumed by downstream skills (`/research`, `/architect`, `/to-issues`) — without it, the decide phase has no handoff contract.
+Always write a `grill-summary.md` file when shared understanding is reached. This artifact is consumed by downstream skills (`/research`, `/architect`, `/to-issues`, `/to-todoist`) — without it, the decide phase has no handoff contract.
 
 Write to the repo root (or `tasks/stories/<id>/grill-summary.md` if a story context exists).
 
@@ -170,13 +170,14 @@ Structure:
 - `/research <topic>` — if external APIs or unfamiliar tech need investigation
 - `/architect` — to design the system architecture from this shared understanding
 - `/to-issues` — to break this directly into implementable GitHub issues
+- `/to-todoist` — to break this into Todoist tasks (if using Todoist as your tracker)
 ```
 
 After writing, say:
 
-> "Shared understanding written to `grill-summary.md`. Downstream skills (`/research`, `/architect`, `/to-issues`) will read this file as input.
+> "Shared understanding written to `grill-summary.md`. Downstream skills (`/research`, `/architect`, `/to-issues`, `/to-todoist`) will read this file as input.
 >
-> Suggested next step: [recommend based on what was discussed — research if tech is uncertain, architect if the system needs designing, or to-issues if it's straightforward enough to decompose now]"
+> Suggested next step: [recommend based on what was discussed — research if tech is uncertain, architect if the system needs designing, to-issues for GitHub Issues, or to-todoist for Todoist tasks if it's straightforward enough to decompose now]"
 
 ---
 

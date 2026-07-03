@@ -68,3 +68,22 @@ check_auth_github() {
     exit 1
   fi
 }
+
+check_auth_todoist() {
+  local td="${TODOIST_CLI:-td}"
+
+  if ! command -v "$td" &>/dev/null; then
+    echo '{"error": "Todoist CLI (td) not found. Install it or set TODOIST_CLI."}' >&2
+    exit 1
+  fi
+
+  # Verify td CLI can reach the API with a lightweight call
+  local check_output
+  check_output=$("$td" project list --json 2>&1)
+  local exit_code=$?
+
+  if [ $exit_code -ne 0 ]; then
+    echo '{"error": "Todoist CLI auth failed. Check your API token configuration."}' >&2
+    exit 1
+  fi
+}
