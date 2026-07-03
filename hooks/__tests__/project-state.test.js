@@ -5,7 +5,13 @@ const os = require('node:os');
 const path = require('node:path');
 const { performance } = require('node:perf_hooks');
 
-const { detectProjectState, detectOpenIssues } = require('../lib/project-state.js');
+const {
+  detectProjectState,
+  detectActiveTracker,
+  detectOpenIssues,
+  detectFirstOpenIssue,
+  renderGuidance,
+} = require('../lib/project-state.js');
 
 function makeProjectRoot() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'project-state-'));
@@ -28,7 +34,7 @@ test('detectProjectState_NoArtifactsNoIssues_ReturnsGreenfield', () => {
     assert.equal(result.state, 'greenfield');
     assert.deepEqual(result.signals.artifacts, []);
     assert.equal(result.signals.openIssues, 0);
-    assert.equal(result.signals.ghAvailable, true);
+    assert.equal(result.signals.trackerAvailable, true);
   } finally { cleanup(root); }
 });
 
@@ -50,7 +56,7 @@ test('detectProjectState_OneOpenIssue_ReturnsActive', () => {
     const result = detectProjectState(root, { ghRunner: ghReturns([{ number: 42 }]) });
     assert.equal(result.state, 'active');
     assert.equal(result.signals.openIssues, 1);
-    assert.equal(result.signals.ghAvailable, true);
+    assert.equal(result.signals.trackerAvailable, true);
   } finally { cleanup(root); }
 });
 
@@ -122,7 +128,7 @@ test('detectProjectState_GhRunnerThrows_FailsOpen', () => {
     });
     assert.equal(result.state, 'greenfield');
     assert.equal(result.signals.openIssues, null);
-    assert.equal(result.signals.ghAvailable, false);
+    assert.equal(result.signals.trackerAvailable, false);
   } finally { cleanup(root); }
 });
 
@@ -136,7 +142,7 @@ test('detectProjectState_GhReturnsNonJson_FailsOpen', () => {
       result = detectProjectState(root, { ghRunner: badRunner });
     });
     assert.equal(result.signals.openIssues, null);
-    assert.equal(result.signals.ghAvailable, false);
+    assert.equal(result.signals.trackerAvailable, false);
   } finally { cleanup(root); }
 });
 
@@ -155,19 +161,155 @@ test('detectProjectState_WithInjectedRunner_CompletesUnder500ms', () => {
 test('detectOpenIssues_RunnerReturnsArray_ReturnsCountAndAvailable', () => {
   const result = detectOpenIssues({ ghRunner: ghReturns([{ number: 1 }, { number: 2 }]) });
   assert.equal(result.openIssues, 2);
-  assert.equal(result.ghAvailable, true);
+  assert.equal(result.trackerAvailable, true);
 });
 
 // detectOpenIssues: runner returns non-array JSON -> fail-open
 test('detectOpenIssues_RunnerReturnsNonArray_FailsOpen', () => {
   const result = detectOpenIssues({ ghRunner: () => '{"not":"array"}' });
   assert.equal(result.openIssues, null);
-  assert.equal(result.ghAvailable, false);
+  assert.equal(result.trackerAvailable, false);
 });
 
 // detectOpenIssues: runner throws -> fail-open
 test('detectOpenIssues_RunnerThrows_FailsOpen', () => {
   const result = detectOpenIssues({ ghRunner: () => { throw new Error('no gh'); } });
   assert.equal(result.openIssues, null);
-  assert.equal(result.ghAvailable, false);
+  assert.equal(result.trackerAvailable, false);
+});
+
+// ── Todoist-specific tests ──────────────────────────────────────────────
+
+function tdReturns(json) {
+  return () => JSON.stringify(json);
+}
+
+// detectActiveTracker: reads Type field from tracker-config.md
+test('detectActiveTracker_TrackerConfigTodoist_ReturnsTodoist', () => {
+  const root = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(root, 'tasks'));
+    fs.writeFileSync(path.join(root, 'tasks', 'tracker-config.md'), '**Type:** Todoist\n');
+    const tracker = detectActiveTracker(root);
+    assert.equal(tracker, 'todoist');
+  } finally { cleanup(root); }
+});
+
+// detectActiveTracker: explicit override via opts.tracker
+test('detectActiveTracker_ExplicitOverride_ReturnsOverride', () => {
+  const root = makeProjectRoot();
+  try {
+    const tracker = detectActiveTracker(root, { tracker: 'todoist' });
+    assert.equal(tracker, 'todoist');
+  } finally { cleanup(root); }
+});
+
+// detectProjectState with Todoist: open tasks detected
+test('detectProjectState_TodoistWithOpenTasks_ReturnsActive', () => {
+  const root = makeProjectRoot();
+  try {
+    const tasks = [
+      { id: '100', content: 'Build login', is_completed: false },
+      { id: '101', content: 'Done task', is_completed: true },
+    ];
+    const result = detectProjectState(root, {
+      tracker: 'todoist',
+      tdRunner: tdReturns(tasks),
+    });
+    assert.equal(result.state, 'active');
+    assert.equal(result.signals.openIssues, 1);
+    assert.equal(result.signals.tracker, 'todoist');
+  } finally { cleanup(root); }
+});
+
+// detectProjectState with Todoist: no open tasks, no artifacts -> greenfield
+test('detectProjectState_TodoistNoOpenTasks_ReturnsGreenfield', () => {
+  const root = makeProjectRoot();
+  try {
+    const tasks = [{ id: '100', content: 'Done', is_completed: true }];
+    const result = detectProjectState(root, {
+      tracker: 'todoist',
+      tdRunner: tdReturns(tasks),
+    });
+    assert.equal(result.state, 'greenfield');
+    assert.equal(result.signals.openIssues, 0);
+  } finally { cleanup(root); }
+});
+
+// detectOpenIssues with Todoist: counts only non-completed tasks
+test('detectOpenIssues_Todoist_CountsOpenOnly', () => {
+  const tasks = [
+    { id: '1', content: 'A', is_completed: false },
+    { id: '2', content: 'B', is_completed: true },
+    { id: '3', content: 'C', is_completed: false },
+  ];
+  const result = detectOpenIssues({
+    activeTracker: 'todoist',
+    tdRunner: tdReturns(tasks),
+  });
+  assert.equal(result.openIssues, 2);
+  assert.equal(result.trackerAvailable, true);
+});
+
+// detectOpenIssues with Todoist: runner throws -> fail-open
+test('detectOpenIssues_TodoistRunnerThrows_FailsOpen', () => {
+  const result = detectOpenIssues({
+    activeTracker: 'todoist',
+    tdRunner: () => { throw new Error('no td'); },
+  });
+  assert.equal(result.openIssues, null);
+  assert.equal(result.trackerAvailable, false);
+});
+
+// detectFirstOpenIssue with Todoist: returns first open task
+test('detectFirstOpenIssue_Todoist_ReturnsFirstOpenTask', () => {
+  const tasks = [
+    { id: '50', content: 'Completed', is_completed: true },
+    { id: '51', content: 'Build API', is_completed: false },
+    { id: '52', content: 'Build UI', is_completed: false },
+  ];
+  const result = detectFirstOpenIssue({
+    activeTracker: 'todoist',
+    firstTodoistTaskRunner: tdReturns(tasks),
+  });
+  assert.deepEqual(result, { id: '51', title: 'Build API' });
+});
+
+// detectFirstOpenIssue with Todoist: no open tasks -> null
+test('detectFirstOpenIssue_TodoistAllCompleted_ReturnsNull', () => {
+  const tasks = [{ id: '50', content: 'Done', is_completed: true }];
+  const result = detectFirstOpenIssue({
+    activeTracker: 'todoist',
+    firstTodoistTaskRunner: tdReturns(tasks),
+  });
+  assert.equal(result, null);
+});
+
+// renderGuidance: Todoist active with first task
+test('renderGuidance_TodoistWithFirstTask_ShowsTaskTitle', () => {
+  const msg = renderGuidance(
+    'active',
+    { tracker: 'todoist', openIssues: 1 },
+    { id: '51', title: 'Build API' }
+  );
+  assert.ok(msg.includes('/implement "Build API"'), 'should suggest /implement with task title');
+  assert.ok(msg.includes('Todoist'), 'should mention Todoist');
+  assert.ok(!msg.includes('#'), 'should not use # issue number syntax');
+});
+
+// renderGuidance: GitHub active with first issue (unchanged behavior)
+test('renderGuidance_GitHubWithFirstIssue_ShowsIssueNumber', () => {
+  const msg = renderGuidance(
+    'active',
+    { tracker: 'github', openIssues: 1 },
+    { number: 42, title: 'Login flow' }
+  );
+  assert.ok(msg.includes('/implement #42'), 'should suggest /implement with issue number');
+});
+
+// renderGuidance: greenfield message is tracker-neutral
+test('renderGuidance_Greenfield_TrackerNeutral', () => {
+  const msg = renderGuidance('greenfield', { tracker: 'todoist' }, null);
+  assert.ok(msg.includes('greenfield'), 'should say greenfield');
+  assert.ok(msg.includes('/grill-me'), 'should suggest /grill-me');
 });
