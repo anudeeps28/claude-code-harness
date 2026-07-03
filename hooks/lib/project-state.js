@@ -1,7 +1,10 @@
 // Project-state detection — determines whether a project root looks like a
 // fresh greenfield workspace or an active one with prior planning artifacts.
 //
-// Fail-open philosophy: every boundary (filesystem, gh CLI) is wrapped in
+// Tracker-agnostic: detects which tracker adapter is installed (GitHub, ADO,
+// Todoist) and probes for open tasks accordingly.
+//
+// Fail-open philosophy: every boundary (filesystem, CLI) is wrapped in
 // try/catch. On any error the signal is simply absent; we never throw and
 // never block the caller. The returned `state` therefore leans toward
 // 'greenfield' when evidence is unclear, which is the safer default.
@@ -17,11 +20,69 @@ const DEFAULT_ARTIFACT_PATHS = [
   'tasks/plan.md',
 ];
 
+// Detect which tracker is active by reading tracker-config.md or probing
+// which CLIs are available. Returns 'github' | 'todoist' | 'ado' | null.
+function detectActiveTracker(projectRoot, opts) {
+  const options = opts || {};
+
+  if (options.tracker) return options.tracker;
+
+  // Check tracker-config.md for explicit Type field
+  try {
+    const configPath = path.join(projectRoot, 'tasks', 'tracker-config.md');
+    if (fs.existsSync(configPath)) {
+      const content = fs.readFileSync(configPath, 'utf8');
+      const match = content.match(/\*\*Type:\*\*\s*\[?\s*(GitHub|Todoist|ADO|Azure DevOps)\s*\]?/i);
+      if (match) {
+        const raw = match[1].toLowerCase();
+        if (raw === 'todoist') return 'todoist';
+        if (raw === 'github') return 'github';
+        if (raw === 'ado' || raw === 'azure devops') return 'ado';
+      }
+    }
+  } catch { /* fail-open */ }
+
+  // Check which tracker adapter scripts exist
+  try {
+    const activePath = path.join(projectRoot, '.claude', 'trackers', 'active');
+    if (fs.existsSync(activePath)) {
+      const scripts = fs.readdirSync(activePath);
+      // Todoist adapter scripts reference td CLI; check for TODOIST_CLI marker
+      for (const script of scripts) {
+        try {
+          const content = fs.readFileSync(path.join(activePath, script), 'utf8');
+          if (content.includes('TODOIST_CLI') || content.includes('check_auth_todoist')) return 'todoist';
+          if (content.includes('check_auth_ado')) return 'ado';
+        } catch { /* ignore individual file errors */ }
+      }
+      // Default to github if adapter scripts exist but no Todoist/ADO markers
+      return 'github';
+    }
+  } catch { /* fail-open */ }
+
+  // Probe CLI availability as last resort
+  try {
+    execFileSync('gh', ['--version'], { encoding: 'utf8', timeout: 1000, stdio: 'ignore' });
+    return 'github';
+  } catch { /* not available */ }
+
+  return null;
+}
+
 function defaultGhRunner() {
   return execFileSync(
     'gh',
     ['issue', 'list', '--state', 'open', '--limit', '1', '--json', 'number'],
     { encoding: 'utf8', timeout: 1500, stdio: ['ignore', 'pipe', 'ignore'] }
+  );
+}
+
+function defaultTdRunner() {
+  const td = process.env.TODOIST_CLI || 'td';
+  return execFileSync(
+    td,
+    ['task', 'list', '--json'],
+    { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }
   );
 }
 
@@ -33,24 +94,69 @@ function defaultFirstIssueRunner() {
   );
 }
 
-// Probe the gh CLI for open issues. Returns { openIssues, ghAvailable }.
-// Never throws — any failure yields { openIssues: null, ghAvailable: false }.
+function defaultFirstTodoistTaskRunner() {
+  const td = process.env.TODOIST_CLI || 'td';
+  return execFileSync(
+    td,
+    ['task', 'list', '--json'],
+    { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }
+  );
+}
+
+// Probe for open issues/tasks. Returns { openIssues, trackerAvailable }.
+// Never throws — any failure yields { openIssues: null, trackerAvailable: false }.
 function detectOpenIssues(opts) {
-  const ghRunner = (opts && opts.ghRunner) ? opts.ghRunner : defaultGhRunner;
+  const options = opts || {};
+  const tracker = options.activeTracker || 'github';
+
+  if (tracker === 'todoist') {
+    const tdRunner = options.tdRunner || defaultTdRunner;
+    try {
+      const raw = tdRunner();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return { openIssues: null, trackerAvailable: false };
+      const openTasks = parsed.filter(function(t) { return !t.is_completed; });
+      return { openIssues: openTasks.length, trackerAvailable: true };
+    } catch {
+      return { openIssues: null, trackerAvailable: false };
+    }
+  }
+
+  // GitHub / ADO default path
+  const ghRunner = options.ghRunner || defaultGhRunner;
   try {
     const raw = ghRunner();
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return { openIssues: null, ghAvailable: false };
-    return { openIssues: parsed.length, ghAvailable: true };
+    if (!Array.isArray(parsed)) return { openIssues: null, trackerAvailable: false };
+    return { openIssues: parsed.length, trackerAvailable: true };
   } catch {
-    return { openIssues: null, ghAvailable: false };
+    return { openIssues: null, trackerAvailable: false };
   }
 }
 
-// Probe the gh CLI for the first open issue. Returns { number, title } or null.
+// Probe for the first open issue/task. Returns { number, title } or null.
+// For Todoist, returns { id, title } instead.
 // Never throws — any failure yields null.
 function detectFirstOpenIssue(opts) {
-  const runner = (opts && opts.firstIssueRunner) ? opts.firstIssueRunner : defaultFirstIssueRunner;
+  const options = opts || {};
+  const tracker = options.activeTracker || 'github';
+
+  if (tracker === 'todoist') {
+    const runner = options.firstTodoistTaskRunner || defaultFirstTodoistTaskRunner;
+    try {
+      const raw = runner();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length < 1) return null;
+      const openTasks = parsed.filter(function(t) { return !t.is_completed; });
+      if (openTasks.length < 1) return null;
+      return { id: openTasks[0].id, title: openTasks[0].content };
+    } catch {
+      return null;
+    }
+  }
+
+  // GitHub default
+  const runner = options.firstIssueRunner || defaultFirstIssueRunner;
   try {
     const raw = runner();
     const parsed = JSON.parse(raw);
@@ -63,16 +169,25 @@ function detectFirstOpenIssue(opts) {
 
 // Pure function: produce a human-readable guidance string based on project state.
 // state    — 'greenfield' or 'active'
-// signals  — { artifacts, openIssues, ghAvailable }
-// firstIssue — { number, title } or null
+// signals  — { artifacts, openIssues, trackerAvailable, tracker }
+// firstIssue — { number, title } (GitHub) or { id, title } (Todoist) or null
 function renderGuidance(state, signals, firstIssue) {
+  const tracker = (signals && signals.tracker) || 'github';
+
   if (state === 'greenfield') {
     return (
-      'Project looks greenfield — no planning artifacts or open issues detected.\n' +
+      'Project looks greenfield — no planning artifacts or open tasks detected.\n' +
       'Have an idea? Start with /grill-me to pressure-test it into a spec, then /plan.'
     );
   }
   if (firstIssue !== null && firstIssue !== undefined) {
+    if (tracker === 'todoist') {
+      return (
+        'Active project — open Todoist tasks detected.\n' +
+        'Next: /implement "' + firstIssue.title + '"\n' +
+        'Or run /plan to prioritize work before implementing.'
+      );
+    }
     return (
       'Active project — open issues detected.\n' +
       'Next: /implement #' + firstIssue.number + ' (' + firstIssue.title + ')\n' +
@@ -82,20 +197,22 @@ function renderGuidance(state, signals, firstIssue) {
   const artifacts = (signals && signals.artifacts) || [];
   return (
     'Active project — planning artifacts detected (' + artifacts.join(', ') + ').\n' +
-    'Next: /plan to break work into issues, or /implement once issues exist.'
+    'Next: /plan to break work into tasks, or /implement once tasks exist.'
   );
 }
 
 // Detect whether projectRoot looks greenfield or active.
 // opts.artifactPaths  — override the default set of relative paths to probe
 // opts.ghRunner       — injectable replacement for the gh execFileSync call
+// opts.tdRunner       — injectable replacement for the td execFileSync call
+// opts.tracker        — force a specific tracker type
 function detectProjectState(projectRoot, opts) {
   const options = opts || {};
   const artifactPaths = Array.isArray(options.artifactPaths)
     ? options.artifactPaths
     : DEFAULT_ARTIFACT_PATHS;
 
-  const artifacts = artifactPaths.filter((rel) => {
+  const artifacts = artifactPaths.filter(function(rel) {
     try {
       return fs.existsSync(path.join(projectRoot, rel));
     } catch {
@@ -103,7 +220,11 @@ function detectProjectState(projectRoot, opts) {
     }
   });
 
-  const { openIssues, ghAvailable } = detectOpenIssues(options);
+  const tracker = detectActiveTracker(projectRoot, options);
+  const { openIssues, trackerAvailable } = detectOpenIssues({
+    ...options,
+    activeTracker: tracker,
+  });
 
   const state =
     artifacts.length > 0 || (openIssues !== null && openIssues >= 1)
@@ -112,12 +233,13 @@ function detectProjectState(projectRoot, opts) {
 
   return {
     state,
-    signals: { artifacts, openIssues, ghAvailable },
+    signals: { artifacts, openIssues, trackerAvailable, tracker },
   };
 }
 
 module.exports = {
   detectProjectState,
+  detectActiveTracker,
   detectOpenIssues,
   detectFirstOpenIssue,
   renderGuidance,
