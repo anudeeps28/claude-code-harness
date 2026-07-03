@@ -8,13 +8,13 @@
 
 ## Issue Tracker
 
-**Type:** [ADO / GitHub]
+**Type:** [ADO / GitHub / Todoist]
 
-**Project/Board:** [YOUR_ADO_PROJECT or GitHub repo owner/name]
+**Project/Board:** [YOUR_ADO_PROJECT or GitHub repo owner/name or Todoist project name]
 
 **Sprint/Iteration naming:** [e.g. "Sprint 5"]
 
-### GitHub sprint settings *(GitHub only — delete if using ADO)*
+### GitHub sprint settings *(GitHub only — delete if using ADO or Todoist)*
 
 ```
 sprint_mode = milestone
@@ -29,6 +29,20 @@ github_project_number = 1
 
 Required when `sprint_mode = project`. This is the number from your project URL:
 `github.com/org/repo/projects/1` → set to `1`.
+
+### Todoist settings *(Todoist only — delete if using GitHub or ADO)*
+
+```
+todoist_project = My Project
+```
+
+The Todoist project name to list and create tasks in.
+
+```
+todoist_default_section = Sprint 1
+```
+
+Optional. The default section within the project. Sections map to sprints — `get-sprint-issues.sh` lists tasks in the named section.
 
 ---
 
