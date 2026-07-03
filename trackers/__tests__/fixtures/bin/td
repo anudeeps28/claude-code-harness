@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Stub `td` for tracker conformance tests. Pattern-matches argv against
+# known adapter call signatures and returns canned JSON.
+
+set -e
+
+fixture_dir="$(dirname "$0")/../responses"
+
+# Auth check — project list is used by check_auth_todoist.
+if [ "$1" = "project" ] && [ "$2" = "list" ]; then
+  if [ "$FIXTURE_AUTH" = "expired" ]; then
+    echo "Error: authentication failed" >&2
+    exit 1
+  fi
+  echo '[{"id": "111", "name": "TestProject"}]'
+  exit 0
+fi
+
+# Retry-mode fixture.
+if [ -n "$FIXTURE_RETRY_COUNTER" ]; then
+  count=0
+  if [ -f "$FIXTURE_RETRY_COUNTER" ]; then
+    count=$(cat "$FIXTURE_RETRY_COUNTER")
+  fi
+  count=$((count + 1))
+  echo "$count" > "$FIXTURE_RETRY_COUNTER"
+  if [ "$count" -lt "${FIXTURE_RETRY_SUCCEED_AT:-2}" ]; then
+    echo '{"error": "transient 503"}' >&2
+    exit 1
+  fi
+fi
+
+# Failure modes.
+case "$FIXTURE_MODE" in
+  not-found)
+    echo '{"error": "Task not found"}' >&2
+    exit 1
+    ;;
+  auth-failed)
+    echo '{"error": "401 Unauthorized"}' >&2
+    exit 1
+    ;;
+  malformed)
+    echo 'not json at all'
+    exit 0
+    ;;
+esac
+
+# Task dispatch.
+case "$1 $2" in
+  "task view")
+    if [ "$3" = "9999" ]; then
+      echo '{"error": "task 9999 not found"}' >&2
+      exit 1
+    fi
+    cat "$fixture_dir/td-task-1234.json"
+    exit 0
+    ;;
+  "task list")
+    cat "$fixture_dir/td-task-list.json"
+    exit 0
+    ;;
+  "task add")
+    echo '{"id": "9876543", "content": "New task", "url": "https://todoist.com/showTask?id=9876543"}'
+    exit 0
+    ;;
+  "task update")
+    echo '{"id": "1234", "content": "Updated task"}'
+    exit 0
+    ;;
+esac
+
+echo "{\"error\": \"stub td: no fixture for: $*\"}" >&2
+exit 1
