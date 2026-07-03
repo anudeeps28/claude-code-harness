@@ -144,13 +144,18 @@ async function main() {
   if (workflowPack === 'enterprise') {
     console.log('  Issue tracker:\n');
     console.log('    1) Azure DevOps  (uses az devops CLI)');
-    console.log('    2) GitHub        (uses gh CLI)\n');
-    const trackerChoice = (await prompt('  Choice [1/2]: ', '2')).trim();
+    console.log('    2) GitHub        (uses gh CLI)');
+    console.log('    3) Todoist       (uses td CLI)\n');
+    const trackerChoice = (await prompt('  Choice [1/2/3]: ', '2')).trim();
     console.log('');
-    tracker = trackerChoice === '2' ? 'github' : 'ado';
+    tracker = trackerChoice === '1' ? 'ado' : trackerChoice === '3' ? 'todoist' : 'github';
   } else {
-    tracker = 'github';
-    console.log('  Tracker: GitHub (default for solo workflow)\n');
+    console.log('  Issue tracker:\n');
+    console.log('    1) GitHub   (uses gh CLI)');
+    console.log('    2) Todoist  (uses td CLI)\n');
+    const trackerChoice = (await prompt('  Choice [1/2]: ', '1')).trim();
+    console.log('');
+    tracker = trackerChoice === '2' ? 'todoist' : 'github';
   }
 
   // ── Preflight ──────────────────────────────────────────────────────────────
@@ -158,6 +163,7 @@ async function main() {
   let missing = 0;
   missing += checkTool('jq', 'https://jqlang.github.io/jq/download/');
   if (tracker === 'ado') missing += checkTool('az', 'https://aka.ms/installazurecli (then: az extension add --name azure-devops)');
+  else if (tracker === 'todoist') missing += checkTool('td', 'Todoist CLI — install from your package manager or see project README');
   else missing += checkTool('gh', 'https://cli.github.com');
   if (missing > 0) {
     console.error('\n  Error: Missing prerequisites above. Install them and re-run the installer.');
