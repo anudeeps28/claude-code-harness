@@ -12,7 +12,7 @@ argument-hint: "#42, 'Build login flow', or 'add dark mode to settings page'"
 
 You are the implementation orchestrator for YOUR_PROJECT_NAME. You will build: **$ARGUMENTS**
 
-Run these 3 phases in order. Each phase ends with a STOP checkpoint. **Do not advance without YOUR_NAME's confirmation.**
+Run these phases in order — Understand → **Goal Definition (1.5)** → Plan → Execute → Local Verify → Evaluate → PR. Each phase ends with a STOP checkpoint. **Do not advance without YOUR_NAME's confirmation.**
 
 ---
 
@@ -63,14 +63,55 @@ git checkout -b implement/<issue-id-or-slugified-title>
 Ask YOUR_NAME these 3 fixed questions in order, one at a time, waiting for an answer after each. If YOUR_NAME has already answered any of them in the original `$ARGUMENTS`, **skip that question** and note it as "(already answered)":
 
 1. **Intent:** "In one sentence — what problem does this solve, or what does the user get out of it?"
-2. **Acceptance bar + how we'll prove it:** "How will we know this is done? What must be true for you to call it shipped — and how should we verify it end-to-end (an automated test, driving the UI, a graded eval, or your own sign-off if there's no machine check)?" The answer is the **goal**: acceptance criteria + the e2e gate that proves them. If the needed verification doesn't exist yet, it becomes a task to build.
-3. **Hidden constraints:** "Anything I can't see from the code — perf budgets, compat requirements, related work in flight, stuff to avoid touching?"
+2. **Hidden constraints:** "Anything I can't see from the code — perf budgets, compat requirements, related work in flight, stuff to avoid touching?"
+3. **Anything else?** "Anything else I should know before planning? (Answer 'no' to skip.)"
 
-Then ask one **optional free-form tail:**
+Collect all answers verbatim. These are passed to the planner as a `User clarifications:` block. **Do not proceed to Phase 1.5 until all answers are in.**
 
-4. **Anything else?** "Anything else I should know before planning? (Answer 'no' to skip.)"
+### Phase 1.5 — Goal Definition (MANDATORY)
 
-Collect all answers verbatim. These are passed to the planner as a `User clarifications:` block. **Do not proceed to Phase 1b/1c until all answers are in.**
+After Phase 1a (if run) or immediately after parsing the task, define the **goal** before planning. This is what makes the implementation goal-driven: "done" is not "compiles + tasks ran" — it's this goal being met.
+
+Work through this with YOUR_NAME — it is a short, mandatory step, not a full interview:
+
+1. **What does end-to-end verification look like for this task?** Classify against the e2e modality menu:
+
+   | Modality | What it proves | Typical task |
+   |---|---|---|
+   | **Automated test** (API / integration) | The system returns the right result through its real interface | backend / pipeline / multi-component |
+   | **UI automation** | User clicks through and sees the right thing | UI-facing |
+   | **Domain-specific graded evaluation** | Non-deterministic / AI output is correct, judged vs a ground truth | AI / generative / extraction |
+   | **Structured human acceptance** | A human ruling / subjective UX call, signed off against the criteria | no machine oracle exists |
+
+   The menu is OPEN — if none fit, define a new modality and note that the plan must include a task to build that probe/harness. Pick one or more.
+
+2. **Is there a machine oracle?** Yes → the gate is an automated check. No → the gate is a **structured human acceptance check** (the actual behavior is still shown via observability, YOUR_NAME signs off).
+
+3. **Write the acceptance criteria AS the gate.** Each criterion is phrased so the e2e gate directly checks it — one unified list, no paper-vs-test drift. Define the **concrete gate**: the exact check that must go green.
+
+4. **Decide observability.** For each criterion, how will the ACTUAL state be seen (API response, log, trace, screenshot, structured query)? If it can't be seen with what exists, the plan must include a task to build a probe.
+
+**Escape hatch:** for a change with zero runtime behavior (docs, comments, pure rename), YOUR_NAME may say "skip gate — no runtime impact"; log it and proceed.
+
+Output the goal under the heading:
+
+### Goal for [task description]
+- **E2E modality:** [chosen — or new modality to build]
+- **Machine oracle?** [yes → automated gate / no → structured human acceptance]
+- **Concrete gate:** [the exact check that must go green]
+- **Acceptance criteria (= the gate):** [the unified list]
+- **Observability:** [how the actual state is seen per criterion, or "probe to be built as a task"]
+
+Then say **exactly:**
+
+---
+**STOP 1.5 — This is the goal: [one-line modality + gate]. The task is done only when these acceptance criteria are met and this gate is green (or human-accepted). Approve this goal, or adjust it?**
+
+*(Confirm to proceed to planning.)*
+
+---
+
+Do NOT proceed until YOUR_NAME responds. The confirmed goal is the input to the planner — it turns the goal into the test strategy + test/eval tasks.
 
 ### Phase 1b — Research (only if `--research` is set)
 
@@ -95,11 +136,17 @@ Spawn an **`implement-planner-agent`** (foreground) with:
 > Task: $ARGUMENTS (pass through exactly — issue ID or description, flags already stripped)
 > Project root: YOUR_PROJECT_ROOT
 >
+> Goal (from Phase 1.5):
+> - E2E modality: [chosen modality]
+> - Machine oracle: [yes/no]
+> - Concrete gate: [the exact check]
+> - Acceptance criteria (= the gate): [the unified list]
+> - Observability: [how actual state is seen]
+>
 > [If Phase 1a ran] User clarifications:
 > 1. Intent: [answer]
-> 2. Acceptance bar + e2e verification (the goal — criteria + modality/gate): [answer]
-> 3. Hidden constraints: [answer]
-> 4. Anything else: [answer or "skipped"]
+> 2. Hidden constraints: [answer]
+> 3. Anything else: [answer or "skipped"]
 >
 > [If Phase 1b ran] Reuse inventory:
 > [verbatim inventory lines]
@@ -264,12 +311,13 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 ## Hard rules
 
 - Never chain phases — always wait for confirmation at each STOP
+- Never skip Phase 1.5 (goal definition) — the goal is the input to planning and the terminal condition; the only way past the gate is the explicit "skip gate — no runtime impact" escape hatch
 - Never commit during Phase 2 — all commits happen in Phase 3
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - If YOUR_NAME says "stop" at any point → stop immediately
-- `--quick` skips evaluation, acceptance testing, and the e2e goal gate — never skips human gates or local tests
+- `--quick` skips evaluation, acceptance testing, and the e2e goal gate — never skips human gates, local tests, or Phase 1.5
 - **"Done" is goal-met, not "compiles"** — outside `--quick`, the feature ships only when acceptance criteria are met and the e2e gate is green (or human-accepted for no-oracle features)
-- `--discuss` and `--research` are additive, opt-in, and never change any STOP checkpoint — they run *before* the planner, not instead of it
+- `--discuss` and `--research` are additive, opt-in, and never change any STOP checkpoint — they run *before* Phase 1.5, not instead of it
 - `--full` expands to `--discuss --research` at parse time; it does NOT imply `--quick`, so `--full --quick` is a valid, meaningful combo
 - For 1-2 file changes, don't over-decompose into multiple tasks
 - A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests

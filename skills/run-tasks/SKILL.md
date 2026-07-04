@@ -30,7 +30,7 @@ If no `<tasks>` block exists for this story, stop immediately and say:
 
 ---
 
-## Step 2 — Check git state
+## Step 2 — Check git state + goal
 
 Run:
 ```bash
@@ -38,6 +38,19 @@ cd YOUR_PROJECT_ROOT && git status && git branch --show-current
 ```
 
 Confirm you are on the correct feature branch for story #$ARGUMENTS. If you are on `master`, say so and ask YOUR_NAME to confirm the branch before continuing.
+
+**Goal check:** Read `tasks/stories/$ARGUMENTS/test-strategy.md` (or `tasks/stories/$ARGUMENTS/plan.md` if no test-strategy exists). Look for a defined e2e gate / acceptance criteria / goal definition.
+
+- If a goal exists: display it as a one-liner — "Goal: [modality] — [concrete gate]" — so YOUR_NAME can confirm it's still correct before execution begins.
+- If NO goal is defined: warn before proceeding:
+
+  > "No goal definition found for #$ARGUMENTS. Without a goal, there's no e2e gate to run after execution — 'done' will mean 'tasks passed' rather than 'goal met.' Options:
+  > (A) Define the goal now (I'll run Phase 1.5 — quick goal definition interview)
+  > (B) Proceed without a goal gate — tasks only"
+
+  If YOUR_NAME picks (A), run Phase 1.5 from `/story` (the goal definition step: modality menu → machine oracle → acceptance criteria as gate → observability). Write the result to `tasks/stories/$ARGUMENTS/test-strategy.md`. Then continue to Step 3.
+
+  If YOUR_NAME picks (B), proceed — but skip any e2e gate at the end (Step 5 runs local tests only, no goal gate).
 
 ---
 
@@ -171,11 +184,26 @@ If `/local-test` passes, proceed to Step 6.
 
 ---
 
-## Step 6 — When all waves are done
+## Step 6 — Goal gate (if goal was defined)
+
+If a goal was defined in Step 2 (or the user defined one via option A), run the e2e gate now:
+
+- **Automated modality** (API/integration test, UI automation, graded eval): run it via `/local-test e2e`.
+- **Structured human acceptance** (no machine oracle): show the ACTUAL behavior using the story's observability plan, then ask YOUR_NAME to sign off against each acceptance criterion.
+
+**If the gate is green (or YOUR_NAME accepts):** proceed to Step 7.
+
+**If the gate FAILS:** do NOT blind-retry. Observe the actual state → compare intended vs implemented vs observed → root-cause → fix → re-run. The 3-attempt rule applies to the gate too. Three evidence-based re-approaches without a green gate → invoke `/debug`.
+
+If no goal was defined (user chose option B in Step 2), skip this step.
+
+---
+
+## Step 7 — When all waves are done
 
 Say:
 
-> All [N] tasks across [W] waves for #$ARGUMENTS are complete. Local tests passed. Run `/story $ARGUMENTS` Phase 4 to commit and raise the PR, or handle git manually using the steps in `tasks/lessons.md`.
+> All [N] tasks across [W] waves for #$ARGUMENTS are complete. Local tests passed. [If goal gate ran: "Goal gate green."] Run `/story $ARGUMENTS` Phase 4 to commit and raise the PR, or handle git manually using the steps in `tasks/lessons.md`.
 
 ---
 
