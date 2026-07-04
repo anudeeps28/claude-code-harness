@@ -90,7 +90,21 @@ Apply the edit with the Edit tool.
 
 ---
 
-## Step 7 — Draft PR description
+## Step 7 — Close tracker item
+
+If the story was sourced from an external tracker (the story ID maps to a GitHub issue, Todoist task, or ADO work item), close it now:
+
+```bash
+bash .claude/trackers/active/close-issue.sh <STORY_ID>
+```
+
+If the script exits non-zero (e.g. tracker not configured, auth expired, or already closed), log a warning but do NOT fail the PR preparation. The PR is the primary deliverable; tracker sync is best-effort.
+
+If the story was not sourced from a tracker (no numeric ID, or the ID doesn't match a tracker item), skip this step silently.
+
+---
+
+## Step 8 — Draft PR description
 
 Output a ready-to-use PR description with an Approach Note section:
 
@@ -122,7 +136,7 @@ Tests: [result if dotnet test was run, otherwise "N/A — integration tests requ
 
 ## Final output
 
-After all 7 steps, output the exact git commands YOUR_NAME needs to run. Use a heredoc for commit messages to preserve formatting:
+After all 8 steps, output the exact git commands YOUR_NAME needs to run. Use a heredoc for commit messages to preserve formatting:
 
 ```bash
 cd YOUR_PROJECT_ROOT

@@ -70,6 +70,10 @@ case "$all" in
     cat "$fixture_dir/az-query-result.json"
     exit 0
     ;;
+  *"boards work-item update"*"System.State="*)
+    echo '{"id": 1234, "fields": {"System.State": "Closed"}}'
+    exit 0
+    ;;
   *"boards work-item show"*)
     cat "$fixture_dir/az-workitem-1234.json"
     exit 0

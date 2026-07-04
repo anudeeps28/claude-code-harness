@@ -16,7 +16,8 @@ Claude Code Kit uses a **tracker adapter layer** so that skills and agents never
         ├── reply-pr-thread.sh
         ├── resolve-pr-thread.sh
         ├── get-sprint-issues.sh
-        └── create-issue.sh
+        ├── create-issue.sh
+        └── close-issue.sh
 ```
 
 Skills and agents always call `trackers/active/<script>`. The installer copies the right adapter folder there at setup time. Switching trackers means re-running the installer (or copying a different adapter folder manually).
@@ -35,7 +36,7 @@ Skills and agents always call `trackers/active/<script>`. The installer copies t
 
 ## Script interface
 
-Every adapter implements the same 9 scripts with identical signatures:
+Every adapter implements the same 10 scripts with identical signatures:
 
 | Script | Args | What it returns |
 |---|---|---|
@@ -48,6 +49,7 @@ Every adapter implements the same 9 scripts with identical signatures:
 | `create-issue.sh` | `"<title>" "<body>" "<label>"` | Creates a new issue/work item; prints the URL |
 | `add-label.sh` | `<ID> "<label>"` | Adds a label/tag to an issue/work item |
 | `remove-label.sh` | `<ID> "<label>"` | Removes a label/tag from an issue/work item |
+| `close-issue.sh` | `<ID> ["<reason>"]` | Closes/completes an issue/work item |
 
 ---
 
@@ -194,7 +196,7 @@ RETRY_MAX_ATTEMPTS=5 RETRY_BACKOFF_1=2 RETRY_BACKOFF_2=5 bash get-issue.sh 12345
 
 ## Adding a new adapter
 
-Create a folder under `trackers/` with all 9 scripts implementing the same interface. Each script must:
+Create a folder under `trackers/` with all 10 scripts implementing the same interface. Each script must:
 - Accept the same arguments as the interface above
 - Exit with code 0 on success, non-zero on failure
 - Print errors as `{"error": "..."}` to stderr

@@ -68,6 +68,14 @@ case "$1 $2" in
     echo '{"id": "1234", "content": "Updated task"}'
     exit 0
     ;;
+  "task close")
+    if [ "$3" = "9999" ]; then
+      echo '{"error": "task 9999 not found"}' >&2
+      exit 1
+    fi
+    echo "✓ Completed task $3"
+    exit 0
+    ;;
 esac
 
 echo "{\"error\": \"stub td: no fixture for: $*\"}" >&2

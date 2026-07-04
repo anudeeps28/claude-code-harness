@@ -14,6 +14,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ### Tracker integration
 
+- **`close-issue.sh` adapter script** — New 10th script in the tracker adapter interface. Closes/completes issues in GitHub (`gh issue close`), Todoist (`td task close`), and ADO (`az boards work-item update --fields System.State=Closed`). Supports optional reason/state argument per adapter.
+- **`/sync-tracker` skill** — Reconciles merged PRs and completed work against open tracker items. Scans merged PRs, `todo.md`, and sprint files for delivery evidence, then closes delivered items via the adapter. Supports `--dry-run`.
+- **Story PR agent tracker sync** — Phase 4 (`story-pr-agent`) now calls `close-issue.sh` after PR preparation, closing the source tracker item automatically. Best-effort: failures log a warning but don't block the PR.
 - **Todoist tracker adapter** — Full 9-script adapter in `trackers/todoist/` implementing the same interface as GitHub and ADO. Resolves `td` CLI from `$TODOIST_CLI` or `$PATH`.
 - **Tracker-agnostic session routing** — `session-router.js` and `project-state.js` now detect which tracker is active (GitHub, ADO, or Todoist) and route accordingly. Projects using Todoist get task-based guidance instead of issue-based.
 - **Installer Todoist support** — Both solo and enterprise workflow packs now offer Todoist as a tracker option during installation.

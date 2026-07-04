@@ -72,6 +72,14 @@ case "$1 $2" in
     cat "$fixture_dir/gh-issue-list.json"
     exit 0
     ;;
+  "issue close")
+    if [ "$3" = "9999" ]; then
+      echo '{"error": "issue 9999 not found"}' >&2
+      exit 1
+    fi
+    echo "✓ Closed issue #$3"
+    exit 0
+    ;;
   "api graphql")
     cat "$fixture_dir/gh-graphql-pr-threads.json"
     exit 0

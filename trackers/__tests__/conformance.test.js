@@ -124,6 +124,12 @@ describe('arg-validation', () => {
       const r = runScript(adapter, 'reply-pr-thread.sh', ['1']);
       assert.equal(r.exitCode, 1);
     });
+
+    test(`${adapter}_CloseIssue_NoArg_Exits1WithJsonError`, () => {
+      const r = runScript(adapter, 'close-issue.sh', []);
+      assert.equal(r.exitCode, 1);
+      assert.match(r.stderr, /\{"error":/);
+    });
   }
 });
 
@@ -146,6 +152,24 @@ describe('happy-path-stdout', () => {
     const r = runScript('todoist', 'get-issue.sh', ['1234']);
     assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
     assert.equal(normalize(r.stdout), normalize(readGolden('todoist', 'get-issue.happy.md')));
+  });
+
+  test('github_CloseIssue_HappyPath_ExitsZero', () => {
+    const r = runScript('github', 'close-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Closed issue #1234/);
+  });
+
+  test('todoist_CloseIssue_HappyPath_ExitsZero', () => {
+    const r = runScript('todoist', 'close-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Completed task 1234/);
+  });
+
+  test('ado_CloseIssue_HappyPath_ExitsZero', () => {
+    const r = runScript('ado', 'close-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Closed work item #1234/);
   });
 
   test('todoist_GetPrReviewThreads_HappyPath_ReturnsEmptyArray', () => {
@@ -269,7 +293,7 @@ describe('retry', () => {
 
 describe('contract-presence', () => {
   for (const adapter of ['ado', 'github', 'todoist']) {
-    test(`${adapter}_HasAllSixContractScripts`, () => {
+    test(`${adapter}_HasAllContractScripts`, () => {
       const required = [
         'get-issue.sh',
         'get-issue-children.sh',
@@ -277,6 +301,7 @@ describe('contract-presence', () => {
         'reply-pr-thread.sh',
         'resolve-pr-thread.sh',
         'get-sprint-issues.sh',
+        'close-issue.sh',
       ];
       for (const f of required) {
         assert.ok(
