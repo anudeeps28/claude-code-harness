@@ -10,7 +10,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ### New skills
 
+- `/update-harness` — Check for and apply harness updates. Resolves target (project/global/both), checks for new versions, shows changelog excerpt, and applies updates with human confirmation. Supports `--global` and `--project` flags. Includes legacy backfill for pre-manifest installs.
 - `/to-todoist` — Decompose planning artifacts into Todoist milestones and tasks. Milestones as uncompletable parent tasks, work items as prioritized subtasks with descriptions, acceptance criteria, and dependency notes. Supports `--project`, `--section`, and `--dry-run` flags. Reads defaults from `tasks/notes.md` Todoist section.
+
+### Installer
+
+- **Install manifest** (`.harness-manifest.json`) — Written on every install. Records schema version, harness version, install mode, workflow pack, tracker, PRD mode, all personalization answers, and the exact list of installed files. Enables safe updates and orphan detection.
+- **`install.sh` is now a thin forwarder** — All install logic lives in `install.js`. The shell script checks for Node.js and forwards via `exec`.
+- **`--check` mode** — Read-only version check. Emits JSON with `currentVersion`, `latestVersion`, `behind` (commits), `changelogExcerpt`, and `orphans[]`.
+- **`--update` mode** — Apply updates: snapshot → pull → copy → substitute → orphan cleanup → settings reconciliation → verify → manifest bump. Keeps last 3 snapshots.
+- **Settings reconciliation** — Surgically updates harness-owned hooks in `settings.json` while preserving user permissions, env vars, MCP config, and custom hooks byte-for-byte. Upgrades old installs (1 SessionStart hook → 3).
+- **Legacy backfill** — Auto-detects workflow pack (from installed agents), tracker (from adapter script contents), and installed files for pre-manifest installs. Creates a valid manifest so future updates work silently.
 
 ### Tracker integration
 

@@ -100,6 +100,33 @@ If settings.json is missing or needs to be rebuilt, this is the template. Replac
 
 ---
 
+## `.harness-manifest.json`
+
+Written automatically by the installer at `<target>/.claude/.harness-manifest.json`. Used by `/update-harness` and `--check`/`--update` modes to track the installed state.
+
+| Field | Type | Description |
+|---|---|---|
+| `schemaVersion` | `number` | Manifest format version (currently `1`) |
+| `harnessVersion` | `string` | Harness version at install/update time (from `VERSION`) |
+| `installMode` | `"global"` \| `"project"` | How the harness was installed |
+| `workflowPack` | `"solo"` \| `"enterprise"` | Which workflow pack was chosen |
+| `tracker` | `"github"` \| `"ado"` \| `"todoist"` | Active tracker adapter |
+| `prdMode` | `string` | PRD output mode (`file`, `tracker`, `both-file-canonical`, `both-tracker-canonical`) |
+| `answers` | `object` | All personalization values collected during install |
+| `answers.harnessRepoPath` | `string` | Path to the harness source clone |
+| `installedFiles` | `string[]` | Relative paths of every file copied during install |
+| `installedAt` | `string` | ISO timestamp of first install |
+| `updatedAt` | `string` | ISO timestamp of most recent update |
+
+To manually edit after install (e.g. change `harnessRepoPath` after moving the clone):
+
+```bash
+# Edit the manifest directly — it's plain JSON
+vim ~/.claude/.harness-manifest.json
+```
+
+---
+
 ## Task files
 
 The installer creates a `tasks/` folder from templates for project installs. For global installs, create it manually in each project:

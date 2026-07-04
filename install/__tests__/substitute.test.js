@@ -12,6 +12,12 @@ const {
   toUnixPath,
   toWinPath,
   buildSettings,
+  buildManifest,
+  MANIFEST_SCHEMA_VERSION,
+  reconcileSettings,
+  isHarnessHook,
+  runCheck,
+  backfillManifest,
 } = require('../install.js');
 
 // ── buildSubstitutions ────────────────────────────────────────────────────────
@@ -214,4 +220,244 @@ test('buildSettings_SerializesToValidJson', () => {
   const roundTripped = JSON.parse(json);
   assert.equal(roundTripped.hooks.PreToolUse[0].hooks[0].command,
     'node "C:\\Users\\a\\hooks/safety-check.js"');
+});
+
+// ── buildManifest ────────────────────────────────────────────────────────────
+
+test('buildManifest_ContainsAllRequiredFields', () => {
+  const m = buildManifest({
+    harnessVersion: '2.0.0',
+    installMode: 'project',
+    workflowPack: 'solo',
+    tracker: 'github',
+    prdMode: 'file',
+    answers: { userName: 'Alex', projectName: 'App' },
+    installedFiles: ['skills/implement/SKILL.md', 'hooks/safety-check.js'],
+    now: '2026-07-04T00:00:00.000Z',
+  });
+  assert.equal(m.schemaVersion, MANIFEST_SCHEMA_VERSION);
+  assert.equal(m.harnessVersion, '2.0.0');
+  assert.equal(m.installMode, 'project');
+  assert.equal(m.workflowPack, 'solo');
+  assert.equal(m.tracker, 'github');
+  assert.equal(m.prdMode, 'file');
+  assert.deepStrictEqual(m.answers, { userName: 'Alex', projectName: 'App' });
+  assert.deepStrictEqual(m.installedFiles, ['skills/implement/SKILL.md', 'hooks/safety-check.js']);
+  assert.equal(m.installedAt, '2026-07-04T00:00:00.000Z');
+  assert.equal(m.updatedAt, '2026-07-04T00:00:00.000Z');
+});
+
+test('buildManifest_SerializesToValidJson', () => {
+  const m = buildManifest({
+    harnessVersion: '2.0.0', installMode: 'global', workflowPack: 'enterprise',
+    tracker: 'ado', prdMode: 'both-file-canonical',
+    answers: { userName: 'Test' }, installedFiles: [], now: new Date().toISOString(),
+  });
+  const json = JSON.stringify(m, null, 2);
+  assert.doesNotThrow(() => JSON.parse(json));
+});
+
+// ── isHarnessHook ────────────────────────────────────────────────────────────
+
+test('isHarnessHook_SafetyCheck_True', () => {
+  assert.ok(isHarnessHook({ type: 'command', command: 'node "/home/a/.claude/hooks/safety-check.js"' }));
+});
+
+test('isHarnessHook_SessionStartEcho_True', () => {
+  assert.ok(isHarnessHook({ type: 'command', command: 'echo "SESSION START: read tasks/notes.md"' }));
+});
+
+test('isHarnessHook_UserHook_False', () => {
+  assert.ok(!isHarnessHook({ type: 'command', command: 'npx prettier --write "$TOOL_INPUT_FILE"' }));
+});
+
+// ── reconcileSettings ────────────────────────────────────────────────────────
+
+test('reconcileSettings_PreservesUserEnvAndPermissions', () => {
+  const existing = {
+    env: { CLAUDE_HARNESS_WORK_ROOT: '/work', MY_VAR: 'value' },
+    permissions: { allow: ['Bash(npm test)'] },
+    hooks: {
+      PreToolUse: [{ matcher: 'Bash|Write', hooks: [
+        { type: 'command', command: 'node "/old/hooks/safety-check.js"' },
+      ] }],
+    },
+  };
+  const newHarness = buildSettings({ hooksUnix: '/new/hooks', sessionStartMsg: 'hi', workRoot: '', isGlobal: false });
+  const result = reconcileSettings(existing, newHarness);
+  assert.equal(result.env.MY_VAR, 'value', 'user env preserved');
+  assert.deepStrictEqual(result.permissions, { allow: ['Bash(npm test)'] }, 'permissions preserved');
+  // Safety check command should use the new path
+  const preToolHooks = result.hooks.PreToolUse[0].hooks;
+  assert.ok(preToolHooks.some(h => h.command.includes('/new/hooks/safety-check.js')), 'new hook path used');
+  assert.ok(!preToolHooks.some(h => h.command.includes('/old/hooks/')), 'old hook path removed');
+});
+
+test('reconcileSettings_PreservesUserHooksInSameEvent', () => {
+  const existing = {
+    hooks: {
+      PostToolUse: [{
+        matcher: 'Write|Edit',
+        hooks: [
+          { type: 'command', command: 'node "/old/hooks/drift-check.js"' },
+          { type: 'command', command: 'npx prettier --write "$TOOL_INPUT_FILE"' },
+        ],
+      }],
+    },
+  };
+  const newHarness = buildSettings({ hooksUnix: '/new/hooks', sessionStartMsg: 'hi', workRoot: '', isGlobal: false });
+  const result = reconcileSettings(existing, newHarness);
+  const postToolHooks = result.hooks.PostToolUse[0].hooks;
+  assert.ok(postToolHooks.some(h => h.command.includes('prettier')), 'user hook preserved');
+  assert.ok(postToolHooks.some(h => h.command.includes('/new/hooks/catalog-trigger.js')), 'new harness hook present');
+  assert.ok(!postToolHooks.some(h => h.command.includes('/old/hooks/')), 'old harness hook removed');
+});
+
+test('reconcileSettings_UpgradesFromSingleSessionStartToFull', () => {
+  // Simulates an install.sh-era install that only had 1 SessionStart hook (the echo)
+  const existing = {
+    hooks: {
+      SessionStart: [{ matcher: '*', hooks: [
+        { type: 'command', command: 'echo "SESSION START: Before doing anything else"' },
+      ] }],
+    },
+  };
+  const newHarness = buildSettings({ hooksUnix: '/h', sessionStartMsg: 'hi', workRoot: '', isGlobal: false });
+  const result = reconcileSettings(existing, newHarness);
+  const sessionHooks = result.hooks.SessionStart[0].hooks;
+  assert.equal(sessionHooks.length, 3, 'upgraded to 3 SessionStart hooks');
+  assert.ok(sessionHooks.some(h => h.command.includes('session-context.js')));
+  assert.ok(sessionHooks.some(h => h.command.includes('session-router.js')));
+});
+
+test('reconcileSettings_PreservesUserHooksOnDifferentMatcher', () => {
+  const existing = {
+    hooks: {
+      PreToolUse: [
+        { matcher: 'Bash|Write', hooks: [{ type: 'command', command: 'node "/old/hooks/safety-check.js"' }] },
+        { matcher: 'Agent', hooks: [{ type: 'command', command: 'my-custom-validator' }] },
+      ],
+    },
+  };
+  const newHarness = buildSettings({ hooksUnix: '/h', sessionStartMsg: 'hi', workRoot: '', isGlobal: false });
+  const result = reconcileSettings(existing, newHarness);
+  assert.ok(result.hooks.PreToolUse.some(g => g.matcher === 'Agent'), 'user group on different matcher preserved');
+});
+
+// ── runCheck ─────────────────────────────────────────────────────────────────
+
+test('runCheck_NoManifest_ReturnsNoManifestError', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-test-'));
+  try {
+    const result = runCheck(dir);
+    assert.equal(result.error, 'no-manifest');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('runCheck_InvalidManifest_ReturnsInvalidManifestError', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-test-'));
+  try {
+    fs.writeFileSync(path.join(dir, '.harness-manifest.json'), 'not json', 'utf8');
+    const result = runCheck(dir);
+    assert.equal(result.error, 'invalid-manifest');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('runCheck_ValidManifest_ReturnsVersionInfo', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-test-'));
+  const REPO = path.resolve(__dirname, '../..');
+  try {
+    const manifest = {
+      schemaVersion: 1,
+      harnessVersion: '1.0.0',
+      installMode: 'project',
+      workflowPack: 'solo',
+      tracker: 'github',
+      prdMode: 'file',
+      answers: { harnessRepoPath: REPO },
+      installedFiles: ['skills/implement/SKILL.md', 'hooks/safety-check.js'],
+      installedAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    fs.writeFileSync(path.join(dir, '.harness-manifest.json'), JSON.stringify(manifest), 'utf8');
+    const result = runCheck(dir);
+    assert.ok(!result.error, 'no error for valid manifest');
+    assert.equal(result.currentVersion, '1.0.0');
+    assert.ok(result.latestVersion, 'latestVersion present');
+    assert.ok(typeof result.behind === 'number', 'behind is a number');
+    assert.ok(Array.isArray(result.orphans), 'orphans is an array');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── backfillManifest ─────────────────────────────────────────────────────────
+
+test('backfillManifest_DetectsSoloPackWhenNoEnterpriseAgents', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'agents', 'evaluator-agent.md'), '# test', 'utf8');
+    fs.mkdirSync(path.join(dir, 'skills', 'implement'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'skills', 'implement', 'SKILL.md'), '# test', 'utf8');
+    const { manifest, detected } = backfillManifest(dir, { harnessVersion: '2.0.0' });
+    assert.equal(detected.workflowPack, 'solo');
+    assert.equal(manifest.workflowPack, 'solo');
+    assert.ok(manifest.installedFiles.includes('agents/evaluator-agent.md'));
+    assert.ok(fs.existsSync(path.join(dir, '.harness-manifest.json')));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('backfillManifest_DetectsEnterprisePackWhenEnterpriseAgentsPresent', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'agents', 'story-understand-agent.md'), '# test', 'utf8');
+    const { detected } = backfillManifest(dir, { harnessVersion: '2.0.0' });
+    assert.equal(detected.workflowPack, 'enterprise');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('backfillManifest_DetectsGitHubTrackerByDefault', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'trackers/active'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'trackers/active', 'get-issue.sh'), '#!/bin/bash\ngh issue view "$1"', 'utf8');
+    const { detected } = backfillManifest(dir, { harnessVersion: '2.0.0' });
+    assert.equal(detected.tracker, 'github');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('backfillManifest_DetectsTodoistTracker', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'trackers/active'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'trackers/active', 'get-issue.sh'), '#!/bin/bash\ntd task view "$1"', 'utf8');
+    const { detected } = backfillManifest(dir, { harnessVersion: '2.0.0' });
+    assert.equal(detected.tracker, 'todoist');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('backfillManifest_DetectsAdoTracker', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'trackers/active'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'trackers/active', 'get-issue.sh'), '#!/bin/bash\naz boards work-item show --id "$1"', 'utf8');
+    const { detected } = backfillManifest(dir, { harnessVersion: '2.0.0' });
+    assert.equal(detected.tracker, 'ado');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

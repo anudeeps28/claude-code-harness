@@ -166,6 +166,31 @@ Then:
 
 ---
 
+## Updating the harness
+
+```bash
+/update-harness                  # interactive — checks, shows changelog, asks before applying
+/update-harness --global         # target only the global install
+/update-harness --project        # target only the project install
+```
+
+Or headless (no Claude needed):
+
+```bash
+node claude-code-harness/install/install.js --check --project /my/app   # read-only version check
+node claude-code-harness/install/install.js --update --project /my/app  # apply updates
+```
+
+Updates are safe:
+- A **snapshot** is saved to `~/.claude/.harness-backups/` before any mutation (last 3 kept)
+- **settings.json** is surgically reconciled — your permissions, env vars, MCP config, and custom hooks are preserved byte-for-byte
+- **Orphaned files** (removed from the harness source) are cleaned up automatically
+- **Rollback** in one command: `cp -r "<snapshot-path>/"* "<target>/"`
+
+For installs created before v2.1, `/update-harness` runs a one-time backfill to create `.harness-manifest.json`.
+
+---
+
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code) installed

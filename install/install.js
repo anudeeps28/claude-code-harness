@@ -14,6 +14,17 @@ const { walk } = require('../hooks/lib/walk.js');
 
 const REPO_DIR = path.resolve(__dirname, '..');
 const IS_WINDOWS = process.platform === 'win32';
+const MANIFEST_SCHEMA_VERSION = 1;
+
+const HARNESS_HOOK_SCRIPTS = new Set([
+  'safety-check.js',
+  'catalog-trigger.js',
+  'drift-check.js',
+  'pre-compact.js',
+  'session-context.js',
+  'session-router.js',
+  'session-log.js',
+]);
 
 const ENTERPRISE_ONLY_AGENTS = new Set([
   'story-understand-agent.md',
@@ -40,6 +51,8 @@ let projectDir = '';
 let uninstall = false;
 let dryRun = false;
 let nonInteractive = false;
+let checkMode = false;
+let updateMode = false;
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -51,6 +64,10 @@ for (let i = 0; i < args.length; i++) {
   } else if (a === '--uninstall') uninstall = true;
   else if (a === '--dry-run') dryRun = true;
   else if (a === '--yes' || a === '-y') nonInteractive = true;
+  else if (a === '--check') checkMode = true;
+  else if (a === '--update') updateMode = true;
+  else if (a === '--backfill') { /* triggers backfill — consumed in main */ }
+  else if (a === '--skip-pull') { /* consumed by runUpdate */ }
   else if (a === '--seed') { /* handled post-install — seeds lessons.md from ~/.claude/learnings/ */ }
   else if (a === '--help' || a === '-h') {
     console.log(`  Usage:
@@ -60,6 +77,8 @@ for (let i = 0; i < args.length; i++) {
     node install/install.js --yes --global      # non-interactive (solo pack, defaults)
     node install/install.js --uninstall         # remove installed files
     node install/install.js --dry-run           # show what would be done
+    node install/install.js --check --project /my/app   # check for updates (read-only)
+    node install/install.js --update --project /my/app  # apply updates
 `);
     process.exit(0);
   } else if (!projectDir) { projectDir = a; mode = 'project'; }
@@ -89,8 +108,10 @@ async function main() {
     return ask(q);
   };
 
-  console.log('\n  claude-code-harness');
-  console.log('  ────────────────────────────────────────────────────────────────\n');
+  if (!checkMode) {
+    console.log('\n  claude-code-harness');
+    console.log('  ────────────────────────────────────────────────────────────────\n');
+  }
 
   if (!mode) {
     console.log('  Install mode:\n');
@@ -119,6 +140,21 @@ async function main() {
   // ── Uninstall ──────────────────────────────────────────────────────────────
   if (uninstall) {
     await runUninstall(target);
+    if (rl) rl.close();
+    return;
+  }
+
+  // ── Check mode ─────────────────────────────────────────────────────────────
+  if (checkMode) {
+    const result = runCheck(target);
+    console.log(JSON.stringify(result, null, 2));
+    if (rl) rl.close();
+    return;
+  }
+
+  // ── Update mode ────────────────────────────────────────────────────────────
+  if (updateMode) {
+    runUpdate(target);
     if (rl) rl.close();
     return;
   }
@@ -243,38 +279,39 @@ async function main() {
   }
 
   // ── Copy files ─────────────────────────────────────────────────────────────
+  const installedFiles = [];
   for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active']) {
     fs.mkdirSync(path.join(target, d), { recursive: true });
   }
 
   console.log('  Copying skills...');
-  copyDirsWithLog(path.join(REPO_DIR, 'skills'), path.join(target, 'skills'), 'skills');
+  installedFiles.push(...copyDirsWithLog(path.join(REPO_DIR, 'skills'), path.join(target, 'skills'), 'skills'));
 
   console.log(`  Copying tracker adapter (${tracker})...`);
-  copyGlob(path.join(REPO_DIR, 'trackers', tracker), path.join(target, 'trackers/active'), /\.sh$/);
+  installedFiles.push(...copyGlob(path.join(REPO_DIR, 'trackers', tracker), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
   chmodExecutables(path.join(target, 'trackers/active'));
 
   const trackerLibSrc = path.join(REPO_DIR, 'trackers/lib');
   if (fs.existsSync(trackerLibSrc)) {
     fs.mkdirSync(path.join(target, 'trackers/lib'), { recursive: true });
-    copyGlob(trackerLibSrc, path.join(target, 'trackers/lib'), /\.sh$/);
+    installedFiles.push(...copyGlob(trackerLibSrc, path.join(target, 'trackers/lib'), /\.sh$/, 'trackers/lib'));
   }
 
   console.log('  Copying agents...');
   const agentSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_AGENTS : null;
-  copyFilesWithLog(path.join(REPO_DIR, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip);
+  installedFiles.push(...copyFilesWithLog(path.join(REPO_DIR, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip));
 
   console.log('  Copying hooks...');
-  copyFilesWithLog(path.join(REPO_DIR, 'hooks'), path.join(target, 'hooks'), null, 'hooks', /* filesOnly */ true);
+  installedFiles.push(...copyFilesWithLog(path.join(REPO_DIR, 'hooks'), path.join(target, 'hooks'), null, 'hooks', /* filesOnly */ true));
   const hooksLibSrc = path.join(REPO_DIR, 'hooks/lib');
   if (fs.existsSync(hooksLibSrc)) {
     fs.mkdirSync(path.join(target, 'hooks/lib'), { recursive: true });
-    copyGlob(hooksLibSrc, path.join(target, 'hooks/lib'), /\.js$/);
+    installedFiles.push(...copyGlob(hooksLibSrc, path.join(target, 'hooks/lib'), /\.js$/, 'hooks/lib'));
     console.log('    Installed: hooks/lib/');
   }
 
   console.log('  Copying rules...');
-  copyFilesWithLog(path.join(REPO_DIR, 'rules'), path.join(target, 'rules'), /\.md$/, 'rules');
+  installedFiles.push(...copyFilesWithLog(path.join(REPO_DIR, 'rules'), path.join(target, 'rules'), /\.md$/, 'rules'));
 
   // Learnings directories (proactive learning loop)
   const globalLearningsDir = path.join(os.homedir(), '.claude', 'learnings');
@@ -409,6 +446,29 @@ async function main() {
 
   const settings = buildSettings({ hooksUnix, workflowPack, sessionStartMsg, workRoot, isGlobal: mode === 'global' });
   fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+  installedFiles.push('settings.json');
+
+  // ── Manifest ───────────────────────────────────────────────────────────────
+  const harnessVersion = fs.readFileSync(path.join(REPO_DIR, 'VERSION'), 'utf8').trim();
+  const now = new Date().toISOString();
+  const manifest = buildManifest({
+    harnessVersion,
+    installMode: mode,
+    workflowPack,
+    tracker,
+    prdMode,
+    answers: {
+      userName, projectName,
+      adoProject, adoRepo, adoOrgPath,
+      orgName, leadDev, infraPerson, devopsPerson, qaPerson,
+      harnessRepoPath, workRoot,
+    },
+    installedFiles: installedFiles.sort(),
+    now,
+  });
+  const manifestFile = path.join(target, '.harness-manifest.json');
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+  console.log('  Wrote .harness-manifest.json');
 
   // ── Verify ─────────────────────────────────────────────────────────────────
   verifyInstall(target, sedDirs, workflowPack);
@@ -464,18 +524,23 @@ function checkTool(tool, hint) {
 }
 
 function copyDirsWithLog(srcRoot, destRoot, label) {
-  if (!fs.existsSync(srcRoot)) return;
+  const installed = [];
+  if (!fs.existsSync(srcRoot)) return installed;
   for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const destPath = path.join(destRoot, entry.name);
     const existed = fs.existsSync(destPath);
     console.log(`    ${existed ? 'Updating:  ' : 'Installing:'} ${label}/${entry.name}`);
     fs.cpSync(path.join(srcRoot, entry.name), destPath, { recursive: true, force: true });
+    const files = walk(destPath, { match: () => true });
+    for (const f of files) installed.push(`${label}/${path.relative(destRoot, f)}`);
   }
+  return installed;
 }
 
 function copyFilesWithLog(srcRoot, destRoot, nameRegex, label, filesOnly = false, skipSet = null) {
-  if (!fs.existsSync(srcRoot)) return;
+  const installed = [];
+  if (!fs.existsSync(srcRoot)) return installed;
   for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
     if (!entry.isFile()) continue;
     if (nameRegex && !nameRegex.test(entry.name)) continue;
@@ -488,15 +553,20 @@ function copyFilesWithLog(srcRoot, destRoot, nameRegex, label, filesOnly = false
     const existed = fs.existsSync(destPath);
     console.log(`    ${existed ? 'Updating:  ' : 'Installing:'} ${label}/${entry.name}`);
     fs.copyFileSync(path.join(srcRoot, entry.name), destPath);
+    installed.push(`${label}/${entry.name}`);
   }
+  return installed;
 }
 
-function copyGlob(srcDir, destDir, regex) {
-  if (!fs.existsSync(srcDir)) return;
+function copyGlob(srcDir, destDir, regex, label) {
+  const installed = [];
+  if (!fs.existsSync(srcDir)) return installed;
   for (const name of fs.readdirSync(srcDir)) {
     if (!regex.test(name)) continue;
     fs.copyFileSync(path.join(srcDir, name), path.join(destDir, name));
+    if (label) installed.push(`${label}/${name}`);
   }
+  return installed;
 }
 
 function copyTemplatesNoClobber(srcDir, destDir, label) {
@@ -716,6 +786,408 @@ function printDryRun(ctx) {
   console.log('  Run without --dry-run to install.');
 }
 
+function isHarnessHook(hookEntry) {
+  const cmd = hookEntry.command || '';
+  if (cmd.startsWith('echo "SESSION START:')) return true;
+  for (const script of HARNESS_HOOK_SCRIPTS) {
+    if (cmd.includes(script)) return true;
+  }
+  return false;
+}
+
+function reconcileSettings(existingSettings, newHarnessSettings) {
+  const result = { ...existingSettings };
+  const existingHooks = existingSettings.hooks || {};
+  const newHooks = newHarnessSettings.hooks || {};
+  const reconciledHooks = {};
+
+  const allEvents = new Set([...Object.keys(existingHooks), ...Object.keys(newHooks)]);
+
+  for (const event of allEvents) {
+    const existingGroups = existingHooks[event] || [];
+    const newGroups = newHooks[event] || [];
+
+    const userGroups = [];
+    for (const group of existingGroups) {
+      const userHooksInGroup = (group.hooks || []).filter((h) => !isHarnessHook(h));
+      if (userHooksInGroup.length > 0) {
+        userGroups.push({ ...group, hooks: userHooksInGroup });
+      }
+    }
+
+    const merged = [...newGroups];
+    for (const userGroup of userGroups) {
+      const matchingNew = merged.find((g) => g.matcher === userGroup.matcher);
+      if (matchingNew) {
+        matchingNew.hooks = [...matchingNew.hooks, ...userGroup.hooks];
+      } else {
+        merged.push(userGroup);
+      }
+    }
+
+    if (merged.length > 0) {
+      reconciledHooks[event] = merged;
+    }
+  }
+
+  result.hooks = reconciledHooks;
+  return result;
+}
+
+function buildManifest({ harnessVersion, installMode, workflowPack, tracker, prdMode, answers, installedFiles, now }) {
+  return {
+    schemaVersion: MANIFEST_SCHEMA_VERSION,
+    harnessVersion,
+    installMode,
+    workflowPack,
+    tracker,
+    prdMode,
+    answers,
+    installedFiles,
+    installedAt: now,
+    updatedAt: now,
+  };
+}
+
+function runCheck(target) {
+  const manifestPath = path.join(target, '.harness-manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    return { error: 'no-manifest', message: 'No .harness-manifest.json found. Run the installer first, or use --update to backfill.' };
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (e) {
+    return { error: 'invalid-manifest', message: `Cannot parse .harness-manifest.json: ${e.message}` };
+  }
+
+  const harnessRepoPath = (manifest.answers && manifest.answers.harnessRepoPath) || REPO_DIR;
+  if (!fs.existsSync(harnessRepoPath) || !fs.existsSync(path.join(harnessRepoPath, 'VERSION'))) {
+    return { error: 'clone-not-found', message: `Harness clone not found at ${harnessRepoPath}. Git clone it and re-run.` };
+  }
+
+  const currentVersion = manifest.harnessVersion;
+  const latestVersion = fs.readFileSync(path.join(harnessRepoPath, 'VERSION'), 'utf8').trim();
+
+  // Git fetch + check commits behind
+  let behind = 0;
+  let fetchError = null;
+  try {
+    const fetchResult = spawnSync('git', ['fetch', '--quiet'], { cwd: harnessRepoPath, timeout: 15000, stdio: 'pipe' });
+    if (fetchResult.status !== 0) {
+      const stderr = (fetchResult.stderr || '').toString().trim();
+      if (stderr.includes('Could not resolve')) fetchError = 'offline';
+      else fetchError = stderr || 'fetch failed';
+    } else {
+      const trackingResult = spawnSync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
+      if (trackingResult.status === 0) {
+        const upstream = trackingResult.stdout.toString().trim();
+        const countResult = spawnSync('git', ['rev-list', '--count', `HEAD..${upstream}`], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
+        if (countResult.status === 0) behind = parseInt(countResult.stdout.toString().trim(), 10) || 0;
+      } else {
+        fetchError = 'no-upstream';
+      }
+    }
+  } catch (e) {
+    fetchError = e.message;
+  }
+
+  // Dirty working tree check
+  let dirty = false;
+  const statusResult = spawnSync('git', ['status', '--porcelain'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
+  if (statusResult.status === 0 && statusResult.stdout.toString().trim().length > 0) dirty = true;
+
+  // CHANGELOG excerpt (latest unreleased section)
+  let changelogExcerpt = '';
+  const changelogPath = path.join(harnessRepoPath, 'CHANGELOG.md');
+  if (fs.existsSync(changelogPath)) {
+    const cl = fs.readFileSync(changelogPath, 'utf8');
+    const unreleasedMatch = cl.match(/## \[Unreleased\]\s*\n([\s\S]*?)(?=\n## \[|$)/i);
+    if (unreleasedMatch) changelogExcerpt = unreleasedMatch[1].trim().slice(0, 2000);
+  }
+
+  // Orphans: files in manifest.installedFiles that no longer exist in the source
+  const orphans = [];
+  const sourceFiles = new Set();
+  for (const dir of ['skills', 'agents', 'hooks', 'rules']) {
+    const srcDir = path.join(harnessRepoPath, dir);
+    if (!fs.existsSync(srcDir)) continue;
+    const files = walk(srcDir, { match: () => true });
+    for (const f of files) sourceFiles.add(`${dir}/${path.relative(srcDir, f)}`);
+  }
+  for (const installed of (manifest.installedFiles || [])) {
+    if (installed === 'settings.json') continue;
+    if (installed.startsWith('trackers/')) continue;
+    if (!sourceFiles.has(installed)) orphans.push(installed);
+  }
+
+  return {
+    currentVersion,
+    latestVersion,
+    behind,
+    dirty,
+    fetchError,
+    changelogExcerpt,
+    orphans,
+    manifestPath,
+  };
+}
+
+function runUpdate(target) {
+  const manifestPath = path.join(target, '.harness-manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    console.error('  Error: No .harness-manifest.json found at ' + target);
+    console.error('  Run the installer first, or use /update-harness to backfill.');
+    process.exit(1);
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (e) {
+    console.error(`  Error: Cannot parse .harness-manifest.json: ${e.message}`);
+    process.exit(1);
+  }
+
+  const harnessRepoPath = (manifest.answers && manifest.answers.harnessRepoPath) || REPO_DIR;
+  if (!fs.existsSync(harnessRepoPath) || !fs.existsSync(path.join(harnessRepoPath, 'VERSION'))) {
+    console.error(`  Error: Harness clone not found at ${harnessRepoPath}`);
+    console.error('  Git clone it and re-run, or update answers.harnessRepoPath in the manifest.');
+    process.exit(1);
+  }
+
+  // (1) Snapshot target
+  const backupsDir = path.join(os.homedir(), '.claude', '.harness-backups');
+  fs.mkdirSync(backupsDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 15);
+  const snapshotDir = path.join(backupsDir, stamp);
+  fs.mkdirSync(snapshotDir, { recursive: true });
+  for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers']) {
+    const src = path.join(target, d);
+    if (fs.existsSync(src)) fs.cpSync(src, path.join(snapshotDir, d), { recursive: true });
+  }
+  const settingsFile = path.join(target, 'settings.json');
+  if (fs.existsSync(settingsFile)) fs.copyFileSync(settingsFile, path.join(snapshotDir, 'settings.json'));
+  fs.copyFileSync(manifestPath, path.join(snapshotDir, '.harness-manifest.json'));
+  console.log(`  Snapshot saved to: ${snapshotDir}`);
+
+  // Prune old snapshots (keep last 3)
+  const allSnapshots = fs.readdirSync(backupsDir).sort();
+  while (allSnapshots.length > 3) {
+    const old = allSnapshots.shift();
+    fs.rmSync(path.join(backupsDir, old), { recursive: true, force: true });
+  }
+
+  // (2) git pull --ff-only (skipped with --skip-pull for testing)
+  const skipPull = args.includes('--skip-pull');
+  if (!skipPull) {
+    const diffResult = spawnSync('git', ['diff', '--name-only', 'HEAD'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
+    const stagedResult = spawnSync('git', ['diff', '--name-only', '--cached'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
+    const hasDirtyTracked = (diffResult.status === 0 && diffResult.stdout.toString().trim().length > 0)
+      || (stagedResult.status === 0 && stagedResult.stdout.toString().trim().length > 0);
+    if (hasDirtyTracked) {
+      console.error('  Error: Harness clone has uncommitted changes to tracked files.');
+      console.error(`  cd ${harnessRepoPath} && git stash`);
+      console.error(`  Then re-run the update.`);
+      console.error(`  Snapshot at: ${snapshotDir}`);
+      process.exit(1);
+    }
+
+    const pullResult = spawnSync('git', ['pull', '--ff-only'], { cwd: harnessRepoPath, timeout: 30000, stdio: 'pipe' });
+    if (pullResult.status !== 0) {
+      const stderr = (pullResult.stderr || '').toString().trim();
+      console.error('  Error: git pull --ff-only failed.');
+      console.error(`  ${stderr}`);
+      console.error(`  Resolve manually: cd ${harnessRepoPath} && git pull --ff-only`);
+      console.error(`  Snapshot at: ${snapshotDir}`);
+      process.exit(1);
+    }
+    const pullOut = (pullResult.stdout || '').toString().trim();
+    if (pullOut.includes('Already up to date')) {
+      console.log('  Already up to date.');
+    } else {
+      console.log(`  Pulled: ${pullOut.split('\n')[0]}`);
+    }
+  }
+
+  // (3) Re-copy files from clone
+  const installedFiles = [];
+  const { workflowPack, tracker } = manifest;
+  for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active']) {
+    fs.mkdirSync(path.join(target, d), { recursive: true });
+  }
+
+  installedFiles.push(...copyDirsWithLog(path.join(harnessRepoPath, 'skills'), path.join(target, 'skills'), 'skills'));
+
+  installedFiles.push(...copyGlob(path.join(harnessRepoPath, 'trackers', tracker || 'github'), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
+  chmodExecutables(path.join(target, 'trackers/active'));
+
+  const trackerLibSrc = path.join(harnessRepoPath, 'trackers/lib');
+  if (fs.existsSync(trackerLibSrc)) {
+    fs.mkdirSync(path.join(target, 'trackers/lib'), { recursive: true });
+    installedFiles.push(...copyGlob(trackerLibSrc, path.join(target, 'trackers/lib'), /\.sh$/, 'trackers/lib'));
+  }
+
+  const agentSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_AGENTS : null;
+  installedFiles.push(...copyFilesWithLog(path.join(harnessRepoPath, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip));
+
+  installedFiles.push(...copyFilesWithLog(path.join(harnessRepoPath, 'hooks'), path.join(target, 'hooks'), null, 'hooks', true));
+  const hooksLibSrc = path.join(harnessRepoPath, 'hooks/lib');
+  if (fs.existsSync(hooksLibSrc)) {
+    fs.mkdirSync(path.join(target, 'hooks/lib'), { recursive: true });
+    installedFiles.push(...copyGlob(hooksLibSrc, path.join(target, 'hooks/lib'), /\.js$/, 'hooks/lib'));
+  }
+
+  installedFiles.push(...copyFilesWithLog(path.join(harnessRepoPath, 'rules'), path.join(target, 'rules'), /\.md$/, 'rules'));
+
+  // (4) Re-substitute placeholders from manifest answers
+  const answers = manifest.answers || {};
+  const mode = manifest.installMode || 'project';
+  const hooksUnix = mode === 'global'
+    ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
+    : toUnixPath(path.join(target, 'hooks'));
+  const hooksWin = toWinPath(mode === 'global'
+    ? path.join(os.homedir(), '.claude', 'hooks')
+    : path.join(target, 'hooks'));
+  const projectRootBash = mode === 'global' ? '$(pwd)' : toUnixPath(path.dirname(target));
+
+  const substitutions = buildSubstitutions({
+    hooksUnix, hooksWin, projectRootBash,
+    projectName: answers.projectName || 'YOUR_PROJECT_NAME',
+    userName: answers.userName || 'YOUR_NAME',
+    adoProject: answers.adoProject || 'YOUR_ADO_PROJECT',
+    adoRepo: answers.adoRepo || 'YOUR_ADO_REPO',
+    adoOrgPath: answers.adoOrgPath || 'YOUR_ADO_ORG_PATH',
+    orgName: answers.orgName || 'YOUR_ORG',
+    leadDev: answers.leadDev || 'YOUR_LEAD_DEV',
+    infraPerson: answers.infraPerson || 'YOUR_INFRA_PERSON',
+    devopsPerson: answers.devopsPerson || 'YOUR_DEVOPS_PERSON',
+    qaPerson: answers.qaPerson || 'YOUR_QA_PERSON',
+    harnessRepoPath: answers.harnessRepoPath || harnessRepoPath,
+    workRoot: answers.workRoot || '',
+    isGlobal: mode === 'global',
+    prdMode: manifest.prdMode || 'file',
+  });
+
+  const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers']
+    .map((d) => path.join(target, d))
+    .filter((d) => fs.existsSync(d));
+  for (const dir of sedDirs) substituteInTree(dir, substitutions);
+
+  // (5) Delete safe orphans
+  const oldFiles = new Set(manifest.installedFiles || []);
+  const newFiles = new Set(installedFiles);
+  let orphansRemoved = 0;
+  for (const old of oldFiles) {
+    if (old === 'settings.json') continue;
+    if (newFiles.has(old)) continue;
+    const fullPath = path.join(target, old);
+    if (fs.existsSync(fullPath)) {
+      fs.rmSync(fullPath, { force: true });
+      console.log(`    Removed orphan: ${old}`);
+      orphansRemoved++;
+    }
+  }
+  if (orphansRemoved > 0) console.log(`  Removed ${orphansRemoved} orphaned file(s)`);
+
+  // (6) Reconcile settings.json
+  const sessionStartMsg = workflowPack === 'solo'
+    ? 'SESSION START: Before doing anything else — read tasks/notes.md and tasks/plan.md'
+    : 'SESSION START: Before doing anything else — read tasks/lessons.md, todo.md, pr-queue.md, and flags-and-notes.md';
+  const newHarnessSettings = buildSettings({
+    hooksUnix, workflowPack: workflowPack || 'solo', sessionStartMsg,
+    workRoot: answers.workRoot || '', isGlobal: mode === 'global',
+  });
+
+  if (fs.existsSync(settingsFile)) {
+    fs.copyFileSync(settingsFile, `${settingsFile}.bak`);
+    let existingSettings;
+    try { existingSettings = JSON.parse(fs.readFileSync(settingsFile, 'utf8')); } catch { existingSettings = {}; }
+    const reconciled = reconcileSettings(existingSettings, newHarnessSettings);
+    fs.writeFileSync(settingsFile, JSON.stringify(reconciled, null, 2) + '\n', 'utf8');
+    console.log('  Settings reconciled (backup: settings.json.bak)');
+  } else {
+    fs.writeFileSync(settingsFile, JSON.stringify(newHarnessSettings, null, 2) + '\n', 'utf8');
+    console.log('  Generated settings.json');
+  }
+  installedFiles.push('settings.json');
+
+  // (7) Verify
+  verifyInstall(target, sedDirs, workflowPack);
+
+  // (8) Bump manifest
+  const newVersion = fs.readFileSync(path.join(harnessRepoPath, 'VERSION'), 'utf8').trim();
+  const updatedManifest = {
+    ...manifest,
+    harnessVersion: newVersion,
+    installedFiles: installedFiles.sort(),
+    updatedAt: new Date().toISOString(),
+  };
+  fs.writeFileSync(manifestPath, JSON.stringify(updatedManifest, null, 2) + '\n', 'utf8');
+
+  console.log(`\n  Updated: ${manifest.harnessVersion} → ${newVersion}`);
+  console.log(`  Restore: cp -r "${snapshotDir}/"* "${target}/"`);
+}
+
+function backfillManifest(target, opts = {}) {
+  // Detect workflowPack from installed agents
+  const agentsDir = path.join(target, 'agents');
+  let workflowPack = 'solo';
+  if (fs.existsSync(agentsDir)) {
+    const agents = fs.readdirSync(agentsDir);
+    if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a))) workflowPack = 'enterprise';
+  }
+
+  // Detect tracker from adapter script contents
+  let tracker = 'github';
+  const trackerDir = path.join(target, 'trackers/active');
+  if (fs.existsSync(trackerDir)) {
+    const scripts = fs.readdirSync(trackerDir).filter(f => f.endsWith('.sh'));
+    for (const script of scripts) {
+      const content = fs.readFileSync(path.join(trackerDir, script), 'utf8');
+      if (content.includes('az boards')) { tracker = 'ado'; break; }
+      if (/\btd\s/.test(content)) { tracker = 'todoist'; break; }
+    }
+  }
+
+  // Reconstruct installedFiles from what's present
+  const installedFiles = [];
+  for (const dir of ['skills', 'agents', 'hooks', 'rules', 'trackers']) {
+    const fullDir = path.join(target, dir);
+    if (!fs.existsSync(fullDir)) continue;
+    const files = walk(fullDir, { match: () => true });
+    for (const f of files) installedFiles.push(`${dir}/${path.relative(fullDir, f)}`);
+  }
+  if (fs.existsSync(path.join(target, 'settings.json'))) installedFiles.push('settings.json');
+
+  const harnessVersion = opts.harnessVersion || 'unknown';
+  const harnessRepoPath = opts.harnessRepoPath || REPO_DIR;
+  const prdMode = opts.prdMode || 'file';
+
+  const now = new Date().toISOString();
+  const manifest = buildManifest({
+    harnessVersion,
+    installMode: opts.installMode || (target === path.join(os.homedir(), '.claude') ? 'global' : 'project'),
+    workflowPack,
+    tracker,
+    prdMode,
+    answers: {
+      userName: 'YOUR_NAME',
+      projectName: 'YOUR_PROJECT_NAME',
+      harnessRepoPath,
+      ...(opts.answers || {}),
+    },
+    installedFiles: installedFiles.sort(),
+    now,
+  });
+
+  const manifestPath = path.join(target, '.harness-manifest.json');
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+
+  return { manifest, manifestPath, detected: { workflowPack, tracker } };
+}
+
 async function runUninstall(target) {
   console.log(`  Uninstalling from: ${target}\n`);
   const anyPresent = ['skills', 'hooks', 'agents'].some((d) => fs.existsSync(path.join(target, d)));
@@ -750,4 +1222,9 @@ async function runUninstall(target) {
 }
 
 // Exported for unit tests — must come last so all helpers are defined.
-module.exports = { buildSubstitutions, substituteInFile, toUnixPath, toWinPath, buildSettings };
+module.exports = {
+  buildSubstitutions, substituteInFile, toUnixPath, toWinPath, buildSettings,
+  buildManifest, MANIFEST_SCHEMA_VERSION,
+  reconcileSettings, isHarnessHook, HARNESS_HOOK_SCRIPTS,
+  runCheck, runUpdate, backfillManifest,
+};
