@@ -20,12 +20,26 @@ const DEFAULT_ARTIFACT_PATHS = [
   'tasks/plan.md',
 ];
 
-// Detect which tracker is active by reading tracker-config.md or probing
-// which CLIs are available. Returns 'github' | 'todoist' | 'ado' | null.
+// Detect which tracker is active. Cascade:
+// 1. opts.tracker (explicit override)
+// 2. .claude/.harness-manifest.json tracker field
+// 3. tasks/tracker-config.md Type field
+// 4. trackers/active/ script contents
+// 5. CLI availability probe
+// Returns 'github' | 'todoist' | 'ado' | null.
 function detectActiveTracker(projectRoot, opts) {
   const options = opts || {};
 
   if (options.tracker) return options.tracker;
+
+  // Check manifest for tracker field (single source of truth)
+  try {
+    const manifestPath = path.join(projectRoot, '.claude', '.harness-manifest.json');
+    if (fs.existsSync(manifestPath)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (manifest.tracker) return manifest.tracker;
+    }
+  } catch { /* fail-open */ }
 
   // Check tracker-config.md for explicit Type field
   try {
@@ -237,10 +251,47 @@ function detectProjectState(projectRoot, opts) {
   };
 }
 
+function verifyTrackerAdapters(projectRoot) {
+  let manifestTracker = null;
+  try {
+    const manifestPath = path.join(projectRoot, '.claude', '.harness-manifest.json');
+    if (fs.existsSync(manifestPath)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      manifestTracker = manifest.tracker || null;
+    }
+  } catch { /* fail-open */ }
+
+  if (!manifestTracker) return { match: true, manifestTracker: null, detectedTracker: null };
+
+  let detectedTracker = null;
+  const activePath = path.join(projectRoot, '.claude', 'trackers', 'active');
+  try {
+    if (fs.existsSync(activePath)) {
+      const scripts = fs.readdirSync(activePath).filter(s => s.endsWith('.sh'));
+      for (const script of scripts) {
+        try {
+          const content = fs.readFileSync(path.join(activePath, script), 'utf8');
+          if (content.includes('TODOIST_CLI') || content.includes('check_auth_todoist')) { detectedTracker = 'todoist'; break; }
+          if (content.includes('check_auth_ado') || content.includes('az boards')) { detectedTracker = 'ado'; break; }
+        } catch { /* ignore */ }
+      }
+      if (!detectedTracker && scripts.length > 0) detectedTracker = 'github';
+    }
+  } catch { /* fail-open */ }
+
+  return {
+    match: manifestTracker === detectedTracker,
+    manifestTracker,
+    detectedTracker,
+    activeDir: activePath,
+  };
+}
+
 module.exports = {
   detectProjectState,
   detectActiveTracker,
   detectOpenIssues,
   detectFirstOpenIssue,
   renderGuidance,
+  verifyTrackerAdapters,
 };

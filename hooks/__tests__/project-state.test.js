@@ -11,6 +11,7 @@ const {
   detectOpenIssues,
   detectFirstOpenIssue,
   renderGuidance,
+  verifyTrackerAdapters,
 } = require('../lib/project-state.js');
 
 function makeProjectRoot() {
@@ -312,4 +313,111 @@ test('renderGuidance_Greenfield_TrackerNeutral', () => {
   const msg = renderGuidance('greenfield', { tracker: 'todoist' }, null);
   assert.ok(msg.includes('greenfield'), 'should say greenfield');
   assert.ok(msg.includes('/grill-me'), 'should suggest /grill-me');
+});
+
+// ── detectActiveTracker: manifest-first reading ─────────────────────────────
+
+test('detectActiveTracker_ManifestTodoist_ReturnsTodoist', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', '.harness-manifest.json'),
+      JSON.stringify({ tracker: 'todoist' }), 'utf8');
+    const result = detectActiveTracker(dir);
+    assert.equal(result, 'todoist');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('detectActiveTracker_ManifestOverridesTrackerConfig', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', '.harness-manifest.json'),
+      JSON.stringify({ tracker: 'todoist' }), 'utf8');
+    fs.mkdirSync(path.join(dir, 'tasks'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'tasks', 'tracker-config.md'),
+      '**Type:** GitHub\n', 'utf8');
+    const result = detectActiveTracker(dir);
+    assert.equal(result, 'todoist', 'manifest should take priority over tracker-config.md');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('detectActiveTracker_NoManifestTracker_FallsToTrackerConfig', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', '.harness-manifest.json'),
+      JSON.stringify({ tracker: null }), 'utf8');
+    fs.mkdirSync(path.join(dir, 'tasks'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'tasks', 'tracker-config.md'),
+      '**Type:** Todoist\n', 'utf8');
+    const result = detectActiveTracker(dir);
+    assert.equal(result, 'todoist', 'should fall back to tracker-config.md');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('detectActiveTracker_ExplicitOverride_WinsOverManifest', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', '.harness-manifest.json'),
+      JSON.stringify({ tracker: 'todoist' }), 'utf8');
+    const result = detectActiveTracker(dir, { tracker: 'github' });
+    assert.equal(result, 'github', 'explicit override wins');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── verifyTrackerAdapters ────────────────────────────────────────────────────
+
+test('verifyTrackerAdapters_NoManifest_ReturnsMatchTrue', () => {
+  const dir = makeProjectRoot();
+  try {
+    const result = verifyTrackerAdapters(dir);
+    assert.equal(result.match, true);
+    assert.equal(result.manifestTracker, null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('verifyTrackerAdapters_ManifestMatchesScripts_ReturnsMatchTrue', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, '.claude', 'trackers', 'active'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', '.harness-manifest.json'),
+      JSON.stringify({ tracker: 'todoist' }), 'utf8');
+    fs.writeFileSync(path.join(dir, '.claude', 'trackers', 'active', 'get-issue.sh'),
+      '#!/bin/bash\ncheck_auth_todoist\n', 'utf8');
+    const result = verifyTrackerAdapters(dir);
+    assert.equal(result.match, true);
+    assert.equal(result.manifestTracker, 'todoist');
+    assert.equal(result.detectedTracker, 'todoist');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('verifyTrackerAdapters_ManifestMismatchesScripts_ReturnsMatchFalse', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, '.claude', 'trackers', 'active'), { recursive: true });
+    fs.writeFileSync(path.join(dir, '.claude', '.harness-manifest.json'),
+      JSON.stringify({ tracker: 'todoist' }), 'utf8');
+    fs.writeFileSync(path.join(dir, '.claude', 'trackers', 'active', 'get-issue.sh'),
+      '#!/bin/bash\ngh issue view "$1"\n', 'utf8');
+    const result = verifyTrackerAdapters(dir);
+    assert.equal(result.match, false);
+    assert.equal(result.manifestTracker, 'todoist');
+    assert.equal(result.detectedTracker, 'github');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

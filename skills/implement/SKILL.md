@@ -36,10 +36,11 @@ Parse `$ARGUMENTS`:
    `--full`, `--quick`, and `--auto` are orthogonal and may be combined. Expand `--full` into the underlying two flags before proceeding.
 
 2. **Classify the remaining arguments:**
-   - If they start with `#` or are a number → it's a **GitHub issue ID**
-   - If the active tracker is Todoist (check `tasks/tracker-config.md` for `**Type:** Todoist`):
+   - **Detect the active tracker:** Read `.claude/.harness-manifest.json` → `tracker` field. If not set, fall back to `tasks/tracker-config.md` `**Type:**` field. If neither exists, default to GitHub.
+   - If the active tracker is `todoist`:
      - Quoted strings or task titles → it's a **Todoist task title** — search for it using `trackers/active/get-sprint-issues.sh` and match by title
      - Numeric IDs without `#` → it's a **Todoist task ID** — fetch via `trackers/active/get-issue.sh <ID>`
+   - If they start with `#` or are a number (and tracker is `github`) → it's a **GitHub issue ID**
    - Otherwise → it's a **plain text description**
 
 3. **Echo back** the parsed intent on one line, e.g. `Task: #42  |  Flags: --discuss --research` or `Task: "Build login flow" (Todoist)  |  Flags: --research`, so YOUR_NAME can catch a typo before anything else runs.

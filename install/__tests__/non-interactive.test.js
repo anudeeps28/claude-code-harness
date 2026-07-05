@@ -157,6 +157,32 @@ test('install.js --update --project after install succeeds and bumps manifest', 
   }
 });
 
+test('install.js --switch-tracker todoist updates manifest and copies scripts', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir]);
+    const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
+    const before = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.equal(before.tracker, 'github', 'default tracker should be github');
+
+    runInstallJs(['--switch-tracker', 'todoist', '--project', dir]);
+    const after = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.equal(after.tracker, 'todoist', 'tracker should be todoist after switch');
+
+    // Verify adapter scripts contain Todoist markers
+    const activeDir = path.join(dir, '.claude', 'trackers', 'active');
+    const scripts = fs.readdirSync(activeDir).filter(f => f.endsWith('.sh'));
+    assert.ok(scripts.length > 0, 'adapter scripts should exist');
+    const getIssue = fs.readFileSync(path.join(activeDir, 'get-issue.sh'), 'utf8');
+    assert.ok(
+      getIssue.includes('TODOIST_CLI') || getIssue.includes('check_auth_todoist') || getIssue.includes('td '),
+      'get-issue.sh should contain Todoist markers'
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ── install.sh is a thin forwarder ──────────────────────────────────────────
 
 test('install.sh contains no independent copy/substitute/settings logic', () => {

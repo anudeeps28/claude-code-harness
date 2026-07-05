@@ -7,8 +7,10 @@
 // Fail-open: if project state can't be determined, the session starts normally.
 
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 const { readStdinJson, injectContext, ok, runHook } = require('./lib/hook-io');
-const { detectProjectState, detectFirstOpenIssue, renderGuidance } = require('./lib/project-state');
+const { detectProjectState, detectFirstOpenIssue, renderGuidance, verifyTrackerAdapters } = require('./lib/project-state');
 
 function git(args) {
   try { return execFileSync('git', args, { encoding: 'utf8' }).trim(); }
@@ -27,6 +29,24 @@ runHook('session-router', async () => {
     firstIssue = detectFirstOpenIssue({ activeTracker: signals.tracker });
   }
   const message = renderGuidance(state, signals, firstIssue);
-  if (!message) return ok();
-  injectContext('SessionStart', '## Next step\n' + message);
+
+  // Check if tracker is configured
+  let trackerWarning = '';
+  try {
+    const manifestPath = path.join(projectRoot, '.claude', '.harness-manifest.json');
+    if (fs.existsSync(manifestPath)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (!manifest.tracker) {
+        trackerWarning = '\n\n## Tracker not configured\nNo tracker is set for this project. Run `/update-harness` to choose one (GitHub, Todoist, or ADO). Until configured, /implement cannot fetch tasks from your tracker.';
+      } else {
+        const { match, manifestTracker, detectedTracker } = verifyTrackerAdapters(projectRoot);
+        if (!match && detectedTracker) {
+          trackerWarning = `\n\n## Tracker mismatch\nManifest says "${manifestTracker}" but adapter scripts look like "${detectedTracker}". Run \`/update-harness\` to fix.`;
+        }
+      }
+    }
+  } catch { /* fail-open */ }
+
+  if (!message && !trackerWarning) return ok();
+  injectContext('SessionStart', '## Next step\n' + (message || '') + trackerWarning);
 });

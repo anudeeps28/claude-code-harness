@@ -105,12 +105,39 @@ Narrate each step as it happens:
 
 ---
 
+## Step 5b — Check tracker configuration
+
+After the update completes, check if `tracker` is set in the manifest:
+
+1. Read the updated `.harness-manifest.json` → `tracker` field
+2. If **not set** (null or missing):
+   ```
+   Tracker is not configured for this project.
+   Which tracker do you use for task management?
+     1) GitHub Issues
+     2) Todoist
+     3) Azure DevOps
+     4) None (local task files only)
+   ```
+   On answer, run:
+   ```bash
+   node "<harnessRepoPath>/install/install.js" --switch-tracker <choice> --project "<projectDir>"
+   ```
+3. If set but adapter scripts don't match (verify by checking script contents):
+   ```
+   Tracker is set to "<tracker>" but adapter scripts look like "<other>". Fixing...
+   ```
+   Run `--switch-tracker` to correct the scripts.
+
+---
+
 ## Step 6 — Report result
 
 After completion, report:
 
 ```
 Update complete: v<old> → v<new>
+Tracker: <tracker>
 
 To restore the previous version:
   cp -r "<snapshot-path>/"* "<target>/"

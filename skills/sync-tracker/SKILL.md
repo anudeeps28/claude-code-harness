@@ -19,7 +19,7 @@ Parse `$ARGUMENTS`:
 
 ## Step 1 — Detect active tracker
 
-Read `tasks/tracker-config.md` to determine the active tracker type (GitHub, Todoist, or ADO). If the file doesn't exist, check which adapter scripts are installed in `.claude/trackers/active/`.
+Read `.claude/.harness-manifest.json` → `tracker` field to determine the active tracker type (GitHub, Todoist, or ADO). If not set, fall back to `tasks/tracker-config.md` `**Type:**` field or adapter script detection in `.claude/trackers/active/`.
 
 Note the tracker type for Step 3.
 

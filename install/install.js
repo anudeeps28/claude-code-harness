@@ -53,6 +53,7 @@ let dryRun = false;
 let nonInteractive = false;
 let checkMode = false;
 let updateMode = false;
+let switchTracker = '';
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -66,6 +67,10 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--yes' || a === '-y') nonInteractive = true;
   else if (a === '--check') checkMode = true;
   else if (a === '--update') updateMode = true;
+  else if (a === '--switch-tracker') {
+    const next = args[i + 1];
+    if (next && !next.startsWith('-')) { switchTracker = next; i++; }
+  }
   else if (a === '--backfill') { /* triggers backfill — consumed in main */ }
   else if (a === '--skip-pull') { /* consumed by runUpdate */ }
   else if (a === '--seed') { /* handled post-install — seeds lessons.md from ~/.claude/learnings/ */ }
@@ -155,6 +160,13 @@ async function main() {
   // ── Update mode ────────────────────────────────────────────────────────────
   if (updateMode) {
     runUpdate(target);
+    if (rl) rl.close();
+    return;
+  }
+
+  // ── Switch tracker mode ────────────────────────────────────────────────────
+  if (switchTracker) {
+    runSwitchTracker(target, switchTracker);
     if (rl) rl.close();
     return;
   }
@@ -1128,6 +1140,83 @@ function runUpdate(target) {
 
   console.log(`\n  Updated: ${manifest.harnessVersion} → ${newVersion}`);
   console.log(`  Restore: cp -r "${snapshotDir}/"* "${target}/"`);
+
+  // Warn if tracker is not configured
+  if (!updatedManifest.tracker) {
+    console.log('');
+    console.log('  ⚠ Tracker not configured for this project.');
+    console.log('  Set it with: node install/install.js --switch-tracker <github|todoist|ado> --project ' + path.dirname(target));
+  }
+}
+
+function runSwitchTracker(target, tracker) {
+  const VALID_TRACKERS = new Set(['github', 'todoist', 'ado', 'none']);
+  if (!VALID_TRACKERS.has(tracker)) {
+    console.error(`  Error: Invalid tracker "${tracker}". Choose: github, todoist, ado, none`);
+    process.exit(1);
+  }
+
+  const manifestPath = path.join(target, '.harness-manifest.json');
+  if (!fs.existsSync(manifestPath)) {
+    console.error('  Error: No .harness-manifest.json found. Run the installer first.');
+    process.exit(1);
+  }
+
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch (e) {
+    console.error(`  Error: Cannot parse manifest: ${e.message}`);
+    process.exit(1);
+  }
+
+  const harnessRepoPath = (manifest.answers && manifest.answers.harnessRepoPath) || REPO_DIR;
+  const oldTracker = manifest.tracker || '(none)';
+
+  if (tracker !== 'none') {
+    const trackerSrcDir = path.join(harnessRepoPath, 'trackers', tracker);
+    if (!fs.existsSync(trackerSrcDir)) {
+      console.error(`  Error: Tracker adapter source not found at ${trackerSrcDir}`);
+      process.exit(1);
+    }
+
+    // Clear existing adapter scripts
+    const activeDir = path.join(target, 'trackers', 'active');
+    fs.mkdirSync(activeDir, { recursive: true });
+    for (const f of fs.readdirSync(activeDir)) {
+      if (f.endsWith('.sh')) fs.rmSync(path.join(activeDir, f), { force: true });
+    }
+
+    // Copy new adapter scripts
+    copyGlob(trackerSrcDir, activeDir, /\.sh$/, 'trackers/active');
+    chmodExecutables(activeDir);
+    console.log(`  Copied ${tracker} adapter scripts to trackers/active/`);
+
+    // Copy shared libs
+    const libSrc = path.join(harnessRepoPath, 'trackers', 'lib');
+    if (fs.existsSync(libSrc)) {
+      const libDest = path.join(target, 'trackers', 'lib');
+      fs.mkdirSync(libDest, { recursive: true });
+      copyGlob(libSrc, libDest, /\.sh$/);
+    }
+  }
+
+  // Update manifest
+  manifest.tracker = tracker === 'none' ? null : tracker;
+  manifest.updatedAt = new Date().toISOString();
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+
+  console.log(`  Tracker switched: ${oldTracker} → ${tracker}`);
+
+  // Update tracker-config.md if it exists
+  const trackerConfigPath = path.join(path.dirname(target), 'tasks', 'tracker-config.md');
+  if (fs.existsSync(trackerConfigPath)) {
+    try {
+      let content = fs.readFileSync(trackerConfigPath, 'utf8');
+      const label = tracker === 'todoist' ? 'Todoist' : tracker === 'ado' ? 'ADO' : 'GitHub';
+      content = content.replace(/\*\*Type:\*\*\s*\[?[^\]\n]*/i, `**Type:** ${label}`);
+      fs.writeFileSync(trackerConfigPath, content, 'utf8');
+      console.log('  Updated tasks/tracker-config.md');
+    } catch { /* non-critical */ }
+  }
 }
 
 function backfillManifest(target, opts = {}) {
@@ -1139,15 +1228,33 @@ function backfillManifest(target, opts = {}) {
     if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a))) workflowPack = 'enterprise';
   }
 
-  // Detect tracker from adapter script contents
-  let tracker = 'github';
-  const trackerDir = path.join(target, 'trackers/active');
-  if (fs.existsSync(trackerDir)) {
-    const scripts = fs.readdirSync(trackerDir).filter(f => f.endsWith('.sh'));
-    for (const script of scripts) {
-      const content = fs.readFileSync(path.join(trackerDir, script), 'utf8');
-      if (content.includes('az boards')) { tracker = 'ado'; break; }
-      if (/\btd\s/.test(content)) { tracker = 'todoist'; break; }
+  // Detect tracker: check tracker-config.md first, then adapter script contents
+  let tracker = null;
+  const projectRoot = path.dirname(target);
+  try {
+    const configPath = path.join(projectRoot, 'tasks', 'tracker-config.md');
+    if (fs.existsSync(configPath)) {
+      const configContent = fs.readFileSync(configPath, 'utf8');
+      const m = configContent.match(/\*\*Type:\*\*\s*\[?\s*(GitHub|Todoist|ADO|Azure DevOps)\s*\]?/i);
+      if (m) {
+        const raw = m[1].toLowerCase();
+        if (raw === 'todoist') tracker = 'todoist';
+        else if (raw === 'ado' || raw === 'azure devops') tracker = 'ado';
+        else tracker = 'github';
+      }
+    }
+  } catch { /* fail-open */ }
+
+  if (!tracker) {
+    tracker = 'github';
+    const trackerDir = path.join(target, 'trackers/active');
+    if (fs.existsSync(trackerDir)) {
+      const scripts = fs.readdirSync(trackerDir).filter(f => f.endsWith('.sh'));
+      for (const script of scripts) {
+        const content = fs.readFileSync(path.join(trackerDir, script), 'utf8');
+        if (content.includes('az boards')) { tracker = 'ado'; break; }
+        if (/\btd\s/.test(content)) { tracker = 'todoist'; break; }
+      }
     }
   }
 
@@ -1226,5 +1333,5 @@ module.exports = {
   buildSubstitutions, substituteInFile, toUnixPath, toWinPath, buildSettings,
   buildManifest, MANIFEST_SCHEMA_VERSION,
   reconcileSettings, isHarnessHook, HARNESS_HOOK_SCRIPTS,
-  runCheck, runUpdate, backfillManifest,
+  runCheck, runUpdate, backfillManifest, runSwitchTracker,
 };
