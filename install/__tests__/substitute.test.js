@@ -190,7 +190,7 @@ test('buildSettings_HookCommandsReferenceHooksUnix', () => {
   assert.equal(safety, 'node "/my/hooks/safety-check.js"');
 });
 
-test('buildSettings_SessionStart_IncludesRouterAndPreservesEchoAndContext', () => {
+test('buildSettings_SessionStart_IncludesStartMsgAndRouterAndContext', () => {
   const s = buildSettings({
     hooksUnix: '/h',
     workflowPack: 'solo',
@@ -199,7 +199,7 @@ test('buildSettings_SessionStart_IncludesRouterAndPreservesEchoAndContext', () =
     isGlobal: false,
   });
   const cmds = s.hooks.SessionStart[0].hooks.map(h => h.command);
-  assert.ok(cmds.some(c => /echo "hi"/.test(c)), 'echo preserved');
+  assert.ok(cmds.includes('node "/h/session-start-msg.js"'), 'session-start-msg hook present');
   assert.ok(cmds.includes('node "/h/session-context.js"'), 'session-context hook preserved');
   assert.ok(cmds.includes('node "/h/session-router.js"'), 'session-router wired');
   assert.equal(cmds.length, 3);
@@ -326,6 +326,7 @@ test('reconcileSettings_UpgradesFromSingleSessionStartToFull', () => {
   const result = reconcileSettings(existing, newHarness);
   const sessionHooks = result.hooks.SessionStart[0].hooks;
   assert.equal(sessionHooks.length, 3, 'upgraded to 3 SessionStart hooks');
+  assert.ok(sessionHooks.some(h => h.command.includes('session-start-msg.js')));
   assert.ok(sessionHooks.some(h => h.command.includes('session-context.js')));
   assert.ok(sessionHooks.some(h => h.command.includes('session-router.js')));
 });

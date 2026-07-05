@@ -21,6 +21,7 @@ const HARNESS_HOOK_SCRIPTS = new Set([
   'catalog-trigger.js',
   'drift-check.js',
   'pre-compact.js',
+  'session-start-msg.js',
   'session-context.js',
   'session-router.js',
   'session-log.js',
@@ -672,7 +673,7 @@ function buildSettings({ hooksUnix, sessionStartMsg, workRoot, isGlobal }) {
       }],
       PreCompact: [{ matcher: '*', hooks: [{ type: 'command', command: nodeCmd('pre-compact.js') }] }],
       SessionStart: [{ matcher: '*', hooks: [
-        { type: 'command', command: `echo "${sessionStartMsg}"` },
+        { type: 'command', command: nodeCmd('session-start-msg.js') },
         { type: 'command', command: nodeCmd('session-context.js') },
         { type: 'command', command: nodeCmd('session-router.js') },
       ] }],

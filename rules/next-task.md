@@ -10,14 +10,16 @@ When the user asks about tasks, next work, status, or what to work on (any varia
 
 ## Step 1 — Identify configured sources
 
+First, read `.claude/.harness-manifest.json` → `tracker` field to determine the active tracker (github, todoist, ado, or null). This is the single source of truth for which tracker this project uses.
+
 Check which sources exist for this project (in parallel where possible):
 
-| Source | How to check |
-|---|---|
-| Live tracker | Does `trackers/active/get-sprint-issues.sh` exist? (under `.claude/` or project root) |
-| Sprint file | Does `tasks/sprint*.md` exist? (use the highest-numbered one) |
-| Plan file | Does `tasks/plan.md` exist? |
-| Todo file | Does `tasks/todo.md` exist? |
+| Source | How to check | Priority |
+|---|---|---|
+| Live tracker | Read manifest `tracker` field + does `trackers/active/get-sprint-issues.sh` exist? | **Highest — always query first if configured** |
+| Sprint file | Does `tasks/sprint*.md` exist? (use the highest-numbered one) | Medium |
+| Plan file | Does `tasks/plan.md` exist? | Medium |
+| Todo file | Does `tasks/todo.md` exist? | Low (implementation scratch) |
 
 ---
 

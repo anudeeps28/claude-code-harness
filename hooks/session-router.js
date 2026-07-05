@@ -30,23 +30,26 @@ runHook('session-router', async () => {
   }
   const message = renderGuidance(state, signals, firstIssue);
 
-  // Check if tracker is configured
-  let trackerWarning = '';
+  // Check tracker configuration
+  let trackerInfo = '';
   try {
     const manifestPath = path.join(projectRoot, '.claude', '.harness-manifest.json');
     if (fs.existsSync(manifestPath)) {
       const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
       if (!manifest.tracker) {
-        trackerWarning = '\n\n## Tracker not configured\nNo tracker is set for this project. Run `/update-harness` to choose one (GitHub, Todoist, or ADO). Until configured, /implement cannot fetch tasks from your tracker.';
+        trackerInfo = '\n\n## Tracker not configured\nNo tracker is set for this project. Run `/update-harness` to choose one (GitHub, Todoist, or ADO). Until configured, /implement cannot fetch tasks from your tracker.';
       } else {
         const { match, manifestTracker, detectedTracker } = verifyTrackerAdapters(projectRoot);
         if (!match && detectedTracker) {
-          trackerWarning = `\n\n## Tracker mismatch\nManifest says "${manifestTracker}" but adapter scripts look like "${detectedTracker}". Run \`/update-harness\` to fix.`;
+          trackerInfo = `\n\n## Tracker mismatch\nManifest says "${manifestTracker}" but adapter scripts look like "${detectedTracker}". Run \`/update-harness\` to fix.`;
+        } else {
+          const names = { todoist: 'Todoist', github: 'GitHub Issues', ado: 'Azure DevOps' };
+          trackerInfo = `\n\n## Active tracker: ${names[manifest.tracker] || manifest.tracker}\nAll task queries (/implement, "what's next?", status checks) should go to ${names[manifest.tracker] || manifest.tracker} first. Use \`trackers/active/\` adapter scripts. Local files (tasks/) are for implementation notes, not task tracking.`;
         }
       }
     }
   } catch { /* fail-open */ }
 
-  if (!message && !trackerWarning) return ok();
-  injectContext('SessionStart', '## Next step\n' + (message || '') + trackerWarning);
+  if (!message && !trackerInfo) return ok();
+  injectContext('SessionStart', '## Next step\n' + (message || '') + trackerInfo);
 });

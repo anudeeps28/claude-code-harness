@@ -23,27 +23,51 @@ function timestamp() {
 }
 
 runHook('pre-compact', async () => {
-  const tasksFile = path.join(projectRoot(), 'tasks', 'todo.md');
+  const root = projectRoot();
+  const tasksFile = path.join(root, 'tasks', 'todo.md');
+
+  // Read tracker from manifest
+  let tracker = null;
+  try {
+    const manifestPath = path.join(root, '.claude', '.harness-manifest.json');
+    if (fs.existsSync(manifestPath)) {
+      tracker = JSON.parse(fs.readFileSync(manifestPath, 'utf8')).tracker || null;
+    }
+  } catch { /* fail-open */ }
+
+  const resumeSteps = [
+    '- Check git status to confirm what is staged/committed',
+    '- Ask the user to confirm which task to continue from',
+  ];
+  if (tracker) {
+    resumeSteps.unshift(`- Query the ${tracker} tracker for current task status (via trackers/active/ scripts)`);
+  }
+  if (fs.existsSync(path.join(root, 'tasks', 'lessons.md'))) {
+    resumeSteps.unshift('- Re-read tasks/lessons.md before writing any code');
+  }
+
   if (fs.existsSync(tasksFile)) {
     const marker = [
       '',
       `## ⚠️ CONTEXT COMPACTED AT ${timestamp()}`,
       'Claude Code compacted the context window. If you are resuming after this point:',
-      '- Re-read tasks/todo.md from the top to understand current state',
-      '- Re-read tasks/lessons.md before writing any code',
-      '- Check git status to confirm what is staged/committed',
-      '- Ask the user to confirm which task to continue from',
+      ...resumeSteps,
       '',
     ].join('\n');
     try { fs.appendFileSync(tasksFile, marker); } catch { /* best-effort */ }
   }
+
+  const trackerNote = tracker
+    ? ` Check the ${tracker} tracker for current task state.`
+    : '';
 
   injectContext(
     'PreCompact',
     '⚠️ CONTEXT IS ABOUT TO BE COMPACTED. Before compaction proceeds, you must: ' +
     '(1) Update tasks/todo.md with exactly which task you are currently in the middle of — be specific ' +
     '(file, action, what is done, what is not done yet). (2) Write the current git status (any uncommitted changes). ' +
-    '(3) Note any test results or errors seen. A timestamp marker has already been appended to todo.md. ' +
+    '(3) Note any test results or errors seen.' + trackerNote +
+    ' A timestamp marker has already been appended to todo.md. ' +
     'Add the in-progress detail now.'
   );
 });
