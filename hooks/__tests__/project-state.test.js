@@ -10,6 +10,7 @@ const {
   detectActiveTracker,
   detectOpenIssues,
   detectFirstOpenIssue,
+  readTodoistProject,
   renderGuidance,
   verifyTrackerAdapters,
 } = require('../lib/project-state.js');
@@ -420,4 +421,71 @@ test('verifyTrackerAdapters_ManifestMismatchesScripts_ReturnsMatchFalse', () => 
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ── readTodoistProject ──────────────────────────────────────────────────
+
+test('readTodoistProject_TrackerConfig_ReturnsProjectName', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, 'tasks'));
+    fs.writeFileSync(path.join(dir, 'tasks', 'tracker-config.md'),
+      '# Tracker Config\n\n```\ntodoist_project = Thumbnail Critique Tool\n```\n', 'utf8');
+    const result = readTodoistProject(dir);
+    assert.equal(result, 'Thumbnail Critique Tool');
+  } finally { cleanup(dir); }
+});
+
+test('readTodoistProject_Placeholder_ReturnsNull', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, 'tasks'));
+    fs.writeFileSync(path.join(dir, 'tasks', 'tracker-config.md'),
+      '```\ntodoist_project = YOUR_TODOIST_PROJECT\n```\n', 'utf8');
+    const result = readTodoistProject(dir);
+    assert.equal(result, null);
+  } finally { cleanup(dir); }
+});
+
+test('readTodoistProject_NoConfigFile_ReturnsNull', () => {
+  const dir = makeProjectRoot();
+  try {
+    const result = readTodoistProject(dir);
+    assert.equal(result, null);
+  } finally { cleanup(dir); }
+});
+
+test('readTodoistProject_FallbackToNotesmd_ReturnsProjectName', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, 'tasks'));
+    fs.writeFileSync(path.join(dir, 'tasks', 'notes.md'),
+      '# Notes\n\n## Todoist\n\nproject: My Build Project\nsection: Sprint 1\n\n## Other\n', 'utf8');
+    const result = readTodoistProject(dir);
+    assert.equal(result, 'My Build Project');
+  } finally { cleanup(dir); }
+});
+
+test('readTodoistProject_TrackerConfigTakesPriority_OverNotes', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, 'tasks'));
+    fs.writeFileSync(path.join(dir, 'tasks', 'tracker-config.md'),
+      'todoist_project = From Config\n', 'utf8');
+    fs.writeFileSync(path.join(dir, 'tasks', 'notes.md'),
+      '## Todoist\nproject: From Notes\n', 'utf8');
+    const result = readTodoistProject(dir);
+    assert.equal(result, 'From Config');
+  } finally { cleanup(dir); }
+});
+
+test('readTodoistProject_EmptyValue_ReturnsNull', () => {
+  const dir = makeProjectRoot();
+  try {
+    fs.mkdirSync(path.join(dir, 'tasks'));
+    fs.writeFileSync(path.join(dir, 'tasks', 'tracker-config.md'),
+      'todoist_project = \n', 'utf8');
+    const result = readTodoistProject(dir);
+    assert.equal(result, null);
+  } finally { cleanup(dir); }
 });

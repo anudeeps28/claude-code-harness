@@ -33,13 +33,13 @@ Required when `sprint_mode = project`. This is the number from your project URL:
 ### Todoist settings *(Todoist only — delete if using GitHub or ADO)*
 
 ```
-todoist_project = My Project
+todoist_project = YOUR_TODOIST_PROJECT
 ```
 
 The Todoist project name to list and create tasks in.
 
 ```
-todoist_default_section = Sprint 1
+todoist_default_section =
 ```
 
 Optional. The default section within the project. Sections map to sprints — `get-sprint-issues.sh` lists tasks in the named section.

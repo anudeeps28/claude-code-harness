@@ -235,6 +235,11 @@ async function main() {
     adoOrgPath = (await prompt('    ADO org path (sprint IterationPath)    : ', '')).trim() || adoOrgPath;
   }
 
+  let todoistProject = 'YOUR_TODOIST_PROJECT';
+  if (tracker === 'todoist') {
+    todoistProject = (await prompt('    Todoist project name                    : ', '')).trim() || todoistProject;
+  }
+
   let orgName, leadDev, infraPerson, devopsPerson, qaPerson;
   if (workflowPack === 'enterprise') {
     orgName = 'YOUR_ORG'; leadDev = 'YOUR_LEAD_DEV'; infraPerson = 'YOUR_INFRA_PERSON';
@@ -351,12 +356,17 @@ async function main() {
       'tasks/stories',
     );
 
-    // Substitute PRD mode in newly-created task files
-    const taskConfigFile = workflowPack === 'solo'
-      ? path.join(projectDir, 'tasks/notes.md')
-      : path.join(projectDir, 'tasks/tracker-config.md');
-    if (fs.existsSync(taskConfigFile)) {
-      substituteInFile(taskConfigFile, [['YOUR_PRD_MODE', prdMode]]);
+    // Substitute placeholders in newly-created task files
+    const taskConfigFiles = workflowPack === 'solo'
+      ? [path.join(projectDir, 'tasks/notes.md'), path.join(projectDir, 'tasks/tracker-config.md')]
+      : [path.join(projectDir, 'tasks/tracker-config.md')];
+    for (const taskConfigFile of taskConfigFiles) {
+      if (fs.existsSync(taskConfigFile)) {
+        substituteInFile(taskConfigFile, [
+          ['YOUR_PRD_MODE', prdMode],
+          ['YOUR_TODOIST_PROJECT', todoistProject],
+        ]);
+      }
     }
   }
 
@@ -438,7 +448,7 @@ async function main() {
     projectName, userName,
     adoProject, adoRepo, adoOrgPath,
     orgName, leadDev, infraPerson, devopsPerson, qaPerson,
-    harnessRepoPath, workRoot, isGlobal: mode === 'global',
+    harnessRepoPath, todoistProject, workRoot, isGlobal: mode === 'global',
     prdMode,
   });
 
@@ -474,6 +484,7 @@ async function main() {
     answers: {
       userName, projectName,
       adoProject, adoRepo, adoOrgPath,
+      todoistProject,
       orgName, leadDev, infraPerson, devopsPerson, qaPerson,
       harnessRepoPath, workRoot,
     },
@@ -639,6 +650,7 @@ function buildSubstitutions(opts) {
     ['YOUR_DEVOPS_PERSON', opts.devopsPerson],
     ['YOUR_QA_PERSON', opts.qaPerson],
     ['YOUR_HARNESS_REPO_PATH', opts.harnessRepoPath],
+    ['YOUR_TODOIST_PROJECT', opts.todoistProject || 'YOUR_TODOIST_PROJECT'],
     ['YOUR_PRD_MODE', opts.prdMode || 'file'],
   ];
   if (opts.isGlobal && opts.workRoot) {
@@ -886,6 +898,7 @@ function subsFromManifest(manifest, target, harnessRepoPath) {
     devopsPerson: answers.devopsPerson || 'YOUR_DEVOPS_PERSON',
     qaPerson: answers.qaPerson || 'YOUR_QA_PERSON',
     harnessRepoPath: answers.harnessRepoPath || harnessRepoPath,
+    todoistProject: answers.todoistProject || 'YOUR_TODOIST_PROJECT',
     workRoot: answers.workRoot || '',
     isGlobal: mode === 'global',
     prdMode: manifest.prdMode || 'file',

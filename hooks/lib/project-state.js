@@ -83,6 +83,42 @@ function detectActiveTracker(projectRoot, opts) {
   return null;
 }
 
+// Read the Todoist project name from config files.
+// Cascade: tasks/tracker-config.md → tasks/notes.md ## Todoist section.
+// Returns the project name string or null.
+function readTodoistProject(projectRoot) {
+  // Primary: tracker-config.md
+  try {
+    const configPath = path.join(projectRoot, 'tasks', 'tracker-config.md');
+    if (fs.existsSync(configPath)) {
+      const content = fs.readFileSync(configPath, 'utf8');
+      const match = content.match(/todoist_project\s*=\s*(.+)/i);
+      if (match) {
+        const val = match[1].trim();
+        if (val && val !== 'YOUR_TODOIST_PROJECT') return val;
+      }
+    }
+  } catch { /* fail-open */ }
+
+  // Fallback: tasks/notes.md ## Todoist section with project: <name>
+  try {
+    const notesPath = path.join(projectRoot, 'tasks', 'notes.md');
+    if (fs.existsSync(notesPath)) {
+      const content = fs.readFileSync(notesPath, 'utf8');
+      const todoistSection = content.match(/##\s*Todoist[\s\S]*?(?=\n##\s|\n---|\Z)/i);
+      if (todoistSection) {
+        const projMatch = todoistSection[0].match(/project\s*:\s*(.+)/i);
+        if (projMatch) {
+          const val = projMatch[1].trim();
+          if (val) return val;
+        }
+      }
+    }
+  } catch { /* fail-open */ }
+
+  return null;
+}
+
 function defaultGhRunner() {
   return execFileSync(
     'gh',
@@ -91,11 +127,14 @@ function defaultGhRunner() {
   );
 }
 
-function defaultTdRunner() {
+function defaultTdRunner(projectRoot) {
   const td = process.env.TODOIST_CLI || 'td';
+  const args = ['task', 'list', '--json'];
+  const proj = readTodoistProject(projectRoot || process.cwd());
+  if (proj) args.push('--project', proj);
   return execFileSync(
     td,
-    ['task', 'list', '--json'],
+    args,
     { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }
   );
 }
@@ -108,11 +147,14 @@ function defaultFirstIssueRunner() {
   );
 }
 
-function defaultFirstTodoistTaskRunner() {
+function defaultFirstTodoistTaskRunner(projectRoot) {
   const td = process.env.TODOIST_CLI || 'td';
+  const args = ['task', 'list', '--json'];
+  const proj = readTodoistProject(projectRoot || process.cwd());
+  if (proj) args.push('--project', proj);
   return execFileSync(
     td,
-    ['task', 'list', '--json'],
+    args,
     { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }
   );
 }
@@ -124,7 +166,7 @@ function detectOpenIssues(opts) {
   const tracker = options.activeTracker || 'github';
 
   if (tracker === 'todoist') {
-    const tdRunner = options.tdRunner || defaultTdRunner;
+    const tdRunner = options.tdRunner || function() { return defaultTdRunner(options.projectRoot); };
     try {
       const raw = tdRunner();
       const parsed = JSON.parse(raw);
@@ -156,7 +198,7 @@ function detectFirstOpenIssue(opts) {
   const tracker = options.activeTracker || 'github';
 
   if (tracker === 'todoist') {
-    const runner = options.firstTodoistTaskRunner || defaultFirstTodoistTaskRunner;
+    const runner = options.firstTodoistTaskRunner || function() { return defaultFirstTodoistTaskRunner(options.projectRoot); };
     try {
       const raw = runner();
       const parsed = JSON.parse(raw);
@@ -238,6 +280,7 @@ function detectProjectState(projectRoot, opts) {
   const { openIssues, trackerAvailable } = detectOpenIssues({
     ...options,
     activeTracker: tracker,
+    projectRoot,
   });
 
   const state =
@@ -292,6 +335,7 @@ module.exports = {
   detectActiveTracker,
   detectOpenIssues,
   detectFirstOpenIssue,
+  readTodoistProject,
   renderGuidance,
   verifyTrackerAdapters,
 };
