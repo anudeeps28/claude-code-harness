@@ -7,6 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const crypto = require('node:crypto');
 const readline = require('node:readline');
 const { spawnSync } = require('node:child_process');
 
@@ -862,6 +863,35 @@ function buildManifest({ harnessVersion, installMode, workflowPack, tracker, prd
   };
 }
 
+function subsFromManifest(manifest, target, harnessRepoPath) {
+  const answers = manifest.answers || {};
+  const mode = manifest.installMode || 'project';
+  const hooksUnix = mode === 'global'
+    ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
+    : toUnixPath(path.join(target, 'hooks'));
+  const hooksWin = toWinPath(mode === 'global'
+    ? path.join(os.homedir(), '.claude', 'hooks')
+    : path.join(target, 'hooks'));
+  const projectRootBash = mode === 'global' ? '$(pwd)' : toUnixPath(path.dirname(target));
+  return buildSubstitutions({
+    hooksUnix, hooksWin, projectRootBash,
+    projectName: answers.projectName || 'YOUR_PROJECT_NAME',
+    userName: answers.userName || 'YOUR_NAME',
+    adoProject: answers.adoProject || 'YOUR_ADO_PROJECT',
+    adoRepo: answers.adoRepo || 'YOUR_ADO_REPO',
+    adoOrgPath: answers.adoOrgPath || 'YOUR_ADO_ORG_PATH',
+    orgName: answers.orgName || 'YOUR_ORG',
+    leadDev: answers.leadDev || 'YOUR_LEAD_DEV',
+    infraPerson: answers.infraPerson || 'YOUR_INFRA_PERSON',
+    devopsPerson: answers.devopsPerson || 'YOUR_DEVOPS_PERSON',
+    qaPerson: answers.qaPerson || 'YOUR_QA_PERSON',
+    harnessRepoPath: answers.harnessRepoPath || harnessRepoPath,
+    workRoot: answers.workRoot || '',
+    isGlobal: mode === 'global',
+    prdMode: manifest.prdMode || 'file',
+  });
+}
+
 function runCheck(target) {
   const manifestPath = path.join(target, '.harness-manifest.json');
   if (!fs.existsSync(manifestPath)) {
@@ -935,6 +965,25 @@ function runCheck(target) {
     if (!sourceFiles.has(installed)) orphans.push(installed);
   }
 
+  // Drift detection: compare installed file hashes against substituted source
+  const subs = subsFromManifest(manifest, target, harnessRepoPath);
+  const drifted = [];
+  for (const rel of (manifest.installedFiles || [])) {
+    if (rel === 'settings.json') continue;
+    const installedPath = path.join(target, rel);
+    const sourcePath = path.join(harnessRepoPath, rel);
+    if (!fs.existsSync(installedPath) || !fs.existsSync(sourcePath)) continue;
+    const installedHash = crypto.createHash('sha256').update(fs.readFileSync(installedPath)).digest('hex');
+    let sourceContent = fs.readFileSync(sourcePath);
+    if (/\.(md|sh|js|json|yaml|yml)$/i.test(rel)) {
+      let text = sourceContent.toString('utf8');
+      for (const [key, value] of subs) text = text.split(key).join(value);
+      sourceContent = Buffer.from(text, 'utf8');
+    }
+    const sourceHash = crypto.createHash('sha256').update(sourceContent).digest('hex');
+    if (installedHash !== sourceHash) drifted.push(rel);
+  }
+
   return {
     currentVersion,
     latestVersion,
@@ -943,6 +992,7 @@ function runCheck(target) {
     fetchError,
     changelogExcerpt,
     orphans,
+    drifted,
     manifestPath,
   };
 }
@@ -1057,31 +1107,7 @@ function runUpdate(target) {
   // (4) Re-substitute placeholders from manifest answers
   const answers = manifest.answers || {};
   const mode = manifest.installMode || 'project';
-  const hooksUnix = mode === 'global'
-    ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
-    : toUnixPath(path.join(target, 'hooks'));
-  const hooksWin = toWinPath(mode === 'global'
-    ? path.join(os.homedir(), '.claude', 'hooks')
-    : path.join(target, 'hooks'));
-  const projectRootBash = mode === 'global' ? '$(pwd)' : toUnixPath(path.dirname(target));
-
-  const substitutions = buildSubstitutions({
-    hooksUnix, hooksWin, projectRootBash,
-    projectName: answers.projectName || 'YOUR_PROJECT_NAME',
-    userName: answers.userName || 'YOUR_NAME',
-    adoProject: answers.adoProject || 'YOUR_ADO_PROJECT',
-    adoRepo: answers.adoRepo || 'YOUR_ADO_REPO',
-    adoOrgPath: answers.adoOrgPath || 'YOUR_ADO_ORG_PATH',
-    orgName: answers.orgName || 'YOUR_ORG',
-    leadDev: answers.leadDev || 'YOUR_LEAD_DEV',
-    infraPerson: answers.infraPerson || 'YOUR_INFRA_PERSON',
-    devopsPerson: answers.devopsPerson || 'YOUR_DEVOPS_PERSON',
-    qaPerson: answers.qaPerson || 'YOUR_QA_PERSON',
-    harnessRepoPath: answers.harnessRepoPath || harnessRepoPath,
-    workRoot: answers.workRoot || '',
-    isGlobal: mode === 'global',
-    prdMode: manifest.prdMode || 'file',
-  });
+  const substitutions = subsFromManifest(manifest, target, harnessRepoPath);
 
   const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers']
     .map((d) => path.join(target, d))
@@ -1105,6 +1131,9 @@ function runUpdate(target) {
   if (orphansRemoved > 0) console.log(`  Removed ${orphansRemoved} orphaned file(s)`);
 
   // (6) Reconcile settings.json
+  const hooksUnix = mode === 'global'
+    ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
+    : toUnixPath(path.join(target, 'hooks'));
   const sessionStartMsg = workflowPack === 'solo'
     ? 'SESSION START: Before doing anything else — read tasks/notes.md and tasks/plan.md'
     : 'SESSION START: Before doing anything else — read tasks/lessons.md, todo.md, pr-queue.md, and flags-and-notes.md';
@@ -1331,7 +1360,7 @@ async function runUninstall(target) {
 
 // Exported for unit tests — must come last so all helpers are defined.
 module.exports = {
-  buildSubstitutions, substituteInFile, toUnixPath, toWinPath, buildSettings,
+  buildSubstitutions, subsFromManifest, substituteInFile, toUnixPath, toWinPath, buildSettings,
   buildManifest, MANIFEST_SCHEMA_VERSION,
   reconcileSettings, isHarnessHook, HARNESS_HOOK_SCRIPTS,
   runCheck, runUpdate, backfillManifest, runSwitchTracker,

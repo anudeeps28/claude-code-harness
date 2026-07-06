@@ -117,6 +117,30 @@ test('install.js --check --project after install prints valid JSON', () => {
     assert.ok(result.latestVersion, 'latestVersion present');
     assert.ok(typeof result.behind === 'number', 'behind is a number');
     assert.ok(Array.isArray(result.orphans), 'orphans is an array');
+    assert.ok(Array.isArray(result.drifted), 'drifted is an array');
+    assert.equal(result.drifted.length, 0, 'no drift right after install');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --check detects drifted files when installed copy differs from source', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir]);
+    const claudeDir = path.join(dir, '.claude');
+    const manifest = JSON.parse(fs.readFileSync(path.join(claudeDir, '.harness-manifest.json'), 'utf8'));
+    const firstSkill = manifest.installedFiles.find(f => f.startsWith('skills/') && f.endsWith('.md'));
+    assert.ok(firstSkill, 'should have at least one skill file');
+
+    // Mutate the installed copy so it differs from source
+    const installedPath = path.join(claudeDir, firstSkill);
+    fs.appendFileSync(installedPath, '\n<!-- local edit -->');
+
+    const out = runInstallJs(['--check', '--project', dir]).toString();
+    const result = JSON.parse(out);
+    assert.ok(Array.isArray(result.drifted), 'drifted is an array');
+    assert.ok(result.drifted.includes(firstSkill), `drifted should include ${firstSkill}`);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

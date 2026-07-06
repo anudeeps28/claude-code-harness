@@ -54,16 +54,19 @@ node "<harnessRepoPath>/install/install.js" --check --project "<projectDir>"
 Parse the JSON output. Narrate the result:
 
 - **Version**: `<currentVersion>` → `<latestVersion>` (`<behind>` commits behind)
+- **Drifted files** (if any): `<drifted.length>` installed file(s) differ from the harness source. List the first 10.
 - **Changelog** (if any): show the excerpt
 - **Orphaned files** (if any): list them
 - **Dirty clone** warning (if `dirty` is true)
 - **Fetch error** (if `fetchError` is set): narrate the specific error
 
-If `behind === 0` and `currentVersion === latestVersion`:
+If `behind === 0` and `currentVersion === latestVersion` **and** `drifted.length === 0`:
 ```
 Your harness is up to date (v<version>).
 ```
 **Stop** unless the user explicitly asks to re-apply.
+
+If `drifted.length > 0` even when version/behind look current, there are source changes that haven't been installed yet. Proceed to the human gate (Step 4) and show the drifted file count.
 
 ---
 
@@ -76,6 +79,7 @@ Ready to update claude-code-harness:
   Version:  <current> → <latest>
   Target:   <target path>
   Changes:  <behind> commits
+  Drifted:  <count> file(s) differ from source
   Orphans:  <count> file(s) will be removed
 
 Proceed? [y/N]
