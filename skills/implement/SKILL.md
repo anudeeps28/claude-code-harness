@@ -12,7 +12,7 @@ argument-hint: "#42, 'Build login flow', or 'add dark mode to settings page'"
 
 You are the implementation orchestrator for YOUR_PROJECT_NAME. You will build: **$ARGUMENTS**
 
-Run these phases in order — Understand → **Goal Definition (1.5)** → Plan → Execute → Local Verify → Evaluate → PR. Each phase ends with a STOP checkpoint. **Do not advance without YOUR_NAME's confirmation.**
+Run these phases in order — **Understand (1)** → **Goal Definition (1.5)** → Plan → Execute → Local Verify → Evaluate → PR. Each phase ends with a STOP checkpoint. **Do not advance without YOUR_NAME's confirmation.**
 
 ---
 
@@ -57,7 +57,34 @@ git checkout -b implement/<issue-id-or-slugified-title>
 
 ---
 
-## Phase 1 — Understand + Plan
+## Phase 1 — Understand
+
+Spawn a **`story-understand-agent`** (foreground) with this prompt:
+
+> Story ID: [issue ID or "no issue — from description"]
+> Task description: [the issue title/description or plain text from $ARGUMENTS]
+> Sprint file path: none (this is an /implement run, not a sprint story)
+>
+> Produce the complete 8 pre-planning points for this task. If there is no sprint file, skip the sprint file reading step and rely on the tracker data and codebase scan instead.
+
+Wait for it to return. Output its full result under the heading:
+
+### Pre-planning brief for [task description]
+
+**Write the handoff contract:** Save the full brief to `YOUR_PROJECT_ROOT/tasks/stories/<id>/brief.md`. Include all points produced by the agent.
+
+Then say **exactly:**
+
+---
+**STOP 1 — Does this brief match your understanding of the task? Any corrections before I define the goal?**
+
+*(Confirm to proceed to Phase 1.5. Say "yes" or give corrections.)*
+
+---
+
+Do NOT proceed until YOUR_NAME responds. If YOUR_NAME gives corrections, append them to `YOUR_PROJECT_ROOT/tasks/stories/<id>/brief.md` under a "Corrections from YOUR_NAME" section.
+
+---
 
 ### Phase 1a — Discuss (only if `--discuss` is set)
 
@@ -71,7 +98,7 @@ Collect all answers verbatim. These are passed to the planner as a `User clarifi
 
 ### Phase 1.5 — Goal Definition (MANDATORY)
 
-After Phase 1a (if run) or immediately after parsing the task, define the **goal** before planning. This is what makes the implementation goal-driven: "done" is not "compiles + tasks ran" — it's this goal being met.
+After Phase 1 (Understand) and Phase 1a (if run), define the **goal** before planning. This is what makes the implementation goal-driven: "done" is not "compiles + tasks ran" — it's this goal being met.
 
 Work through this with YOUR_NAME — it is a short, mandatory step, not a full interview:
 
@@ -132,10 +159,16 @@ Capture the inventory verbatim. It will be passed to the planner.
 
 ### Phase 1c — Plan
 
-Spawn an **`implement-planner-agent`** (foreground) with:
+Spawn an **`implement-planner-agent`** (foreground) with the Phase 1 brief as input:
 
 > Task: $ARGUMENTS (pass through exactly — issue ID or description, flags already stripped)
 > Project root: YOUR_PROJECT_ROOT
+>
+> Pre-planning brief (from Phase 1):
+> [full brief from the story-understand-agent]
+>
+> [If YOUR_NAME gave corrections] Corrections:
+> [verbatim corrections]
 >
 > Goal (from Phase 1.5):
 > - E2E modality: [chosen modality]
@@ -312,6 +345,7 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 ## Hard rules
 
 - Never chain phases — always wait for confirmation at each STOP
+- Never skip Phase 1 (understand) — the brief grounds planning in what the codebase actually looks like
 - Never skip Phase 1.5 (goal definition) — the goal is the input to planning and the terminal condition; the only way past the gate is the explicit "skip gate — no runtime impact" escape hatch
 - Never commit during Phase 2 — all commits happen in Phase 3
 - If something fails 3 times → invoke `/debug`, do not keep trying

@@ -250,11 +250,21 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 ## How `/implement` works (Solo)
 
 ```
-Phase 1: UNDERSTAND + PLAN (combined)
-  → Reads GitHub issue or takes plain text description
-  → Finds relevant source files, reads project docs
-  → Produces brief + XML task plan + test strategy in one pass
-  → STOP 1: "Review the plan and test strategy. Say 'go' to start building."
+Phase 1: UNDERSTAND
+  → Spawns story-understand-agent (same agent as /story)
+  → Reads issue from tracker + codebase + project docs
+  → Produces 8-point pre-planning brief
+  → Writes handoff contract: tasks/stories/<id>/brief.md
+  → STOP 1: "Does this brief match your understanding?"
+
+Phase 1.5: GOAL DEFINITION
+  → Defines e2e modality, acceptance criteria, concrete gate
+  → STOP 1.5: "Approve this goal, or adjust it?"
+
+Phase 1c: PLAN
+  → Spawns implement-planner-agent with brief + goal as input
+  → Produces XML task plan + test strategy
+  → STOP: "Review the plan and test strategy. Say 'go' to start building."
 
 Phase 2: EXECUTE (wave by wave)
   → Same executor agent and worktree isolation as /story
@@ -273,7 +283,7 @@ Phase 3: EVALUATE + ACCEPT + PR (combined)
   → STOP 3: "Review and commit. Say 'push' when ready."
 ```
 
-**Key difference from `/story`:** 3 phases instead of 5. No separate understand phase, no sprint file dependency, no child task structure. Same executor, same evaluator, same quality.
+**Key difference from `/story`:** Same understand phase and quality, but lighter ceremony — no sprint file dependency, no child task structure. Optional `--discuss` and `--research` flags for extra depth.
 
 ---
 
@@ -325,8 +335,8 @@ Phase 4: COMMIT + PR
 
 | Agent | Model | Used by | Role |
 |---|---|---|---|
-| `implement-planner-agent` | opus | `/implement` Phase 1 | Combined understand+plan in one pass |
-| `story-understand-agent` | opus | `/story` Phase 1 | Reads issue + docs, produces 8-point brief |
+| `implement-planner-agent` | opus | `/implement` Phase 1c | Plans tasks from brief + goal — one pass |
+| `story-understand-agent` | opus | `/story` Phase 1, `/implement` Phase 1 | Reads issue + docs, produces 8-point brief |
 | `story-plan-agent` | opus | `/story` Phase 2 | Produces XML task plan |
 | `story-executor-agent` | sonnet | `/story`, `/implement` | Writes code for one task |
 | `story-pr-agent` | sonnet | `/story` Phase 4 | Commit messages + PR description |
