@@ -673,7 +673,7 @@ function substituteInFile(file, subs) {
   if (content !== original) fs.writeFileSync(file, content, 'utf8');
 }
 
-function buildSettings({ hooksUnix, sessionStartMsg, workRoot, isGlobal }) {
+function buildSettings({ hooksUnix, sessionStartMsg: _sessionStartMsg, workRoot, isGlobal }) {
   const nodeCmd = (script) => `node "${hooksUnix}/${script}"`;
   const settings = {
     hooks: {

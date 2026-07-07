@@ -105,7 +105,7 @@ function readTodoistProject(projectRoot) {
     const notesPath = path.join(projectRoot, 'tasks', 'notes.md');
     if (fs.existsSync(notesPath)) {
       const content = fs.readFileSync(notesPath, 'utf8');
-      const todoistSection = content.match(/##\s*Todoist[\s\S]*?(?=\n##\s|\n---|\Z)/i);
+      const todoistSection = content.match(/##\s*Todoist[\s\S]*?(?=\n##\s|\n---|$)/i);
       if (todoistSection) {
         const projMatch = todoistSection[0].match(/project\s*:\s*(.+)/i);
         if (projMatch) {

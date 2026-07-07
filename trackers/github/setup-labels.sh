@@ -11,6 +11,7 @@ if ! command -v gh &>/dev/null; then
   exit 1
 fi
 
+source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
 check_auth_github
 
