@@ -8,6 +8,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ## [Unreleased]
 
+### New agents (1 added, 17 total)
+
+- `chief-operator` — Main-session project operator. Researches, analyzes, makes decisions, and delegates implementation through handoff files and tracker tasks. Spawns subagents for information gathering with three-bucket model routing (Opus/Sonnet/Haiku). Maintains `operator-state.md` for cross-session continuity with staleness detection. Auto-detects bootstrap (new project) vs resume (ongoing). Launch with `claude --model claude-opus-4-8 --agent chief-operator`.
+
 ### New skills
 
 - `/update-harness` — Check for and apply harness updates. Resolves target (project/global/both), checks for new versions, shows changelog excerpt, and applies updates with human confirmation. Supports `--global` and `--project` flags. Includes legacy backfill for pre-manifest installs.

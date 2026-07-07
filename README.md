@@ -7,7 +7,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-30 skills, 16 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist). Install once, ship faster.
+30 skills, 17 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
 
@@ -351,6 +351,7 @@ Phase 4: COMMIT + PR
 | `sprint-plan-gap-analyzer` | opus | `/sprint-plan` | Produces planning questions |
 | `debug-agent` | opus | `/debug` | Root cause diagnosis |
 | `troubleshoot-investigator` | opus | `/troubleshoot` | Behavioral bug investigation |
+| `chief-operator` | opus | standalone (`--agent`) | Main-session project operator — researches, decides, delegates via handoff files + tracker tasks. Never implements. |
 
 **Model routing:** Opus for thinking/judging, Sonnet for writing code, Haiku for simple data gathering.
 
@@ -474,7 +475,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 27 skills
-├── agents/           ← 14 sub-agents
+├── agents/           ← 17 agents (16 sub-agents + 1 main-session operator)
 ├── hooks/            ← 6 automated hooks
 ├── rules/            ← 5 path-scoped rules
 ├── trackers/         ← ADO + GitHub adapters (6 scripts each)
