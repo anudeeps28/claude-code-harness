@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // PreToolUse hook — validates README/CHANGELOG consistency when committing
 // new agents, skills, or hooks. Only fires on `git commit` commands.
 // Fail-open: if staged files can't be determined, allows the commit.

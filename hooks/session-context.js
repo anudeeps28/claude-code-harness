@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // SessionStart hook — injects relevant learnings from past sessions.
 //
 // Reads project-local and global learnings, ranks by effectiveness score

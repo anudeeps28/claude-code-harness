@@ -1,3 +1,4 @@
+// @ts-check
 const path = require('node:path');
 const { read, parseTable, isPlaceholderRow, PR_STATUSES } = require('./shared');
 

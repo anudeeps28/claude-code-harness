@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // PreCompact hook — save in-progress state before context window compaction.
 // Appends a timestamp marker to tasks/todo.md and injects a reminder to Claude.
 

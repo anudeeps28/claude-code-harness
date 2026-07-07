@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // PostToolUse drift detector for task files and project artifacts.
 //
 // Fires on two classes of files:

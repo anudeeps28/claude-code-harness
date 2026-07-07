@@ -1,3 +1,4 @@
+// @ts-check
 module.exports = {
   checkPrStatuses: require('./pr-statuses'),
   checkSprintStatuses: require('./sprint-statuses'),

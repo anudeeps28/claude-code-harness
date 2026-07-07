@@ -1,3 +1,4 @@
+// @ts-check
 // Project-state detection — determines whether a project root looks like a
 // fresh greenfield workspace or an active one with prior planning artifacts.
 //

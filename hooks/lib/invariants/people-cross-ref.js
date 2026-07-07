@@ -1,3 +1,4 @@
+// @ts-check
 const path = require('node:path');
 const { read, extractWaitingBullets, isPlaceholderItem } = require('./shared');
 

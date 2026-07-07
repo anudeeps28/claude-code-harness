@@ -1,3 +1,4 @@
+// @ts-check
 // Minimal YAML frontmatter parser for SKILL.md / agent.md.
 // Handles simple `key: value` and `key: "quoted value"`. No anchors, no multiline.
 

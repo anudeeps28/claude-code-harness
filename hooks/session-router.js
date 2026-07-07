@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // SessionStart hook — prints contextual next-step guidance based on detected
 // project state (greenfield vs active). Reads planning artifacts and open
 // GitHub issues to determine which state applies, then injects a short prompt

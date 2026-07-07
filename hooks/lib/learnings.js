@@ -1,3 +1,4 @@
+// @ts-check
 // Learnings store — read, write, score, and rank learning files.
 //
 // Two scopes:

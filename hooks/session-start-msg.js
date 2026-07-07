@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // SessionStart hook — emits a tracker-aware startup message.
 // Reads the manifest to determine the active tracker, then tells Claude
 // where to look for tasks and project state.

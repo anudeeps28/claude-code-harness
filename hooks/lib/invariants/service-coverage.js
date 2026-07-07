@@ -1,3 +1,4 @@
+// @ts-check
 const ap = require('../artifact-parsers');
 const { read } = require('./shared');
 
