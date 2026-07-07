@@ -21,6 +21,7 @@ const HARNESS_HOOK_SCRIPTS = new Set([
   'safety-check.js',
   'catalog-trigger.js',
   'drift-check.js',
+  'inventory-check.js',
   'pre-compact.js',
   'session-start-msg.js',
   'session-context.js',
@@ -676,7 +677,10 @@ function buildSettings({ hooksUnix, sessionStartMsg, workRoot, isGlobal }) {
   const nodeCmd = (script) => `node "${hooksUnix}/${script}"`;
   const settings = {
     hooks: {
-      PreToolUse: [{ matcher: 'Bash|Write', hooks: [{ type: 'command', command: nodeCmd('safety-check.js') }] }],
+      PreToolUse: [
+        { matcher: 'Bash|Write', hooks: [{ type: 'command', command: nodeCmd('safety-check.js') }] },
+        { matcher: 'Bash', hooks: [{ type: 'command', command: nodeCmd('inventory-check.js') }] },
+      ],
       PostToolUse: [{
         matcher: 'Write|Edit',
         hooks: [
