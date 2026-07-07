@@ -122,7 +122,7 @@ If the user says continue, proceed to Step 7. If they want to revisit a branch, 
 
 Always write a `grill-summary.md` file when shared understanding is reached. This artifact is consumed by downstream skills (`/research`, `/architect`, `/to-issues`, `/to-todoist`) — without it, the decide phase has no handoff contract.
 
-Write to the repo root (or `tasks/stories/<id>/grill-summary.md` if a story context exists).
+Write to the repo root (or `tasks/stories/<id>/grill-summary.md` if a story context exists). Overwrite any existing `grill-summary.md` — it is a transient handoff, not a permanent record. Do not create alternative filenames like `grill-summary-<topic>.md`.
 
 Structure:
 
