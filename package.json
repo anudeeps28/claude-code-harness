@@ -8,7 +8,7 @@
     "test:hooks": "node --test hooks/__tests__/*.test.js",
     "test:trackers": "node --test trackers/__tests__/*.test.js",
     "test:install": "node --test install/__tests__/*.test.js",
-    "test:coverage": "c8 --reporter=text --reporter=html node --test hooks/__tests__/*.test.js trackers/__tests__/*.test.js install/__tests__/*.test.js",
+    "test:coverage": "c8 --reporter=text --reporter=lcov node --test hooks/__tests__/*.test.js trackers/__tests__/*.test.js install/__tests__/*.test.js",
     "lint": "eslint hooks/ trackers/__tests__/ install/"
   },
   "engines": {
