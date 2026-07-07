@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // SessionStart hook — emits a tracker-aware startup message.
 // Reads the manifest to determine the active tracker, then tells Claude
 // where to look for tasks and project state.
@@ -6,7 +7,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { readStdinJson, ok, runHook } = require('./lib/hook-io');
+const { readStdinJson, ok: _ok, runHook } = require('./lib/hook-io');
 
 function git(args) {
   try { return execFileSync('git', args, { encoding: 'utf8' }).trim(); }

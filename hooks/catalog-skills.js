@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Scans Claude Code skills, agents, and hooks across WORK_ROOT and the global
 // ~/.claude folder. Writes SKILLS_CATALOG.md to WORK_ROOT.
 //

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // PostToolUse hook — re-run the skills catalog when a .claude/skills,
 // .claude/agents, or .claude/commands file was edited.
 

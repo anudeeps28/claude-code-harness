@@ -1,0 +1,46 @@
+name: Documentation
+description: Report a documentation issue or suggest an improvement
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve the docs. Report inaccuracies, missing information, or suggest new documentation.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Documentation issue type
+      options:
+        - Inaccurate or outdated content
+        - Missing documentation
+        - Unclear or confusing explanation
+        - Typo or formatting issue
+        - New documentation needed
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: File or section
+      description: Which file or section is affected?
+      placeholder: "README.md, section 'Installation'"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's wrong or what's missing?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix
+      description: If you have a specific correction or addition in mind, describe it here.
+    validations:
+      required: false

@@ -1,3 +1,4 @@
+// @ts-check
 'use strict';
 
 // Lightweight parsers for artifact drift detection.

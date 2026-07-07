@@ -18,6 +18,9 @@ tasks/stories/
 # Auto-generated catalog (produced by catalog-skills.js)
 SKILLS_CATALOG.md
 
+# Transient skill handoff (overwritten each /grill-me session)
+grill-summary.md
+
 # OS files
 .DS_Store
 Thumbs.db

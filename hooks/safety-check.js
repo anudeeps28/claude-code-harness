@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // PreToolUse safety hook — blocks destructive operations.
 // Even in --dangerously-skip-permissions mode, exit 2 + decision:deny
 // will prevent the tool call from executing.

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // SessionEnd hook — appends session log with outcome data and scores learnings.
 //
 // 1. Logs: timestamp, session_id, branch, story_id, outcome metrics.

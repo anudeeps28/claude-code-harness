@@ -1,3 +1,4 @@
+// @ts-check
 // Shared I/O helpers for Claude Code hooks.
 // Hooks receive JSON on stdin; respond via stdout JSON and/or exit code.
 //
@@ -62,6 +63,7 @@ function readStdinJson() {
 
 // Records a single hook invocation to tasks/metrics.jsonl. Best-effort: a
 // failed write logs to stderr and never throws.
+/** @param {{ decision?: string, rule?: string }} [opts] */
 function recordMetric({ decision, rule } = {}) {
   const workRoot = process.env.CLAUDE_HARNESS_WORK_ROOT;
   if (!workRoot) return;
@@ -178,7 +180,7 @@ function runHook(hookName, fn) {
     process.exit(0);
   });
   process.on('unhandledRejection', (e) => {
-    const msg = e && e.message ? e.message : String(e);
+    const msg = e && /** @type {any} */ (e).message ? /** @type {any} */ (e).message : String(e);
     process.stderr.write(JSON.stringify({
       error: 'unhandled_rejection',
       hook: hookName,
