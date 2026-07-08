@@ -18,6 +18,9 @@ tasks/stories/
 # Auto-generated catalog (produced by catalog-skills.js)
 SKILLS_CATALOG.md
 
+# Chief Operator state (overwritten every session)
+operator-state.md
+
 # Transient skill handoff (overwritten each /grill-me session)
 grill-summary.md
 
