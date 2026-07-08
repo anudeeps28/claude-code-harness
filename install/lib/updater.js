@@ -130,11 +130,27 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
   else {
     console.log('');
     console.log(`  [WARN] ${orphans} unresolved placeholder(s) found.`);
-    console.log('  Run the installer again with correct values, or edit manually.');
-    console.log('  See CONFIGURE.md for the full placeholder reference.');
+    console.log('  Fill them non-interactively by re-running with the matching CLI flags');
+    console.log('  (e.g. --name, --project-name; run with --help for the full list),');
+    console.log('  or edit the files manually. See CONFIGURE.md for the placeholder reference.');
   }
   console.log('');
 }
+
+// Maps each personalization placeholder to the CLI flag that fills it, so the
+// installer can print an exact re-run command instead of a dead-end warning.
+const PLACEHOLDER_FLAGS = {
+  YOUR_NAME: '--name',
+  YOUR_PROJECT_NAME: '--project-name',
+  YOUR_ADO_PROJECT: '--ado-project',
+  YOUR_ADO_REPO: '--ado-repo',
+  YOUR_ADO_ORG_PATH: '--ado-org-path',
+  YOUR_ORG: '--org',
+  YOUR_LEAD_DEV: '--lead-dev',
+  YOUR_INFRA_PERSON: '--infra-person',
+  YOUR_DEVOPS_PERSON: '--devops-person',
+  YOUR_QA_PERSON: '--qa-person',
+};
 
 function reportUnfilled(opts) {
   const unfilled = [];
@@ -152,10 +168,14 @@ function reportUnfilled(opts) {
     if (opts.devopsPerson === 'YOUR_DEVOPS_PERSON') unfilled.push('YOUR_DEVOPS_PERSON');
     if (opts.qaPerson === 'YOUR_QA_PERSON') unfilled.push('YOUR_QA_PERSON');
   }
-  if (unfilled.length) {
-    console.log(`  Note: Some values were left at their defaults: ${unfilled.join(' ')}`);
-    console.log('  See CONFIGURE.md to fill them in manually.\n');
-  }
+  if (!unfilled.length) return;
+
+  console.log(`  Note: Some values were left at their defaults: ${unfilled.join(' ')}`);
+  const targetFlag = opts.mode === 'global' ? '--global' : `--project ${opts.projectDir || '<path>'}`;
+  const flagArgs = unfilled.map((p) => `${PLACEHOLDER_FLAGS[p]} "..."`).join(' ');
+  console.log('  Fill them in non-interactively by re-running with:');
+  console.log(`    node install/install.js --yes ${targetFlag} ${flagArgs}`);
+  console.log('  Or edit the files manually — see CONFIGURE.md.\n');
 }
 
 function printDryRun(ctx, repoDir) {
@@ -165,6 +185,7 @@ function printDryRun(ctx, repoDir) {
   console.log(`  Workflow pack: ${ctx.workflowPack}`);
   console.log(`  Tracker:       ${ctx.tracker}`);
   console.log(`  User:          ${ctx.userName}`);
+  console.log(`  Project name:  ${ctx.projectName}`);
   if (ctx.tracker === 'ado') {
     console.log(`  ADO project:   ${ctx.adoProject}`);
     console.log(`  ADO repo:      ${ctx.adoRepo}`);

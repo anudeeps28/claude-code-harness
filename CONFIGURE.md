@@ -2,25 +2,30 @@
 
 The installer (`install/install.sh`) handles all of this automatically. Use this doc only if you need to change values after install, or if the installer didn't fill something in.
 
+> **Tip:** You rarely need to edit by hand. Every value below can be passed to the installer as a flag (e.g. `--name`, `--project-name`, `--org`), which works with `--yes` for a fully non-interactive install. Run `node install/install.js --help` for the full list, or just re-run the installer — it prints the exact command needed to fill any remaining placeholders.
+
 ---
 
 ## Placeholders reference
 
-| Placeholder | What to set it to | Pack |
-|---|---|---|
-| `YOUR_NAME` | Your first name (e.g. `Alex`) | Both |
-| `YOUR_PROJECT_NAME` | Human-readable project name (e.g. `my-api`) | Both |
-| `YOUR_PROJECT_ROOT` | Absolute path to your project | Both |
-| `YOUR_ADO_PROJECT` | Your ADO project name | Enterprise (ADO only) |
-| `YOUR_ADO_REPO` | Your ADO repository name | Enterprise (ADO only) |
-| `YOUR_ADO_ORG_PATH` | Sprint IterationPath prefix (e.g. `MyProject`) | Enterprise (ADO only) |
-| `YOUR_ORG` | Org / company short name (used in skill prompts as "the X codebase") | Enterprise |
-| `YOUR_LEAD_DEV` | Lead developer name (for blockers) | Enterprise |
-| `YOUR_INFRA_PERSON` | Infrastructure/cloud person | Enterprise |
-| `YOUR_DEVOPS_PERSON` | CI/CD/deployments person | Enterprise |
-| `YOUR_QA_PERSON` | QA/UAT person | Enterprise |
-| `YOUR_HARNESS_REPO_PATH` | Absolute path to your local clone of `claude-code-harness` (used by `/improve-harness` to reference harness files in its proposals) | Both |
-| `CLAUDE_HARNESS_WORK_ROOT` | Env var in `settings.json` consumed by `catalog-skills.js` — folder containing all your projects | Global install only |
+The **Flag** column is what to pass to the installer (paired with `--yes` for non-interactive installs) instead of editing files by hand.
+
+| Placeholder | Installer flag | What to set it to | Pack |
+|---|---|---|---|
+| `YOUR_NAME` | `--name` | Your first name (e.g. `Alex`) | Both |
+| `YOUR_PROJECT_NAME` | `--project-name` | Human-readable project name (e.g. `my-api`) | Both |
+| `YOUR_PROJECT_ROOT` | _(auto)_ | Absolute path to your project — derived from `--project` | Both |
+| `YOUR_ADO_PROJECT` | `--ado-project` | Your ADO project name | Enterprise (ADO only) |
+| `YOUR_ADO_REPO` | `--ado-repo` | Your ADO repository name | Enterprise (ADO only) |
+| `YOUR_ADO_ORG_PATH` | `--ado-org-path` | Sprint IterationPath prefix (e.g. `MyProject`) | Enterprise (ADO only) |
+| `YOUR_TODOIST_PROJECT` | `--todoist-project` | Your Todoist project name | Todoist tracker |
+| `YOUR_ORG` | `--org` | Org / company short name (used in skill prompts as "the X codebase") | Enterprise |
+| `YOUR_LEAD_DEV` | `--lead-dev` | Lead developer name (for blockers) | Enterprise |
+| `YOUR_INFRA_PERSON` | `--infra-person` | Infrastructure/cloud person | Enterprise |
+| `YOUR_DEVOPS_PERSON` | `--devops-person` | CI/CD/deployments person | Enterprise |
+| `YOUR_QA_PERSON` | `--qa-person` | QA/UAT person | Enterprise |
+| `YOUR_HARNESS_REPO_PATH` | `--harness-repo-path` | Absolute path to your local clone of `claude-code-harness` (used by `/improve-harness` to reference harness files in its proposals) | Both |
+| `CLAUDE_HARNESS_WORK_ROOT` | `--work-root` | Env var in `settings.json` consumed by `catalog-skills.js` — folder containing all your projects | Global install only |
 
 ---
 

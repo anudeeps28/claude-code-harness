@@ -19,6 +19,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ### Installer
 
+- **Fully non-interactive installs** — New value flags make `--yes` truly zero-touch, so no placeholders are left behind for a manual `sed` pass: `--name`, `--project-name`, `--pack`, `--tracker`, `--prd-mode`, `--ado-project`/`--ado-repo`/`--ado-org-path`, `--todoist-project`, `--org`/`--lead-dev`/`--infra-person`/`--devops-person`/`--qa-person`, `--work-root`, and `--harness-repo-path`. Each also works in interactive mode (a supplied flag pre-fills its prompt). Enum flags are validated up front; a missing flag value fails fast. Run `--help` for the full list.
+- **Actionable placeholder warnings** — When values are left at their defaults, the installer now prints the exact re-run command (e.g. `node install/install.js --yes --project <path> --name "..."`) instead of the previous dead-end "run again with correct values" text.
+- **Git pre-flight check** — The non-git-repository warning is now a labelled pre-flight step that explains which features (worktree workflow, PR automation) need git and suggests `git init`.
 - **Install manifest** (`.harness-manifest.json`) — Written on every install. Records schema version, harness version, install mode, workflow pack, tracker, PRD mode, all personalization answers, and the exact list of installed files. Enables safe updates and orphan detection.
 - **`install.sh` is now a thin forwarder** — All install logic lives in `install.js`. The shell script checks for Node.js and forwards via `exec`.
 - **`--check` mode** — Read-only version check. Emits JSON with `currentVersion`, `latestVersion`, `behind` (commits), `changelogExcerpt`, and `orphans[]`.

@@ -207,6 +207,78 @@ test('install.js --switch-tracker todoist updates manifest and copies scripts', 
   }
 });
 
+// ── Non-interactive personalization flags ───────────────────────────────────
+
+test('install.js --yes --name/--project-name fills personalization (no sed needed)', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, '--name', 'Anudeep', '--project-name', 'my-app']);
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
+    assert.equal(manifest.answers.userName, 'Anudeep', 'userName should come from --name');
+    assert.equal(manifest.answers.projectName, 'my-app', 'projectName should come from --project-name');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --yes --pack enterprise installs enterprise agents', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, '--pack', 'enterprise']);
+    const agents = fs.readdirSync(path.join(dir, '.claude', 'agents'));
+    assert.ok(agents.includes('story-executor-agent.md'), 'enterprise agents should be installed');
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
+    assert.equal(manifest.workflowPack, 'enterprise');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --yes --prd-mode is honored in the manifest', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, '--prd-mode', 'both-file-canonical']);
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
+    assert.equal(manifest.prdMode, 'both-file-canonical');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js value flag without a value exits with error', () => {
+  assert.throws(
+    () => runInstallJs(['--yes', '--project', '/tmp', '--name']),
+    (err) => {
+      assert.strictEqual(err.status, 1);
+      assert.ok(err.stderr.toString().includes('--name requires a value'));
+      return true;
+    },
+  );
+});
+
+test('install.js rejects an invalid enum flag value', () => {
+  assert.throws(
+    () => runInstallJs(['--yes', '--project', '/tmp', '--pack', 'bogus']),
+    (err) => {
+      assert.strictEqual(err.status, 1);
+      assert.ok(err.stderr.toString().includes('--pack must be one of'));
+      return true;
+    },
+  );
+});
+
+test('install.js prints an actionable re-run command when values are left as placeholders', () => {
+  const dir = makeTempProject();
+  try {
+    const out = runInstallJs(['--yes', '--project', dir]).toString();
+    assert.ok(out.includes('re-running with:'), 'should offer a re-run command');
+    assert.ok(out.includes('--name'), 'should name the flag that fills YOUR_NAME');
+    assert.ok(out.includes('--project-name'), 'should name the flag that fills YOUR_PROJECT_NAME');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ── install.sh is a thin forwarder ──────────────────────────────────────────
 
 test('install.sh contains no independent copy/substitute/settings logic', () => {

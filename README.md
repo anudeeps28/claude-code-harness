@@ -166,6 +166,15 @@ Then:
 - **Solo:** `/implement #42` or `/plan`
 - **Enterprise:** `/story 9950` or `/sprint-plan 8`
 
+**Non-interactive / scripted installs** — pass answers as flags so `--yes` needs no follow-up edits:
+
+```bash
+node claude-code-harness/install/install.js --yes --project /my/app \
+  --name "Alex" --project-name "my-app"
+```
+
+`--help` lists every flag (`--pack`, `--tracker`, `--prd-mode`, ADO/Todoist/team fields, etc.). Any values you omit stay as placeholders, and the installer prints the exact command to fill them in later.
+
 ---
 
 ## Updating the harness

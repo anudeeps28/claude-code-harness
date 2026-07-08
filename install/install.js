@@ -44,6 +44,29 @@ let checkMode = false;
 let updateMode = false;
 let switchTracker = '';
 
+// Value-taking flags that supply personalization/config non-interactively, so
+// `--yes` needs no follow-up sed. Each maps a CLI flag to a `cli` object key
+// consumed below in place of an interactive prompt.
+const VALUE_FLAGS = {
+  '--name': 'userName',
+  '--project-name': 'projectName',
+  '--pack': 'pack',
+  '--tracker': 'tracker',
+  '--prd-mode': 'prdMode',
+  '--ado-project': 'adoProject',
+  '--ado-repo': 'adoRepo',
+  '--ado-org-path': 'adoOrgPath',
+  '--todoist-project': 'todoistProject',
+  '--org': 'orgName',
+  '--lead-dev': 'leadDev',
+  '--infra-person': 'infraPerson',
+  '--devops-person': 'devopsPerson',
+  '--qa-person': 'qaPerson',
+  '--work-root': 'workRoot',
+  '--harness-repo-path': 'harnessRepoPath',
+};
+const cli = {};
+
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--global') mode = 'global';
@@ -51,6 +74,14 @@ for (let i = 0; i < args.length; i++) {
     mode = 'project';
     const next = args[i + 1];
     if (next && !next.startsWith('-')) { projectDir = next; i++; }
+  } else if (Object.prototype.hasOwnProperty.call(VALUE_FLAGS, a)) {
+    const next = args[i + 1];
+    if (next === undefined || next.startsWith('-')) {
+      console.error(`  Error: ${a} requires a value (e.g. ${a} "my-value")`);
+      process.exit(1);
+    }
+    cli[VALUE_FLAGS[a]] = next;
+    i++;
   } else if (a === '--uninstall') uninstall = true;
   else if (a === '--dry-run') dryRun = true;
   else if (a === '--yes' || a === '-y') nonInteractive = true;
@@ -73,6 +104,21 @@ for (let i = 0; i < args.length; i++) {
     node install/install.js --dry-run           # show what would be done
     node install/install.js --check --project /my/app   # check for updates (read-only)
     node install/install.js --update --project /my/app  # apply updates
+
+  Non-interactive values (pair any with --yes for a zero-touch install — no placeholders left behind):
+    --name <str>            your name (fills YOUR_NAME)
+    --project-name <str>    human-readable project name (fills YOUR_PROJECT_NAME)
+    --pack <solo|enterprise>            workflow pack (default: solo)
+    --tracker <github|ado|todoist>      issue tracker (default: github)
+    --prd-mode <file|tracker|both-file-canonical|both-tracker-canonical>
+    --ado-project / --ado-repo / --ado-org-path   ADO fields (enterprise + ado)
+    --todoist-project <str>             Todoist project (todoist tracker)
+    --org / --lead-dev / --infra-person / --devops-person / --qa-person   team (enterprise)
+    --work-root <path>                  work folder (global installs)
+    --harness-repo-path <path>          local claude-code-harness clone
+
+  Example — fully non-interactive:
+    node install/install.js --yes --project /my/app --name "Alex" --project-name "my-app"
 `);
     process.exit(0);
   } else if (!projectDir) { projectDir = a; mode = 'project'; }
@@ -107,12 +153,33 @@ async function main() {
     process.exit(1);
   }
 
+  // Validate enum-valued flags up front so a typo fails fast instead of
+  // silently installing the wrong pack/tracker.
+  const enumFlags = [
+    ['--pack', cli.pack, ['solo', 'enterprise']],
+    ['--tracker', cli.tracker, ['github', 'ado', 'todoist']],
+    ['--prd-mode', cli.prdMode, ['file', 'tracker', 'both-file-canonical', 'both-tracker-canonical']],
+  ];
+  for (const [flag, value, allowed] of enumFlags) {
+    if (value !== undefined && !allowed.includes(value)) {
+      console.error(`  Error: ${flag} must be one of: ${allowed.join(', ')} (got "${value}")`);
+      process.exit(1);
+    }
+  }
+
   if (!nonInteractive) {
     rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   }
   const prompt = (q, fallback) => {
     if (nonInteractive) return Promise.resolve(fallback);
     return ask(q);
+  };
+  // Resolve a personalization value: a CLI flag wins in either mode; otherwise
+  // prompt when interactive, or fall back to the placeholder when non-interactive.
+  const promptValue = async (cliVal, q, placeholder) => {
+    if (cliVal) { console.log(`${q}${cliVal}`); return cliVal; }
+    const ans = (await prompt(q, '')).trim();
+    return ans || placeholder;
   };
 
   if (!checkMode) {
@@ -173,25 +240,37 @@ async function main() {
     return;
   }
 
-  // Git-repo warning
+  // ── Pre-flight: git repository ─────────────────────────────────────────────
   if (mode === 'project' && !fs.existsSync(path.join(projectDir, '.git'))) {
-    console.log(`  Warning: ${projectDir} does not appear to be a git repository.`);
+    console.log('  Pre-flight check: git repository');
+    console.log(`    ${projectDir} is not a git repository.`);
+    console.log('    Features that depend on git — the worktree workflow and PR');
+    console.log('    automation — will not work until you run "git init" there.\n');
     const go = (await prompt('  Continue anyway? [y/N]: ', 'y')).trim().toLowerCase();
     console.log('');
-    if (go !== 'y') process.exit(1);
+    if (go !== 'y') { if (rl) rl.close(); process.exit(1); }
   }
 
   // ── Workflow pack ──────────────────────────────────────────────────────────
-  console.log('  Workflow pack:\n');
-  console.log('    1) Enterprise — sprints, stories, team coordination (/story, /sprint-plan)');
-  console.log('    2) Solo       — issues, simple priorities (/implement, /plan)\n');
-  const packChoice = (await prompt('  Choice [1/2]: ', '2')).trim();
-  console.log('');
-  const workflowPack = packChoice === '2' ? 'solo' : 'enterprise';
+  let workflowPack;
+  if (cli.pack) {
+    workflowPack = cli.pack;
+    console.log(`  Workflow pack: ${workflowPack}\n`);
+  } else {
+    console.log('  Workflow pack:\n');
+    console.log('    1) Enterprise — sprints, stories, team coordination (/story, /sprint-plan)');
+    console.log('    2) Solo       — issues, simple priorities (/implement, /plan)\n');
+    const packChoice = (await prompt('  Choice [1/2]: ', '2')).trim();
+    console.log('');
+    workflowPack = packChoice === '2' ? 'solo' : 'enterprise';
+  }
 
   // ── Tracker ────────────────────────────────────────────────────────────────
   let tracker;
-  if (workflowPack === 'enterprise') {
+  if (cli.tracker) {
+    tracker = cli.tracker;
+    console.log(`  Issue tracker: ${tracker}\n`);
+  } else if (workflowPack === 'enterprise') {
     console.log('  Issue tracker:\n');
     console.log('    1) Azure DevOps  (uses az devops CLI)');
     console.log('    2) GitHub        (uses gh CLI)');
@@ -223,64 +302,68 @@ async function main() {
 
   // ── Personalization ────────────────────────────────────────────────────────
   console.log('  Personalization (press Enter to skip and fill in manually later):\n');
-  const userName    = (await prompt('    Your name                              : ', '')).trim() || 'YOUR_NAME';
-  const projectName = (await prompt('    Project name (human-readable)           : ', '')).trim() || 'YOUR_PROJECT_NAME';
+  const userName    = await promptValue(cli.userName,    '    Your name                              : ', 'YOUR_NAME');
+  const projectName = await promptValue(cli.projectName, '    Project name (human-readable)           : ', 'YOUR_PROJECT_NAME');
 
   let adoProject = 'YOUR_ADO_PROJECT';
   let adoRepo = 'YOUR_ADO_REPO';
   let adoOrgPath = 'YOUR_ADO_ORG_PATH';
   if (workflowPack === 'enterprise' && tracker === 'ado') {
-    adoProject = (await prompt('    ADO project name                       : ', '')).trim() || adoProject;
-    adoRepo    = (await prompt('    ADO repo name                          : ', '')).trim() || adoRepo;
-    adoOrgPath = (await prompt('    ADO org path (sprint IterationPath)    : ', '')).trim() || adoOrgPath;
+    adoProject = await promptValue(cli.adoProject, '    ADO project name                       : ', adoProject);
+    adoRepo    = await promptValue(cli.adoRepo,    '    ADO repo name                          : ', adoRepo);
+    adoOrgPath = await promptValue(cli.adoOrgPath, '    ADO org path (sprint IterationPath)    : ', adoOrgPath);
   }
 
   let todoistProject = 'YOUR_TODOIST_PROJECT';
   if (tracker === 'todoist') {
-    todoistProject = (await prompt('    Todoist project name                    : ', '')).trim() || todoistProject;
+    todoistProject = await promptValue(cli.todoistProject, '    Todoist project name                    : ', todoistProject);
   }
 
   let orgName, leadDev, infraPerson, devopsPerson, qaPerson;
   if (workflowPack === 'enterprise') {
-    orgName = 'YOUR_ORG'; leadDev = 'YOUR_LEAD_DEV'; infraPerson = 'YOUR_INFRA_PERSON';
-    devopsPerson = 'YOUR_DEVOPS_PERSON'; qaPerson = 'YOUR_QA_PERSON';
     console.log('');
     console.log('    Team (press Enter to skip — leaves placeholders in skill text):');
-    orgName      = (await prompt('    Org / company short name               : ', '')).trim() || orgName;
-    leadDev      = (await prompt('    Lead developer name (architecture)     : ', '')).trim() || leadDev;
-    infraPerson  = (await prompt('    Infrastructure / cloud person          : ', '')).trim() || infraPerson;
-    devopsPerson = (await prompt('    DevOps / CI/CD / deployments person    : ', '')).trim() || devopsPerson;
-    qaPerson     = (await prompt('    QA / UAT person                        : ', '')).trim() || qaPerson;
+    orgName      = await promptValue(cli.orgName,      '    Org / company short name               : ', 'YOUR_ORG');
+    leadDev      = await promptValue(cli.leadDev,      '    Lead developer name (architecture)     : ', 'YOUR_LEAD_DEV');
+    infraPerson  = await promptValue(cli.infraPerson,  '    Infrastructure / cloud person          : ', 'YOUR_INFRA_PERSON');
+    devopsPerson = await promptValue(cli.devopsPerson, '    DevOps / CI/CD / deployments person    : ', 'YOUR_DEVOPS_PERSON');
+    qaPerson     = await promptValue(cli.qaPerson,     '    QA / UAT person                        : ', 'YOUR_QA_PERSON');
   } else {
-    orgName = projectName !== 'YOUR_PROJECT_NAME' ? projectName : 'our';
-    leadDev = userName !== 'YOUR_NAME' ? userName : 'the lead dev';
-    infraPerson = userName !== 'YOUR_NAME' ? userName : 'the infra person';
-    devopsPerson = userName !== 'YOUR_NAME' ? userName : 'the devops person';
-    qaPerson = userName !== 'YOUR_NAME' ? userName : 'the QA person';
+    orgName = cli.orgName || (projectName !== 'YOUR_PROJECT_NAME' ? projectName : 'our');
+    leadDev = cli.leadDev || (userName !== 'YOUR_NAME' ? userName : 'the lead dev');
+    infraPerson = cli.infraPerson || (userName !== 'YOUR_NAME' ? userName : 'the infra person');
+    devopsPerson = cli.devopsPerson || (userName !== 'YOUR_NAME' ? userName : 'the devops person');
+    qaPerson = cli.qaPerson || (userName !== 'YOUR_NAME' ? userName : 'the QA person');
   }
 
   // ── PRD output mode ──────────────────────────────────────────────────────
-  console.log('  Where should PRDs live?\n');
-  console.log('    1) File in repo          — PRD.md (default)');
-  console.log('    2) Tracker issue         — published to your issue tracker');
-  console.log('    3) Both — file canonical — PRD.md is source of truth, tracker is mirror');
-  console.log('    4) Both — tracker canonical — tracker issue is source of truth, file is mirror\n');
-  const prdChoice = (await prompt('  Choice [1/2/3/4]: ', '1')).trim();
-  console.log('');
-  const prdModeMap = { '1': 'file', '2': 'tracker', '3': 'both-file-canonical', '4': 'both-tracker-canonical' };
-  const prdMode = prdModeMap[prdChoice] || 'file';
+  let prdMode;
+  if (cli.prdMode) {
+    prdMode = cli.prdMode;
+    console.log(`  PRD output mode: ${prdMode}\n`);
+  } else {
+    console.log('  Where should PRDs live?\n');
+    console.log('    1) File in repo          — PRD.md (default)');
+    console.log('    2) Tracker issue         — published to your issue tracker');
+    console.log('    3) Both — file canonical — PRD.md is source of truth, tracker is mirror');
+    console.log('    4) Both — tracker canonical — tracker issue is source of truth, file is mirror\n');
+    const prdChoice = (await prompt('  Choice [1/2/3/4]: ', '1')).trim();
+    console.log('');
+    const prdModeMap = { '1': 'file', '2': 'tracker', '3': 'both-file-canonical', '4': 'both-tracker-canonical' };
+    prdMode = prdModeMap[prdChoice] || 'file';
+  }
 
   let workRoot = '';
   if (mode === 'global') {
-    workRoot = (await prompt('    Work root (folder containing projects) : ', '')).trim() || 'C:\\YOUR_WORK_FOLDER';
+    workRoot = await promptValue(cli.workRoot, '    Work root (folder containing projects) : ', 'C:\\YOUR_WORK_FOLDER');
   }
 
-  const harnessRepoPath = (await prompt(`    Harness repo path [${REPO_DIR}]: `, '')).trim() || REPO_DIR;
+  const harnessRepoPath = await promptValue(cli.harnessRepoPath, `    Harness repo path [${REPO_DIR}]: `, REPO_DIR);
   console.log('');
 
   // ── Dry run ────────────────────────────────────────────────────────────────
   if (dryRun) {
-    printDryRun({ mode, target, workflowPack, tracker, userName, adoProject, adoRepo, adoOrgPath, workRoot, projectDir }, REPO_DIR);
+    printDryRun({ mode, target, workflowPack, tracker, userName, projectName, adoProject, adoRepo, adoOrgPath, workRoot, projectDir }, REPO_DIR);
     if (rl) rl.close();
     return;
   }
@@ -521,7 +604,7 @@ async function main() {
     console.log('  To disable later, comment that line out. See the rule file for details.\n');
   }
 
-  reportUnfilled({ userName, projectName, tracker, workflowPack,
+  reportUnfilled({ mode, projectDir, userName, projectName, tracker, workflowPack,
     adoProject, adoRepo, adoOrgPath, orgName, leadDev, infraPerson, devopsPerson, qaPerson });
 
   if (rl) rl.close();
