@@ -35,7 +35,11 @@ function buildSubstitutions(opts) {
     ['YOUR_DEVOPS_PERSON', opts.devopsPerson],
     ['YOUR_QA_PERSON', opts.qaPerson],
     ['YOUR_HARNESS_REPO_PATH', opts.harnessRepoPath],
-    ['YOUR_TODOIST_PROJECT', opts.todoistProject || 'YOUR_TODOIST_PROJECT'],
+    // NOTE: YOUR_TODOIST_PROJECT is deliberately NOT substituted tree-wide. It is a
+    // literal sentinel in runtime code (hooks/lib/project-state.js, trackers/todoist/*.sh)
+    // used to detect an unfilled value — rewriting it there inverts those guards. The real
+    // placeholder in the task templates is filled by a separate substituteInFile() pass in
+    // install.js, so nothing here needs opts.todoistProject.
     ['YOUR_PRD_MODE', opts.prdMode || 'file'],
   ];
   if (opts.isGlobal && opts.workRoot) {

@@ -451,7 +451,11 @@ test('backfillManifest_DetectsTodoistTracker', () => {
   }
 });
 
-test('buildSubstitutions_TodoistProject_IncludedInSubs', () => {
+test('buildSubstitutions_TodoistProject_NotSubstitutedTreeWide', () => {
+  // YOUR_TODOIST_PROJECT is a runtime sentinel (compared as a literal in
+  // hooks/lib/project-state.js and trackers/todoist/*.sh). It must NOT be part of the
+  // tree-wide substitution set; the real placeholder is filled only in task templates
+  // via a separate substituteInFile() pass in install.js.
   const subs = buildSubstitutions({
     hooksUnix: '', hooksWin: '', projectRootBash: '',
     projectName: '', userName: '',
@@ -461,21 +465,30 @@ test('buildSubstitutions_TodoistProject_IncludedInSubs', () => {
     workRoot: '', isGlobal: false,
   });
   const pair = subs.find(([k]) => k === 'YOUR_TODOIST_PROJECT');
-  assert.ok(pair, 'YOUR_TODOIST_PROJECT substitution present');
-  assert.equal(pair[1], 'My Todoist Project');
+  assert.equal(pair, undefined, 'YOUR_TODOIST_PROJECT must not be substituted tree-wide');
 });
 
-test('buildSubstitutions_TodoistProjectDefault_PreservesPlaceholder', () => {
-  const subs = buildSubstitutions({
-    hooksUnix: '', hooksWin: '', projectRootBash: '',
-    projectName: '', userName: '',
-    adoProject: '', adoRepo: '', adoOrgPath: '',
-    orgName: '', leadDev: '', infraPerson: '', devopsPerson: '', qaPerson: '',
-    harnessRepoPath: '', workRoot: '', isGlobal: false,
-  });
-  const pair = subs.find(([k]) => k === 'YOUR_TODOIST_PROJECT');
-  assert.ok(pair, 'YOUR_TODOIST_PROJECT substitution present');
-  assert.equal(pair[1], 'YOUR_TODOIST_PROJECT', 'defaults to placeholder when not provided');
+test('substituteInTree_TodoistSentinel_LeftIntact', () => {
+  // Regression: a todoist install must not rewrite the sentinel in runtime code.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'install-test-'));
+  try {
+    const file = path.join(dir, 'project-state.js');
+    fs.writeFileSync(file, "if (val && val !== 'YOUR_TODOIST_PROJECT') return val;\n");
+    const subs = buildSubstitutions({
+      hooksUnix: '', hooksWin: '', projectRootBash: '',
+      projectName: '', userName: '',
+      adoProject: '', adoRepo: '', adoOrgPath: '',
+      orgName: '', leadDev: '', infraPerson: '', devopsPerson: '', qaPerson: '',
+      harnessRepoPath: '', todoistProject: 'My Todoist Project',
+      workRoot: '', isGlobal: false,
+    });
+    substituteInFile(file, subs);
+    const out = fs.readFileSync(file, 'utf8');
+    assert.ok(out.includes("!== 'YOUR_TODOIST_PROJECT'"), 'sentinel must survive substitution');
+    assert.ok(!out.includes('My Todoist Project'), 'user value must not leak into the sentinel');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('substituteInFile_TodoistProjectPlaceholder_Replaced', () => {

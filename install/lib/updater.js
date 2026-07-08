@@ -82,6 +82,10 @@ function reconcileSettings(existingSettings, newHarnessSettings) {
   return result;
 }
 
+// Placeholder tokens that are intentional runtime sentinels (compared against as
+// literals in code), not unfilled template values — excluded from the scan below.
+const SENTINEL_PLACEHOLDERS = ['YOUR_TODOIST_PROJECT'];
+
 function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
   console.log('  Verifying installation...');
   let fail = 0;
@@ -118,7 +122,11 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
       try { text = fs.readFileSync(file, 'utf8'); } catch { continue; }
       const lines = text.split(/\r?\n/);
       for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes('YOUR_')) {
+        // Strip sentinel literals before testing — runtime code compares against
+        // these on purpose, so they are not unfilled placeholders.
+        let probe = lines[i];
+        for (const sentinel of SENTINEL_PLACEHOLDERS) probe = probe.split(sentinel).join('');
+        if (probe.includes('YOUR_')) {
           console.log(`  [PLACEHOLDER] ${file}:${i + 1}: ${lines[i].trim()}`);
           orphans++;
           if (orphans >= 20) break;
