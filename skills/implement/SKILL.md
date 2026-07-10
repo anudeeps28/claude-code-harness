@@ -236,6 +236,8 @@ in the work order before any code changes. (Skip for the single-task case — a 
 
 For **each wave:**
 
+**A0. Conflict check (only when the wave has 2+ tasks):** Compare every task pair's `<files>`. If any file appears in two tasks in this wave, they would run in separate worktrees and clobber each other at merge-back — auto-split: move the higher-id task into a new wave immediately after this one, renumber the rest, and show the updated wave table ("Wave [n] split due to file overlap in `[file]`."). If there's no overlap, proceed silently. (No-op for the single-task fast path.)
+
 **A. Announce:** "Wave [n]/[total] — [task names]"
 
 **B. Launch tasks:**
@@ -275,7 +277,7 @@ Do NOT start the next wave until YOUR_NAME responds.
 
 ## Phase 2.5 — Local Verification
 
-After all tasks pass, run `/local-test 2` (or `/local-test 1` if Docker is not available).
+After all tasks pass, run `/local-test 2` (or `/local-test 1` if Docker is not available — note that integration testing was skipped).
 
 If tests fail → fix first, do NOT proceed.
 If tests pass → proceed to Phase 3.
@@ -310,6 +312,8 @@ If tests pass → proceed to Phase 3.
 
 Wait for **all four** to return. Show all reports.
 
+**Write the handoff contracts:** Save each report under `tasks/stories/<id>/` — `evaluation.md`, `acceptance.md`, `architecture-review.md`, and `security-review.md`. `evaluation.md` is required, not optional: `/improve-harness` scans `tasks/stories/*/evaluation.md` for pattern detection and skips any story that lacks it, so without this the story is invisible to the learning loop.
+
 **If evaluator hard gates fail:** Fix first, re-run evaluation.
 
 **If acceptance test says NOT ACCEPTED:** Fix the failed criteria first. The feature doesn't work as intended.
@@ -318,7 +322,7 @@ Wait for **all four** to return. Show all reports.
 
 **If findings >= 75% confidence, acceptance gaps, or ADVISORY findings exist:** Show them. For each: YOUR_NAME says "fix" or "skip".
 
-**e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1a / the test strategy. Run `/local-test e2e` for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) for YOUR_NAME to sign off. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs implemented vs observed → root-cause (route behavioral gaps to `/troubleshoot`, the 3-attempt trigger to `/debug`) → fix → re-run. The gate blocks PR until green or human-accepted.
+**e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1a / the test strategy. Run `/local-test e2e` for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) for YOUR_NAME to sign off. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs implemented vs observed → root-cause (route behavioral gaps to `/troubleshoot`, the 3-attempt trigger to `/debug`) → fix → re-run. Three evidence-based re-approaches without a green gate → STOP and invoke `/debug`; do not attempt a 4th (a blind repeat doesn't count as a re-approach). The gate blocks PR until green or human-accepted.
 
 **After evaluation + acceptance + the e2e gate pass (or were skipped with `--quick`):**
 
