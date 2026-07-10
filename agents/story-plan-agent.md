@@ -166,12 +166,7 @@ Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
 After saving to todo.md, write the test strategy to a standalone file at `YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/test-strategy.md`. This file is the contract between Phase 2 (planning) and Phase 3.6 (acceptance testing). The acceptance-test-agent reads it to verify the feature works.
 
-Create the directory if it doesn't exist:
-```bash
-mkdir -p YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>
-```
-
-Write the file with this exact structure:
+Write the file (the `Write` tool creates the `tasks/stories/<STORY_ID>/` directory if it doesn't exist) with this exact structure:
 
 ```markdown
 # Test Strategy — Story #<STORY_ID>

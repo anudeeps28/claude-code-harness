@@ -1,7 +1,7 @@
 ---
 name: implement-planner-agent
 description: Planning agent for /implement. Receives the pre-planning brief from Phase 1, reads relevant files, and produces an XML task plan + test strategy.
-tools: Glob, Grep, Read, Bash
+tools: Glob, Grep, Read, Bash, Edit, Write
 model: opus
 ---
 
