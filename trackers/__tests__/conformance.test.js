@@ -24,6 +24,7 @@ const { spawnSync } = require('node:child_process');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const ADAPTERS_DIR = path.join(REPO_ROOT, 'trackers');
 const FIXTURES_BIN = path.join(__dirname, 'fixtures', 'bin');
+const FIXTURES_LOCAL_ISSUES = path.join(__dirname, 'fixtures', 'local-issues');
 const GOLDEN_DIR = path.join(__dirname, 'golden');
 
 const HAS_BASH = (() => {
@@ -99,6 +100,77 @@ function runScript(adapter, script, args, { fixtureMode, fixtureAuth, retryCount
   } finally { cleanup(root); }
 }
 
+// Local backend uses a temp tasks/issues/ dir instead of PATH-override mocks.
+function prepareLocalAdapter() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-local-'));
+  const adapterDir = path.join(tmp, 'local');
+  fs.cpSync(path.join(ADAPTERS_DIR, 'local'), adapterDir, { recursive: true });
+  fs.cpSync(path.join(ADAPTERS_DIR, 'lib'), path.join(tmp, 'lib'), { recursive: true });
+
+  // Seed fixture tasks/issues/ directory
+  const issuesDir = path.join(tmp, 'tasks', 'issues');
+  fs.mkdirSync(issuesDir, { recursive: true });
+  fs.cpSync(FIXTURES_LOCAL_ISSUES, issuesDir, { recursive: true });
+
+  // Create tasks/ dir for todo.md output
+  fs.mkdirSync(path.join(tmp, 'tasks'), { recursive: true });
+
+  return { root: tmp, adapterDir, issuesDir };
+}
+
+function runLocalScript(script, args, { issuesDir } = {}) {
+  const { root, adapterDir, issuesDir: defaultIssuesDir } = prepareLocalAdapter();
+  const effectiveIssuesDir = issuesDir || defaultIssuesDir;
+  try {
+    const env = {
+      ...process.env,
+      LOCAL_ISSUES_DIR: effectiveIssuesDir,
+      TODO_OUTPUT: path.join(root, 'tasks', 'todo.md'),
+      RETRY_BACKOFF_1: '0',
+      RETRY_BACKOFF_2: '0',
+    };
+    const result = spawnSync('bash', [path.join(adapterDir, script), ...args], {
+      encoding: 'utf8',
+      env,
+      cwd: root,
+      timeout: 15000,
+    });
+    return {
+      exitCode: result.status,
+      stdout: result.stdout || '',
+      stderr: result.stderr || '',
+      root,
+      issuesDir: effectiveIssuesDir,
+    };
+  } finally { cleanup(root); }
+}
+
+// Like runLocalScript but returns root for inspection before cleanup
+function runLocalScriptKeep(script, args) {
+  const { root, adapterDir, issuesDir } = prepareLocalAdapter();
+  const env = {
+    ...process.env,
+    LOCAL_ISSUES_DIR: issuesDir,
+    TODO_OUTPUT: path.join(root, 'tasks', 'todo.md'),
+    RETRY_BACKOFF_1: '0',
+    RETRY_BACKOFF_2: '0',
+  };
+  const result = spawnSync('bash', [path.join(adapterDir, script), ...args], {
+    encoding: 'utf8',
+    env,
+    cwd: root,
+    timeout: 15000,
+  });
+  return {
+    exitCode: result.status,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+    root,
+    issuesDir,
+    adapterDir,
+  };
+}
+
 function readGolden(adapter, name) {
   return fs.readFileSync(path.join(GOLDEN_DIR, adapter, name), 'utf8');
 }
@@ -123,6 +195,48 @@ describe('arg-validation', () => {
       assert.match(r.stderr, /\{"error":/);
     });
   }
+
+  test('local_GetIssue_NoArg_Exits1WithJsonError', () => {
+    const r = runLocalScript('get-issue.sh', []);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_CloseIssue_NoArg_Exits1WithJsonError', () => {
+    const r = runLocalScript('close-issue.sh', []);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_CreateIssue_NoArg_Exits1WithJsonError', () => {
+    const r = runLocalScript('create-issue.sh', []);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_AddLabel_NoArgs_Exits1WithJsonError', () => {
+    const r = runLocalScript('add-label.sh', []);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_RemoveLabel_NoArgs_Exits1WithJsonError', () => {
+    const r = runLocalScript('remove-label.sh', []);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_GetIssueChildren_NoArg_Exits1WithJsonError', () => {
+    const r = runLocalScript('get-issue-children.sh', []);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_GetSprintIssues_NoArg_Exits1WithJsonError', () => {
+    const r = runLocalScript('get-sprint-issues.sh', []);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
 });
 
 // ── Happy path: stdout contract ──────────────────────────────────────
@@ -163,6 +277,70 @@ describe('happy-path-stdout', () => {
     assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
     assert.match(r.stdout, /Closed work item #1234/);
   });
+
+  test('local_GetIssue_HappyPath_MatchesGoldenMarkdown', () => {
+    const r = runLocalScript('get-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.equal(normalize(r.stdout), normalize(readGolden('local', 'get-issue.happy.md')));
+  });
+
+  test('local_CloseIssue_HappyPath_ExitsZero', () => {
+    const r = runLocalScript('close-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Closed task #1234/);
+  });
+
+  test('local_CreateIssue_HappyPath_CreatesFileAndPrintsId', () => {
+    const result = runLocalScriptKeep('create-issue.sh', ['New task', 'A body', 'feature']);
+    try {
+      assert.equal(result.exitCode, 0, `non-zero exit: ${result.stderr}`);
+      assert.match(result.stdout, /1237/);
+      const newFile = path.join(result.issuesDir, '1237.md');
+      assert.ok(fs.existsSync(newFile), 'Expected 1237.md to be created');
+      const content = fs.readFileSync(newFile, 'utf8');
+      assert.match(content, /title: New task/);
+      assert.match(content, /state: open/);
+      assert.match(content, /labels: \[feature\]/);
+    } finally { cleanup(result.root); }
+  });
+
+  test('local_ListIssues_HappyPath_ReturnsOpenTasksJSON', () => {
+    const r = runLocalScript('list-issues.sh', []);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    const items = JSON.parse(r.stdout);
+    assert.ok(Array.isArray(items));
+    assert.equal(items.length, 2);
+    assert.equal(items[0].id, 1234);
+    assert.equal(items[0].state, 'open');
+    assert.equal(items[1].id, 1235);
+  });
+
+  test('local_GetIssueChildren_HappyPath_ReturnsChildren', () => {
+    const r = runLocalScript('get-issue-children.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Child Tasks for Task #1234/);
+    assert.match(r.stdout, /#1235/);
+  });
+
+  test('local_AddLabel_HappyPath_AddsLabel', () => {
+    const result = runLocalScriptKeep('add-label.sh', ['1234', 'urgent']);
+    try {
+      assert.equal(result.exitCode, 0, `non-zero exit: ${result.stderr}`);
+      assert.match(result.stdout, /Added label/);
+      const content = fs.readFileSync(path.join(result.issuesDir, '1234.md'), 'utf8');
+      assert.match(content, /urgent/);
+    } finally { cleanup(result.root); }
+  });
+
+  test('local_RemoveLabel_HappyPath_RemovesLabel', () => {
+    const result = runLocalScriptKeep('remove-label.sh', ['1234', 'feature']);
+    try {
+      assert.equal(result.exitCode, 0, `non-zero exit: ${result.stderr}`);
+      assert.match(result.stdout, /Removed label/);
+      const content = fs.readFileSync(path.join(result.issuesDir, '1234.md'), 'utf8');
+      assert.ok(!content.match(/labels:.*feature/));
+    } finally { cleanup(result.root); }
+  });
 });
 
 // ── Failure-mode contract ────────────────────────────────────────────
@@ -202,6 +380,39 @@ describe('failure-modes', () => {
     const r = runScript('todoist', 'get-issue.sh', ['1234'], { fixtureAuth: 'expired' });
     assert.equal(r.exitCode, 1);
     assert.match(r.stderr, /auth/i);
+  });
+
+  test('local_GetIssue_NotFound_Exits1WithJsonStderr', () => {
+    const r = runLocalScript('get-issue.sh', ['9999']);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_CloseIssue_AlreadyClosed_Exits1WithError', () => {
+    const r = runLocalScript('close-issue.sh', ['1236']);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /already closed/);
+  });
+
+  test('local_GetIssue_MissingDir_Exits1WithAuthError', () => {
+    // Run with a non-existent issues dir to trigger check_auth_local failure
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-local-nodir-'));
+    const adapterDir = path.join(tmp, 'local');
+    fs.cpSync(path.join(ADAPTERS_DIR, 'local'), adapterDir, { recursive: true });
+    fs.cpSync(path.join(ADAPTERS_DIR, 'lib'), path.join(tmp, 'lib'), { recursive: true });
+    try {
+      const env = {
+        ...process.env,
+        LOCAL_ISSUES_DIR: path.join(tmp, 'nonexistent'),
+        RETRY_BACKOFF_1: '0',
+        RETRY_BACKOFF_2: '0',
+      };
+      const result = spawnSync('bash', [path.join(adapterDir, 'get-issue.sh'), '1234'], {
+        encoding: 'utf8', env, cwd: tmp, timeout: 15000,
+      });
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /not found/i);
+    } finally { cleanup(tmp); }
   });
 });
 
@@ -261,7 +472,7 @@ describe('retry', () => {
 // ── Contract presence (8 task scripts, D14) ─────────────────────────
 
 describe('contract-presence', () => {
-  for (const adapter of ['ado', 'github', 'todoist']) {
+  for (const adapter of ['ado', 'github', 'todoist', 'local']) {
     test(`${adapter}_HasAllContractScripts`, () => {
       const required = [
         'get-issue.sh',
@@ -284,6 +495,7 @@ describe('contract-presence', () => {
     test(`${adapter}_AllScriptsSourceSharedLibs`, () => {
       const dir = path.join(ADAPTERS_DIR, adapter);
       for (const f of fs.readdirSync(dir)) {
+        if (!f.endsWith('.sh')) continue;
         const txt = fs.readFileSync(path.join(dir, f), 'utf8');
         assert.match(txt, /source.*lib\/retry\.sh/, `${f} must source retry.sh`);
         assert.match(txt, /source.*lib\/auth-check\.sh/, `${f} must source auth-check.sh`);

@@ -87,3 +87,13 @@ check_auth_todoist() {
     exit 1
   fi
 }
+
+check_auth_local() {
+  # Local backend has no external CLI — verify the tasks/issues/ directory exists.
+  # create-issue.sh creates it on first use; all other scripts require it.
+  local issues_dir="${LOCAL_ISSUES_DIR:-tasks/issues}"
+  if [ ! -d "$issues_dir" ]; then
+    echo "{\"error\": \"Local issues directory not found: $issues_dir. Run create-issue.sh first or create it manually.\"}" >&2
+    exit 1
+  fi
+}
