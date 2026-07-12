@@ -95,6 +95,8 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'rules/code-style.md',
     'trackers/active/get-issue.sh',
     'trackers/lib/retry.sh',
+    'code-platform/active/get-pr-review-threads.sh',
+    'code-platform/lib/retry.sh',
   ];
   for (const rel of required) {
     if (!fs.existsSync(path.join(target, rel))) {
@@ -392,7 +394,8 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
 
   const installedFiles = [];
   const { workflowPack, tracker } = manifest;
-  for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active']) {
+  const codePlatform = manifest.codePlatform || 'none';
+  for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active', 'code-platform/active']) {
     fs.mkdirSync(path.join(target, d), { recursive: true });
   }
 
@@ -404,6 +407,29 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
   if (fs.existsSync(trackerLibSrc)) {
     fs.mkdirSync(path.join(target, 'trackers/lib'), { recursive: true });
     installedFiles.push(...copyGlob(trackerLibSrc, path.join(target, 'trackers/lib'), /\.sh$/, 'trackers/lib'));
+  }
+
+  // Migrate: remove old PR scripts from trackers/active/ (now in code-platform/)
+  const oldPrScripts = ['get-pr-review-threads.sh', 'reply-pr-thread.sh', 'resolve-pr-thread.sh'];
+  for (const script of oldPrScripts) {
+    const oldPath = path.join(target, 'trackers/active', script);
+    if (fs.existsSync(oldPath)) {
+      fs.rmSync(oldPath, { force: true });
+      console.log(`    Migrated: removed trackers/active/${script} (now in code-platform/)`);
+    }
+  }
+
+  // Copy code-platform adapter
+  const codePlatformSrcDir = path.join(harnessRepoPath, 'code-platform', codePlatform);
+  if (fs.existsSync(codePlatformSrcDir)) {
+    installedFiles.push(...copyGlob(codePlatformSrcDir, path.join(target, 'code-platform/active'), /\.sh$/, 'code-platform/active'));
+    chmodExecutables(path.join(target, 'code-platform/active'));
+  }
+
+  const codePlatformLibSrc = path.join(harnessRepoPath, 'code-platform/lib');
+  if (fs.existsSync(codePlatformLibSrc)) {
+    fs.mkdirSync(path.join(target, 'code-platform/lib'), { recursive: true });
+    installedFiles.push(...copyGlob(codePlatformLibSrc, path.join(target, 'code-platform/lib'), /\.sh$/, 'code-platform/lib'));
   }
 
   const agentSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_AGENTS : null;
@@ -420,7 +446,7 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
 
   const mode = manifest.installMode || 'project';
   const substitutions = subsFromManifest(manifest, target, harnessRepoPath);
-  const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers']
+  const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform']
     .map((d) => path.join(target, d))
     .filter((d) => fs.existsSync(d));
   for (const dir of sedDirs) substituteInTree(dir, substitutions);

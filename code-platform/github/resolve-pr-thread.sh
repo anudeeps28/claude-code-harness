@@ -1,6 +1,6 @@
 #!/bin/bash
-# resolve-pr-thread.sh — GitHub PRs adapter
-# Usage: bash .claude/trackers/active/resolve-pr-thread.sh <PR_NUMBER> <THREAD_NODE_ID>
+# resolve-pr-thread.sh — GitHub code platform adapter
+# Usage: bash .claude/code-platform/active/resolve-pr-thread.sh <PR_NUMBER> <THREAD_NODE_ID>
 # Resolves a review thread. THREAD_NODE_ID is the `threadId` returned by get-pr-review-threads.sh.
 
 PR=$1

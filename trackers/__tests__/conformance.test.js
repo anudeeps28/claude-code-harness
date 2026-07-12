@@ -1,8 +1,11 @@
 // Tracker adapter conformance suite.
 //
-// Validates that each tracker adapter (ADO, GitHub) honours the contract
-// documented in trackers/README.md. New adapters (Linear, Jira, ...) must
+// Validates that each tracker adapter (ADO, GitHub, Todoist) honours the contract
+// documented in trackers/README.md. New adapters (Linear, Jira, local, ...) must
 // pass every test in this file before they're considered conformant.
+//
+// The tracker interface is 8 scripts (D14): 7 task scripts + list-issues.sh.
+// PR-review-thread scripts now live in code-platform/ (see WS1).
 //
 // Mocking strategy: PATH override. The test prepends fixtures/bin/ to PATH
 // so the adapter's `az` / `gh` invocations hit our bash stub scripts which
@@ -114,17 +117,6 @@ describe('arg-validation', () => {
       assert.match(r.stderr, /\{"error":/);
     });
 
-    test(`${adapter}_GetPrThreads_NoArg_Exits1WithJsonError`, () => {
-      const r = runScript(adapter, 'get-pr-review-threads.sh', []);
-      assert.equal(r.exitCode, 1);
-      assert.match(r.stderr, /\{"error":/);
-    });
-
-    test(`${adapter}_ReplyPrThread_MissingArgs_Exits1`, () => {
-      const r = runScript(adapter, 'reply-pr-thread.sh', ['1']);
-      assert.equal(r.exitCode, 1);
-    });
-
     test(`${adapter}_CloseIssue_NoArg_Exits1WithJsonError`, () => {
       const r = runScript(adapter, 'close-issue.sh', []);
       assert.equal(r.exitCode, 1);
@@ -170,29 +162,6 @@ describe('happy-path-stdout', () => {
     const r = runScript('ado', 'close-issue.sh', ['1234']);
     assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
     assert.match(r.stdout, /Closed work item #1234/);
-  });
-
-  test('todoist_GetPrReviewThreads_HappyPath_ReturnsEmptyArray', () => {
-    const r = runScript('todoist', 'get-pr-review-threads.sh', ['42']);
-    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
-    const parsed = JSON.parse(r.stdout);
-    assert.ok(Array.isArray(parsed), 'expected JSON array');
-    assert.equal(parsed.length, 0, 'Todoist PR threads stub must return empty array');
-  });
-
-  test('github_GetPrReviewThreads_HappyPath_ReturnsJsonArrayWithRequiredKeys', () => {
-    const r = runScript('github', 'get-pr-review-threads.sh', ['42']);
-    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
-    const parsed = JSON.parse(r.stdout);
-    assert.ok(Array.isArray(parsed), 'expected JSON array');
-    for (const t of parsed) {
-      assert.ok('id' in t, 'thread missing id');
-      assert.ok('file' in t, 'thread missing file');
-      assert.ok('line' in t, 'thread missing line');
-      assert.ok('content' in t, 'thread missing content');
-      assert.ok('author' in t, 'thread missing author');
-      assert.ok('threadId' in t, 'GitHub threads must include threadId for resolve');
-    }
   });
 });
 
@@ -289,7 +258,7 @@ describe('retry', () => {
   });
 });
 
-// ── Tracker README + lib presence ────────────────────────────────────
+// ── Contract presence (8 task scripts, D14) ─────────────────────────
 
 describe('contract-presence', () => {
   for (const adapter of ['ado', 'github', 'todoist']) {
@@ -297,11 +266,12 @@ describe('contract-presence', () => {
       const required = [
         'get-issue.sh',
         'get-issue-children.sh',
-        'get-pr-review-threads.sh',
-        'reply-pr-thread.sh',
-        'resolve-pr-thread.sh',
         'get-sprint-issues.sh',
+        'create-issue.sh',
+        'add-label.sh',
+        'remove-label.sh',
         'close-issue.sh',
+        'list-issues.sh',
       ];
       for (const f of required) {
         assert.ok(

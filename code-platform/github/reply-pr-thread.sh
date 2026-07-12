@@ -1,6 +1,6 @@
 #!/bin/bash
-# reply-pr-thread.sh — GitHub PRs adapter
-# Usage: bash .claude/trackers/active/reply-pr-thread.sh <PR_NUMBER> <COMMENT_ID> "Reply text"
+# reply-pr-thread.sh — GitHub code platform adapter
+# Usage: bash .claude/code-platform/active/reply-pr-thread.sh <PR_NUMBER> <COMMENT_ID> "Reply text"
 # Posts a reply to a specific review comment thread.
 # COMMENT_ID is the numeric `id` returned by get-pr-review-threads.sh.
 

@@ -9,18 +9,20 @@ Claude Code Kit uses a **tracker adapter layer** so that skills and agents never
 ```
 .claude/
 └── trackers/
-    └── active/          ← installed by setup.sh from your chosen adapter
+    └── active/          ← installed by the installer from your chosen adapter
         ├── get-issue.sh
         ├── get-issue-children.sh
-        ├── get-pr-review-threads.sh
-        ├── reply-pr-thread.sh
-        ├── resolve-pr-thread.sh
         ├── get-sprint-issues.sh
         ├── create-issue.sh
-        └── close-issue.sh
+        ├── add-label.sh
+        ├── remove-label.sh
+        ├── close-issue.sh
+        └── list-issues.sh
 ```
 
 Skills and agents always call `trackers/active/<script>`. The installer copies the right adapter folder there at setup time. Switching trackers means re-running the installer (or copying a different adapter folder manually).
+
+> **Note:** PR review thread scripts (`get-pr-review-threads.sh`, `reply-pr-thread.sh`, `resolve-pr-thread.sh`) have moved to the **code-platform** adapter. See `code-platform/README.md`.
 
 ---
 
@@ -36,20 +38,18 @@ Skills and agents always call `trackers/active/<script>`. The installer copies t
 
 ## Script interface
 
-Every adapter implements the same 10 scripts with identical signatures:
+Every adapter implements the same **8 scripts** with identical signatures:
 
 | Script | Args | What it returns |
 |---|---|---|
 | `get-issue.sh` | `<ID>` | Full issue/work item details (title, body, state, labels) |
 | `get-issue-children.sh` | `<ID>` | Child tasks or sub-issues for the given ID |
-| `get-pr-review-threads.sh` | `<PR_ID>` | All unresolved review threads on a PR |
-| `reply-pr-thread.sh` | `<PR_ID> <THREAD_ID> "<text>"` | Posts a reply to a review thread |
-| `resolve-pr-thread.sh` | `<PR_ID> <THREAD_ID>` | Marks a review thread as resolved |
 | `get-sprint-issues.sh` | `<SPRINT_NUMBER>` | All issues in the given sprint |
 | `create-issue.sh` | `"<title>" "<body>" "<label>"` | Creates a new issue/work item; prints the URL |
 | `add-label.sh` | `<ID> "<label>"` | Adds a label/tag to an issue/work item |
 | `remove-label.sh` | `<ID> "<label>"` | Removes a label/tag from an issue/work item |
 | `close-issue.sh` | `<ID> ["<reason>"]` | Closes/completes an issue/work item |
+| `list-issues.sh` | (none) | All open items as JSON array `[{id, title, state, labels, assignees, url}]` |
 
 ---
 
@@ -71,30 +71,6 @@ The installer fills in `YOUR_ADO_PROJECT`, `YOUR_ADO_REPO`, and `YOUR_ADO_ORG_PA
 Requires:
 - `gh` CLI: https://cli.github.com
 - Authenticated: `gh auth login`
-
-### PR review threads
-
-`get-pr-review-threads.sh` uses GraphQL to return both the numeric comment ID (needed for `reply-pr-thread.sh`) and the thread node ID (needed for `resolve-pr-thread.sh`). The output looks like:
-
-```json
-[
-  {
-    "id": 123456789,
-    "threadId": "PRRC_kwDO...",
-    "file": "src/MyService.cs",
-    "line": 42,
-    "content": "Consider null check here.",
-    "author": "coderabbitai"
-  }
-]
-```
-
-**Which ID goes where:**
-
-| Script | Pass this field | Example value |
-|---|---|---|
-| `reply-pr-thread.sh` | `id` (numeric) | `123456789` |
-| `resolve-pr-thread.sh` | `threadId` (node ID) | `PRRC_kwDO...` |
 
 ### Sprint configuration
 
@@ -136,7 +112,6 @@ Todoist doesn't have native equivalents for all GitHub/ADO concepts. The adapter
 | Sprint / Iteration | Section within a project |
 | Label | Label |
 | Milestone | Uncompletable parent task |
-| PR review threads | N/A (no-op stubs — returns empty) |
 
 ### Sprint / section mapping
 
@@ -160,20 +135,9 @@ This makes the adapter portable across macOS (Homebrew) and Linux installs witho
 
 ## Switching trackers after install
 
-Re-run the installer and choose a different tracker:
+Re-run the installer and choose a different tracker, or use:
 ```bash
-bash install/install.sh --global      # or --project /path
-```
-
-Or manually copy an adapter:
-```bash
-# Switch to GitHub
-cp trackers/github/*.sh ~/.claude/trackers/active/
-chmod +x ~/.claude/trackers/active/*.sh
-
-# Switch to Todoist
-cp trackers/todoist/*.sh ~/.claude/trackers/active/
-chmod +x ~/.claude/trackers/active/*.sh
+node install/install.js --switch-tracker <github|todoist|ado> --project /path
 ```
 
 ---
@@ -196,9 +160,10 @@ RETRY_MAX_ATTEMPTS=5 RETRY_BACKOFF_1=2 RETRY_BACKOFF_2=5 bash get-issue.sh 12345
 
 ## Adding a new adapter
 
-Create a folder under `trackers/` with all 10 scripts implementing the same interface. Each script must:
+Create a folder under `trackers/` with all 8 scripts implementing the same interface. Each script must:
 - Accept the same arguments as the interface above
 - Exit with code 0 on success, non-zero on failure
 - Print errors as `{"error": "..."}` to stderr
+- Source `../lib/retry.sh` and `../lib/auth-check.sh`
 
-Then add it as an option in `install/install.sh`.
+Then add it as an option in `install/install.js`.
