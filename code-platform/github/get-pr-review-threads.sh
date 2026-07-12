@@ -1,8 +1,8 @@
 #!/bin/bash
-# get-pr-review-threads.sh — GitHub PRs adapter
-# Usage: bash .claude/trackers/active/get-pr-review-threads.sh <PR_NUMBER>
+# get-pr-review-threads.sh — GitHub code platform adapter
+# Usage: bash .claude/code-platform/active/get-pr-review-threads.sh <PR_NUMBER>
 # Returns all unresolved inline review comments on a PR.
-# Output: JSON array [{id, file, line, body, author}]
+# Output: JSON array [{id, threadId, file, line, content, author}]
 
 PR=$1
 

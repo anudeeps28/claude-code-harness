@@ -22,12 +22,12 @@ The suite never touches a real ADO or GitHub API. Instead:
 
 ## Adding a new adapter (Linear, Jira, …)
 
-1. Create `trackers/<name>/` with all 6 contract scripts (see [trackers/README.md](../README.md) for the contract).
+1. Create `trackers/<name>/` with all 8 contract scripts (see [trackers/README.md](../README.md) for the contract).
 2. Create a stub for the adapter's CLI (e.g. `fixtures/bin/linear`) modelled after [fixtures/bin/gh](fixtures/bin/gh).
 3. Add response fixtures under [fixtures/responses/](fixtures/responses/).
 4. Add a golden file under [golden/<adapter>/get-issue.happy.md](golden/) for the expected stdout.
 5. Add the adapter to the loop in each `describe(...)` block in [conformance.test.js](conformance.test.js).
-6. Run `npm run test:trackers` — all 19 cases must pass for your adapter.
+6. Run `npm run test:trackers` — all cases must pass for your adapter.
 
 ## Adding a new test case
 

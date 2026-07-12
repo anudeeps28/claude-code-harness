@@ -1,8 +1,8 @@
 #!/bin/bash
-# get-pr-review-threads.sh — Azure DevOps adapter
-# Usage: bash .claude/trackers/active/get-pr-review-threads.sh <PR_ID>
+# get-pr-review-threads.sh — Azure Repos adapter
+# Usage: bash .claude/code-platform/active/get-pr-review-threads.sh <PR_ID>
 # Returns all active Code Rabbit threads from a PR.
-# Output: JSON array [{id, file, lineStart, lineEnd, content}]
+# Output: JSON array [{id, threadId, file, line, content, author}]
 
 ADO_PROJECT="YOUR_ADO_PROJECT"
 ADO_REPO="YOUR_ADO_REPO"
@@ -34,6 +34,11 @@ source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
 check_auth_ado
 
+# Fetch threads and map to the standard code-platform output schema:
+# {id, threadId, file, line, content, author}
+# threadId = id (ADO uses thread IDs directly for resolve/reply)
+# line = lineStart (first line of the thread context)
+# author = first comment's author displayName
 with_retry az devops invoke \
   --area git \
   --resource pullRequestThreads \
@@ -42,4 +47,4 @@ with_retry az devops invoke \
     repositoryId=$ADO_REPO \
     pullRequestId=$PR_ID \
   --api-version 7.1 \
-  --query "value[?status=='active' && comments[0].author.displayName=='Code Rabbit'].{id:id, file:threadContext.filePath, lineStart:threadContext.rightFileStart.line, lineEnd:threadContext.rightFileEnd.line, content:comments[0].content}"
+  --query "value[?status=='active' && comments[0].author.displayName=='Code Rabbit'].{id:id, threadId:to_string(id), file:threadContext.filePath, line:threadContext.rightFileStart.line, content:comments[0].content, author:comments[0].author.displayName}"

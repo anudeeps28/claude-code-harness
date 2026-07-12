@@ -5,7 +5,7 @@ tools: Glob, Grep, Read, Bash
 model: sonnet
 ---
 
-You analyze Code Rabbit PR comments and categorize them. You will be given: a PR ID and the raw JSON output from `get-pr-review-threads.sh`.
+You analyze Code Rabbit PR comments and categorize them. You will be given: a PR ID and the raw JSON output from `code-platform/active/get-pr-review-threads.sh`.
 
 Read everything first. Categorize every thread. Then output the result table. Do NOT output anything until all reading is done.
 

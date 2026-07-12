@@ -64,6 +64,7 @@ const VALUE_FLAGS = {
   '--qa-person': 'qaPerson',
   '--work-root': 'workRoot',
   '--harness-repo-path': 'harnessRepoPath',
+  '--code-platform': 'codePlatform',
 };
 const cli = {};
 
@@ -159,6 +160,7 @@ async function main() {
     ['--pack', cli.pack, ['solo', 'enterprise']],
     ['--tracker', cli.tracker, ['github', 'ado', 'todoist']],
     ['--prd-mode', cli.prdMode, ['file', 'tracker', 'both-file-canonical', 'both-tracker-canonical']],
+    ['--code-platform', cli.codePlatform, ['github', 'azure-repos', 'none']],
   ];
   for (const [flag, value, allowed] of enumFlags) {
     if (value !== undefined && !allowed.includes(value)) {
@@ -287,6 +289,33 @@ async function main() {
     tracker = trackerChoice === '2' ? 'todoist' : 'github';
   }
 
+  // ── Code platform (D3, D15) ───────────────────────────────────────────────
+  let codePlatform;
+  if (cli.codePlatform) {
+    codePlatform = cli.codePlatform;
+    console.log(`  Code platform: ${codePlatform}\n`);
+  } else if (nonInteractive) {
+    // --yes dumb rule (D3): remote URL contains github.com → github, else none
+    try {
+      const remoteResult = spawnSync('git', ['remote', 'get-url', 'origin'], {
+        cwd: projectDir || process.cwd(), encoding: 'utf8', timeout: 5000,
+      });
+      codePlatform = (remoteResult.status === 0 && remoteResult.stdout.includes('github.com'))
+        ? 'github' : 'none';
+    } catch {
+      codePlatform = 'none';
+    }
+    console.log(`  Code platform (auto-detected): ${codePlatform}\n`);
+  } else {
+    console.log('  Where do your pull requests live?\n');
+    console.log('    1) GitHub / GitHub Enterprise');
+    console.log('    2) Azure Repos');
+    console.log('    3) Nowhere / none\n');
+    const cpChoice = (await prompt('  Choice [1/2/3]: ', '1')).trim();
+    console.log('');
+    codePlatform = cpChoice === '2' ? 'azure-repos' : cpChoice === '3' ? 'none' : 'github';
+  }
+
   // ── Preflight ──────────────────────────────────────────────────────────────
   console.log('  Checking prerequisites...');
   let missing = 0;
@@ -382,7 +411,7 @@ async function main() {
 
   // ── Copy files ─────────────────────────────────────────────────────────────
   const installedFiles = [];
-  for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active']) {
+  for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active', 'code-platform/active']) {
     fs.mkdirSync(path.join(target, d), { recursive: true });
   }
 
@@ -397,6 +426,16 @@ async function main() {
   if (fs.existsSync(trackerLibSrc)) {
     fs.mkdirSync(path.join(target, 'trackers/lib'), { recursive: true });
     installedFiles.push(...copyGlob(trackerLibSrc, path.join(target, 'trackers/lib'), /\.sh$/, 'trackers/lib'));
+  }
+
+  console.log(`  Copying code platform adapter (${codePlatform})...`);
+  installedFiles.push(...copyGlob(path.join(REPO_DIR, 'code-platform', codePlatform), path.join(target, 'code-platform/active'), /\.sh$/, 'code-platform/active'));
+  chmodExecutables(path.join(target, 'code-platform/active'));
+
+  const codePlatformLibSrc = path.join(REPO_DIR, 'code-platform/lib');
+  if (fs.existsSync(codePlatformLibSrc)) {
+    fs.mkdirSync(path.join(target, 'code-platform/lib'), { recursive: true });
+    installedFiles.push(...copyGlob(codePlatformLibSrc, path.join(target, 'code-platform/lib'), /\.sh$/, 'code-platform/lib'));
   }
 
   console.log('  Copying agents...');
@@ -533,7 +572,7 @@ async function main() {
     prdMode,
   });
 
-  const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers']
+  const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform']
     .map((d) => path.join(target, d))
     .filter((d) => fs.existsSync(d));
   for (const dir of sedDirs) substituteInTree(dir, substitutions);
@@ -561,6 +600,7 @@ async function main() {
     installMode: mode,
     workflowPack,
     tracker,
+    codePlatform,
     prdMode,
     answers: {
       userName, projectName,

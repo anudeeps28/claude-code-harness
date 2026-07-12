@@ -44,7 +44,7 @@ Each loop runs Phases 1–4 in order. A loop ends after Phase 4.
 ### 1A. Fetch active threads
 
 ```bash
-bash "YOUR_PROJECT_ROOT/.claude/trackers/active/get-pr-review-threads.sh" $ARGUMENTS
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/get-pr-review-threads.sh" $ARGUMENTS
 ```
 
 If the result is `[]` or empty → say **"Zero active Code Rabbit threads on PR #$ARGUMENTS. Done!"** and stop entirely.
@@ -194,11 +194,11 @@ Do NOT post anything until YOUR_NAME says "send". If edits are given, update the
 For each approved reply item, run in sequence:
 
 ```bash
-bash "YOUR_PROJECT_ROOT/.claude/trackers/active/reply-pr-thread.sh" $ARGUMENTS <THREAD_ID> "<REPLY_TEXT>"
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/reply-pr-thread.sh" $ARGUMENTS <THREAD_ID> "<REPLY_TEXT>"
 ```
 
 ```bash
-bash "YOUR_PROJECT_ROOT/.claude/trackers/active/resolve-pr-thread.sh" $ARGUMENTS <THREAD_ID>
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/resolve-pr-thread.sh" $ARGUMENTS <THREAD_ID>
 ```
 
 After all are done, confirm: **"[Y] threads replied to and resolved."** Mark each replied thread `completed` in the `TodoWrite` list.
@@ -230,7 +230,7 @@ Do NOT proceed until YOUR_NAME says "wait" or "check now". Do NOT skip this gate
 There is nothing new for Code Rabbit to analyze. Do a final check:
 
 ```bash
-bash "YOUR_PROJECT_ROOT/.claude/trackers/active/get-pr-review-threads.sh" $ARGUMENTS
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/get-pr-review-threads.sh" $ARGUMENTS
 ```
 
 - If `[]` → **"PR #$ARGUMENTS has zero active Code Rabbit threads. All done!"**

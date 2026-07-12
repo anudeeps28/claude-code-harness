@@ -91,13 +91,14 @@ function buildSettings({ hooksUnix, sessionStartMsg: _sessionStartMsg, workRoot,
   return settings;
 }
 
-function buildManifest({ harnessVersion, installMode, workflowPack, tracker, prdMode, answers, installedFiles, now }) {
+function buildManifest({ harnessVersion, installMode, workflowPack, tracker, codePlatform, prdMode, answers, installedFiles, now }) {
   return {
     schemaVersion: 1,
     harnessVersion,
     installMode,
     workflowPack,
     tracker,
+    codePlatform: codePlatform || 'none',
     prdMode,
     answers,
     installedFiles,
