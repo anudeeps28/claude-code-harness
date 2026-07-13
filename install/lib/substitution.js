@@ -81,8 +81,12 @@ function buildSettings({ hooksUnix, sessionStartMsg: _sessionStartMsg, workRoot,
         { type: 'command', command: nodeCmd('session-start-msg.js') },
         { type: 'command', command: nodeCmd('session-context.js') },
         { type: 'command', command: nodeCmd('session-router.js') },
+        { type: 'command', command: nodeCmd('tracker-sync.js') + ' start' },
       ] }],
-      SessionEnd: [{ matcher: '*', hooks: [{ type: 'command', command: nodeCmd('session-log.js') }] }],
+      SessionEnd: [{ matcher: '*', hooks: [
+        { type: 'command', command: nodeCmd('session-log.js') },
+        { type: 'command', command: nodeCmd('tracker-sync.js') + ' end' },
+      ] }],
     },
   };
   if (isGlobal && workRoot) {
