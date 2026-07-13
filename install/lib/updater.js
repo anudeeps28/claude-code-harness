@@ -318,6 +318,59 @@ function runCheck(target, repoDir) {
   };
 }
 
+// D22-D24: Handle the first update crossing into the modes era.
+// Mutates manifest in place with the new fields; caller writes it later.
+function handleModeCrossing(manifest, target, nonInteractive) {
+  const projectRoot = path.dirname(target);
+
+  // D22: Record mode. Non-interactive defaults to "both" (existing tracker + mirror).
+  if (nonInteractive) {
+    manifest.trackerMirror = true;
+    console.log('  Mode crossing: defaulting to "both" mode (tracker + local mirror).');
+  } else {
+    // In interactive mode we'd ask, but runUpdate is currently synchronous.
+    // Default to "both" for the existing tracker (preserves old behavior where
+    // todo.md was hand-written alongside an external tracker).
+    manifest.trackerMirror = true;
+    console.log('  Mode crossing: setting trackerMirror=true (existing tracker + local mirror).');
+    console.log('  To change later, re-run the installer with --switch-tracker.');
+  }
+
+  // D23: Archive old hand-written todo.md before regeneration overwrites it.
+  const todoPath = path.join(projectRoot, 'tasks', 'todo.md');
+  const backupPath = path.join(projectRoot, 'tasks', 'todo-manual-backup.md');
+  if (fs.existsSync(todoPath) && !fs.existsSync(backupPath)) {
+    fs.renameSync(todoPath, backupPath);
+    console.log('  Archived: tasks/todo.md → tasks/todo-manual-backup.md');
+    console.log('  The next session will offer assisted item-by-item conversion.');
+  }
+
+  // D24: Detect committed task files and report (never mutate git index).
+  const managedPatterns = [
+    'tasks/issues/', 'tasks/todo.md', 'tasks/lessons.md', 'tasks/pr-queue.md',
+    'tasks/flags-and-notes.md', 'tasks/people.md', 'tasks/admin.md',
+    'tasks/tracker-config.md', 'tasks/stories/',
+  ];
+  try {
+    const result = spawnSync('git', ['ls-files', '--', ...managedPatterns], {
+      cwd: projectRoot, encoding: 'utf8', timeout: 5000,
+    });
+    if (result.status === 0 && result.stdout.trim()) {
+      const tracked = result.stdout.trim().split('\n').filter(Boolean);
+      if (tracked.length > 0) {
+        console.log('');
+        console.log('  ⚠ The following task files are tracked in git:');
+        for (const f of tracked) console.log(`    ${f}`);
+        console.log('');
+        console.log('  To untrack (keeps local copies but removes from repo):');
+        console.log(`    git rm --cached ${tracked.join(' ')}`);
+        console.log('');
+        console.log('  Warning: untracking removes these files from teammates\' clones on pull.');
+      }
+    }
+  } catch { /* non-critical — skip if git not available */ }
+}
+
 function runUpdate(target, { repoDir, cliArgs = [] }) {
   const manifestPath = path.join(target, '.harness-manifest.json');
   if (!fs.existsSync(manifestPath)) {
@@ -390,6 +443,12 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
     } else {
       console.log(`  Pulled: ${pullOut.split('\n')[0]}`);
     }
+  }
+
+  // ── Mode crossing (D22-D24): first update into the modes era ──────────────
+  const nonInteractive = cliArgs.includes('--yes') || cliArgs.includes('-y');
+  if (!('trackerMirror' in manifest)) {
+    handleModeCrossing(manifest, target, nonInteractive);
   }
 
   const installedFiles = [];
@@ -470,7 +529,7 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
     ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
     : toUnixPath(path.join(target, 'hooks'));
   const sessionStartMsg = workflowPack === 'solo'
-    ? 'SESSION START: Before doing anything else — read tasks/notes.md and tasks/plan.md'
+    ? 'SESSION START: Before doing anything else — read tasks/notes.md and tasks/todo.md'
     : 'SESSION START: Before doing anything else — read tasks/lessons.md, todo.md, pr-queue.md, and flags-and-notes.md';
   const newHarnessSettings = buildSettings({
     hooksUnix, workflowPack: workflowPack || 'solo', sessionStartMsg,
@@ -512,9 +571,9 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
 }
 
 function runSwitchTracker(target, tracker, repoDir) {
-  const VALID_TRACKERS = new Set(['github', 'todoist', 'ado', 'none']);
+  const VALID_TRACKERS = new Set(['github', 'todoist', 'ado', 'local', 'none']);
   if (!VALID_TRACKERS.has(tracker)) {
-    console.error(`  Error: Invalid tracker "${tracker}". Choose: github, todoist, ado, none`);
+    console.error(`  Error: Invalid tracker "${tracker}". Choose: github, todoist, ado, local, none`);
     process.exit(1);
   }
 
@@ -559,16 +618,35 @@ function runSwitchTracker(target, tracker, repoDir) {
   }
 
   manifest.tracker = tracker === 'none' ? null : tracker;
+  // Switching to local clears mirror; switching to external preserves it
+  if (tracker === 'local') manifest.trackerMirror = false;
   manifest.updatedAt = new Date().toISOString();
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 
   console.log(`  Tracker switched: ${oldTracker} → ${tracker}`);
 
-  const trackerConfigPath = path.join(path.dirname(target), 'tasks', 'tracker-config.md');
+  // D25: mode-switch reuses archive flow — archive old todo.md for assisted conversion
+  const projectRoot = path.dirname(target);
+  const todoPath = path.join(projectRoot, 'tasks', 'todo.md');
+  const backupPath = path.join(projectRoot, 'tasks', 'todo-manual-backup.md');
+  if (fs.existsSync(todoPath) && !fs.existsSync(backupPath)) {
+    fs.renameSync(todoPath, backupPath);
+    console.log('  Archived: tasks/todo.md → tasks/todo-manual-backup.md');
+    console.log('  Use /sync-tracker --import-backup to convert items to the new tracker.');
+  }
+
+  // Create tasks/issues/ for local mode
+  if (tracker === 'local') {
+    const issuesDir = path.join(projectRoot, 'tasks', 'issues');
+    fs.mkdirSync(issuesDir, { recursive: true });
+    console.log('  Created: tasks/issues/');
+  }
+
+  const trackerConfigPath = path.join(projectRoot, 'tasks', 'tracker-config.md');
   if (fs.existsSync(trackerConfigPath)) {
     try {
       let content = fs.readFileSync(trackerConfigPath, 'utf8');
-      const label = tracker === 'todoist' ? 'Todoist' : tracker === 'ado' ? 'ADO' : 'GitHub';
+      const label = tracker === 'todoist' ? 'Todoist' : tracker === 'ado' ? 'ADO' : tracker === 'local' ? 'Local' : 'GitHub';
       content = content.replace(/\*\*Type:\*\*\s*\[?[^\]\n]*/i, `**Type:** ${label}`);
       fs.writeFileSync(trackerConfigPath, content, 'utf8');
       console.log('  Updated tasks/tracker-config.md');

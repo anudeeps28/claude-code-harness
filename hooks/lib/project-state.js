@@ -47,10 +47,11 @@ function detectActiveTracker(projectRoot, opts) {
     const configPath = path.join(projectRoot, 'tasks', 'tracker-config.md');
     if (fs.existsSync(configPath)) {
       const content = fs.readFileSync(configPath, 'utf8');
-      const match = content.match(/\*\*Type:\*\*\s*\[?\s*(GitHub|Todoist|ADO|Azure DevOps)\s*\]?/i);
+      const match = content.match(/\*\*Type:\*\*\s*\[?\s*(GitHub|Todoist|ADO|Azure DevOps|Local)\s*\]?/i);
       if (match) {
         const raw = match[1].toLowerCase();
         if (raw === 'todoist') return 'todoist';
+        if (raw === 'local') return 'local';
         if (raw === 'github') return 'github';
         if (raw === 'ado' || raw === 'azure devops') return 'ado';
       }
@@ -160,11 +161,32 @@ function defaultFirstTodoistTaskRunner(projectRoot) {
   );
 }
 
+function defaultLocalRunner(projectRoot) {
+  const scriptPath = path.join(projectRoot || process.cwd(), '.claude', 'trackers', 'active', 'list-issues.sh');
+  return execFileSync(
+    'bash',
+    [scriptPath],
+    { encoding: 'utf8', timeout: 5000, cwd: projectRoot || process.cwd(), stdio: ['ignore', 'pipe', 'ignore'] }
+  );
+}
+
 // Probe for open issues/tasks. Returns { openIssues, trackerAvailable }.
 // Never throws — any failure yields { openIssues: null, trackerAvailable: false }.
 function detectOpenIssues(opts) {
   const options = opts || {};
   const tracker = options.activeTracker || 'github';
+
+  if (tracker === 'local') {
+    const localRunner = options.localRunner || function() { return defaultLocalRunner(options.projectRoot); };
+    try {
+      const raw = localRunner();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return { openIssues: null, trackerAvailable: false };
+      return { openIssues: parsed.length, trackerAvailable: true };
+    } catch {
+      return { openIssues: null, trackerAvailable: false };
+    }
+  }
 
   if (tracker === 'todoist') {
     const tdRunner = options.tdRunner || function() { return defaultTdRunner(options.projectRoot); };
@@ -197,6 +219,18 @@ function detectOpenIssues(opts) {
 function detectFirstOpenIssue(opts) {
   const options = opts || {};
   const tracker = options.activeTracker || 'github';
+
+  if (tracker === 'local') {
+    const runner = options.localRunner || function() { return defaultLocalRunner(options.projectRoot); };
+    try {
+      const raw = runner();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || parsed.length < 1) return null;
+      return { number: parsed[0].id, title: parsed[0].title };
+    } catch {
+      return null;
+    }
+  }
 
   if (tracker === 'todoist') {
     const runner = options.firstTodoistTaskRunner || function() { return defaultFirstTodoistTaskRunner(options.projectRoot); };
@@ -243,6 +277,13 @@ function renderGuidance(state, signals, firstIssue) {
         'Active project — open Todoist tasks detected.\n' +
         'Next: /implement "' + firstIssue.title + '"\n' +
         'Or run /plan to prioritize work before implementing.'
+      );
+    }
+    if (tracker === 'local') {
+      return (
+        'Active project — open local tasks detected.\n' +
+        'Next: /implement #' + firstIssue.number + ' (' + firstIssue.title + ')\n' +
+        'Or run /plan to break down work before implementing.'
       );
     }
     return (
@@ -317,6 +358,7 @@ function verifyTrackerAdapters(projectRoot) {
           const content = fs.readFileSync(path.join(activePath, script), 'utf8');
           if (content.includes('TODOIST_CLI') || content.includes('check_auth_todoist')) { detectedTracker = 'todoist'; break; }
           if (content.includes('check_auth_ado') || content.includes('az boards')) { detectedTracker = 'ado'; break; }
+          if (content.includes('check_auth_local')) { detectedTracker = 'local'; break; }
         } catch { /* ignore */ }
       }
       if (!detectedTracker && scripts.length > 0) detectedTracker = 'github';

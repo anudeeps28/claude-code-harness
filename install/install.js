@@ -65,6 +65,7 @@ const VALUE_FLAGS = {
   '--work-root': 'workRoot',
   '--harness-repo-path': 'harnessRepoPath',
   '--code-platform': 'codePlatform',
+  '--tracker-mirror': 'trackerMirror',
 };
 const cli = {};
 
@@ -136,6 +137,68 @@ function runUpdate(target) { return runUpdateImpl(target, { repoDir: REPO_DIR, c
 function runSwitchTracker(target, tracker) { return runSwitchTrackerImpl(target, tracker, REPO_DIR); }
 function backfillManifest(target, opts = {}) { return backfillManifestImpl(target, opts, REPO_DIR); }
 
+// ── Managed gitignore block (D4) ────────────────────────────────────────────
+const GITIGNORE_SENTINEL_START = '# >>> claude-code-harness managed — do not edit inside this block >>>';
+const GITIGNORE_SENTINEL_END = '# <<< claude-code-harness managed <<<';
+const MANAGED_GITIGNORE_ENTRIES = [
+  'tasks/issues/',
+  'tasks/todo.md',
+  'tasks/lessons.md',
+  'tasks/pr-queue.md',
+  'tasks/flags-and-notes.md',
+  'tasks/people.md',
+  'tasks/admin.md',
+  'tasks/tracker-config.md',
+  'tasks/sprint*.md',
+  'tasks/stories/',
+  'tasks/sessions*.jsonl*',
+  'tasks/metrics*.jsonl*',
+];
+
+function writeManagedGitignore(projectDir) {
+  const gitignorePath = path.join(projectDir, '.gitignore');
+  const block = [GITIGNORE_SENTINEL_START, ...MANAGED_GITIGNORE_ENTRIES, GITIGNORE_SENTINEL_END].join('\n');
+
+  let content = '';
+  if (fs.existsSync(gitignorePath)) {
+    content = fs.readFileSync(gitignorePath, 'utf8');
+  }
+
+  const startIdx = content.indexOf(GITIGNORE_SENTINEL_START);
+  const endIdx = content.indexOf(GITIGNORE_SENTINEL_END);
+
+  if (startIdx !== -1 && endIdx !== -1) {
+    // Replace existing block
+    const before = content.slice(0, startIdx);
+    const after = content.slice(endIdx + GITIGNORE_SENTINEL_END.length);
+    content = before + block + after;
+  } else {
+    // Append new block
+    const sep = content.length > 0 && !content.endsWith('\n') ? '\n\n' : content.length > 0 ? '\n' : '';
+    content = content + sep + block + '\n';
+  }
+
+  fs.writeFileSync(gitignorePath, content, 'utf8');
+  console.log('  Wrote managed .gitignore block');
+}
+
+// D28: warn if repo's own ignore rules hide the manifest
+function checkManifestIgnored(projectDir) {
+  try {
+    const result = spawnSync('git', ['check-ignore', '-v', '.claude/.harness-manifest.json'], {
+      cwd: projectDir, encoding: 'utf8', timeout: 5000,
+    });
+    if (result.status === 0 && result.stdout.trim()) {
+      const line = result.stdout.trim();
+      console.log('');
+      console.log('  ⚠ Warning: .claude/.harness-manifest.json is hidden by a gitignore rule:');
+      console.log(`    ${line}`);
+      console.log('  The manifest should be committed (it stores per-repo mode settings).');
+      console.log('  Suggested fix: ignore only .claude/settings.local.json instead of all .claude/ files.');
+    }
+  } catch { /* non-critical — skip if git not available */ }
+}
+
 function checkTool(tool, hint) {
   const res = spawnSync(`${tool} --version`, { shell: true, stdio: 'ignore' });
   if (res.status === 0) { console.log(`  [OK]      ${tool}`); return 0; }
@@ -158,7 +221,7 @@ async function main() {
   // silently installing the wrong pack/tracker.
   const enumFlags = [
     ['--pack', cli.pack, ['solo', 'enterprise']],
-    ['--tracker', cli.tracker, ['github', 'ado', 'todoist']],
+    ['--tracker', cli.tracker, ['github', 'ado', 'todoist', 'local']],
     ['--prd-mode', cli.prdMode, ['file', 'tracker', 'both-file-canonical', 'both-tracker-canonical']],
     ['--code-platform', cli.codePlatform, ['github', 'azure-repos', 'none']],
   ];
@@ -267,26 +330,53 @@ async function main() {
     workflowPack = packChoice === '2' ? 'solo' : 'enterprise';
   }
 
-  // ── Tracker ────────────────────────────────────────────────────────────────
+  // ── Task list mode (D1, D2) ─────────────────────────────────────────────
   let tracker;
+  let trackerMirror = false;
   if (cli.tracker) {
     tracker = cli.tracker;
-    console.log(`  Issue tracker: ${tracker}\n`);
-  } else if (workflowPack === 'enterprise') {
-    console.log('  Issue tracker:\n');
-    console.log('    1) Azure DevOps  (uses az devops CLI)');
-    console.log('    2) GitHub        (uses gh CLI)');
-    console.log('    3) Todoist       (uses td CLI)\n');
-    const trackerChoice = (await prompt('  Choice [1/2/3]: ', '2')).trim();
-    console.log('');
-    tracker = trackerChoice === '1' ? 'ado' : trackerChoice === '3' ? 'todoist' : 'github';
+    trackerMirror = cli.tracker !== 'local' && (cli.trackerMirror === 'true' || cli.trackerMirror === true);
+    console.log(`  Issue tracker: ${tracker}${trackerMirror ? ' (with local mirror)' : ''}\n`);
+  } else if (nonInteractive) {
+    // --yes (D2): local mode, no mirror, no accounts needed
+    tracker = 'local';
+    trackerMirror = false;
+    console.log('  Task list: local (default for non-interactive)\n');
   } else {
-    console.log('  Issue tracker:\n');
-    console.log('    1) GitHub   (uses gh CLI)');
-    console.log('    2) Todoist  (uses td CLI)\n');
-    const trackerChoice = (await prompt('  Choice [1/2]: ', '1')).trim();
+    console.log('  Where should your task list live?\n');
+    console.log('    1) Local files (recommended to start) — tasks live as markdown in');
+    console.log('       tasks/issues/, private to this machine, no accounts needed.');
+    console.log('       Great for solo work.');
+    console.log('    2) An external tracker — GitHub Issues, Azure DevOps, or Todoist.');
+    console.log('       The tracker is the single source of truth. Best when a team');
+    console.log('       shares the board.');
+    console.log('    3) Both — an external tracker as the source of truth, plus a local');
+    console.log('       todo.md mirror that the harness keeps up to date for you.\n');
+    const modeChoice = (await prompt('  Choice [1/2/3]: ', '1')).trim();
     console.log('');
-    tracker = trackerChoice === '2' ? 'todoist' : 'github';
+
+    if (modeChoice === '1') {
+      tracker = 'local';
+    } else {
+      trackerMirror = modeChoice === '3';
+      // Follow up with the existing tracker-type question
+      if (workflowPack === 'enterprise') {
+        console.log('  Which external tracker?\n');
+        console.log('    1) Azure DevOps  (uses az devops CLI)');
+        console.log('    2) GitHub        (uses gh CLI)');
+        console.log('    3) Todoist       (uses td CLI)\n');
+        const trackerChoice = (await prompt('  Choice [1/2/3]: ', '2')).trim();
+        console.log('');
+        tracker = trackerChoice === '1' ? 'ado' : trackerChoice === '3' ? 'todoist' : 'github';
+      } else {
+        console.log('  Which external tracker?\n');
+        console.log('    1) GitHub   (uses gh CLI)');
+        console.log('    2) Todoist  (uses td CLI)\n');
+        const trackerChoice = (await prompt('  Choice [1/2]: ', '1')).trim();
+        console.log('');
+        tracker = trackerChoice === '2' ? 'todoist' : 'github';
+      }
+    }
   }
 
   // ── Code platform (D3, D15) ───────────────────────────────────────────────
@@ -322,7 +412,8 @@ async function main() {
   missing += checkTool('jq', 'https://jqlang.github.io/jq/download/');
   if (tracker === 'ado') missing += checkTool('az', 'https://aka.ms/installazurecli (then: az extension add --name azure-devops)');
   else if (tracker === 'todoist') missing += checkTool('td', 'Todoist CLI — install from your package manager or see project README');
-  else missing += checkTool('gh', 'https://cli.github.com');
+  else if (tracker === 'github') missing += checkTool('gh', 'https://cli.github.com');
+  // local tracker needs no external CLI
   if (missing > 0) {
     console.error('\n  Error: Missing prerequisites above. Install them and re-run the installer.');
     process.exit(1);
@@ -478,9 +569,10 @@ async function main() {
       'tasks/stories',
     );
 
-    const taskConfigFiles = workflowPack === 'solo'
-      ? [path.join(projectDir, 'tasks/notes.md'), path.join(projectDir, 'tasks/tracker-config.md')]
-      : [path.join(projectDir, 'tasks/tracker-config.md')];
+    const taskConfigFiles = [
+      path.join(projectDir, 'tasks/notes.md'),
+      path.join(projectDir, 'tasks/tracker-config.md'),
+    ];
     for (const taskConfigFile of taskConfigFiles) {
       if (fs.existsSync(taskConfigFile)) {
         substituteInFile(taskConfigFile, [
@@ -585,7 +677,7 @@ async function main() {
     console.log('  (Backed up existing settings.json to settings.json.bak)');
   }
   const sessionStartMsg = workflowPack === 'solo'
-    ? 'SESSION START: Before doing anything else — read tasks/notes.md and tasks/plan.md'
+    ? 'SESSION START: Before doing anything else — read tasks/notes.md and tasks/todo.md'
     : 'SESSION START: Before doing anything else — read tasks/lessons.md, todo.md, pr-queue.md, and flags-and-notes.md';
 
   const settings = buildSettings({ hooksUnix, workflowPack, sessionStartMsg, workRoot, isGlobal: mode === 'global' });
@@ -600,6 +692,7 @@ async function main() {
     installMode: mode,
     workflowPack,
     tracker,
+    trackerMirror,
     codePlatform,
     prdMode,
     answers: {
@@ -615,6 +708,19 @@ async function main() {
   const manifestFile = path.join(target, '.harness-manifest.json');
   fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
   console.log('  Wrote .harness-manifest.json');
+
+  // ── Managed gitignore block (D4) ──────────────────────────────────────────
+  if (mode === 'project') {
+    writeManagedGitignore(projectDir);
+    checkManifestIgnored(projectDir);
+  }
+
+  // ── Local tracker: ensure tasks/issues/ exists ─────────────────────────────
+  if (mode === 'project' && tracker === 'local') {
+    const issuesDir = path.join(projectDir, 'tasks', 'issues');
+    fs.mkdirSync(issuesDir, { recursive: true });
+    console.log('  Created: tasks/issues/');
+  }
 
   // ── Verify ─────────────────────────────────────────────────────────────────
   verifyInstall(target, sedDirs, workflowPack);
