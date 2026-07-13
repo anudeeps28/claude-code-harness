@@ -91,8 +91,8 @@ function buildSettings({ hooksUnix, sessionStartMsg: _sessionStartMsg, workRoot,
   return settings;
 }
 
-function buildManifest({ harnessVersion, installMode, workflowPack, tracker, codePlatform, prdMode, answers, installedFiles, now }) {
-  return {
+function buildManifest({ harnessVersion, installMode, workflowPack, tracker, trackerMirror, codePlatform, prdMode, answers, installedFiles, now }) {
+  const manifest = {
     schemaVersion: 1,
     harnessVersion,
     installMode,
@@ -105,6 +105,10 @@ function buildManifest({ harnessVersion, installMode, workflowPack, tracker, cod
     installedAt: now,
     updatedAt: now,
   };
+  // trackerMirror: true only for "both" mode (external tracker + local mirror).
+  // Derivation: local → local mode; external + mirror=false → tracker mode; external + mirror=true → both mode.
+  if (trackerMirror) manifest.trackerMirror = true;
+  return manifest;
 }
 
 function subsFromManifest(manifest, target, harnessRepoPath) {

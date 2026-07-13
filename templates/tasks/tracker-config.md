@@ -8,8 +8,6 @@
 
 ## Issue Tracker
 
-**Type:** [ADO / GitHub / Todoist]
-
 **Project/Board:** [YOUR_ADO_PROJECT or GitHub repo owner/name or Todoist project name]
 
 **Sprint/Iteration naming:** [e.g. "Sprint 5"]

@@ -187,7 +187,7 @@ test('install.js --switch-tracker todoist updates manifest and copies scripts', 
     runInstallJs(['--yes', '--project', dir]);
     const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
     const before = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    assert.equal(before.tracker, 'github', 'default tracker should be github');
+    assert.equal(before.tracker, 'local', 'default tracker should be local (D2)');
 
     runInstallJs(['--switch-tracker', 'todoist', '--project', dir]);
     const after = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -322,6 +322,139 @@ test('install.sh --yes --project installs without enterprise agents', () => {
       );
     }
     assert.ok(agents.length > 0, 'should install some agents');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── WS3: Mode, gitignore, local tracker ─────────────────────────────────────
+
+test('install.js --yes defaults to tracker=local with 8 local scripts in active/', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir]);
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
+    assert.equal(manifest.tracker, 'local', 'D2: --yes defaults to local');
+    assert.strictEqual(manifest.trackerMirror, undefined, 'no mirror in local mode');
+
+    // All 8 local scripts present
+    const activeDir = path.join(dir, '.claude', 'trackers', 'active');
+    const scripts = fs.readdirSync(activeDir).filter(f => f.endsWith('.sh')).sort();
+    const expected = [
+      'add-label.sh', 'close-issue.sh', 'create-issue.sh', 'get-issue-children.sh',
+      'get-issue.sh', 'get-sprint-issues.sh', 'list-issues.sh', 'remove-label.sh',
+    ];
+    assert.deepStrictEqual(scripts, expected, 'all 8 local scripts must be in active/');
+
+    // tasks/issues/ directory created
+    assert.ok(fs.existsSync(path.join(dir, 'tasks', 'issues')), 'tasks/issues/ must exist');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --yes writes managed gitignore block, idempotent on re-install', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir]);
+    const gitignorePath = path.join(dir, '.gitignore');
+    assert.ok(fs.existsSync(gitignorePath), '.gitignore must be created');
+    const content = fs.readFileSync(gitignorePath, 'utf8');
+    assert.ok(content.includes('claude-code-harness managed'), 'sentinel must be present');
+    assert.ok(content.includes('tasks/issues/'), 'tasks/issues/ must be in block');
+    assert.ok(content.includes('tasks/todo.md'), 'tasks/todo.md must be in block');
+
+    // Re-run: block should appear exactly once
+    runInstallJs(['--yes', '--project', dir]);
+    const content2 = fs.readFileSync(gitignorePath, 'utf8');
+    const count = content2.split('claude-code-harness managed').length - 1;
+    assert.equal(count, 2, 'exactly 2 sentinel lines (start+end) after re-install');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --tracker github --yes installs github adapter', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
+    assert.equal(manifest.tracker, 'github');
+    const activeDir = path.join(dir, '.claude', 'trackers', 'active');
+    const getIssue = fs.readFileSync(path.join(activeDir, 'get-issue.sh'), 'utf8');
+    assert.ok(getIssue.includes('gh ') || getIssue.includes('check_auth_github'), 'should be github adapter');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --update crossing: old manifest gains trackerMirror, archives todo.md', () => {
+  const dir = makeTempProject();
+  try {
+    // Simulate pre-modes manifest by installing then stripping the new field
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    delete manifest.trackerMirror;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+
+    // Create a hand-written todo.md
+    const todoPath = path.join(dir, 'tasks', 'todo.md');
+    fs.mkdirSync(path.join(dir, 'tasks'), { recursive: true });
+    fs.writeFileSync(todoPath, '# My manual board\n- [ ] Task 1\n', 'utf8');
+
+    // Run update
+    runInstallJs(['--update', '--project', dir, '--skip-pull']);
+    const afterManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.strictEqual(afterManifest.trackerMirror, true, 'crossing defaults to trackerMirror=true');
+
+    // Old todo.md should be archived
+    const backupPath = path.join(dir, 'tasks', 'todo-manual-backup.md');
+    assert.ok(fs.existsSync(backupPath), 'old todo.md must be archived');
+    const backupContent = fs.readFileSync(backupPath, 'utf8');
+    assert.ok(backupContent.includes('Task 1'), 'backup must preserve original content');
+
+    // Second update: should NOT re-ask (sticky)
+    runInstallJs(['--update', '--project', dir, '--skip-pull']);
+    const afterManifest2 = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.strictEqual(afterManifest2.trackerMirror, true, 'field is sticky on subsequent updates');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --update crossing: no todo.md present → no archive, no error', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    delete manifest.trackerMirror;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+
+    // Ensure no todo.md
+    const todoPath = path.join(dir, 'tasks', 'todo.md');
+    if (fs.existsSync(todoPath)) fs.rmSync(todoPath);
+
+    // Should not throw
+    runInstallJs(['--update', '--project', dir, '--skip-pull']);
+    const afterManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.strictEqual(afterManifest.trackerMirror, true);
+    assert.ok(!fs.existsSync(path.join(dir, 'tasks', 'todo-manual-backup.md')));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js --switch-tracker local creates tasks/issues/ and sets trackerMirror=false', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    runInstallJs(['--switch-tracker', 'local', '--project', dir]);
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
+    assert.equal(manifest.tracker, 'local');
+    assert.strictEqual(manifest.trackerMirror, false, 'local mode clears mirror');
+    assert.ok(fs.existsSync(path.join(dir, 'tasks', 'issues')), 'tasks/issues/ must be created');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
