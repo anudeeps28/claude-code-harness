@@ -36,12 +36,13 @@ Use this routing table to decide which files to read. Match on keywords in the q
 | "blocker", "blocked", "stuck", "waiting on", "pending" | `tasks/flags-and-notes.md` + `tasks/people.md` (if it exists) |
 | Story number `#XXXX` | current sprint file + `tasks/pr-queue.md` |
 | "PR", "branch", "merge", "pull request" | `tasks/pr-queue.md` + current sprint file |
-| "working on", "today", "session", "todo", "what am I doing" | `tasks/todo.md` |
+| Session/today NARRATIVE: "what am I working on today", "session", "where did we leave off" | `tasks/notes.md` (D12 — session narrative; the generated `todo.md` has no Current Session section) |
+| Open WORK list: "todo", "the board", "what's on my plate" | local/both mode: the generated `tasks/todo.md`. Tracker mode (no `todo.md`): `bash .claude/trackers/active/list-issues.sh` (all open items), or `bash .claude/trackers/active/get-sprint-issues.sh <N>` for sprint scope |
 | "sprint", "story", "next story", "what's left", "backlog" | current sprint file |
 | "admin", "meeting", "email", "coordination", "non-technical" *(team mode only)* | `tasks/admin.md` |
 | "rule", "lesson", "pattern", "git", "code rabbit" | `tasks/lessons.md` |
 | "tracker", "config", "API URL", "endpoint", "environment" | `tasks/tracker-config.md` (if it exists) |
-| "overview", "status", "what's going on", "catch me up", "everything" | all available key files: flags-and-notes, current sprint, pr-queue, todo, plus people/admin if they exist |
+| "overview", "status", "what's going on", "catch me up", "everything" | all available key files: flags-and-notes, current sprint, pr-queue, plus people/admin if they exist. For open work: include `tasks/todo.md` only in local/both mode (generated dashboard/mirror); in tracker mode replace it with `bash .claude/trackers/active/list-issues.sh` |
 
 **Detecting the current sprint file:** Look for the highest-numbered `sprintN.md` file in `tasks/` (e.g. `sprint4.md`, `sprint5.md`). Never hardcode a sprint number. Use a Glob on `tasks/sprint*.md` and pick the latest.
 
@@ -50,6 +51,8 @@ Use this routing table to decide which files to read. Match on keywords in the q
 ## Step 3 — Read files (using parallel Explore agents)
 
 For each file in your routing decision, spawn an `Explore` agent via the Agent tool — one agent per file, all in parallel. This keeps raw file contents out of the main context window.
+
+Adapter-sourced reads (tracker mode's `list-issues.sh` / `get-sprint-issues.sh`) are direct Bash calls, not Explore-agent file reads. Only spawn an Explore agent for files that actually exist in the current mode — never point one at `tasks/todo.md` in tracker mode (it does not exist there).
 
 Give each agent:
 - The exact file path to read
@@ -115,9 +118,9 @@ Every update touches multiple files. Never update just one file in isolation.
 |---|---|
 | Add a blocker waiting on a person | `tasks/flags-and-notes.md` (full detail) **+** `tasks/people.md` (one-liner under that person's Waiting On) |
 | Resolve a blocker | `tasks/flags-and-notes.md` (move to Resolved) **+** `tasks/people.md` (tick off the one-liner) |
-| Story status changes (branch pushed, PR raised, merged, etc.) | current sprint file (Master Status Table) **+** `tasks/pr-queue.md` |
+| Story status changes (branch pushed, PR raised, merged, etc.) | current sprint file (Master Status Table) **+** `tasks/pr-queue.md` (both stay local in every mode, D13). When the change means the story is DONE/merged, also close the tracker item via `bash .claude/trackers/active/close-issue.sh <ID> "<reason>"` (canonical in tracker/both; in local mode this closes the task file and regenerates `todo.md`). Do not mark `todo.md` by hand. |
 | PR raised or merged | `tasks/pr-queue.md` **+** current sprint file (Master Status Table) |
-| Task completed in a session | `tasks/todo.md` (mark ✅) |
+| Task completed in a session | If it is a TRACKED task (has an issue/task ID): `bash .claude/trackers/active/close-issue.sh <ID> "<reason>"` (all modes). LOCAL mode: close-issue.sh closes the task file AND regenerates `todo.md` (it calls render-todo.sh) — do NOT also hand-edit `todo.md`. BOTH mode: close-issue.sh closes the external item but does not refresh the local mirror, so follow it with `bash .claude/trackers/lib/render-todo.sh tasks/issues`. TRACKER mode: no `todo.md`. If it is an ID-less session breadcrumb ("I finished X today"): append a line to `tasks/notes.md` (D12). NEVER mark ✅ in `todo.md` (D9). |
 | Person's involvement changes | `tasks/people.md` **+** `tasks/flags-and-notes.md` if any items are now unblocked |
 | Admin / coordination action taken | `tasks/admin.md` |
 
@@ -131,7 +134,7 @@ Every update touches multiple files. Never update just one file in isolation.
 ```
 YOUR_PROJECT_ROOT\tasks\flags-and-notes.md     ← required
 YOUR_PROJECT_ROOT\tasks\pr-queue.md            ← required
-YOUR_PROJECT_ROOT\tasks\todo.md                ← required
+YOUR_PROJECT_ROOT\tasks\todo.md                ← generated dashboard; present in local/both mode only, absent in tracker mode; never hand-edit (D9)
 YOUR_PROJECT_ROOT\tasks\lessons.md             ← required
 YOUR_PROJECT_ROOT\tasks\  ← glob sprint*.md here to find current sprint file
 
@@ -139,7 +142,7 @@ YOUR_PROJECT_ROOT\tasks\people.md              ← optional (team mode)
 YOUR_PROJECT_ROOT\tasks\admin.md               ← optional (team mode)
 YOUR_PROJECT_ROOT\tasks\tracker-config.md      ← optional (environment URLs, API endpoints)
 ```
-If optional files don't exist, skip them silently — do not error.
+If optional files don't exist, skip them silently — do not error. In tracker mode there is no `todo.md`; the open-task list comes from `bash .claude/trackers/active/list-issues.sh` instead.
 
 **Project architecture docs (ground truth):**
 ```

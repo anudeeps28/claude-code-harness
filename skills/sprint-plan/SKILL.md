@@ -4,7 +4,13 @@ description: Sprint planning — reads issues from your tracker and codebase, cr
 argument-hint: Sprint number e.g. 5
 ---
 
-**Core Philosophy:** Read the tracker and the docs before writing anything — the sprint file is a synthesis of both, not a copy-paste of ticket fields.
+**Core Philosophy:** Read the work registry and the docs before writing anything — the sprint file is a synthesis of both, not a copy-paste of ticket fields.
+
+**Mode detection (do this first):** Read `.claude/.harness-manifest.json` for the `tracker` and `trackerMirror` fields and derive the mode: `tracker === 'local'` → **local** mode; external tracker + `trackerMirror === true` → **both** mode; external tracker + no mirror → **tracker** mode. This governs where sprint candidate stories come from:
+- **tracker / both mode:** the external tracker's milestone/iteration is the source of truth and the sprint file is a synthesis of it.
+- **local mode:** the sprint file is itself canonical (D13) and `get-sprint-issues.sh` PARSES it — so on a fresh local sprint there is nothing external to pull; candidate stories come from local task files via `bash .claude/trackers/active/list-issues.sh` plus direct human authoring.
+
+In every mode the sprint file (`tasks/sprint$ARGUMENTS.md`) stays local and is never migrated to a tracker (D13).
 
 **Triggers:** "sprint planning", "plan sprint 5", "set up sprint file", "run weekly planning", "create sprint 5 file"
 
@@ -18,7 +24,9 @@ Follow these phases in order. Complete each phase fully before moving to the nex
 
 ## Phase 1: Load Standing Context
 
-Do all of these in parallel:
+These are team-pack files. The solo pack ships only `notes.md` + `tracker-config.md`, so guard each read with an existence check — if a file is absent, skip it silently rather than erroring.
+
+Do all of these in parallel (skipping any that do not exist):
 1. Read `tasks/lessons.md` — refresh all rules and known fixes
 2. Read `tasks/sprint-template.md` — this is the exact template structure for the new sprint file
 3. Read `tasks/pr-queue.md` — understand current branch and PR state going into this sprint
@@ -34,8 +42,9 @@ This is mandatory — launching them in the same message guarantees you wait for
 - It will read every file in `docs/` and return a project context summary
 
 **Agent B: `sprint-plan-tracker-reader`** (foreground)
-- Tell it the sprint number: $ARGUMENTS
-- It needs Bash permissions to call the tracker CLI
+- Tell it the sprint number: $ARGUMENTS and the mode you derived above
+- It needs Bash permissions to call the tracker adapter. Instruct it to gather sprint data via the mode-agnostic adapter `bash .claude/trackers/active/get-sprint-issues.sh $ARGUMENTS` (which routes to the correct backend, including local) rather than a raw tracker CLI.
+- In **local** mode `get-sprint-issues.sh` parses the local sprint file, so on a fresh sprint it returns nothing external — draw candidate stories from local task files via `bash .claude/trackers/active/list-issues.sh` plus direct human authoring.
 - It will return all issues in Sprint $ARGUMENTS with full details:
   title, description, acceptance criteria, story points, priority, state, and all child tasks with their descriptions
 
