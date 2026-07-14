@@ -17,14 +17,13 @@ You are the grilling interrogator. Your job is to surface weak assumptions, unre
 
 ## Step 0 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, append an in-progress breadcrumb to `tasks/notes.md` — in every pack and mode:
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
-  ```
-  - [DECIDE] /grill-me — <one-line topic from $ARGUMENTS> — started YYYY-MM-DD
-  ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+```
+- [DECIDE] /grill-me — <one-line topic from $ARGUMENTS> — started YYYY-MM-DD
+```
+
+Append it under an "In Progress" or "Current" heading (create the heading if absent). If `tasks/notes.md` is genuinely missing, skip this step silently. Never write the breadcrumb to `todo.md`.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -185,10 +184,12 @@ After writing, say:
 
 When the grilling session reaches shared understanding (Step 7 file written):
 
-- Find the in-progress entry from Step 0 in `todo.md` and mark it done:
+- Find the in-progress breadcrumb from Step 0 in `tasks/notes.md` and mark it done — in every pack and mode:
   ```
   - ✅ [DECIDE] /grill-me — <topic> — N forks resolved, output: grill-summary.md
   ```
+
+Never mark ✅ in `todo.md` — it is a generated dashboard (D9).
 
 Use the Edit tool — targeted replacement, not a rewrite.
 

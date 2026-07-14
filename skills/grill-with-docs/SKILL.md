@@ -33,14 +33,13 @@ If it does not exist:
 
 ## Step 1 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, write an in-progress breadcrumb to `tasks/notes.md` — in EVERY pack and mode. Append under an "In Progress" or "Current" heading (create one if absent):
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
-  ```
-  - [DECIDE] /grill-with-docs — <one-line topic from $ARGUMENTS> — started YYYY-MM-DD
-  ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+```
+- [DECIDE] /grill-with-docs — <one-line topic from $ARGUMENTS> — started YYYY-MM-DD
+```
+
+If `tasks/notes.md` is genuinely missing, skip this step silently. Never write the breadcrumb to `todo.md` — it is a generated dashboard.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -201,10 +200,12 @@ Do NOT propose ADRs for obvious or easily reversible decisions. When in doubt, d
 
 When the session reaches shared understanding and doc updates are done:
 
-- Find the in-progress entry from Step 1 in `todo.md` and mark it done:
+- Find the in-progress breadcrumb from Step 1 in `tasks/notes.md` and mark it done — in EVERY pack and mode:
   ```
   - ✅ [DECIDE] /grill-with-docs — <topic> — N forks resolved, CONTEXT.md updated: [yes/no], ADRs proposed: [count or "none"]
   ```
+
+Never mark ✅ in todo.md — it is a generated dashboard (D9).
 
 Use the Edit tool — targeted replacement, not a rewrite.
 

@@ -17,14 +17,13 @@ You are the architecture facilitator. Your job is to produce an ARCHITECTURE.md 
 
 ## Step 0 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, append an in-progress breadcrumb to `tasks/notes.md` in EVERY pack and mode (create an "In Progress" or "Current" heading if none exists):
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
-  ```
-  - [DEFINE] /architect — <project or feature name from $ARGUMENTS> — started YYYY-MM-DD
-  ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+```
+- [DEFINE] /architect — <project or feature name from $ARGUMENTS> — started YYYY-MM-DD
+```
+
+If `tasks/notes.md` is genuinely missing, skip this step silently. Never write the breadcrumb to `todo.md` — it is a generated dashboard.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -238,10 +237,11 @@ If the user approves, write ADR files using the template at `templates/docs/adr/
 
 ## Step 6 — Log in task files and flags-and-notes
 
-1. **`todo.md`** — mark done:
+1. **`tasks/notes.md`** — find the Step 0 breadcrumb and mark it done, in EVERY pack and mode:
    ```
    - ✅ [DEFINE] /architect — <project/feature> — 8 sections complete — output: <path>/ARCHITECTURE.md
    ```
+   Never mark ✅ in todo.md — it is a generated dashboard (D9).
 
 2. **`flags-and-notes.md`** — append to "Important Notes" or "Decisions":
    ```

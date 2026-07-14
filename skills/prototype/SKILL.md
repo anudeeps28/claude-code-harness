@@ -15,14 +15,14 @@ You are the prototyping facilitator. Your job is to create 1-3 candidate impleme
 
 ## Step 0 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, append an in-progress breadcrumb to `tasks/notes.md` — in **every pack and mode**:
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
+- Append under an "In Progress" or "Current" heading (create the heading if absent):
   ```
   - [DEFINE] /prototype — <feature name from $ARGUMENTS> — started YYYY-MM-DD
   ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+- If `tasks/notes.md` is genuinely missing, skip this step silently.
+- Never write the breadcrumb to `todo.md` — it is a generated dashboard.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -167,10 +167,11 @@ After the user picks:
 
 Mark the prototype complete:
 
-- **`todo.md`** — find the in-progress entry and update:
+- **`tasks/notes.md`** — find the in-progress breadcrumb and mark it done, in **every pack and mode**:
   ```
   - ✅ [DEFINE] /prototype — <feature> — winner: Candidate [X] "<name>" — output: _prototype/<feature>/
   ```
+  Never mark ✅ in `todo.md` — it is a generated dashboard (D9).
 
 - **`flags-and-notes.md`** — append to "Important Notes":
   ```

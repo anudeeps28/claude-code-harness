@@ -17,14 +17,14 @@ You are the research agent. Your job is to investigate an external API, integrat
 
 ## Step 0 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, write an in-progress breadcrumb to `tasks/notes.md` in EVERY pack and mode:
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
+- Append under an "In Progress" or "Current" heading (create the heading if absent):
   ```
   - [DEFINE] /research — <one-line topic from $ARGUMENTS> — started YYYY-MM-DD
   ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+- If `tasks/notes.md` is genuinely missing, skip this step silently.
+- NEVER write the breadcrumb to `todo.md` — it is a generated dashboard.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -46,12 +46,10 @@ If no topic is provided, ask: "What do you want me to research? Give me a topic 
 
 ## Step 2 — Determine output location
 
-Check which pack is in use:
+Pick where the research cache lands:
 
 - If `tasks/stories/` exists AND the user provided a story ID context: write to `tasks/stories/<id>/research.md`
-- If `tasks/todo.md` exists (enterprise pack, no story context): write to `research.md` in repo root
-- If `tasks/notes.md` exists (solo pack): write to `research.md` in repo root
-- Fallback: write to `research.md` in repo root
+- Otherwise: write to `research.md` in the repo root
 
 If `research.md` already exists at the target location, read it first — you will update it rather than overwrite.
 
@@ -195,11 +193,13 @@ After writing the file, present a brief summary:
 
 ## Step 6 — Mark complete in task files
 
-Find the in-progress entry from Step 0 in `todo.md` and mark it done:
+Find the in-progress breadcrumb from Step 0 in `tasks/notes.md` and mark it done there, in EVERY pack and mode:
 
 ```
 - ✅ [DEFINE] /research — <topic> — output: <path>/research.md — [V] verified, [C] cited, [A] assumed claims
 ```
+
+Never mark ✅ in todo.md — it is a generated dashboard (D9).
 
 Use the Edit tool — targeted replacement, not a rewrite.
 
