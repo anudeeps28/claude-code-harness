@@ -23,10 +23,10 @@ If invoked with `--report-only`, stop after step 2.
 
 ### Task files
 
-Look in `tasks/` (relative to the project root). The 7 files are:
+Look in `tasks/` (relative to the project root). In tracker mode there are only 6 task files (no `tasks/todo.md`). The files are:
 
 - `tasks/lessons.md`
-- `tasks/todo.md`
+- `tasks/todo.md` — GENERATED dashboard (local/both mode only; absent in tracker mode). Never edited directly (D9); source work-item content from the tracker adapter, not this file.
 - `tasks/pr-queue.md`
 - `tasks/flags-and-notes.md`
 - `tasks/tracker-config.md`
@@ -42,6 +42,20 @@ Also look for (all optional — skip checks for files that don't exist):
 - `docs/adr/*.md` — only files starting with `0000`-style numbers
 
 If `tasks/` does not exist or only has a subset of these files, report that and continue to artifact checks (if artifact files exist).
+
+---
+
+## Step 1.5 — Detect mode
+
+Read `.claude/.harness-manifest.json`: the `tracker` field (`github|todoist|ado|local`) and `trackerMirror`. Derive:
+
+- `tracker === 'local'` → **local mode**
+- external tracker + `trackerMirror === true` → **both mode**
+- external tracker + no mirror → **tracker mode**
+
+If no manifest, fall back to `tasks/tracker-config.md` **Type:** field or adapter detection in `.claude/trackers/active/`.
+
+Note the mode — invariants 8/9/10 branch on it (in tracker mode there is no `tasks/todo.md`).
 
 ---
 
@@ -101,19 +115,19 @@ Skip if either `PRD.md` or `ARCHITECTURE.md` does not exist.
 
 ### Invariant 8 — Architecture component not in work items (soft warning, artifact set)
 
-Extract component/service names from Mermaid diagrams in `ARCHITECTURE.md`. Check that each name appears somewhere in `tasks/todo.md`. If a component is in the architecture diagram but not referenced in any work item → soft warning.
+Extract component/service names from Mermaid diagrams in `ARCHITECTURE.md`. Check that each name appears somewhere in the work-item registry. Enumerate open items with `bash .claude/trackers/active/list-issues.sh` and, when body text is needed, read each with `bash .claude/trackers/active/get-issue.sh <id>`. Do NOT read `tasks/todo.md` — the generated dashboard contains titles only. In tracker mode this adapter path is the only source; if the adapter is unavailable, skip this soft invariant with a note. If a component is in the architecture diagram but not referenced in any work item → soft warning.
 
 Skip names shorter than 3 characters (too generic). Skip if either file does not exist.
 
 ### Invariant 9 — Work item references non-existent PRD section (soft warning, artifact set)
 
-Scan `tasks/todo.md` for PRD section references (patterns like "PRD Section 3.2", "Section 4.1", "§5.3"). For each reference, verify the numbered section exists as a heading in `PRD.md`. If the section doesn't exist → soft warning.
+Scan the work-item registry for PRD section references. Enumerate via `bash .claude/trackers/active/list-issues.sh`, then read each item body via `bash .claude/trackers/active/get-issue.sh <id>` and scan the body for patterns like "PRD Section 3.2", "Section 4.1", "§5.3". Do NOT scan `tasks/todo.md` (generated, titles-only). In tracker mode use the adapter exclusively; skip with a note if unavailable. For each reference, verify the numbered section exists as a heading in `PRD.md`. If the section doesn't exist → soft warning.
 
 Skip if either file does not exist.
 
 ### Invariant 10 — Acceptance criteria without tests (soft warning, artifact set)
 
-If `tasks/todo.md` contains `<acceptance>` blocks but no test directory exists (`tests/`, `test/`, `__tests__/`, `spec/`), warn that acceptance criteria exist but no test files were found.
+If any work item contains `<acceptance>` blocks but no test directory exists (`tests/`, `test/`, `__tests__/`, `spec/`), warn that acceptance criteria exist but no test files were found. Read item bodies via `bash .claude/trackers/active/list-issues.sh` + `bash .claude/trackers/active/get-issue.sh <id>` (local task bodies / tracker item bodies) rather than `tasks/todo.md`. In tracker mode use the adapter only; skip if unavailable.
 
 ### Invariant 11 — ADR contradicts architecture (HARD, artifact set)
 
@@ -156,8 +170,8 @@ Process drifts in this order: hard drifts first, then soft drifts. For each one:
    - For invariant 5 bad branch name: ask whether to rename in `pr-queue.md` or whether the branch is really a one-off (and the entry should be removed).
    - For invariant 6 missing brief: offer (a) create a stub `brief.md` from the template, (b) update the sprint status to `New` if the story hasn't actually started.
    - For invariant 7 (NFR gap): offer (a) add a section to ARCHITECTURE.md addressing the NFR, (b) note it as intentionally out of scope with a comment in the architecture doc.
-   - For invariant 8 (component gap): offer (a) add a work item to todo.md for the component, (b) remove the component from the architecture diagram if it's no longer needed.
-   - For invariant 9 (section mismatch): offer (a) update the section reference in todo.md to the correct section, (b) add the missing section to PRD.md.
+   - For invariant 8 (component gap): offer (a) create the work item via `bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "<labels>"` — NEVER hand-write todo.md; the renderer (trackers/lib/render-todo.sh) regenerates the dashboard, (b) remove the component from the architecture diagram if it's no longer needed.
+   - For invariant 9 (section mismatch): offer (a) update the section reference in the work item itself — local mode: edit the task body `tasks/issues/<id>.md` (then the renderer regenerates todo.md); tracker/both mode: update the tracker item body. Never edit generated todo.md, (b) add the missing section to PRD.md.
    - For invariant 11 (ADR contradiction): offer (a) update ARCHITECTURE.md to use the ADR's chosen technology, (b) supersede the ADR with a new decision record if the architecture change was intentional.
 3. **Show the exact change** — the before/after diff snippet for the file you'd Edit.
 4. **Wait for user confirmation** — `apply`, `skip`, `edit` (modify the proposal), or `stop` (abort the rest).
@@ -171,7 +185,7 @@ After all drifts are processed (or skipped), summarize: how many fixed, how many
 
 ## What not to do
 
-- Do not edit any file outside the 7 enterprise task files and the artifact files (PRD.md, ARCHITECTURE.md, docs/adr/*.md).
+- Do not edit any file outside the enterprise task files (excluding `tasks/todo.md`, which is generated-only per D9 and must never be edited directly) and the artifact files (PRD.md, ARCHITECTURE.md, docs/adr/*.md). Creating or closing work items via `.claude/trackers/active/create-issue.sh` / `close-issue.sh` is the sanctioned write path — the renderer regenerates todo.md.
 - Do not batch fixes — each one needs explicit user confirmation.
 - Do not treat placeholder template values (`[Item description]`, `(none)`, `—`, `<!-- Add rows here -->`) as drift.
 - Do not silently re-run the drift hook to check your fix worked — leave that to the next PostToolUse hook fire, or tell the user to invoke `/sync-tasks --report-only` again.

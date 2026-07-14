@@ -8,7 +8,7 @@ triggers: /to-todoist
 
 Decompose planning artifacts into Todoist tasks. Each task is an independently demoable story. Stories are grouped under milestone parent tasks and created as subtasks.
 
-Uses the `td` CLI (resolved from `$TODOIST_CLI` or `PATH`) to create tasks in Todoist. When the Todoist tracker adapter is installed (`trackers/active/` contains Todoist scripts), this skill also works through the adapter layer for standard operations.
+This skill is Todoist-specific and valid ONLY when the active tracker is Todoist (a `local` mode with `tracker=todoist` is impossible; this runs under tracker/both mode with `tracker=todoist`). It uses the `td` CLI (resolved from `$TODOIST_CLI` or `PATH`) directly — intentionally — for the milestone/subtask/priority hierarchy the generic adapter cannot express (`--uncompletable` milestone parents, `--parent` subtask nesting, `p1-p4` priorities). That is why it is kept as a separate skill rather than folded into `/to-issues`; do not "fix" it by routing through `create-issue.sh`, which would drop those capabilities.
 
 Reads from ALL available planning artifacts in the decide/define phases. No single artifact is required — uses whatever exists.
 
@@ -28,7 +28,7 @@ Reads from ALL available planning artifacts in the decide/define phases. No sing
 
 Before doing anything else:
 
-1. Check that `trackers/active/create-issue.sh` exists (Todoist adapter installed). Also verify the `td` CLI is available in PATH (or via `$TODOIST_CLI`). If neither is found, halt: *"Todoist tracker adapter not installed. Run the installer and select Todoist, or install the td CLI."*
+1. FIRST verify the active tracker actually is Todoist: read `.claude/.harness-manifest.json` `tracker` field (fallback: `tasks/tracker-config.md` **Type:**, or detect the `TODOIST_CLI`/`check_auth_todoist` marker inside `trackers/active/create-issue.sh` per `project-state.js`). If `tracker !== 'todoist'`, refuse cleanly: *"This project's active tracker is <X>, not Todoist. /to-todoist only runs when the harness tracker is 'todoist' — use /to-issues for <X>."* Only after this passes, run the secondary gates: check that `trackers/active/create-issue.sh` exists (Todoist adapter installed) and verify the `td` CLI is available in PATH (or via `$TODOIST_CLI`). If either is missing, halt: *"Todoist tracker adapter not installed. Run the installer and select Todoist, or install the td CLI."*
 2. Scan for at least ONE planning artifact (see Phase 1). If none exist, halt: *"No planning artifacts found. Run `/grill-me` to establish shared understanding first, then optionally `/research` and `/architect`."*
 3. Resolve project and section:
    - If `--project` is provided, use it.
