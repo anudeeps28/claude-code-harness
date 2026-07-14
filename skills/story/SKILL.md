@@ -124,9 +124,8 @@ Wait for it to return the XML task plan and test strategy. Output it under the h
 ### Execution plan for #$ARGUMENTS
 
 **Write the handoff contracts:**
-- Save the full plan (XML + wave summary + rationale) to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/plan.md` using the structure from the plan template.
+- Verify the plan agent saved the full plan (XML + wave summary + rationale) to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/plan.md` using the structure from the plan template. If it didn't, save it from the agent's output. This plan file — not `todo.md` — is what `/run-tasks` reads to resume execution if the session is interrupted; it lives in the always-local `tasks/stories/` workspace and works in every tracker mode.
 - Verify the test strategy was saved to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/test-strategy.md`. If it wasn't, extract the test strategy section from the plan output and save it there.
-- Verify the XML tasks were also written to `YOUR_PROJECT_ROOT/tasks/todo.md` by the plan agent. If missing, append the `<tasks story="$ARGUMENTS">` block to `todo.md`. This enables `/run-tasks` to resume execution if the session is interrupted.
 
 Then say **exactly**:
 
@@ -167,8 +166,9 @@ Say: **"[N] waves planned. Starting Wave 1."**
 
 **Seed the live progress checklist first.** Before launching Wave 1, create a `TodoWrite` list with
 one item per pending `<task>` (across all waves), using the plan's task names — so YOUR_NAME sees
-progress live and the work order is locked in before any code changes. `todo.md` stays the source of
-truth; this is its in-session mirror. See `rules/progress-tracking.md`.
+progress live and the work order is locked in before any code changes. The story plan
+(`tasks/stories/$ARGUMENTS/plan.md`) stays the source of truth; the `TodoWrite` list is its in-session
+mirror. See `rules/progress-tracking.md`.
 
 For **each wave**, in ascending group order:
 
@@ -204,7 +204,7 @@ Collect all results before proceeding.
 | 2 | "Task B" | ❌ FAIL | [error summary] |
 | 3 | "Task C" | ⚠️ BLOCKED | [who/what is needed] |
 
-**E. Update todo.md for all PASSed tasks** — mark each done with `✅` in one Edit pass. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved.
+**E. Mark PASSed tasks done in the plan** — mark each done with `✅` in `tasks/stories/$ARGUMENTS/plan.md` in one Edit pass. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved. Never hand-edit `tasks/todo.md` — it is a generated dashboard (D9), not the task plan.
 
 **E2. Update the executor state handoff:** Write/update `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the source of truth for what's been done.
 

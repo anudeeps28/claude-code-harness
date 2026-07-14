@@ -1,10 +1,10 @@
 ---
 name: run-tasks
-description: Execute XML tasks from todo.md wave by wave (Phase 3 only — no understand, no plan, no PR). Use when resuming a story that already has a task plan. Usage: /run-tasks <story-id> [--auto]
+description: Execute XML tasks from the story plan wave by wave (Phase 3 only — no understand, no plan, no PR). Use when resuming a story that already has a task plan. Usage: /run-tasks <story-id> [--auto]
 argument-hint: Story ID e.g. 9950
 ---
 
-**Core Philosophy:** Execute only — read the XML plan from todo.md and run each wave; planning and PR are /story's job.
+**Core Philosophy:** Execute only — read the XML plan from the story's `plan.md` and run each wave; planning and PR are /story's job.
 
 **Triggers:** "run tasks for #9950", "execute the task plan", "continue execution", "pick up from Phase 3", "resume wave execution"
 
@@ -14,19 +14,19 @@ Parse `$ARGUMENTS`:
 1. **Extract flags:** strip `--auto` if present. `--auto` → auto-run all waves without pausing between them (still stops on failure).
 2. **Story ID:** the remaining argument after stripping flags.
 
-You run the pending XML tasks for story **#[story ID]** from `todo.md`. No planning, no PR — just execution.
+You run the pending XML tasks for story **#[story ID]** from `tasks/stories/[story ID]/plan.md`. No planning, no PR — just execution.
 
 ---
 
 ## Step 1 — Find the task plan
 
-Read `YOUR_PROJECT_ROOT\tasks\todo.md`.
+Read `YOUR_PROJECT_ROOT\tasks\stories\$ARGUMENTS\plan.md` — the always-local story plan that `/story` and `/implement` write. It is the source of truth for the task plan in **every** tracker mode; `todo.md` is only a generated dashboard and never holds the XML plan.
 
 Search for a `<tasks story="$ARGUMENTS">` block. Extract all `<task>` elements from it. Skip any task already marked `✅`.
 
 If no `<tasks>` block exists for this story, stop immediately and say:
 
-> No XML task plan found in todo.md for #$ARGUMENTS. Run `/story $ARGUMENTS` first to generate one.
+> No XML task plan found in tasks/stories/$ARGUMENTS/plan.md for #$ARGUMENTS. Run `/story $ARGUMENTS` first to generate one.
 
 ---
 
@@ -91,8 +91,8 @@ Do NOT start execution until YOUR_NAME responds.
 **Seed the live progress checklist first.** Before launching Wave 1, create a `TodoWrite` list with
 one item per pending `<task>` (across all waves), using the task names from the plan. This gives
 YOUR_NAME live visibility and locks in the work order before any code changes. Mark the first wave's
-task(s) `in_progress` as you launch them. `todo.md` stays the source of truth — this is its in-session
-mirror. See `rules/progress-tracking.md`.
+task(s) `in_progress` as you launch them. The story plan (`tasks/stories/$ARGUMENTS/plan.md`) stays the
+source of truth — the `TodoWrite` list is its in-session mirror. See `rules/progress-tracking.md`.
 
 For **each wave**, in ascending group order:
 
@@ -132,9 +132,9 @@ For any BLOCKED task, show:
 
 | 4 | "Deploy to cloud" | ⚠️ BLOCKED | YOUR_INFRA_PERSON — must upgrade search tier |
 
-### E. Update todo.md for all PASSed tasks in this wave
+### E. Mark PASSed tasks done in the plan
 
-For each task that returned PASS: mark it done in `tasks/todo.md` by prepending `✅` to its task name line. Do all updates in one Edit pass — not one per task. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list, and mark the next wave's task(s) `in_progress`.** A FAILed or BLOCKED task stays `in_progress` until resolved.
+For each task that returned PASS: mark it done in `tasks/stories/$ARGUMENTS/plan.md` by prepending `✅` to its `<task>` name line. Do all updates in one Edit pass — not one per task. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list, and mark the next wave's task(s) `in_progress`.** A FAILed or BLOCKED task stays `in_progress` until resolved. Never hand-edit `tasks/todo.md` — it is a generated dashboard (D9), not the task plan.
 
 ### F. STOP after every wave (behavior depends on execution mode):
 
