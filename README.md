@@ -5,13 +5,13 @@
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 [![CI](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-133%20passing-success.svg)](hooks/__tests__)
+[![Tests](https://img.shields.io/badge/tests-314%20passing-success.svg)](hooks/__tests__)
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-30 skills, 17 agents, 5 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist). Install once, ship faster.
+33 skills, 17 agents, 7 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
-See [CHANGELOG.md](CHANGELOG.md) for what's in v1.0.0.
+See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
 ![Harness flow — understand, plan, execute, evaluate, PR](docs/diagrams/harness-flow.png)
 
@@ -50,7 +50,7 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 
 ### Enterprise teams
 ```
-/story 9950                 ← 5-phase story lifecycle with human gates
+/story 9950                 ← 8-phase story lifecycle with human gates
 /story 9950 --auto          ← same, but auto-run waves (pause only on failure)
 /sprint-plan 8              ← reads tracker, creates sprint file, surfaces gaps
 /babysit-pr 163             ← loops PR reviews until zero threads remain
@@ -155,12 +155,13 @@ bash claude-code-harness/install/install.sh
 ```
 
 The installer asks:
-1. **Solo or Enterprise?** — Simpler issues workflow or full sprint ceremony
-2. **Global or project?** — `~/.claude/` (all projects) or `.claude/` (one repo)
-3. **Tracker** — GitHub (solo default) or ADO + GitHub (enterprise)
-4. **PRD output mode** — File only, tracker only, or both (with canonical source choice)
+1. **Global or project?** — `~/.claude/` (all projects) or `.claude/` (one repo)
+2. **Solo or Enterprise?** — Simpler issues workflow or full sprint ceremony
+3. **Where should your task list live?** — Local files (`tasks/issues/`, no accounts needed), an external tracker as the single source of truth (GitHub or Todoist on solo; Azure DevOps, GitHub, or Todoist on enterprise), or both (external tracker plus a local `todo.md` mirror the harness keeps in sync)
+4. **Where do your pull requests live?** — GitHub / GitHub Enterprise, Azure Repos, or none. Picks the code-platform adapter, independent of the tracker.
 5. **Your details** — Name, org, project paths. Fills in all placeholders automatically.
-6. **CONTEXT.md + ADR** (project only) — Copies a domain glossary template and ADR convention to your project root.
+6. **PRD output mode** — File only, tracker only, or both (with canonical source choice)
+7. **CONTEXT.md + ADR** (project only) — Copies a domain glossary template and ADR convention to your project root.
 
 Then:
 - **Solo:** `/implement #42` or `/plan`
@@ -205,8 +206,11 @@ For installs created before v2.1, `/update-harness` runs a one-time backfill to 
 ## Prerequisites
 
 - [Claude Code](https://claude.ai/code) installed
+- `jq` — required for every install ([download](https://jqlang.github.io/jq/download/)); the tracker adapters depend on it
 - **For ADO:** `az` CLI + `az extension add --name azure-devops`
 - **For GitHub:** `gh` CLI + `gh auth login`
+- **For Todoist:** `td` CLI on your `$PATH` (or point `$TODOIST_CLI` at the binary)
+- **For local tracker:** no external CLI needed
 
 ---
 
@@ -223,7 +227,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 ### Enterprise workflow (4 skills)
 | Skill | Usage | What it does |
 |---|---|---|
-| **story** | `/story <ID>` | 5-phase story lifecycle: understand → plan → execute → evaluate → PR |
+| **story** | `/story <ID>` | 8-phase story lifecycle: understand → define goal → plan → execute → local verify → review → e2e gate → PR |
 | **sprint-plan** | `/sprint-plan <N>` | Sprint planning — reads tracker, writes sprint file, surfaces gaps |
 | **babysit-pr** | `/babysit-pr <PR>` | Drive a PR to zero review threads |
 | **run-tasks** | `/run-tasks <ID>` | Resume story execution (Phase 3 only) |
@@ -255,6 +259,9 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **triage** | `/triage <issue-id>` | Route incoming issues through a 5-state workflow with bug/enhancement categorization, reproduction attempts, and tracker label management |
 | **design-artifacts** | `/design-artifacts [all \| doc-name ...]` | Generate the project-level spec stack from ARCHITECTURE.md + PRD — database schema, API reference, sequence diagrams, data flow, deployment, dev guide, debugging guide |
 | **tdd** | `/tdd <feature or behavior>` | Strict RED-GREEN-REFACTOR cycles with vertical slicing — one behavior at a time, test first, no refactoring while RED |
+| **calibrate** | `/calibrate` | Learning effectiveness dashboard — shows how learnings are performing, promotes high-scoring ones to permanent rules, archives ineffective ones |
+| **sync-tracker** | `/sync-tracker [--dry-run]` | Reconcile merged PRs and completed work against open tracker items — closes delivered issues/tasks in GitHub, Todoist, or ADO |
+| **update-harness** | `/update-harness [--global\|--project]` | Check for and apply updates to your claude-code-harness installation — resolves target, shows changelog, applies updates with human confirmation |
 
 ---
 
@@ -280,16 +287,16 @@ Phase 1c: PLAN
 Phase 2: EXECUTE (wave by wave)
   → Same executor agent and worktree isolation as /story
   → Every <verify> runs build + relevant tests — task only ✅ when tests pass
-  → STOP 2: After each wave — "Continue?"
+  → After each wave — "Continue?" (unlabeled checkpoint — the skill has no STOP 2)
   → 3-attempt rule: 3 failures → auto-invokes /debug
 
 Phase 2.5: LOCAL VERIFICATION
   → Runs /local-test to verify full build + tests pass (stack-agnostic)
 
 Phase 3: EVALUATE + ACCEPT + PR (combined)
-  → Evaluator + acceptance-test-agent run in parallel
-  → Evaluator checks code quality, security, test coverage
-  → Acceptance tester verifies feature works as intended
+  → All four review agents run in parallel: evaluator, acceptance-test-agent, architect-reviewer-agent, security-reviewer-agent
+  → Evaluator checks code quality, test coverage, plan compliance
+  → Acceptance tester verifies the feature works as intended; architect reviewer checks architecture drift + NFRs; security reviewer checks OWASP Top 10, PHI/PII, auth, deps
   → Drafts commit messages + PR description
   → STOP 3: "Review and commit. Say 'push' when ready."
 ```
@@ -306,6 +313,10 @@ Phase 1: UNDERSTAND
   → Produces 8-point brief
   → Writes handoff contract: tasks/stories/<id>/brief.md
   → STOP 1: "Does this match your understanding?"
+
+Phase 1.5: GOAL DEFINITION
+  → Defines the e2e modality, machine-oracle check, acceptance-criteria-as-gate, and observability plan
+  → STOP 1.5: "Approve this goal, or adjust it?"
 
 Phase 2: PLAN
   → Decomposes into XML task plan with parallel groups
@@ -333,6 +344,12 @@ Phase 3.6: EVALUATION + ACCEPTANCE + ARCHITECTURE + SECURITY REVIEW (parallel)
   → Security reviewer: OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns
   → Writes handoff contracts: evaluation.md + acceptance.md + architecture-review.md + security-review.md
   → STOP 3.6: Review findings from all four — "fix" or "skip" each
+
+Phase 3.7: e2e GOAL GATE (goal-seeking)
+  → Runs the Phase 1.5 e2e gate — the terminal check that the goal is actually met end-to-end
+  → Automated modality: /local-test e2e. No machine oracle: show actual behavior via the observability plan for human sign-off
+  → Failed gate → evidence-driven re-approach (observe → compare → root-cause → fix → re-run), never a blind retry; 3 failed re-approaches → invoke /debug
+  → Blocks PR until green (or human-accepted); skipped only via the Phase 1.5 "skip gate — no runtime impact" escape hatch
 
 Phase 4: COMMIT + PR
   → Drafts atomic commit messages
@@ -377,7 +394,9 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `safety-check.js` | PreToolUse (Bash\|Write) | Blocks destructive git/file/cloud operations + Write of hardcoded secrets |
 | `catalog-trigger.js` | PostToolUse (Write/Edit) | Rebuilds SKILLS_CATALOG.md when skills change |
 | `drift-check.js` | PostToolUse (Write/Edit) | Detects cross-file drift in task files and project artifacts (PRD, ARCHITECTURE.md, ADRs) — 11 invariants covering enum consistency, cross-references, NFR coverage, ADR contradictions, and more |
+| `todo-render-trigger.js` | PostToolUse (Write/Edit) | Re-renders `tasks/todo.md` when a file under `tasks/issues/` is edited directly (local tracker mode only) |
 | `pre-compact.js` | PreCompact | Saves in-progress state before context compression |
+| `tracker-sync.js` | SessionStart + SessionEnd | Tracker sync sweep — on start, flags open items that look delivered; on end, closes items with explicit written evidence (merged PRs with closing keywords). Never auto-acts on ambiguous evidence |
 | `session-log.js` | SessionEnd | Appends session metadata to sessions.jsonl |
 
 ---
@@ -398,24 +417,34 @@ Rules in `rules/` activate only when Claude reads matching files:
 
 ## Tracker adapters
 
-Skills don't know if you use ADO or GitHub. The adapter layer abstracts it:
+Skills don't know if you use ADO, GitHub, Todoist, or the local file tracker. The adapter layer abstracts it:
 
 ```
 skill → trackers/active/get-issue.sh → ado/get-issue.sh  (or)  github/get-issue.sh
 ```
 
-Both adapters implement the same 9-script interface:
+All four tracker adapters (ADO, GitHub, Todoist, local) implement the same 8-script interface:
 - `get-issue.sh <ID>` — Returns work item details
 - `get-issue-children.sh <ID>` — Returns child tasks
-- `get-pr-review-threads.sh <PR_ID>` — Returns review threads
-- `reply-pr-thread.sh <PR_ID> <THREAD_ID> "<text>"` — Posts a reply
-- `resolve-pr-thread.sh <PR_ID> <THREAD_ID>` — Resolves a thread
 - `get-sprint-issues.sh <SPRINT_NUM>` — Returns all sprint issues
 - `create-issue.sh "<title>" "<body>" "<label>"` — Creates a new issue or work item
 - `add-label.sh <ID> "<label>"` — Adds a label/tag to an issue or work item
 - `remove-label.sh <ID> "<label>"` — Removes a label/tag from an issue or work item
+- `close-issue.sh <ID> ["<reason>"]` — Closes/completes an issue or work item
+- `list-issues.sh` — Returns all open items as a JSON array
 
-To add a new tracker (Linear, Jira): implement these 9 scripts and drop them in `trackers/your-tracker/`.
+(The GitHub adapter is a superset — it ships 15 scripts, adding project/milestone/sub-issue helpers on top of the shared 8.)
+
+To add a new tracker (Linear, Jira): implement these 8 scripts and drop them in `trackers/your-tracker/`.
+
+### Code-platform adapters (PR review)
+
+PR review thread operations live in a **separate** `code-platform/` layer, independent of the task tracker. Skills like `/babysit-pr` call `code-platform/active/<script>`. Each backend implements the same 3-script interface:
+- `get-pr-review-threads.sh <PR_ID>` — Returns unresolved review threads
+- `reply-pr-thread.sh <PR_ID> <THREAD_ID> "<text>"` — Posts a reply
+- `resolve-pr-thread.sh <PR_ID> <THREAD_ID>` — Resolves a thread
+
+Three backends ship: `github`, `azure-repos`, and `none` (fails loudly when no platform is configured).
 
 ---
 
@@ -485,11 +514,12 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 27 skills
+├── skills/           ← 33 skills
 ├── agents/           ← 17 agents (16 sub-agents + 1 main-session operator)
-├── hooks/            ← 6 automated hooks
+├── hooks/            ← 7 automated hooks
 ├── rules/            ← 5 path-scoped rules
-├── trackers/         ← ADO + GitHub adapters (6 scripts each)
+├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
+├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects
 ├── examples/         ← filled-in examples (GitHub + .NET)
 ├── install/          ← interactive installer
@@ -511,7 +541,7 @@ claude-code-harness/
 - **File-based state** — `tasks/` files are the source of truth. No database, no external service. Git-friendly, diff-friendly, human-readable.
 - **Adversarial evaluation** — The evaluator agent has a different prompt than the executor. It tries to break things, not defend them. Prevents self-evaluation bias.
 - **Model routing** — Opus for thinking, Sonnet for typing, Haiku for data gathering. Saves cost without sacrificing quality.
-- **Tracker abstraction** — Same 6-script interface for ADO and GitHub. Adding a new tracker = implementing 6 shell scripts.
+- **Tracker abstraction** — Same 8-script interface across all 4 tracker adapters (ADO, GitHub, Todoist, local). A separate `code-platform/` layer (github, azure-repos, none) handles PR review threads with its own 3-script interface. Adding a new tracker = implementing 8 shell scripts.
 
 ---
 
