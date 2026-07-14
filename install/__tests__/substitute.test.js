@@ -202,7 +202,8 @@ test('buildSettings_SessionStart_IncludesStartMsgAndRouterAndContext', () => {
   assert.ok(cmds.includes('node "/h/session-start-msg.js"'), 'session-start-msg hook present');
   assert.ok(cmds.includes('node "/h/session-context.js"'), 'session-context hook preserved');
   assert.ok(cmds.includes('node "/h/session-router.js"'), 'session-router wired');
-  assert.equal(cmds.length, 3);
+  assert.ok(cmds.includes('node "/h/tracker-sync.js" start'), 'tracker-sync start wired');
+  assert.equal(cmds.length, 4);
 });
 
 test('buildSettings_SerializesToValidJson', () => {
@@ -325,10 +326,11 @@ test('reconcileSettings_UpgradesFromSingleSessionStartToFull', () => {
   const newHarness = buildSettings({ hooksUnix: '/h', sessionStartMsg: 'hi', workRoot: '', isGlobal: false });
   const result = reconcileSettings(existing, newHarness);
   const sessionHooks = result.hooks.SessionStart[0].hooks;
-  assert.equal(sessionHooks.length, 3, 'upgraded to 3 SessionStart hooks');
+  assert.equal(sessionHooks.length, 4, 'upgraded to 4 SessionStart hooks');
   assert.ok(sessionHooks.some(h => h.command.includes('session-start-msg.js')));
   assert.ok(sessionHooks.some(h => h.command.includes('session-context.js')));
   assert.ok(sessionHooks.some(h => h.command.includes('session-router.js')));
+  assert.ok(sessionHooks.some(h => h.command.includes('tracker-sync.js')));
 });
 
 test('reconcileSettings_PreservesUserHooksOnDifferentMatcher', () => {

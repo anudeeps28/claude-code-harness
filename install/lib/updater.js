@@ -22,6 +22,7 @@ const HARNESS_HOOK_SCRIPTS = new Set([
   'session-context.js',
   'session-router.js',
   'session-log.js',
+  'tracker-sync.js',
 ]);
 
 const ENTERPRISE_ONLY_AGENTS = new Set([

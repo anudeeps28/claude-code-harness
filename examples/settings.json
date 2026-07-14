@@ -52,6 +52,10 @@
           {
             "type": "command",
             "command": "echo \"SESSION START: Before doing anything else — read tasks/lessons.md, todo.md, pr-queue.md, and flags-and-notes.md\""
+          },
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/tracker-sync.js\" start"
           }
         ]
       }
@@ -63,6 +67,10 @@
           {
             "type": "command",
             "command": "node \"/home/username/.claude/hooks/session-log.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/tracker-sync.js\" end"
           }
         ]
       }

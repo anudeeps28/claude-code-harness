@@ -25,7 +25,7 @@ function timestamp() {
 
 runHook('pre-compact', async () => {
   const root = projectRoot();
-  const tasksFile = path.join(root, 'tasks', 'todo.md');
+  const notesFile = path.join(root, 'tasks', 'notes.md');
 
   // Read tracker from manifest
   let tracker = null;
@@ -47,16 +47,18 @@ runHook('pre-compact', async () => {
     resumeSteps.unshift('- Re-read tasks/lessons.md before writing any code');
   }
 
-  if (fs.existsSync(tasksFile)) {
-    const marker = [
-      '',
-      `## ⚠️ CONTEXT COMPACTED AT ${timestamp()}`,
-      'Claude Code compacted the context window. If you are resuming after this point:',
-      ...resumeSteps,
-      '',
-    ].join('\n');
-    try { fs.appendFileSync(tasksFile, marker); } catch { /* best-effort */ }
-  }
+  // Breadcrumb goes to notes.md (D12: session narrative → notes.md), NOT todo.md
+  // (D9: nothing hand-writes todo.md — it is a generated dashboard).
+  const notesDir = path.dirname(notesFile);
+  try { fs.mkdirSync(notesDir, { recursive: true }); } catch { /* exists */ }
+  const marker = [
+    '',
+    `## ⚠️ CONTEXT COMPACTED AT ${timestamp()}`,
+    'Claude Code compacted the context window. If you are resuming after this point:',
+    ...resumeSteps,
+    '',
+  ].join('\n');
+  try { fs.appendFileSync(notesFile, marker); } catch { /* best-effort */ }
 
   const trackerNote = tracker
     ? ` Check the ${tracker} tracker for current task state.`
@@ -65,10 +67,10 @@ runHook('pre-compact', async () => {
   injectContext(
     'PreCompact',
     '⚠️ CONTEXT IS ABOUT TO BE COMPACTED. Before compaction proceeds, you must: ' +
-    '(1) Update tasks/todo.md with exactly which task you are currently in the middle of — be specific ' +
+    '(1) Update tasks/notes.md with exactly which task you are currently in the middle of — be specific ' +
     '(file, action, what is done, what is not done yet). (2) Write the current git status (any uncommitted changes). ' +
     '(3) Note any test results or errors seen.' + trackerNote +
-    ' A timestamp marker has already been appended to todo.md. ' +
+    ' A timestamp marker has already been appended to notes.md. ' +
     'Add the in-progress detail now.'
   );
 });
