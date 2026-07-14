@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>claude-code-harness — supervised AI coding with human gates</title>
+<meta name="description" content="Claude Code writes the code. The harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2F4F3;
+    --paper-2:#E9EDEB;
+    --panel:#FBFCFB;
+    --ink:#17201E;
+    --ink-60:#4A5653;
+    --ink-40:#7B8683;
+    --line:#C9D1CE;
+    --go:#0E7B46;
+    --go-soft:rgba(14,123,70,.09);
+    --stop:#C13A2E;
+    --stop-soft:rgba(193,58,46,.10);
+    --amber:#7A5A0E;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Archivo',system-ui,-apple-system,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans);
+    background:var(--paper);
+    background-image:
+      linear-gradient(rgba(23,32,30,.032) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(23,32,30,.032) 1px, transparent 1px);
+    background-size:28px 28px;
+    color:var(--ink);
+    font-size:16.5px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--go);color:#fff}
+  a{color:inherit}
+  a:hover{color:var(--go)}
+  :focus-visible{outline:2px solid var(--go);outline-offset:2px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+  /* ---------- type roles ---------- */
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;font-weight:500;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--ink-60);
+  }
+  .display{
+    font-stretch:118%;font-weight:850;line-height:.98;
+    letter-spacing:-.015em;text-transform:uppercase;
+  }
+  h2.display{font-size:clamp(28px,4.2vw,44px);margin:14px 0 18px}
+  .lede{color:var(--ink-60);max-width:60ch}
+  .mono{font-family:var(--mono)}
+
+  /* ---------- header ---------- */
+  header{
+    border-bottom:1.5px solid var(--ink);
+    background:var(--paper);
+    position:sticky;top:0;z-index:50;
+  }
+  .nav{display:flex;align-items:center;justify-content:space-between;height:58px}
+  .wordmark{font-family:var(--mono);font-weight:700;font-size:14px;text-decoration:none;display:flex;align-items:center;gap:9px}
+  .wordmark .dot{width:9px;height:9px;background:var(--go);display:inline-block}
+  .nav-links{display:flex;gap:26px;align-items:center;font-family:var(--mono);font-size:12.5px}
+  .nav-links a{text-decoration:none;color:var(--ink-60)}
+  .nav-links a:hover{color:var(--ink)}
+  .btn{
+    font-family:var(--mono);font-size:13px;font-weight:700;text-decoration:none;
+    display:inline-flex;align-items:center;gap:8px;padding:10px 18px;
+    border:1.5px solid var(--ink);color:var(--ink);background:var(--panel);
+    transition:background .15s,color .15s;cursor:pointer;
+  }
+  .btn:hover{background:var(--ink);color:var(--paper)}
+  .btn.primary{background:var(--ink);color:var(--paper)}
+  .btn.primary:hover{background:var(--go);border-color:var(--go);color:#fff}
+  .nav .btn{padding:7px 14px;font-size:12px}
+
+  /* ---------- hero ---------- */
+  .hero{padding:72px 0 84px;border-bottom:1.5px solid var(--line)}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:start}
+  h1.display{font-size:clamp(40px,5.6vw,68px);margin:16px 0 20px}
+  h1 .go-word{color:var(--go)}
+  .hero .lede{font-size:18px;margin-bottom:28px}
+  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:26px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px 18px;font-family:var(--mono);font-size:11.5px;color:var(--ink-60)}
+  .badges span::before{content:"·";margin-right:8px;color:var(--line)}
+  .badges span:first-child::before{content:""}
+
+  /* ---------- demo panel (signature) ---------- */
+  .demo{
+    border:1.5px solid var(--ink);background:var(--panel);
+    box-shadow:6px 6px 0 rgba(23,32,30,.12);
+  }
+  .demo-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 14px;border-bottom:1.5px solid var(--ink);
+    font-family:var(--mono);font-size:11.5px;background:var(--paper-2);
+  }
+  .demo-head .counter b{color:var(--go)}
+  .demo-body{padding:16px 16px 18px;font-family:var(--mono);font-size:12.5px;line-height:1.75;min-height:280px}
+  .demo-body .cmd{font-weight:700}
+  .demo-body .cmd::before{content:"$ ";color:var(--ink-40)}
+  .phase-line{color:var(--ink);font-weight:700;margin-top:10px}
+  .phase-line::before{content:"● ";color:var(--amber)}
+  .out{color:var(--ink-60);padding-left:16px}
+  .out .ok{color:var(--go);font-weight:700}
+  .you{color:var(--go);font-weight:700;padding-left:16px}
+  .done-line{color:var(--go);font-weight:700;margin-top:12px}
+  .demo-step{display:none}
+  .demo-step.on{display:block}
+  .reveal{animation:reveal .35s ease-out}
+  @keyframes reveal{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  .gate{
+    margin-top:12px;padding:10px 12px;
+    border-top:1.5px solid var(--stop);border-bottom:1.5px solid var(--stop);
+    background:repeating-linear-gradient(-45deg,var(--stop-soft) 0 8px,transparent 8px 16px);
+    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  }
+  .gate .glabel{color:var(--stop);font-weight:700}
+  .gate .glabel::before{content:"■ ";}
+  .gate-btn{
+    font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;
+    border:1.5px solid var(--go);color:var(--go);background:var(--panel);
+    padding:6px 16px;transition:background .15s,color .15s;
+  }
+  .gate-btn:hover{background:var(--go);color:#fff}
+  .gate.approved{
+    border-color:var(--go);background:var(--go-soft);
+  }
+  .gate.approved .glabel{color:var(--go)}
+  .gate.approved .glabel::before{content:"■ "}
+  .stamp{
+    font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.12em;
+    color:var(--go);border:1.5px solid var(--go);padding:3px 9px;
+    transform:rotate(-2deg);text-transform:uppercase;
+  }
+  .cursor::after{content:"▌";color:var(--go);animation:blink 1s steps(1) infinite;margin-left:2px}
+  @keyframes blink{50%{opacity:0}}
+  .replay{margin-top:12px;background:none;border:none;font-family:var(--mono);font-size:11.5px;color:var(--ink-60);cursor:pointer;text-decoration:underline;padding:0}
+  .replay:hover{color:var(--ink)}
+  .demo-foot{border-top:1.5px solid var(--line);padding:9px 14px;font-family:var(--mono);font-size:10.5px;color:var(--ink-40)}
+
+  /* ---------- sections ---------- */
+  section{padding:84px 0;border-bottom:1.5px solid var(--line)}
+  .section-head{margin-bottom:44px}
+
+  /* why */
+  .why-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+  .pain{border-left:1.5px solid var(--stop);padding:4px 0 4px 18px;margin-bottom:20px}
+  .pain b{display:block;font-weight:700;margin-bottom:2px}
+  .pain span{color:var(--ink-60);font-size:15px}
+  .answer{border:1.5px solid var(--ink);background:var(--panel);padding:26px;box-shadow:6px 6px 0 rgba(23,32,30,.12)}
+  .answer p{margin-bottom:14px}
+  .answer p:last-child{margin-bottom:0}
+  .answer .kicker{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--go);margin-bottom:12px}
+
+  /* phase rail */
+  .rail{position:relative;max-width:760px}
+  .rail::before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:1.5px;background:var(--ink)}
+  .phase{position:relative;padding:0 0 34px 44px}
+  .phase:last-child{padding-bottom:0}
+  .phase .node{
+    position:absolute;left:0;top:4px;width:19px;height:19px;border:1.5px solid var(--ink);
+    background:var(--panel);display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:9.5px;font-weight:700;
+  }
+  .phase h3{font-family:var(--mono);font-size:13.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+  .phase p{color:var(--ink-60);font-size:15px;max-width:56ch}
+  .phase .detail{font-family:var(--mono);font-size:11.5px;color:var(--ink-40);margin-top:6px}
+  .rail-gate{
+    position:relative;margin:0 0 34px 44px;padding:9px 14px;max-width:520px;
+    border-top:1.5px solid var(--stop);border-bottom:1.5px solid var(--stop);
+    background:repeating-linear-gradient(-45deg,var(--stop-soft) 0 8px,transparent 8px 16px);
+    font-family:var(--mono);font-size:12px;font-weight:700;color:var(--stop);
+  }
+  .rail-gate::before{content:"";position:absolute;left:-38px;top:50%;width:12px;height:12px;transform:translateY(-50%);background:var(--stop)}
+  .rail-note{font-size:14.5px;color:var(--ink-60);margin-top:36px;max-width:64ch}
+  .rail-note .mono{font-size:13px}
+
+  /* inside: spec plates */
+  .plates{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1.5px solid var(--ink);background:var(--panel)}
+  .plate{padding:26px 24px;border-right:1.5px solid var(--line);border-bottom:1.5px solid var(--line)}
+  .plate:nth-child(3n){border-right:none}
+  .plate:nth-child(n+4){border-bottom:none}
+  .plate .num{font-stretch:118%;font-weight:850;font-size:44px;line-height:1;letter-spacing:-.02em}
+  .plate .what{font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:8px 0 8px;color:var(--go)}
+  .plate p{font-size:14px;color:var(--ink-60)}
+  .routing{
+    margin-top:22px;border:1.5px solid var(--ink);background:var(--paper-2);
+    padding:14px 20px;display:flex;gap:10px 28px;flex-wrap:wrap;align-items:center;
+    font-family:var(--mono);font-size:12.5px;
+  }
+  .routing .r-label{font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:11px;color:var(--ink-60)}
+  .routing b{color:var(--go)}
+
+  /* commands */
+  .cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+  .cmd-col{border:1.5px solid var(--ink);background:var(--panel)}
+  .cmd-col h3{
+    font-family:var(--mono);font-size:12.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    padding:12px 18px;border-bottom:1.5px solid var(--ink);background:var(--paper-2);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .cmd-col h3 span{color:var(--ink-40);letter-spacing:0;text-transform:none;font-weight:500;font-size:11px}
+  .cmd-list{list-style:none;padding:8px 0}
+  .cmd-list li{display:flex;gap:16px;padding:9px 18px;align-items:baseline}
+  .cmd-list li+li{border-top:1px solid var(--paper-2)}
+  .cmd-list code{font-family:var(--mono);font-size:12.5px;font-weight:700;white-space:nowrap}
+  .cmd-list span{font-size:13.5px;color:var(--ink-60)}
+  .shared-intro{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-60);margin:28px 0 10px}
+  .shared{border:1.5px solid var(--line);background:var(--panel);padding:14px 20px;display:flex;gap:8px 18px;flex-wrap:wrap;align-items:baseline}
+  .shared+.shared{border-top:none}
+  .shared .s-label{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--go);margin-right:6px;min-width:150px}
+  .shared code{font-family:var(--mono);font-size:12.5px;font-weight:700}
+
+  /* decisions checklist */
+  .checklist{list-style:none;max-width:820px}
+  .checklist li{display:flex;align-items:baseline;gap:12px;padding:13px 0;border-bottom:1px dashed var(--line)}
+  .checklist .check{font-family:var(--mono);color:var(--go);font-weight:700;flex-shrink:0}
+  .checklist b{font-weight:700;white-space:nowrap}
+  .checklist .leader{flex:1;border-bottom:1.5px dotted var(--line);transform:translateY(-4px);min-width:24px}
+  .checklist span.desc{color:var(--ink-60);font-size:15px;text-align:right;max-width:46ch}
+
+  /* install */
+  .install-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:start}
+  .termbox{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);box-shadow:6px 6px 0 rgba(23,32,30,.2)}
+  .termbox-head{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid rgba(242,244,243,.2);font-family:var(--mono);font-size:11px;color:rgba(242,244,243,.55)}
+  .copy-btn{background:none;border:1px solid rgba(242,244,243,.35);color:var(--paper);font-family:var(--mono);font-size:10.5px;padding:3px 10px;cursor:pointer}
+  .copy-btn:hover{border-color:var(--paper)}
+  .termbox pre{padding:18px;font-family:var(--mono);font-size:13px;line-height:1.8;overflow-x:auto}
+  .termbox .c{color:rgba(242,244,243,.45)}
+  .asks{list-style:none;counter-reset:q}
+  .asks li{counter-increment:q;display:flex;gap:14px;padding:11px 0;border-bottom:1px dashed var(--line);font-size:15px}
+  .asks li::before{content:counter(q,decimal-leading-zero);font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--go);padding-top:3px}
+  .asks b{font-weight:700}
+  .asks span{color:var(--ink-60)}
+  .prereq{margin-top:22px;font-family:var(--mono);font-size:11.5px;color:var(--ink-40);line-height:2}
+
+  /* footer */
+  footer{padding:40px 0 56px}
+  .foot-grid{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:baseline}
+  .foot-links{display:flex;gap:22px;flex-wrap:wrap;font-family:var(--mono);font-size:12px}
+  .foot-links a{text-decoration:none;color:var(--ink-60)}
+  .foot-links a:hover{color:var(--ink)}
+  .foot-note{font-family:var(--mono);font-size:11px;color:var(--ink-40);margin-top:16px}
+
+  /* responsive */
+  @media (max-width:920px){
+    .hero-grid,.why-grid,.install-grid,.cmd-grid{grid-template-columns:1fr;gap:36px}
+    .plates{grid-template-columns:1fr 1fr}
+    .plate:nth-child(3n){border-right:1.5px solid var(--line)}
+    .plate:nth-child(2n){border-right:none}
+    .plate:nth-child(n+4){border-bottom:1.5px solid var(--line)}
+    .plate:nth-child(n+5){border-bottom:none}
+    .checklist span.desc{max-width:32ch}
+  }
+  @media (max-width:640px){
+    .nav-links a:not(.btn){display:none}
+    section,.hero{padding:56px 0}
+    .plates{grid-template-columns:1fr}
+    .plate{border-right:none !important;border-bottom:1.5px solid var(--line) !important}
+    .plate:last-child{border-bottom:none !important}
+    .checklist li{flex-wrap:wrap}
+    .checklist .leader{display:none}
+    .checklist span.desc{text-align:left;max-width:none}
+    .shared .s-label{min-width:0}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .reveal{animation:none}
+    .cursor::after{animation:none}
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="wordmark" href="#top"><span class="dot"></span>claude-code-harness</a>
+    <nav class="nav-links">
+      <a href="#why">Why</a>
+      <a href="#phases">Phases</a>
+      <a href="#inside">Inside</a>
+      <a href="#commands">Commands</a>
+      <a class="btn" href="https://github.com/anudeeps28/claude-code-harness" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ================= HERO ================= -->
+<div class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="eyebrow">anudeeps28 / claude-code-harness</p>
+      <h1 class="display">Nothing ships without your <span class="go-word">go.</span></h1>
+      <p class="lede">Claude Code writes the code. The harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it. Not an autonomous agent. A supervised one.</p>
+      <div class="hero-ctas">
+        <a class="btn primary" href="#install">Install in 2 minutes</a>
+        <a class="btn" href="https://github.com/anudeeps28/claude-code-harness" target="_blank" rel="noopener">View source ↗</a>
+      </div>
+      <div class="badges">
+        <span>MIT license</span><span>v2.0.0</span><span>Node ≥ 20</span><span>314 tests passing</span><span>Windows · macOS · Linux</span>
+      </div>
+    </div>
+
+    <!-- signature: the gated run -->
+    <div class="demo" aria-label="Simulated harness run">
+      <div class="demo-head">
+        <span>run — <b>/implement #42</b></span>
+        <span class="counter">gates passed <b id="gate-count">0</b>/3</span>
+      </div>
+      <div class="demo-body">
+        <div class="cmd">/implement #42</div>
+
+        <div class="demo-step on" id="step-1">
+          <div class="phase-line">Phase 1 · UNDERSTAND · GOAL · PLAN</div>
+          <div class="out">reading issue #42 — “add dark mode toggle”</div>
+          <div class="out">brief <span class="ok">✓</span> &nbsp;goal defined <span class="ok">✓</span> &nbsp;task plan <span class="ok">✓</span> (3 tasks · 2 waves) &nbsp;test strategy <span class="ok">✓</span></div>
+          <div class="gate" id="gate-1">
+            <span class="glabel">STOP 1 · review the plan. say go to start building.</span>
+            <button class="gate-btn" data-gate="1" data-word="go">go ↵</button>
+          </div>
+        </div>
+
+        <div class="demo-step" id="step-2">
+          <div class="you">you: go</div>
+          <div class="phase-line">Phase 2 · EXECUTE — wave 1/2 <span style="color:var(--ink-40);font-weight:400">(isolated git worktree)</span></div>
+          <div class="out">T1 ThemeContext.tsx — build + tests <span class="ok">✓</span></div>
+          <div class="out">T2 useTheme hook — build + tests <span class="ok">✓</span></div>
+          <div class="gate" id="gate-2">
+            <span class="glabel">WAVE 1 COMPLETE · continue?</span>
+            <button class="gate-btn" data-gate="2" data-word="go">go ↵</button>
+          </div>
+        </div>
+
+        <div class="demo-step" id="step-3">
+          <div class="you">you: go</div>
+          <div class="phase-line">Phase 3 · EVALUATE + ACCEPT + PR</div>
+          <div class="out">4 reviewers in parallel — evaluator <span class="ok">✓</span> · acceptance <span class="ok">✓</span> · architecture <span class="ok">✓</span> · security <span class="ok">✓</span></div>
+          <div class="out">acceptance: criteria 4/4 <span class="ok">PASS</span> · PR description drafted</div>
+          <div class="gate" id="gate-3">
+            <span class="glabel">STOP 3 · review and commit. say push when ready.</span>
+            <button class="gate-btn" data-gate="3" data-word="push">push ↵</button>
+          </div>
+        </div>
+
+        <div class="demo-step" id="step-done">
+          <div class="you">you: push</div>
+          <div class="done-line">✓ run complete — 3 human gates, full paper trail in tasks/<span class="cursor"></span></div>
+          <button class="replay" id="replay">replay run</button>
+        </div>
+      </div>
+      <div class="demo-foot">this demo is the product: every phase halts at a gate until a human says go.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= WHY ================= -->
+<section id="why">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">why it exists</p>
+      <h2 class="display">AI coding tools are powerful. Unstructured.</h2>
+    </div>
+    <div class="why-grid">
+      <div>
+        <div class="pain"><b>No plan to review.</b><span>You start a task, the model edits twelve files, and you're not sure what happened or why.</span></div>
+        <div class="pain"><b>No evaluation to catch mistakes.</b><span>Nothing checks whether the change actually matches what was asked for.</span></div>
+        <div class="pain"><b>No proof for your team.</b><span>Management doesn't trust AI-generated code because nobody can show a human approved the plan before code was written.</span></div>
+      </div>
+      <div class="answer">
+        <p class="kicker">The harness adds the structure</p>
+        <p>Every feature runs through human gates — <b>understand, goal, plan, execute, evaluate, PR</b> — and nothing advances without your explicit "go".</p>
+        <p>For teams it goes further: tracker integration, PR review loops that drive threads to zero, sprint files, and handoff contracts that leave an audit trail per story.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PHASES ================= -->
+<section id="phases">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">how a run works — /implement, solo</p>
+      <h2 class="display">Six phases. Gated end to end.</h2>
+    </div>
+
+    <div class="rail">
+      <div class="phase">
+        <span class="node">1</span>
+        <h3>Understand</h3>
+        <p>Reads the GitHub issue (or a plain-text description), maps the relevant source files, and writes a brief. Flags let you widen the front end first.</p>
+        <p class="detail">flags: --discuss (pre-plan Q&amp;A) · --research (codebase reuse scan) · --quick (skip evaluation) · --auto (run all waves) · --full (= --discuss + --research)</p>
+      </div>
+
+      <div class="phase">
+        <span class="node">1.5</span>
+        <h3>Goal definition</h3>
+        <p>Locks the acceptance bar — the definition of done — before a line of code is written. The run treats this as mandatory and never skips it.</p>
+      </div>
+      <div class="rail-gate">■ STOP 1.5 — approve the goal before any building starts.</div>
+
+      <div class="phase">
+        <span class="node">2</span>
+        <h3>Plan</h3>
+        <p>Produces an XML task plan — tasks grouped into waves — and a test strategy in one pass.</p>
+      </div>
+      <div class="rail-gate">■ STOP 1 — review the plan. say go to start building.</div>
+
+      <div class="phase">
+        <span class="node">3</span>
+        <h3>Execute, wave by wave</h3>
+        <p>Each task runs in an isolated git worktree. Every verify step runs build + relevant tests — a task is only ✓ when tests pass. Three failures on anything stops the retries and auto-invokes <span class="mono">/debug</span> for root-cause diagnosis.</p>
+      </div>
+      <div class="rail-gate">■ GATE — after every wave: continue?</div>
+
+      <div class="phase">
+        <span class="node">3.5</span>
+        <h3>Local verification</h3>
+        <p>Runs <span class="mono">/local-test</span> to confirm the full build and test suite pass. Stack-agnostic — it reads your commands from the task files.</p>
+      </div>
+
+      <div class="phase">
+        <span class="node">4</span>
+        <h3>Evaluate + accept + PR</h3>
+        <p>Four review agents run in parallel — an adversarial evaluator, an acceptance tester, an architecture reviewer, and a security reviewer. Then commit messages and a PR description are drafted.</p>
+      </div>
+      <div class="rail-gate">■ STOP 3 — review and commit. say push when ready.</div>
+    </div>
+
+    <p class="rail-note">On teams, <span class="mono">/story</span> runs the long version: an eight-phase lifecycle with handoff contracts written to disk at every step — <span class="mono">brief.md → plan.md → test-strategy.md → executor-state.md → evaluation.md → acceptance.md</span> (plus <span class="mono">architecture-review.md</span> and <span class="mono">security-review.md</span>) — so the evaluator can check work against the original plan, and anyone can audit what was approved, when, and by whom.</p>
+  </div>
+</section>
+
+<!-- ================= INSIDE ================= -->
+<section id="inside">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">what's in the box</p>
+      <h2 class="display">Install once. Ship faster.</h2>
+    </div>
+
+    <div class="plates">
+      <div class="plate"><div class="num">33</div><div class="what">Skills</div><p>Slash commands from <span class="mono">/implement</span> to <span class="mono">/improve-harness</span> — each a folder you can read, edit, and extend.</p></div>
+      <div class="plate"><div class="num">17</div><div class="what">Agents</div><p>Purpose-built sub-agents: planners, executors, an adversarial evaluator, architecture and security reviewers, PR analysts, debuggers.</p></div>
+      <div class="plate"><div class="num">5</div><div class="what">Hook events</div><p>Cross-platform Node hooks across 5 lifecycle events (11 scripts): safety checks on destructive ops, drift detection, session logs, pre-compact state saves.</p></div>
+      <div class="plate"><div class="num">5</div><div class="what">Path-scoped rules</div><p>Rules that activate only when matching files are touched — code style, testing, security, docs. Five path-scoped of eight total.</p></div>
+      <div class="plate"><div class="num">4</div><div class="what">Tracker adapters</div><p>Azure DevOps, GitHub, Todoist, and a local file-based backend behind one 8-script interface. PR review threads run through a separate 3-script <span class="mono">code-platform</span> layer (GitHub, Azure Repos, or none).</p></div>
+      <div class="plate"><div class="num">0</div><div class="what">Databases</div><p>File-based state. <span class="mono">tasks/</span> is the source of truth — git-friendly, diff-friendly, human-readable.</p></div>
+    </div>
+
+    <div class="routing">
+      <span class="r-label">Model routing</span>
+      <span><b>Opus</b> for thinking</span>
+      <span><b>Sonnet</b> for typing</span>
+      <span><b>Haiku</b> for data gathering</span>
+      <span style="color:var(--ink-40)">— quality where it matters, cost saved where it doesn't</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= COMMANDS ================= -->
+<section id="commands">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">two workflow packs</p>
+      <h2 class="display">Solo or enterprise. Same gates.</h2>
+    </div>
+
+    <div class="cmd-grid">
+      <div class="cmd-col">
+        <h3>Solo <span>simple issues workflow</span></h3>
+        <ul class="cmd-list">
+          <li><code>/implement #42</code><span>reads issue, plans, builds, evaluates, PRs</span></li>
+          <li><code>/implement "add dark mode"</code><span>no issue needed — just a description</span></li>
+          <li><code>/implement #42 --full</code><span>clarifying Q&amp;A + codebase reuse scan first</span></li>
+          <li><code>/plan</code><span>prioritize your open issues</span></li>
+        </ul>
+      </div>
+      <div class="cmd-col">
+        <h3>Enterprise <span>full sprint ceremony</span></h3>
+        <ul class="cmd-list">
+          <li><code>/story 9950</code><span>8-phase story lifecycle with human gates</span></li>
+          <li><code>/sprint-plan 8</code><span>reads tracker, writes sprint file, surfaces gaps</span></li>
+          <li><code>/babysit-pr 163</code><span>loops PR reviews until zero threads remain</span></li>
+          <li><code>/run-tasks 9950</code><span>resume story execution mid-flight</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="shared-intro">both packs also share these skills</p>
+    <div class="shared">
+      <span class="s-label">Decide / define</span>
+      <code>/grill-me</code><code>/grill-with-docs</code><code>/decision-brief</code><code>/research</code><code>/prototype</code><code>/prd</code><code>/prd-critique</code><code>/architect</code><code>/architect-critique</code><code>/design-artifacts</code><code>/to-issues</code><code>/to-todoist</code>
+    </div>
+    <div class="shared">
+      <span class="s-label">Build / verify</span>
+      <code>/evaluate</code><code>/tdd</code><code>/debug</code><code>/troubleshoot</code><code>/local-test</code><code>/deploy</code>
+    </div>
+    <div class="shared">
+      <span class="s-label">Assist / sync / learn</span>
+      <code>/pa</code><code>/sync-tasks</code><code>/sync-tracker</code><code>/triage</code><code>/zoom-out</code><code>/calibrate</code><code>/improve-harness</code><code>/improve-codebase-architecture</code><code>/update-harness</code>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DECISIONS ================= -->
+<section id="decisions">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">key design decisions</p>
+      <h2 class="display">Opinions, stated up front.</h2>
+    </div>
+    <ul class="checklist">
+      <li><span class="check">✓</span><b>Human gates everywhere</b><span class="leader"></span><span class="desc">nothing advances without an explicit "go"</span></li>
+      <li><span class="check">✓</span><b>3-attempt rule</b><span class="leader"></span><span class="desc">three failures stop the retries and invoke /debug — no infinite loops</span></li>
+      <li><span class="check">✓</span><b>Adversarial evaluation</b><span class="leader"></span><span class="desc">the evaluator tries to break the work, not defend it — no self-grading bias</span></li>
+      <li><span class="check">✓</span><b>File-based state</b><span class="leader"></span><span class="desc">no database, no external service — just markdown in your repo</span></li>
+      <li><span class="check">✓</span><b>Worktree isolation</b><span class="leader"></span><span class="desc">every task builds in its own git worktree, auto-cleaned after</span></li>
+      <li><span class="check">✓</span><b>Tracker abstraction</b><span class="leader"></span><span class="desc">skills never know if you're on ADO, GitHub, Todoist, or local — and PR review runs through a separate code-platform layer</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= INSTALL ================= -->
+<section id="install">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">quick start</p>
+      <h2 class="display">Two commands. Five questions.</h2>
+    </div>
+    <div class="install-grid">
+      <div>
+        <div class="termbox">
+          <div class="termbox-head"><span>terminal</span><button class="copy-btn" id="copy-install">copy</button></div>
+          <pre id="install-cmd">git clone https://github.com/anudeeps28/claude-code-harness
+node claude-code-harness/install/install.js
+<span class="c"># windows, macOS, linux — or install.sh on unix</span></pre>
+        </div>
+        <p class="prereq">prerequisites — Claude Code installed · GitHub: gh CLI + gh auth login · ADO: az CLI + azure-devops extension · Todoist: td CLI (or $TODOIST_CLI) · local tracker: no CLI needed</p>
+      </div>
+      <div>
+        <ul class="asks">
+          <li><div><b>Global or per-project?</b><br><span><span class="mono">~/.claude/</span> for every repo, or <span class="mono">.claude/</span> for one.</span></div></li>
+          <li><div><b>Solo or enterprise?</b><br><span>Simple issues workflow, or full sprint ceremony.</span></div></li>
+          <li><div><b>Where should your task list live?</b><br><span>Local files (default), an external tracker, or both. External is GitHub or Todoist on solo; Azure DevOps, GitHub, or Todoist on enterprise.</span></div></li>
+          <li><div><b>Where do your pull requests live?</b><br><span>GitHub / GitHub Enterprise, Azure Repos, or none.</span></div></li>
+          <li><div><b>Your details.</b><br><span>Your name and project name — org and team members on the enterprise pack.</span></div></li>
+        </ul>
+        <p style="margin-top:20px;font-size:15px;color:var(--ink-60)">Then open Claude Code and type <span class="mono" style="font-weight:700;color:var(--ink)">/implement #42</span>. The first gate is minutes away.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <a class="wordmark" href="#top"><span class="dot"></span>claude-code-harness</a>
+      <div class="foot-links">
+        <a href="https://github.com/anudeeps28/claude-code-harness" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/anudeeps28/claude-code-harness/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        <a href="https://github.com/anudeeps28/claude-code-harness/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a>
+        <a href="https://github.com/anudeeps28/claude-code-harness/blob/main/LICENSE" target="_blank" rel="noopener">MIT license</a>
+        <a href="https://x.com/anudeep_2806" target="_blank" rel="noopener">@anudeep_2806</a>
+      </div>
+    </div>
+    <p class="foot-note">An open-source harness for Claude Code. Community project — not affiliated with Anthropic.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var count = 0;
+  var counter = document.getElementById('gate-count');
+
+  function approve(gateEl, word){
+    var btn = gateEl.querySelector('.gate-btn');
+    if(btn) btn.remove();
+    gateEl.classList.add('approved');
+    var stamp = document.createElement('span');
+    stamp.className = 'stamp';
+    stamp.textContent = 'approved · ' + word;
+    gateEl.appendChild(stamp);
+    count++;
+    counter.textContent = count;
+  }
+
+  document.querySelectorAll('.gate-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var n = btn.getAttribute('data-gate');
+      var word = btn.getAttribute('data-word');
+      approve(document.getElementById('gate-' + n), word);
+      var next = (n === '3') ? document.getElementById('step-done')
+                             : document.getElementById('step-' + (parseInt(n,10)+1));
+      if(next){ next.classList.add('on','reveal'); }
+    });
+  });
+
+  document.getElementById('replay').addEventListener('click', function(){
+    location.reload();
+  });
+
+  var copyBtn = document.getElementById('copy-install');
+  copyBtn.addEventListener('click', function(){
+    var text = 'git clone https://github.com/anudeeps28/claude-code-harness\nnode claude-code-harness/install/install.js';
+    navigator.clipboard.writeText(text).then(function(){
+      copyBtn.textContent = 'copied ✓';
+      setTimeout(function(){ copyBtn.textContent = 'copy'; }, 1600);
+    });
+  });
+})();
+</script>
+</body>
+</html>
