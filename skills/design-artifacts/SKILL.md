@@ -17,14 +17,14 @@ You are the design artifacts generator. Your job is to produce the project-level
 
 ## Step 0 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, write an in-progress breadcrumb to `tasks/notes.md` in EVERY pack and mode:
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
+- Append under an "In Progress" or "Current" heading (create one if absent):
   ```
   - [DEFINE] /design-artifacts — <project name or "all docs"> — started YYYY-MM-DD
   ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+- If `tasks/notes.md` is genuinely missing, skip this step silently.
+- NEVER write the breadcrumb to todo.md.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -122,10 +122,11 @@ Work through docs one at a time. After each doc is written, report:
 
 After all selected docs are written:
 
-1. **`todo.md`** — find the in-progress entry and mark done:
+1. **`tasks/notes.md`** — find the in-progress breadcrumb and mark it done in EVERY pack/mode:
    ```
    - ✅ [DEFINE] /design-artifacts — <project> — N docs generated — output: docs/
    ```
+   Never mark ✅ in todo.md — it is a generated dashboard (D9).
 
 2. **`flags-and-notes.md`** — append to "Important Notes":
    ```

@@ -31,6 +31,17 @@ Before doing anything else:
 1. Check that `trackers/active/create-issue.sh` exists. If not, halt: *"Tracker adapter not found. Run the harness installer or add `create-issue.sh` to `.claude/trackers/active/`."*
 2. Scan for at least ONE planning artifact (see Phase 1). If none exist, halt: *"No planning artifacts found. Run `/grill-me` to establish shared understanding first, then optionally `/research` and `/architect`."*
 
+## Phase 0 — Detect active backend
+
+Read `.claude/.harness-manifest.json`:
+- `tracker` field → the active tracker backend (`github`, `local`, `todoist`, `ado`).
+
+If no manifest or no tracker configured, fall back to `tasks/tracker-config.md` `**Type:**` field or adapter script detection in `.claude/trackers/active/`.
+
+Record the backend — subsequent phases branch on it. Only Phase 6a (`create-issue.sh`) is portable across all backends; Phases 5a/5b/5c and 6b are GitHub-only and are gated below.
+
+If `tracker === 'todoist'`, add a deprecation pointer: *"This project's tracker is Todoist — prefer `/to-todoist`, which creates the Todoist milestone/subtask hierarchy. Continue only for flat issue creation."*
+
 ## Phase 1 — Read all available artifacts
 
 Read every artifact that exists. Each adds context for decomposition:
@@ -105,6 +116,8 @@ Do not proceed to Phase 5 without explicit user approval.
 
 ## Phase 5 — Setup infrastructure
 
+**GitHub-only.** `setup-labels.sh`, `create-milestone.sh`, `create-project.sh` (and `add-to-project.sh` in Phase 6) exist ONLY under `trackers/github/`. Run this phase only when `backend === 'github'` (equivalently: only run each call if the script exists in `trackers/active/`). For `local`/`todoist`/`ado`, skip label/milestone/project setup and print: *"Backend <X> has no label/milestone/project infrastructure in the standard adapter interface — skipping Phase 5; work items are created directly."*
+
 Before creating issues, set up the supporting GitHub infrastructure:
 
 ### 5a — Labels
@@ -133,11 +146,17 @@ Store the project number for adding items later. Note: requires `gh auth refresh
 
 ### 6a — Create story issues
 
-For each approved story:
+For each approved story, call `create-issue.sh` in the form that matches the backend:
 
+- **github** — keep the 5-arg form (arg4 = milestone, arg5 = project):
 ```bash
 bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>" "<milestone-name>" "<project_num>"
 ```
+- **local / ado** — 3-arg form only (arg4/arg5 are ignored, but do not rely on that):
+```bash
+bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>"
+```
+- **todoist** — 3-arg form, and NEVER pass the milestone name as arg4 (in the Todoist adapter arg4 is the SECTION slot and arg5 is PROJECT, so forwarding a milestone name silently mis-files the task). Prefer routing to `/to-todoist`.
 
 Story body format:
 ```markdown
@@ -159,11 +178,17 @@ Story body format:
 <any relevant constraints from research.md or ARCHITECTURE.md>
 ```
 
-Print each created issue (number + URL) as it's created. If creation fails, print the error and continue.
+Report where each task landed by parsing the adapter's stdout, per backend:
+- **github / todoist** — the adapter prints a URL; print the number/id + URL.
+- **local** — `create-issue.sh` prints `<id> <path>` (e.g. `7 tasks/issues/7.md`); print `task #<id> -> tasks/issues/<id>.md`.
+
+If creation fails, print the error and continue.
 
 ### 6b — Create task sub-issues (only if --with-tasks)
 
-If `--with-tasks` was specified, for each story's task list:
+**Native sub-issues are GitHub-only.** `create-sub-issue.sh` and `add-to-project.sh` exist only under `trackers/github/`. Run the steps below only when `backend === 'github'`. For `local`/`todoist`/`ado`, the 8-script adapter interface has no child-create, so create each task as a standalone work item via `create-issue.sh` (3-arg form) and note in the Phase 7 summary that tasks were created flat (no native sub-issue link). Do NOT call `add-to-project.sh` for non-github backends.
+
+If `--with-tasks` was specified (github), for each story's task list:
 
 ```bash
 bash trackers/active/create-sub-issue.sh <STORY_NUMBER> "<task title>" "<task body>" ""
@@ -204,6 +229,11 @@ bash trackers/active/add-to-project.sh <PROJECT_NUM> "<TASK_URL>"
 
 **Next step:** Run `/implement #<first-story-number>` to start building the first story.
 ```
+
+Make the summary backend-aware to match where items actually landed:
+- **github** — `Issue #N` + URL; next step `/implement #<n>`. Include the Infrastructure rows above.
+- **local** — `task #<id> (tasks/issues/<id>.md)`; next step `/implement #<id>`. Omit the Milestone/Project/Labels infrastructure rows (Phase 5 was skipped) or mark them "n/a for local backend"; if `--with-tasks` ran, note tasks were created flat (no native sub-issue link).
+- **todoist** — task URL/title; next step `/implement "<title>"`. Omit the GitHub infrastructure rows; if `--with-tasks` ran, note tasks were created flat.
 
 ## Constraints
 

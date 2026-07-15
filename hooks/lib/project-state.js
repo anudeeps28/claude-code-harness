@@ -63,15 +63,17 @@ function detectActiveTracker(projectRoot, opts) {
     const activePath = path.join(projectRoot, '.claude', 'trackers', 'active');
     if (fs.existsSync(activePath)) {
       const scripts = fs.readdirSync(activePath);
-      // Todoist adapter scripts reference td CLI; check for TODOIST_CLI marker
+      // Each backend's scripts carry a distinct check_auth_* marker (or the
+      // Todoist td-CLI reference). Match on those before defaulting to github.
       for (const script of scripts) {
         try {
           const content = fs.readFileSync(path.join(activePath, script), 'utf8');
           if (content.includes('TODOIST_CLI') || content.includes('check_auth_todoist')) return 'todoist';
           if (content.includes('check_auth_ado')) return 'ado';
+          if (content.includes('check_auth_local')) return 'local';
         } catch { /* ignore individual file errors */ }
       }
-      // Default to github if adapter scripts exist but no Todoist/ADO markers
+      // Default to github if adapter scripts exist but no Todoist/ADO/local markers
       return 'github';
     }
   } catch { /* fail-open */ }

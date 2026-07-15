@@ -1,6 +1,6 @@
 ---
 name: story-pr-agent
-description: Phase 4 of /story. Runs the Code Rabbit checklist, drafts atomic commit messages, updates todo.md and the sprint Master Status Table, and drafts the PR description.
+description: Phase 4 of /story. Runs the Code Rabbit checklist, drafts atomic commit messages, marks delivered tasks done in the story plan, closes the tracker item, updates the sprint Master Status Table, and drafts the PR description with the tracker's closing references.
 tools: Bash, Read, Edit, Glob
 model: sonnet
 ---
@@ -67,13 +67,11 @@ Rules — non-negotiable:
 
 ---
 
-## Step 5 — Update tasks/todo.md
+## Step 5 — Mark delivered tasks done in the story plan
 
-Read `YOUR_PROJECT_ROOT\tasks\todo.md`.
+Open `YOUR_PROJECT_ROOT\tasks\stories\<STORY_ID>\plan.md`. For each completed task, confirm its `<task>` line is marked `✅` (execution should have marked it during Phase 3). If any delivered task is still unmarked, prepend `✅` to its name line in one Edit pass. Do NOT change any other content.
 
-For each completed child task in the story, find its entry and mark it ✅. Do NOT change any other content.
-
-Apply the edit with the Edit tool.
+**Never edit `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry by `trackers/lib/render-todo.sh`, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. Closing the tracker item (Step 7) regenerates the board in local/both mode.
 
 ---
 
@@ -90,21 +88,28 @@ Apply the edit with the Edit tool.
 
 ---
 
-## Step 7 — Close tracker item
+## Step 7 — Close the tracker item
 
-If the story was sourced from an external tracker (the story ID maps to a GitHub issue, Todoist task, or ADO work item), close it now:
+If the story ID maps to a registry item — a **local task** in `tasks/issues/` (local mode), or a GitHub issue / Todoist task / ADO work item (tracker/both mode) — close it now:
 
 ```bash
 bash .claude/trackers/active/close-issue.sh <STORY_ID>
 ```
 
-If the script exits non-zero (e.g. tracker not configured, auth expired, or already closed), log a warning but do NOT fail the PR preparation. The PR is the primary deliverable; tracker sync is best-effort.
+`close-issue.sh` is the same call in every mode: the active backend (local / github / todoist / ado) knows how to close its own item, and in local/both mode the todo.md dashboard regenerates automatically afterward.
 
-If the story was not sourced from a tracker (no numeric ID, or the ID doesn't match a tracker item), skip this step silently.
+If the script exits non-zero (e.g. tracker not configured, auth expired, or already closed), log a warning but do NOT fail the PR preparation. The PR is the primary deliverable; tracker sync is best-effort — and the merged PR's closing references (Step 8) are the durable record the sweep hook acts on.
+
+If the story is not tracked (no numeric ID, or the ID doesn't match any registry item), skip this step silently.
 
 ---
 
 ## Step 8 — Draft PR description
+
+First determine the **tracker mode** from `.claude/.harness-manifest.json`: `tracker: "local"` → **local mode**; any other tracker → **tracker/both mode**. This decides how the PR closes its work item when it merges (the sweep hook `tracker-sync.js` reads these references from the merged PR body, D21):
+
+- **Local mode:** end the PR body with an anchored git-trailer line `Task: <STORY_ID>` — one line per delivered local task (the story, plus any child task IDs that are local registry items). The line must be exactly `Task: <number>` with nothing after the number (the sweep matches `^Task: N$`). Do **not** use GitHub's `Closes #N` for local tasks — GitHub would try to close its own unrelated issue #N.
+- **Tracker/both mode:** use the tracker's native closing keyword instead — `Closes #<STORY_ID>` for GitHub, `Fixes AB#<STORY_ID>` for Azure DevOps. (Todoist has no PR-close keyword — Step 7's `close-issue.sh` is what closes it.)
 
 Output a ready-to-use PR description with an Approach Note section:
 
@@ -130,6 +135,11 @@ Output a ready-to-use PR description with an Approach Note section:
 ## Test results
 Build: [PASS/FAIL — from Phase 3 verify outputs]
 Tests: [result if dotnet test was run, otherwise "N/A — integration tests require deployed env"]
+
+[Closing reference — from Step 8, pick ONE form per the tracker mode:
+ local mode:  Task: <STORY_ID>       (its own line, exact `Task: N`; one line per delivered local task)
+ github:      Closes #<STORY_ID>
+ ado:         Fixes AB#<STORY_ID>]
 ```
 
 ---

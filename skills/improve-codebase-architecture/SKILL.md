@@ -17,14 +17,13 @@ You are the codebase architecture advisor. Your job is to walk the codebase orga
 
 ## Step 0 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, append an in-progress breadcrumb to `tasks/notes.md` in every pack and mode. Under an "In Progress" or "Current" heading (create one if absent):
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
-  ```
-  - [LEARN] /improve-codebase-architecture — <area or "full codebase"> — started YYYY-MM-DD
-  ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+```
+- [LEARN] /improve-codebase-architecture — <area or "full codebase"> — started YYYY-MM-DD
+```
+
+If `tasks/notes.md` is genuinely missing, skip this step silently. Never write the breadcrumb to todo.md — it is a generated dashboard.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -161,10 +160,11 @@ Only propose ADRs for rejections that meet all 3 criteria:
 
 When the session is done:
 
-- **`todo.md`** — find the in-progress entry and update:
+- **`tasks/notes.md`** — find the in-progress breadcrumb and mark it done, in every pack and mode:
   ```
   - ✅ [LEARN] /improve-codebase-architecture — <area> — N findings, M acted on — CONTEXT.md [updated/unchanged]
   ```
+  Never mark ✅ in todo.md — it is a generated dashboard (D9).
 
 - **`flags-and-notes.md`** — append to "Important Notes":
   ```

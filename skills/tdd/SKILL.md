@@ -17,14 +17,14 @@ You are the TDD facilitator. Your job is to guide the user through strict RED-GR
 
 ## Step 0 — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, write an in-progress breadcrumb to `tasks/notes.md` — in every pack and mode:
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
+- Append under an "In Progress" or "Current" heading (create one if absent):
   ```
   - [BUILD] /tdd — <feature from $ARGUMENTS> — started YYYY-MM-DD
   ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+- If `tasks/notes.md` is genuinely missing, skip this step silently.
+- Never write the breadcrumb to `todo.md`.
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -195,10 +195,11 @@ Report:
 
 Update task files:
 
-- **`todo.md`** — mark done:
+- In `tasks/notes.md` (every pack and mode), find the Step 0 breadcrumb and mark it done:
   ```
   - ✅ [BUILD] /tdd — <feature> — N behaviors, N tests — all passing
   ```
+- Never mark ✅ in `todo.md` — it is a generated dashboard (D9).
 
 ---
 

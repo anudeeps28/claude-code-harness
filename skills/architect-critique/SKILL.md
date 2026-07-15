@@ -17,14 +17,14 @@ You are the Architecture Critique facilitator. Your job is to run 5 composable c
 
 ## Step 0a — Register in task files
 
-Before doing anything else, write an in-progress entry to `todo.md`:
+Before doing anything else, append an in-progress breadcrumb to `tasks/notes.md` — in EVERY pack and mode:
 
-- **Enterprise pack** (`tasks/todo.md` exists): append under the "In Progress" section:
+- Append under an "In Progress" or "Current" heading (create the heading if absent):
   ```
   - [DEFINE] /architect-critique — <ARCHITECTURE.md filename> — started YYYY-MM-DD
   ```
-- **Solo pack** (`tasks/notes.md` exists but no `tasks/todo.md`): append under any "In Progress" or "Current" section, or create one.
-- If neither file exists, skip this step silently.
+- If `tasks/notes.md` is genuinely missing, skip this step silently.
+- Never write the breadcrumb to `todo.md` — it is a generated dashboard (D9).
 
 Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
@@ -215,10 +215,11 @@ Present all findings in a single structured report:
 
 After presenting findings:
 
-1. **`todo.md`** — find the in-progress entry from Step 0a and mark it done:
+1. **`tasks/notes.md`** — find the in-progress breadcrumb from Step 0a and mark it done there, in EVERY pack and mode:
    ```
    - ✅ [DEFINE] /architect-critique — <filename> — <PASS or N BLOCK(s)>, M advisory
    ```
+   Never mark ✅ in todo.md — it is a generated dashboard (D9).
 
 2. **`flags-and-notes.md`** (enterprise) or **`notes.md`** (solo) — if there are BLOCK findings, append each to the "Active Blockers" section:
    ```

@@ -14,15 +14,19 @@ ticks off item by item, and shows what the harness is about to do *before* it ch
 
 The harness already has a **durable** record of work:
 
-- `tasks/todo.md` and the `<tasks story="…">` XML plan — survive context loss, drive `/run-tasks`.
+- The `<tasks story="…">` XML plan in `tasks/stories/<id>/plan.md` — survives context loss, drives
+  `/run-tasks`. It lives in the always-local story workspace, in every tracker mode.
 - A skill's own fixed step list (e.g. `/deploy`'s steps, `/tdd`'s cycles).
 
 `TodoWrite` is the **ephemeral, in-session mirror** of that durable record — nothing more.
 
-- **`todo.md` / the XML plan is always the source of truth.** If the two ever disagree, `todo.md` wins.
+- **The story plan (`tasks/stories/<id>/plan.md`) / the skill's step list is always the source of
+  truth.** If the two ever disagree, the durable plan wins.
 - Never invent todos that don't correspond to a real task/step in the plan.
-- Never use `TodoWrite` *instead of* updating `todo.md` — do both: the `✅` in `todo.md` is the
-  durable record, the `completed` TodoWrite item is the live signal. Update them in the same pass.
+- Never use `TodoWrite` *instead of* recording status in the durable plan — do both: the `✅` on the
+  `<task>` line in `plan.md` is the durable record, the `completed` TodoWrite item is the live signal.
+  Update them in the same pass. **Never hand-write `tasks/todo.md`** — it is a generated dashboard (D9),
+  not the plan.
 
 The point is twofold: the **user** sees what's happening, and the **harness** commits to a concrete
 checklist *before* touching code — so it knows what it's supposed to do, in order.
@@ -40,7 +44,7 @@ of execution). Seeding it after work has begun defeats the purpose.
 - **One TodoWrite item per task/step** in the plan — same names the plan uses, so the user can map them.
 - **Exactly one item `in_progress` at a time.** Mark the next item `in_progress` when you start it.
 - **Mark `completed` the moment its `<verify>` passes** (or the step genuinely finishes) — in the same
-  pass where you write `✅` to `todo.md`. Don't batch completions to the end.
+  pass where you write `✅` to the `<task>` line in the story plan. Don't batch completions to the end.
 - A failed/blocked task stays `in_progress` (not `completed`) until it's resolved or escalated.
 - For parallel waves, the wave's tasks may all be `in_progress` together; complete each as it returns.
 
@@ -57,4 +61,5 @@ of execution). Seeding it after work has begun defeats the purpose.
 ## One-line pattern for skills
 
 > Seed a `TodoWrite` list mirroring the plan before the first change; keep one item `in_progress`;
-> mark `completed` alongside the `✅` in `todo.md`. `todo.md` stays the source of truth.
+> mark `completed` alongside the `✅` in the story plan (`tasks/stories/<id>/plan.md`). The story plan
+> stays the source of truth; never hand-write the generated `todo.md`.

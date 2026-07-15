@@ -119,7 +119,7 @@ Then output the **parallelism rationale table**:
 
 Then output the XML block. No markdown wrapper around the XML, no preamble, no explanation.
 
-Then immediately save the summary, test strategy, rationale table, and XML block to `todo.md` (see "Save to todo.md" below). Also save the test strategy as a standalone file (see "Save test-strategy.md" below).
+Then immediately save the summary, rationale table, and XML block to the story's plan file `tasks/stories/<STORY_ID>/plan.md` (see "Save the plan" below). Also save the test strategy as a standalone file (see "Save test-strategy.md" below).
 
 ```xml
 <tasks story="<STORY_ID>">
@@ -140,31 +140,21 @@ Then immediately save the summary, test strategy, rationale table, and XML block
 
 ---
 
-## Save to todo.md
+## Save the plan
 
-After outputting the XML, write the full `<tasks>` block to `YOUR_PROJECT_ROOT\tasks\todo.md`.
+After outputting the XML, write the plain English summary, the parallelism rationale table, and the full `<tasks>` block to the story's plan file: `YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/plan.md`, following the plan template structure (Decisions → Task Plan → Wave Summary → Rationale).
 
-Find the section for this story (search for the story ID, e.g. `## #10165` or `### #10165`). If the section exists, append the plain English summary and XML block at the end of that section. If no section exists, append this to the bottom of the file:
+This `plan.md` — **not** `todo.md` — is the durable task plan that `/run-tasks` reads to resume execution. It lives in `tasks/stories/`, the always-local execution workspace, so it works identically in every tracker mode (local / tracker / both).
 
-```
-## #<STORY_ID> — Execution Plan
+**Never write to `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry) — hand-edits are overwritten and in tracker mode the file does not exist. The story's `plan.md` is the single source of the XML task plan.
 
-**#<STORY_ID> — What we're building (plain English)**
-1. Task name — one sentence what it does and why
-...
-
-<tasks story="<STORY_ID>">
-  ... (full XML here)
-</tasks>
-```
-
-Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
+Use the `Write` tool (it creates the `tasks/stories/<STORY_ID>/` directory if it doesn't exist). If a `plan.md` already exists for this story, preserve any `## Decisions` and `## Corrections from YOUR_NAME` sections and refresh the Task Plan / Wave Summary / Rationale sections.
 
 ---
 
 ## Save test-strategy.md
 
-After saving to todo.md, write the test strategy to a standalone file at `YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/test-strategy.md`. This file is the contract between Phase 2 (planning) and Phase 3.6 (acceptance testing). The acceptance-test-agent reads it to verify the feature works.
+After saving the plan, write the test strategy to a standalone file at `YOUR_PROJECT_ROOT/tasks/stories/<STORY_ID>/test-strategy.md`. This file is the contract between Phase 2 (planning) and Phase 3.6 (acceptance testing). The acceptance-test-agent reads it to verify the feature works.
 
 Write the file (the `Write` tool creates the `tasks/stories/<STORY_ID>/` directory if it doesn't exist) with this exact structure:
 

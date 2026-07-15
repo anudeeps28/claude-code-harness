@@ -16,10 +16,12 @@ You help YOUR_NAME plan their work by reading open issues and creating a simple 
 
 ## Step 1 — Read current state
 
-Read the current plan if one exists:
+Read the current plan draft if one exists:
 ```bash
-cat YOUR_PROJECT_ROOT/tasks/plan.md 2>/dev/null || echo "no existing plan"
+cat YOUR_PROJECT_ROOT/tasks/stories/current/plan.md 2>/dev/null || echo "no existing plan"
 ```
+
+The **board** — the authoritative list of open work — comes from the tracker adapter in Step 2 (in local/both mode the generated `tasks/todo.md` is a human glance of it). Do not parse a hand-written board here. If a legacy `tasks/plan.md` still exists in this project (the root plan board was retired in favor of the generated board, D29), do NOT read it as the board or delete it — offer `/sync-tracker --import-backup tasks/plan.md` to migrate its items into the tracker.
 
 Also check git state:
 ```bash
@@ -79,7 +81,7 @@ Then say:
 
 ---
 **This is your current work plan. Want me to:**
-- **Save it** to `tasks/plan.md`?
+- **Save it** to `tasks/stories/current/plan.md`?
 - **Start implementing** one of these? (say which #)
 - **Adjust priorities** — tell me what to move
 
@@ -87,7 +89,7 @@ Then say:
 
 ## Step 5 — Save (if confirmed)
 
-Write the plan to `YOUR_PROJECT_ROOT/tasks/plan.md`:
+Write the plan to `YOUR_PROJECT_ROOT/tasks/stories/current/plan.md` (run `mkdir -p YOUR_PROJECT_ROOT/tasks/stories/current` first if the directory might not exist):
 
 ```markdown
 # Work Plan
@@ -117,3 +119,4 @@ Write the plan to `YOUR_PROJECT_ROOT/tasks/plan.md`:
 - If no tracker is configured, work with manual task descriptions
 - Keep the plan simple — no story points, no velocity, no ceremony
 - Mark blocked items clearly with what's blocking them
+- Never delete or overwrite a pre-existing `tasks/plan.md` — it is a legacy board (retired per D29); offer `/sync-tracker --import-backup tasks/plan.md` to migrate it

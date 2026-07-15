@@ -52,7 +52,7 @@ Write this to `YOUR_PROJECT_ROOT\tasks\troubleshoot-active.md` (create or overwr
 (Iterations will be appended below)
 ```
 
-Also add a one-line entry to `tasks/todo.md` under a `## Troubleshooting` section (create the section if it doesn't exist):
+Also add a one-line breadcrumb to `tasks/notes.md` under a `## Troubleshooting` section (create the section if it doesn't exist). Never write to `tasks/todo.md` — it is a generated dashboard (D9):
 
 ```
 - [ ] TROUBLESHOOT: [one-line problem summary] — see tasks/troubleshoot-active.md
@@ -232,7 +232,7 @@ Review the plan. You can:
 - Change the implementation: *"don't modify that file, change this one instead"*
 - Ask questions about any item
 
-**Say "go" when the plan looks right.** I'll write the XML tasks to todo.md.
+**Say "go" when the plan looks right.** I'll write the XML tasks to the story plan.
 
 ---
 
@@ -240,11 +240,11 @@ Do NOT proceed until YOUR_NAME says "go".
 
 ---
 
-## Step 4 — Write XML tasks to todo.md
+## Step 4 — Write the XML task plan
 
 Once YOUR_NAME approves the plan at Gate 2:
 
-Write XML `<tasks>` blocks to `tasks/todo.md` following the exact format that `/run-tasks` expects (same format as `story-plan-agent` produces). Order:
+Write XML `<tasks>` blocks to the story-folder plan file `tasks/stories/troubleshoot-[short-name]/plan.md` (create the directory if needed) following the exact format that `/run-tasks` expects (same format as `story-plan-agent` produces). This always-local plan file is what `/run-tasks` reads to resume in every tracker mode — never write it to `tasks/todo.md` (a generated dashboard, D9). Order:
 
 1. **Test tasks first** — create/modify test files, verify with `dotnet test --filter`
 2. **Implementation tasks** — create/modify source files, verify with `dotnet build`
@@ -268,7 +268,7 @@ Write a `story="troubleshoot-[short-name]"` attribute on the `<tasks>` element (
 After writing, say **exactly:**
 
 ---
-**GATE 3 — XML tasks written to todo.md.**
+**GATE 3 — XML task plan written to the story folder.**
 
 Next steps:
 1. Run **`/run-tasks troubleshoot-[short-name]`** to execute the tasks
@@ -288,7 +288,7 @@ Do NOT execute anything. Wait for YOUR_NAME to call the next skill himself.
 
 After YOUR_NAME confirms the troubleshoot session is done (tasks executed, PR raised):
 
-1. Update `tasks/todo.md` — check off the `TROUBLESHOOT:` line item
+1. Update `tasks/notes.md` — check off the `TROUBLESHOOT:` breadcrumb line
 2. Archive `tasks/troubleshoot-active.md`:
    - Add a final section: `## Resolution — [date]` with a one-line summary of what fixed it
    - Rename to `tasks/troubleshoot-archive/[date]-[short-name].md` (create the archive folder if needed)

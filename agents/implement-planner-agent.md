@@ -217,24 +217,11 @@ Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/
 
 ---
 
-## Step 6 — Save to todo.md
+## Step 6 — The plan file is the resume source
 
-After saving the plan files, write the `<tasks>` XML block to `YOUR_PROJECT_ROOT/tasks/todo.md` so that `/run-tasks` can find and resume the work if the session is interrupted.
+The `<tasks>` XML block you saved to `tasks/stories/<id_or_current>/plan.md` in Step 5 is what `/run-tasks` reads to resume the work if the session is interrupted. There is nothing more to do here — the story-folder `plan.md` is always local and works in every tracker mode.
 
-Find a section for this task (search for the issue ID or task name). If the section exists, append the plain English summary and XML block at the end of that section. If no section exists, append to the bottom of the file:
-
-```
-## #<ID> — Execution Plan
-
-1. Task name — one sentence what it does
-...
-
-<tasks story="<ID_OR_NAME>">
-  ... (full XML here)
-</tasks>
-```
-
-Use the Edit tool — one targeted append. Do NOT rewrite the whole file. If `todo.md` does not exist, create it with just the section above.
+**Never write to `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. The story-folder `plan.md` is the single source of the XML task plan.
 
 ---
 

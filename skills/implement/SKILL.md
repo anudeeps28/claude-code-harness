@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Build a feature from a tracker task (GitHub issue, Todoist task) or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id, task-title, or description> [--discuss] [--research] [--quick] [--auto] [--full]
+description: Build a feature from a tracker task (local task, GitHub issue, or Todoist task) or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id, task-title, or description> [--discuss] [--research] [--quick] [--auto] [--full]
 argument-hint: "#42, 'Build login flow', or 'add dark mode to settings page'"
 ---
 
@@ -36,7 +36,13 @@ Parse `$ARGUMENTS`:
    `--full`, `--quick`, and `--auto` are orthogonal and may be combined. Expand `--full` into the underlying two flags before proceeding.
 
 2. **Classify the remaining arguments:**
-   - **Detect the active tracker:** Read `.claude/.harness-manifest.json` → `tracker` field. If not set, fall back to `tasks/tracker-config.md` `**Type:**` field. If neither exists, default to GitHub.
+   - **Detect the active tracker:** Read `.claude/.harness-manifest.json` → `tracker` field. If not set, fall back to `tasks/tracker-config.md` `**Type:**` field. If neither exists, default to `local`.
+   - If the active tracker is `local`:
+     - Numeric IDs (with or without `#`) → it's a **local task ID** — fetch via `trackers/active/get-issue.sh <ID>` (reads `tasks/issues/<ID>.md`)
+     - Plain text description → **no ID given.** Offer to register it first so the work lands in the local task registry:
+       > "No task ID given. Create a local task for this so it's tracked? (I'll run `create-issue.sh` and use the new ID — say "yes", or "skip" to build it ad-hoc without a registry entry.)"
+
+       If YOUR_NAME says **yes**: `bash trackers/active/create-issue.sh "<description>" "" ""` → capture the new numeric ID from the output and treat it as the task ID from here on (the render hook regenerates `todo.md`). If YOUR_NAME says **skip**: proceed with the plain description and no registry entry — the zero-tracker escape hatch, still fully supported.
    - If the active tracker is `todoist`:
      - Quoted strings or task titles → it's a **Todoist task title** — search for it using `trackers/active/get-sprint-issues.sh` and match by title
      - Numeric IDs without `#` → it's a **Todoist task ID** — fetch via `trackers/active/get-issue.sh <ID>`
@@ -48,6 +54,7 @@ Parse `$ARGUMENTS`:
 4. **Fetch task context** (if from a tracker):
    - For GitHub issues: `bash trackers/active/get-issue.sh <NUMBER>`
    - For Todoist tasks: `bash trackers/active/get-issue.sh <TASK_ID>`
+   - For local tasks: `bash trackers/active/get-issue.sh <ID>` (reads `tasks/issues/<ID>.md`)
    - Use the fetched title, description, and acceptance criteria to enrich the planner's input.
 
 Create a branch for this work:
@@ -190,11 +197,10 @@ Wait for it to return the brief + plan. Output it under:
 ### Implementation plan
 
 **Verify the handoff contracts:** The planner agent should have saved these files. Confirm each exists:
-- `tasks/stories/<id>/plan.md` — the brief + XML task plan
+- `tasks/stories/<id>/plan.md` — the brief + XML task plan. **This is what `/run-tasks` reads to resume execution** if the session is interrupted; it lives in the always-local `tasks/stories/` workspace and works in every tracker mode.
 - `tasks/stories/<id>/test-strategy.md` — acceptance criteria, integration scenarios, regression guardrails
-- `tasks/todo.md` — contains the `<tasks>` XML block for `/run-tasks` resumability
 
-If any are missing, extract the relevant section from the plan output and save it. The `test-strategy.md` file is critical — the acceptance-test-agent in Phase 3 reads it.
+If either is missing, extract the relevant section from the plan output and save it. The `test-strategy.md` file is critical — the acceptance-test-agent in Phase 3 reads it. Do **not** write the plan to `tasks/todo.md`: it is a generated dashboard (D9) and does not exist in tracker mode.
 
 Then say **exactly:**
 
