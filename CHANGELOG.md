@@ -6,6 +6,80 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ---
 
+## [3.0.0] - 2026-07-15
+
+Three tracker modes, a local file-based task backend, code-platform split, automated sync sweep, and mode-aware skills. Every consumer of task files now works in all three modes.
+
+### MIGRATION — existing installs
+
+The first `--update` after upgrading runs a one-time mode migration:
+
+1. **Code-platform split** — PR review scripts (`get-pr-review-threads.sh`, `reply-pr-thread.sh`, `resolve-pr-thread.sh`) move from `trackers/active/` to `code-platform/active/`. The updater handles this automatically.
+2. **Mode question** — "Where should your task list live?" is asked once. `--yes` defaults to **both** (preserves your existing tracker + adds a local `todo.md` mirror). The answer is recorded in the manifest.
+3. **todo.md archive** — Your old hand-written `todo.md` is unconditionally renamed to `tasks/todo-manual-backup.md`. The next session start mentions the backup and suggests `/sync-tracker --import-backup` for item-by-item import.
+4. **Tracked file detection** — If `tasks/issues/` or `tasks/todo.md` are still tracked by git, the updater prints the exact `git rm --cached` commands and a warning about team impact. It never modifies the git index itself.
+5. **Gitignore block** — A managed, sentinel-delimited block is appended to `.gitignore` covering all per-developer task data.
+
+### Tracker modes (new)
+
+The harness now supports three modes for tracking work, chosen at install time:
+
+- **Local** — tasks live as markdown files in `tasks/issues/`, no external accounts needed
+- **Tracker** — an external tracker (GitHub Issues, ADO, Todoist) is the single source of truth
+- **Both** — external tracker is canonical, plus a local `todo.md` mirror
+
+Mode is stored in `.harness-manifest.json` (`tracker` + `trackerMirror` fields). One system is always canonical — never two masters.
+
+### Code-platform split (new)
+
+PR review thread operations now live in a separate `code-platform/` layer, independent of the task tracker:
+- 3-script interface: `get-pr-review-threads.sh`, `reply-pr-thread.sh`, `resolve-pr-thread.sh`
+- 3 backends: `github`, `azure-repos`, `none` (fails loudly)
+- Installer asks "Where do your pull requests live?" — always interactive; `--yes` auto-detects from git remote URL
+- Todoist's old no-op PR scripts deleted; the `none` backend replaces them
+
+### Local backend (new)
+
+Full 8-script tracker adapter in `trackers/local/`:
+- One file per task: `tasks/issues/<id>.md` with YAML frontmatter
+- Sequential integer IDs, atomic create with noclobber, files never deleted on close
+- Shared `render-todo.sh` renderer produces `tasks/todo.md` grouped by label
+- `todo-render-trigger.js` hook regenerates the dashboard on direct file edits
+
+### Sync automation (new)
+
+- **`tracker-sync.js` hook** — SessionStart: drift report (open items with merged-PR evidence), backup notice, mirror regeneration. SessionEnd: mechanical closure from explicit evidence only (merged PRs with closing keywords for tracker/both mode, `Task: N` trailers for local mode). Ambiguous evidence is never auto-acted on.
+- **`pre-compact.js`** — breadcrumb now writes to `tasks/notes.md` instead of `todo.md`
+- **`/sync-tracker` reworked** — mode-aware, with new `--import-backup [file]` mode for item-by-item import from `todo-manual-backup.md` or a retired `plan.md`
+
+### Skill and agent migration
+
+Every `todo.md` and tracker consumer is now mode-aware:
+- **Pipeline core** — XML task plan lives in `tasks/stories/<id>/plan.md` (all modes), not `todo.md`
+- **story-pr-agent** — closes tasks via `close-issue.sh` in every mode; PR body carries `Task: N` trailers (local) / `Closes #N` (GitHub) / `Fixes AB#N` (ADO)
+- **`/implement`** — in local mode, offers to create a local task for ad-hoc work
+- **`/to-todoist`** — refuses cleanly when tracker is not Todoist
+- **`/to-issues`** — backend-aware: local mode prints task ID and file path
+- **11 breadcrumb skills** — in-progress breadcrumb writes to `tasks/notes.md` universally
+- **Session hooks** — `session-start-msg.js` and `session-router.js` have local/both/tracker branches
+- **Solo `tasks/plan.md` retired** — `/plan` drafts go to `tasks/stories/current/plan.md`; the board is the generated `todo.md` in every pack
+
+### Installer
+
+- **Mode question** — "Where should your task list live?" with 3 natural-language options
+- **Code-platform question** — "Where do your pull requests live?" — GitHub, Azure Repos, or none
+- **Manifest extended** — new fields: `trackerMirror` (boolean), `codePlatform` (string); `tracker` gains value `'local'`
+- **Managed gitignore block** — sentinel-delimited, idempotent, never edits rules outside the managed block
+- **`--yes` defaults** — fresh: local + auto-detected code platform; update crossing: both
+- **Update crossing** — one-time mode question, `todo.md` archive, tracked-file detection
+- **Template packs** — enterprise gains `notes.md`; solo drops `plan.md`; `tracker-config.md` loses duplicate `Type:` line
+
+### Test suite
+
+- 341 tests, all passing (up from 133 in v2). New tests cover local backend conformance, hook behavior (todo-render-trigger, tracker-sync), mode derivation, gitignore idempotency, and update crossing.
+
+---
+
 ## [Unreleased]
 
 ### New agents (1 added, 17 total)

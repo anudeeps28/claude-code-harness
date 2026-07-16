@@ -1,12 +1,12 @@
 ---
 name: to-issues
-description: Decompose planning artifacts into GitHub issues with proper hierarchy — issues (stories) grouped by milestone, with sub-issues (tasks) for breakdown. Reads from grill-summary, research, architecture, decision-brief, or PRD — no single artifact required. Works on personal GitHub plans. Usage: /to-issues [--milestone "<name>"] [--project "<name>"]
+description: Decompose planning artifacts into tracker tasks with proper hierarchy — issues (stories) grouped by milestone, with sub-issues (tasks) for breakdown. Backend-aware: creates GitHub issues, ADO work items, Todoist tasks, or local task files depending on your tracker mode. Reads from grill-summary, research, architecture, decision-brief, or PRD — no single artifact required. Usage: /to-issues [--milestone "<name>"] [--project "<name>"]
 triggers: /to-issues
 ---
 
 # /to-issues
 
-Decompose planning artifacts into GitHub issues. Each issue is an independently demoable story. Stories are grouped by milestone and can have sub-issues for task breakdown.
+Decompose planning artifacts into tracker tasks. Each task is an independently demoable story. Stories are grouped by milestone and can have sub-issues for task breakdown. Creates items in your active tracker backend (GitHub issues, ADO work items, Todoist tasks, or local task files).
 
 **Designed for solo developers on personal GitHub plans.** No org features required — uses issues, sub-issues, labels, milestones, and optionally projects.
 
