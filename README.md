@@ -1,11 +1,11 @@
 # claude-code-harness
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.0.0-green.svg)](CHANGELOG.md)
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 [![CI](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-314%20passing-success.svg)](hooks/__tests__)
+[![Tests](https://img.shields.io/badge/tests-341%20passing-success.svg)](hooks/__tests__)
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
@@ -142,6 +142,31 @@ flowchart LR
 | Find shallow modules and propose deepening refactors | `/improve-codebase-architecture` |
 | Route and categorize an incoming issue | `/triage` |
 | Run a weekly self-improvement loop on the harness | `/improve-harness` |
+
+---
+
+## Where does your task list live?
+
+The harness supports three **modes** for tracking work. You pick one at install time.
+
+| Mode | Where tasks live | Local task files |
+|---|---|---|
+| **Local** | Markdown files in the repo (`tasks/issues/`) | They ARE the tracker |
+| **Tracker** | External tracker (GitHub Issues, ADO, Todoist) | None — only story folders |
+| **Both** | External tracker (canonical) + a local `todo.md` mirror | Auto-generated mirror only |
+
+**The philosophy:** local task files are shared memory between you and the agent on this machine — per-developer, gitignored, never committed to git. They are not team documents. In **both** mode, the tracker is the boss; `todo.md` is a regenerable printout of it.
+
+This is separate from the **execution workspace** (`tasks/stories/<id>/`), which always exists in every mode. Story folders hold the brief, plan, executor state, and review files that agents pass between phases — they are working memory for the current story, not the task registry.
+
+### Local mode basics
+
+- **One file per task** in `tasks/issues/` — e.g. `tasks/issues/42.md`
+- **Sequential integer IDs** — IDs are bare numbers (`42`), never reused. The next ID is the highest existing + 1.
+- **Hand-editing a task's body is fine** — the body (below the YAML frontmatter) is where task-specific notes live
+- **`todo.md` is the self-updating dashboard** — auto-generated, never edit it by hand. It regenerates whenever tasks change.
+- **`notes.md` is your scratchpad** — session narrative, ad-hoc notes, and conventions go here
+- **PRs reference tasks** with `Task: 42` trailer lines (the story-pr-agent writes them for you). In tracker/both modes, native closing keywords (`Closes #N`, `Fixes AB#N`) are used instead.
 
 ---
 
@@ -470,26 +495,29 @@ This prevents goal drift, makes debugging easier, and lets the evaluator check w
 
 ## Task files
 
-The installer creates different task files based on your workflow pack:
+The installer creates task files under `tasks/` based on your workflow pack. All task data is per-developer and gitignored — it is not committed to the repo.
 
-### Solo pack (3 files)
+### Solo pack
 | File | What it holds |
 |---|---|
-| `plan.md` | Current priorities, in-progress work, backlog |
-| `notes.md` | Code conventions, git rules, decisions, known fixes, blockers |
+| `todo.md` | Auto-generated task dashboard *(never hand-edit)* |
+| `notes.md` | Code conventions, git rules, decisions, known fixes, scratchpad |
 | `sessions.jsonl` | Append-only session log *(auto-generated)* |
 
-### Enterprise pack (7+ files)
+### Enterprise pack
 | File | What it holds |
 |---|---|
+| `todo.md` | Auto-generated task dashboard *(never hand-edit)* |
 | `lessons.md` | Git rules, code conventions, known fixes, Code Rabbit patterns |
-| `todo.md` | XML task plans for active stories + session notes |
+| `notes.md` | Session narrative, scratchpad |
 | `pr-queue.md` | All branches, PR numbers, merge status |
 | `flags-and-notes.md` | Blockers, decisions, open questions |
-| `tracker-config.md` | Tracker type, environment URLs, cloud resource names |
+| `tracker-config.md` | Personal pointers: Todoist project, sprint naming, resource names |
 | `people.md` | Team member roles + waiting-on *(optional)* |
 | `sprint<N>.md` | Sprint master status table *(one per sprint)* |
 | `sessions.jsonl` | Append-only session log *(auto-generated)* |
+
+In **local mode**, task files also appear in `tasks/issues/` (one `.md` per task). See [Where does your task list live?](#where-does-your-task-list-live) above.
 
 ---
 

@@ -94,7 +94,7 @@ export CLAUDE_HARNESS_WORK_ROOT="$HOME/projects"
 node .claude/hooks/catalog-skills.js
 ```
 
-### pre-compact.js is not writing to todo.md
+### pre-compact.js is not writing to notes.md
 
 The hook resolves the project root via `git rev-parse --show-toplevel`. If you're not inside a git repository, it falls back to `process.cwd()`. Verify:
 
@@ -102,11 +102,11 @@ The hook resolves the project root via `git rev-parse --show-toplevel`. If you'r
 # Should return your project root
 git rev-parse --show-toplevel
 
-# Check that todo.md exists there
-ls "$(git rev-parse --show-toplevel)/tasks/todo.md"
+# Check that notes.md exists there
+ls "$(git rev-parse --show-toplevel)/tasks/notes.md"
 ```
 
-If `tasks/todo.md` doesn't exist, create it manually or re-run the installer with `--project`.
+If `tasks/notes.md` doesn't exist, create it manually or re-run the installer with `--project`.
 
 ### drift-check.js is producing unexpected output
 
@@ -116,6 +116,73 @@ This hook replaces the old `task-sync-check.sh` reminder. It fires **only** when
 - **Hard block** fires when `people.md` references a "Waiting on" item that doesn't exist in `flags-and-notes.md`. Run `/sync-tasks` to see the full list and fix the source of truth.
 
 If you're getting a false positive, check the actual file content matches one of the allowed enum values exactly (e.g. `"Merged"`, not `"merged"`).
+
+---
+
+## Tracker Modes
+
+### PR review commands say "no code platform configured"
+
+This means the `code-platform/active/` adapter is set to `none`. Skills like `/babysit-pr` need a code platform (GitHub or Azure Repos) to fetch and resolve review threads.
+
+**Fix:** Re-run the installer and pick a code platform when asked "Where do your pull requests live?", or:
+
+```bash
+node install/install.js --code-platform github --project /path/to/project
+```
+
+### todo.md says AUTO-GENERATED and my edits vanish
+
+This is expected. In local and both modes, `todo.md` is a generated dashboard — it regenerates automatically whenever tasks change. Your hand-edits will be overwritten.
+
+**Where to put your content instead:**
+- **Session notes, scratchpad, conventions** → `tasks/notes.md`
+- **Task-specific notes** → the body of the task file itself (e.g. `tasks/issues/42.md`, below the YAML frontmatter)
+- **Blockers and decisions** → `tasks/flags-and-notes.md`
+
+### Fresh clone has no tasks (local mode)
+
+This is expected. In local mode, task files live in `tasks/issues/` which is gitignored — they are per-developer, not shared via git. Each developer's tasks are private to their machine.
+
+After cloning, create your first task with:
+```bash
+bash .claude/trackers/active/create-issue.sh "My first task" "Description here" "feature"
+```
+
+Or use `/implement "description"` — in local mode, it offers to create a local task automatically.
+
+### Sync hook reports drift at session start
+
+The `tracker-sync.js` hook runs at session start and checks for open items that look delivered (a merged PR references them). This is informational — it won't close anything automatically at session start.
+
+**To reconcile:** Run `/sync-tracker` to review each item and decide whether to close it.
+
+### Updater says task files are still tracked by git
+
+During `--update`, the installer checks whether gitignored task files (like `tasks/issues/`, `tasks/todo.md`) are still tracked in git. If your project committed these files before they were gitignored, git continues tracking them.
+
+**Fix:** Run the exact commands the updater printed:
+```bash
+git rm --cached tasks/issues/ tasks/todo.md
+git commit -m "chore: untrack per-developer task files"
+```
+
+**Team impact:** `git rm --cached` removes files from the index only — your local copies are preserved. But teammates who pull this commit will have those files deleted from their working tree. Warn the team first if those files contain work they haven't backed up.
+
+### My old todo.md content is in todo-manual-backup.md — how do I import it
+
+When upgrading to v3, the updater archives your old hand-written `todo.md` to `tasks/todo-manual-backup.md`. To import those items into your new tracker:
+
+```
+/sync-tracker --import-backup
+```
+
+This parses unchecked items from the backup, cross-checks against existing open items for duplicates, and lets you approve each before creating it. Checked items are skipped. The backup file is never deleted automatically — remove it yourself when you're done.
+
+You can also import a retired `plan.md`:
+```
+/sync-tracker --import-backup tasks/plan.md
+```
 
 ---
 
