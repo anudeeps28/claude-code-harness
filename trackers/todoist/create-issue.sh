@@ -47,7 +47,7 @@ if [ -n "$BODY" ]; then
 fi
 
 if [ -n "$LABEL" ]; then
-  CREATE_ARGS+=(--label "$LABEL")
+  CREATE_ARGS+=(--labels "$LABEL")
 fi
 
 if [ -n "$SECTION" ]; then

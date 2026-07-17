@@ -6,6 +6,18 @@ set -e
 
 fixture_dir="$(dirname "$0")/../responses"
 
+# Flags the REAL td CLI does not have (discovered via live smoke, v3.1):
+# there is no --add-label/--remove-label (only --labels, which REPLACES),
+# no --label (singular), and parent linking is --parent, not --parent-id.
+for arg in "$@"; do
+  case "$arg" in
+    --add-label|--remove-label|--parent-id|--label)
+      echo "error: unknown option '$arg'" >&2
+      exit 1
+      ;;
+  esac
+done
+
 # Auth check — project list is used by check_auth_todoist.
 if [ "$1" = "project" ] && [ "$2" = "list" ]; then
   if [ "$FIXTURE_AUTH" = "expired" ]; then
@@ -46,14 +58,29 @@ case "$FIXTURE_MODE" in
     ;;
 esac
 
+# Adapter scripts pass refs as id:xxx — strip the prefix for matching.
+ref="${3#id:}"
+
 # Task dispatch.
 case "$1 $2" in
   "task view")
-    if [ "$3" = "9999" ]; then
+    if [ "$ref" = "9999" ]; then
       echo '{"error": "task 9999 not found"}' >&2
       exit 1
     fi
+    if [ "$ref" = "4321" ]; then
+      cat "$fixture_dir/td-task-4321.json"
+      exit 0
+    fi
     cat "$fixture_dir/td-task-1234.json"
+    exit 0
+    ;;
+  "comment add")
+    if [ "$ref" = "9999" ]; then
+      echo '{"error": "task 9999 not found"}' >&2
+      exit 1
+    fi
+    echo '{"id": "777", "content": "comment added"}'
     exit 0
     ;;
   "task list")
@@ -68,12 +95,12 @@ case "$1 $2" in
     echo '{"id": "1234", "content": "Updated task"}'
     exit 0
     ;;
-  "task close")
-    if [ "$3" = "9999" ]; then
+  "task complete")
+    if [ "$ref" = "9999" ]; then
       echo '{"error": "task 9999 not found"}' >&2
       exit 1
     fi
-    echo "✓ Completed task $3"
+    echo "Completed: stub task (id:$ref)"
     exit 0
     ;;
 esac

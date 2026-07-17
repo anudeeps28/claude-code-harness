@@ -62,6 +62,10 @@ case "$all" in
     echo '{"error": "TF401232: Work item 9999 does not exist"}' >&2
     exit 1
     ;;
+  *"boards work-item show --id 4321"*)
+    cat "$fixture_dir/az-workitem-4321-relations.json"
+    exit 0
+    ;;
   *"boards iteration team list"*)
     cat "$fixture_dir/az-iteration-list.json"
     exit 0
@@ -72,6 +76,22 @@ case "$all" in
     ;;
   *"boards work-item update"*"System.State="*)
     echo '{"id": 1234, "fields": {"System.State": "Closed"}}'
+    exit 0
+    ;;
+  *"boards work-item update"*"--assigned-to"*)
+    echo '{"id": 1234, "fields": {"System.AssignedTo": {"displayName": "Test User"}}}'
+    exit 0
+    ;;
+  *"boards work-item update"*"--discussion"*)
+    echo '{"id": 1234, "fields": {"System.State": "Active"}}'
+    exit 0
+    ;;
+  *"boards work-item relation add"*)
+    echo '{"id": 1234, "relations": [{"rel": "System.LinkTypes.Dependency-Reverse"}]}'
+    exit 0
+    ;;
+  *"boards work-item create"*)
+    echo '{"id": 5678, "url": "https://dev.azure.com/test-org/TEST_PROJ/_workitems/edit/5678"}'
     exit 0
     ;;
   *"boards work-item show"*)

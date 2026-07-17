@@ -6,6 +6,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ---
 
+## [3.1.0] - 2026-07-17
+
+New `/wayfinder` skill and five new tracker contract scripts across all four adapters.
+
+### Added
+
+- **`/wayfinder` skill** — plan an effort too big for one session as a **map** of **decision tickets** on the tracker: chart once (destination, tickets, fog of war), then resolve one ticket per session until the way to the destination is clear. Ticket types route to existing skills: `/research` (facts), `/prototype` (something to react to), `/grill-me` (human judgment). Mode-aware (local/tracker/both); adapted from the MIT-licensed `wayfinder` skill in [mattpocock/skills](https://github.com/mattpocock/skills), with tracker operations rewritten for the adapter layer so it works on GitHub, ADO, Todoist, and the local backend.
+- **Tracker contract v3.1: 8 → 13 scripts.** Five wayfinding operations added to every adapter (`github`, `ado`, `todoist`, `local`):
+  - `assign-issue.sh <ID> ["<assignee>"]` — claim an item (GitHub/ADO: native assignee; Todoist: `claimed` label; local: `assignee:` frontmatter)
+  - `comment-issue.sh <ID> "<text>"` — add a comment (native everywhere; local appends a timestamped block)
+  - `add-blocker.sh <ID> <BLOCKER_ID>` / `get-blockers.sh <ID>` — record and read blocking edges (ADO: native predecessor link; GitHub/Todoist: `Blocked by:` body line; local: `blocked_by:` frontmatter)
+  - `create-sub-issue.sh <PARENT> "<title>" "<body>" "<label>"` — create a child item (now on all adapters, previously GitHub-only)
+- **Wayfinder e2e suite** (`trackers/__tests__/wayfinder-e2e.test.js`) — full chart → claim → resolve → frontier-advance → finish lifecycle on the local backend with real files, plus a concurrent-session claim-exclusivity test.
+- Conformance coverage for all five new scripts across all four adapters (arg validation, happy path, failure modes, contract presence).
+
+### Changed
+
+- `local/create-issue.sh` task frontmatter now includes `assignee: null` and `blocked_by: []`; `local/list-issues.sh` surfaces the assignee in its JSON output. Older task files without the fields keep working.
+- `trackers/README.md` documents the 13-script contract and per-adapter wayfinding storage; `CONTRIBUTING.md` adapter instructions now point at the conformance suite.
+
+### Fixed
+
+- **Todoist adapter scripts were broken against the real `td` CLI** (found by live smoke testing, all verified end-to-end against a real Todoist account):
+  - `close-issue.sh` used `td task close`, which doesn't exist → now `td task complete` (a close reason becomes a comment)
+  - `add-label.sh` / `remove-label.sh` used nonexistent `--add-label` / `--remove-label` → now read-modify-write via `--labels` (which replaces the set)
+  - `create-issue.sh` used `--label` → now `--labels`
+  - Task refs are now passed as `id:xxx` — bare alphanumeric IDs are ambiguous with task names (e.g. `--parent` rejects them outright)
+  - The `td` test stub now rejects the nonexistent flags so these can't regress
+
+---
+
 ## [3.0.0] - 2026-07-15
 
 Three tracker modes, a local file-based task backend, code-platform split, automated sync sweep, and mode-aware skills. Every consumer of task files now works in all three modes.

@@ -194,6 +194,21 @@ describe('arg-validation', () => {
       assert.equal(r.exitCode, 1);
       assert.match(r.stderr, /\{"error":/);
     });
+
+    // Wayfinding scripts (contract v3.1): all reject missing args the same way
+    for (const [script, name] of Object.entries({
+      'assign-issue.sh': 'AssignIssue',
+      'comment-issue.sh': 'CommentIssue',
+      'add-blocker.sh': 'AddBlocker',
+      'get-blockers.sh': 'GetBlockers',
+      'create-sub-issue.sh': 'CreateSubIssue',
+    })) {
+      test(`${adapter}_${name}_NoArgs_Exits1WithJsonError`, () => {
+        const r = runScript(adapter, script, []);
+        assert.equal(r.exitCode, 1);
+        assert.match(r.stderr, /\{"error":/);
+      });
+    }
   }
 
   test('local_GetIssue_NoArg_Exits1WithJsonError', () => {
@@ -237,6 +252,20 @@ describe('arg-validation', () => {
     assert.equal(r.exitCode, 1);
     assert.match(r.stderr, /\{"error":/);
   });
+
+  for (const [script, name] of Object.entries({
+    'assign-issue.sh': 'AssignIssue',
+    'comment-issue.sh': 'CommentIssue',
+    'add-blocker.sh': 'AddBlocker',
+    'get-blockers.sh': 'GetBlockers',
+    'create-sub-issue.sh': 'CreateSubIssue',
+  })) {
+    test(`local_${name}_NoArgs_Exits1WithJsonError`, () => {
+      const r = runLocalScript(script, []);
+      assert.equal(r.exitCode, 1);
+      assert.match(r.stderr, /\{"error":/);
+    });
+  }
 });
 
 // ── Happy path: stdout contract ──────────────────────────────────────
@@ -341,6 +370,180 @@ describe('happy-path-stdout', () => {
       assert.ok(!content.match(/labels:.*feature/));
     } finally { cleanup(result.root); }
   });
+
+  // ── Wayfinding scripts (contract v3.1) ─────────────────────────────
+
+  test('github_AssignIssue_HappyPath_AssignsToMe', () => {
+    const r = runScript('github', 'assign-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Assigned issue #1234 to @me/);
+  });
+
+  test('github_CommentIssue_HappyPath_ExitsZero', () => {
+    const r = runScript('github', 'comment-issue.sh', ['1234', 'Decision recorded']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Commented on issue #1234/);
+  });
+
+  test('github_AddBlocker_HappyPath_RecordsBlocker', () => {
+    const r = runScript('github', 'add-blocker.sh', ['1234', '77']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Issue #1234 is now blocked by #77/);
+  });
+
+  test('github_AddBlocker_AlreadyBlocked_ExitsZeroIdempotent', () => {
+    const r = runScript('github', 'add-blocker.sh', ['4321', '12']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /already blocked by #12/);
+  });
+
+  test('github_GetBlockers_NoBlockers_ReturnsEmptyArray', () => {
+    const r = runScript('github', 'get-blockers.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.deepEqual(JSON.parse(r.stdout), []);
+  });
+
+  test('github_GetBlockers_WithBlockers_ReturnsIds', () => {
+    const r = runScript('github', 'get-blockers.sh', ['4321']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.deepEqual(JSON.parse(r.stdout), [12, 14]);
+  });
+
+  test('ado_AssignIssue_HappyPath_AssignsSignedInUser', () => {
+    const r = runScript('ado', 'assign-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Assigned work item #1234 to Test User/);
+  });
+
+  test('ado_CommentIssue_HappyPath_ExitsZero', () => {
+    const r = runScript('ado', 'comment-issue.sh', ['1234', 'Decision recorded']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Commented on work item #1234/);
+  });
+
+  test('ado_AddBlocker_HappyPath_AddsPredecessorLink', () => {
+    const r = runScript('ado', 'add-blocker.sh', ['1234', '77']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Work item #1234 is now blocked by #77/);
+  });
+
+  test('ado_GetBlockers_NoBlockers_ReturnsEmptyArray', () => {
+    const r = runScript('ado', 'get-blockers.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.deepEqual(JSON.parse(r.stdout), []);
+  });
+
+  test('ado_GetBlockers_WithBlockers_ReturnsPredecessorIds', () => {
+    const r = runScript('ado', 'get-blockers.sh', ['4321']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.deepEqual(JSON.parse(r.stdout), [12]);
+  });
+
+  test('ado_CreateSubIssue_HappyPath_CreatesAndLinksChild', () => {
+    const r = runScript('ado', 'create-sub-issue.sh', ['1234', 'Child task', 'A body']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.parent, 1234);
+    assert.equal(out.child, 5678);
+  });
+
+  test('todoist_AssignIssue_HappyPath_AddsClaimedLabel', () => {
+    const r = runScript('todoist', 'assign-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Assigned task #1234/);
+  });
+
+  test('todoist_CommentIssue_HappyPath_ExitsZero', () => {
+    const r = runScript('todoist', 'comment-issue.sh', ['1234', 'Decision recorded']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Commented on task #1234/);
+  });
+
+  test('todoist_AddBlocker_HappyPath_RecordsBlocker', () => {
+    const r = runScript('todoist', 'add-blocker.sh', ['1234', '77']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /Task #1234 is now blocked by #77/);
+  });
+
+  test('todoist_GetBlockers_NoBlockers_ReturnsEmptyArray', () => {
+    const r = runScript('todoist', 'get-blockers.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.deepEqual(JSON.parse(r.stdout), []);
+  });
+
+  test('todoist_GetBlockers_WithBlockers_ReturnsIds', () => {
+    // Todoist IDs are alphanumeric, so they come back as JSON strings
+    const r = runScript('todoist', 'get-blockers.sh', ['4321']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.deepEqual(JSON.parse(r.stdout), ['12']);
+  });
+
+  test('todoist_CreateSubIssue_HappyPath_CreatesSubtask', () => {
+    // Todoist IDs are alphanumeric, so they come back as JSON strings
+    const r = runScript('todoist', 'create-sub-issue.sh', ['1234', 'Child task', 'A body']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.parent, '1234');
+    assert.equal(out.child, '9876543');
+  });
+
+  test('local_AssignIssue_HappyPath_SetsAssigneeField', () => {
+    const result = runLocalScriptKeep('assign-issue.sh', ['1234', 'testdev']);
+    try {
+      assert.equal(result.exitCode, 0, `non-zero exit: ${result.stderr}`);
+      assert.match(result.stdout, /Assigned task #1234 to testdev/);
+      const content = fs.readFileSync(path.join(result.issuesDir, '1234.md'), 'utf8');
+      assert.match(content, /assignee: testdev/);
+    } finally { cleanup(result.root); }
+  });
+
+  test('local_CommentIssue_HappyPath_AppendsComment', () => {
+    const result = runLocalScriptKeep('comment-issue.sh', ['1234', 'My decision']);
+    try {
+      assert.equal(result.exitCode, 0, `non-zero exit: ${result.stderr}`);
+      assert.match(result.stdout, /Commented on task #1234/);
+      const content = fs.readFileSync(path.join(result.issuesDir, '1234.md'), 'utf8');
+      assert.match(content, /\*\*Comment \(/);
+      assert.match(content, /My decision/);
+    } finally { cleanup(result.root); }
+  });
+
+  test('local_AddBlocker_And_GetBlockers_RoundTrip', () => {
+    const result = runLocalScriptKeep('add-blocker.sh', ['1234', '1235']);
+    try {
+      assert.equal(result.exitCode, 0, `non-zero exit: ${result.stderr}`);
+      assert.match(result.stdout, /Task #1234 is now blocked by #1235/);
+      const content = fs.readFileSync(path.join(result.issuesDir, '1234.md'), 'utf8');
+      assert.match(content, /blocked_by: \[1235\]/);
+
+      const env = {
+        ...process.env,
+        LOCAL_ISSUES_DIR: result.issuesDir,
+        RETRY_BACKOFF_1: '0',
+        RETRY_BACKOFF_2: '0',
+      };
+      const readBack = spawnSync(
+        'bash',
+        [path.join(result.adapterDir, 'get-blockers.sh'), '1234'],
+        { encoding: 'utf8', env, cwd: result.root, timeout: 15000 }
+      );
+      assert.equal(readBack.status, 0, `non-zero exit: ${readBack.stderr}`);
+      assert.deepEqual(JSON.parse(readBack.stdout), [1235]);
+    } finally { cleanup(result.root); }
+  });
+
+  test('local_CreateSubIssue_HappyPath_SetsParentField', () => {
+    const result = runLocalScriptKeep('create-sub-issue.sh', ['1234', 'Child task', 'A body', 'wayfinder:grilling']);
+    try {
+      assert.equal(result.exitCode, 0, `non-zero exit: ${result.stderr}`);
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.parent, 1234);
+      assert.equal(out.child, 1237);
+      const content = fs.readFileSync(path.join(result.issuesDir, '1237.md'), 'utf8');
+      assert.match(content, /parent: 1234/);
+      assert.match(content, /labels: \[wayfinder:grilling\]/);
+    } finally { cleanup(result.root); }
+  });
 });
 
 // ── Failure-mode contract ────────────────────────────────────────────
@@ -392,6 +595,26 @@ describe('failure-modes', () => {
     const r = runLocalScript('close-issue.sh', ['1236']);
     assert.equal(r.exitCode, 1);
     assert.match(r.stderr, /already closed/);
+  });
+
+  for (const adapter of ['ado', 'github', 'todoist']) {
+    test(`${adapter}_AssignIssue_NotFound_Exits1WithJsonStderr`, () => {
+      const r = runScript(adapter, 'assign-issue.sh', ['1234'], { fixtureMode: 'not-found' });
+      assert.equal(r.exitCode, 1);
+      assert.match(r.stderr, /\{"error":/);
+    });
+  }
+
+  test('local_AssignIssue_NotFound_Exits1WithJsonStderr', () => {
+    const r = runLocalScript('assign-issue.sh', ['8888']);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
+  });
+
+  test('local_AddBlocker_MissingBlocker_Exits1WithJsonStderr', () => {
+    const r = runLocalScript('add-blocker.sh', ['1234', '8888']);
+    assert.equal(r.exitCode, 1);
+    assert.match(r.stderr, /\{"error":/);
   });
 
   test('local_GetIssue_MissingDir_Exits1WithAuthError', () => {
@@ -483,6 +706,12 @@ describe('contract-presence', () => {
         'remove-label.sh',
         'close-issue.sh',
         'list-issues.sh',
+        // Wayfinding operations (contract v3.1)
+        'assign-issue.sh',
+        'comment-issue.sh',
+        'add-blocker.sh',
+        'get-blockers.sh',
+        'create-sub-issue.sh',
       ];
       for (const f of required) {
         assert.ok(

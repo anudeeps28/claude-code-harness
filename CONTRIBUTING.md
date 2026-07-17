@@ -122,18 +122,8 @@ Your agent instructions here...
 ## Adding a new tracker adapter
 
 1. Create a folder: `trackers/your-tracker/`
-2. Implement these 6 scripts (same interface as `ado/` and `github/`):
-
-| Script | Input | Output |
-|---|---|---|
-| `get-issue.sh <ID>` | Issue/work-item ID | Markdown: title, description, acceptance criteria, state |
-| `get-issue-children.sh <ID>` | Parent issue ID | Markdown table: child ID, title, description, state |
-| `get-pr-review-threads.sh <PR_ID>` | PR number | JSON array of thread objects |
-| `reply-pr-thread.sh <PR_ID> <THREAD_ID> "<text>"` | PR, thread, reply text | Success/failure message |
-| `resolve-pr-thread.sh <PR_ID> <THREAD_ID>` | PR, thread | Success/failure message |
-| `get-sprint-issues.sh <SPRINT_NUM>` | Sprint number | Markdown: all issues in sprint with children |
-
-3. See `trackers/README.md` for the full interface spec and output format requirements
+2. Implement the **13-script contract** (same interface as `ado/`, `github/`, `todoist/`, and `local/`) — see the "Script interface" table in `trackers/README.md` for signatures and output formats. PR-review-thread scripts live in `code-platform/`, not here.
+3. Prove conformance: add your adapter to the loops in `trackers/__tests__/conformance.test.js` (CLI stub + fixtures + golden file, per `trackers/__tests__/README.md`) and get `npm run test:trackers` green
 4. Update the installer (`install/install.sh`) to offer your tracker as an option
 
 ---

@@ -59,6 +59,8 @@ title: ${TITLE}
 state: open
 labels: ${labels_yaml}
 parent: null
+assignee: null
+blocked_by: []
 created: ${CREATED}
 closed: null
 close_reason: null
