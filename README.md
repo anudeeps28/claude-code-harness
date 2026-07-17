@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 17 agents, 7 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+34 skills, 17 agents, 7 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -270,6 +270,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **sync-tasks** | `/sync-tasks` | Report drift across task files and project artifacts (PRD, architecture, ADRs). Auto-suggested when `drift-check` hook hard-blocks |
 | **improve-harness** | `/improve-harness [days]` | Self-improvement loop — finds recurring friction in recent sessions/evaluations and proposes harness edits. Never auto-applies |
 | **grill-me** | `/grill-me <plan or design>` | Decision-tree interrogation of a plan, design, or proposal — serial questions with recommendations until shared understanding is reached |
+| **wayfinder** | `/wayfinder <loose idea>` or `/wayfinder <map ID>` | Plan an effort too big for one session as a map of decision tickets on the tracker — chart once, then resolve one ticket per session until the way is clear. Works on all four trackers |
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 | **prd-critique** | `/prd-critique <path> [--brief <path>]` | Run 6 critique checks on a PRD — metric validity, NFR specificity, failure modes, assumption traceability, rollback plan, intent clarity. Read-only |
 | **to-issues** | `/to-issues <prd>` | Decompose a PRD into vertical-slice tracker issues — each slice is end-to-end demoable with Given/When/Then acceptance criteria |
@@ -542,7 +543,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 33 skills
+├── skills/           ← 34 skills
 ├── agents/           ← 17 agents (16 sub-agents + 1 main-session operator)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 5 path-scoped rules

@@ -1,0 +1,18 @@
+{
+  "id": 4321,
+  "fields": {
+    "System.Title": "Pick a payment provider",
+    "System.State": "Active",
+    "System.WorkItemType": "Task"
+  },
+  "relations": [
+    {
+      "rel": "System.LinkTypes.Dependency-Reverse",
+      "url": "https://dev.azure.com/test-org/_apis/wit/workItems/12"
+    },
+    {
+      "rel": "System.LinkTypes.Hierarchy-Reverse",
+      "url": "https://dev.azure.com/test-org/_apis/wit/workItems/1234"
+    }
+  ]
+}

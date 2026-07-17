@@ -1,0 +1,9 @@
+{
+  "number": 4321,
+  "title": "Pick a payment provider",
+  "body": "## Question\nWhich payment provider should we use?\n\nBlocked by: #12, #14",
+  "labels": [{ "name": "wayfinder:grilling" }],
+  "assignees": [],
+  "state": "OPEN",
+  "milestone": null
+}

@@ -1,16 +1,16 @@
 #!/bin/bash
-# add-label.sh — Todoist adapter
-# Usage: bash .claude/trackers/active/add-label.sh <TASK_ID> "<label>"
-# Adds a label to the specified task. td's --labels REPLACES the label set,
-# so this reads current labels first and appends.
+# assign-issue.sh — Todoist adapter
+# Usage: bash .claude/trackers/active/assign-issue.sh <TASK_ID> ["<assignee>"]
+# Claims the task. Personal Todoist projects have no assignees, so the claim
+# is recorded as a "claimed" label (visible in list-issues.sh labels output).
+# td's --labels REPLACES the label set, so this reads current labels first.
 
 set -o pipefail
 
 TASK_ID="${1:-}"
-LABEL="${2:-}"
 
-if [ -z "$TASK_ID" ] || [ -z "$LABEL" ]; then
-  echo '{"error": "Usage: add-label.sh <TASK_ID> \"<label>\""}' >&2
+if [ -z "$TASK_ID" ]; then
+  echo '{"error": "Usage: assign-issue.sh <TASK_ID> [\"<assignee>\"]"}' >&2
   exit 1
 fi
 
@@ -37,23 +37,23 @@ if [ -z "$TASK_JSON" ]; then
   exit 1
 fi
 
-if echo "$TASK_JSON" | jq -e --arg l "$LABEL" '.labels // [] | index($l)' >/dev/null; then
-  echo "Label '$LABEL' already exists on task #${TASK_ID}"
+if echo "$TASK_JSON" | jq -e '.labels // [] | index("claimed")' >/dev/null; then
+  echo "Task #${TASK_ID} is already claimed"
   exit 0
 fi
 
 current=$(echo "$TASK_JSON" | jq -r '.labels // [] | join(",")')
 if [ -z "$current" ]; then
-  new_labels="$LABEL"
+  new_labels="claimed"
 else
-  new_labels="${current},${LABEL}"
+  new_labels="${current},claimed"
 fi
 
 with_retry "$TD" task update "id:${TASK_ID}" --labels "$new_labels" >/dev/null
 
 if [ $? -ne 0 ]; then
-  echo '{"error": "Failed to add label"}' >&2
+  echo '{"error": "Failed to claim task"}' >&2
   exit 1
 fi
 
-echo "Added label '$LABEL' to task #${TASK_ID}"
+echo "Assigned task #${TASK_ID} (claimed label added)"

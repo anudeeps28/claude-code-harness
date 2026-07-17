@@ -65,7 +65,27 @@ case "$1 $2" in
       echo '{"error": "issue 9999 not found"}' >&2
       exit 1
     fi
+    if [ "$3" = "4321" ]; then
+      cat "$fixture_dir/gh-issue-4321-blocked.json"
+      exit 0
+    fi
     cat "$fixture_dir/gh-issue-1234.json"
+    exit 0
+    ;;
+  "issue edit")
+    if [ "$3" = "9999" ]; then
+      echo '{"error": "issue 9999 not found"}' >&2
+      exit 1
+    fi
+    echo "https://github.com/testorg/testrepo/issues/$3"
+    exit 0
+    ;;
+  "issue comment")
+    if [ "$3" = "9999" ]; then
+      echo '{"error": "issue 9999 not found"}' >&2
+      exit 1
+    fi
+    echo "https://github.com/testorg/testrepo/issues/$3#issuecomment-1"
     exit 0
     ;;
   "issue list")

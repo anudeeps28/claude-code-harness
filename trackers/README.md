@@ -17,7 +17,12 @@ Claude Code Kit uses a **tracker adapter layer** so that skills and agents never
         ├── add-label.sh
         ├── remove-label.sh
         ├── close-issue.sh
-        └── list-issues.sh
+        ├── list-issues.sh
+        ├── assign-issue.sh
+        ├── comment-issue.sh
+        ├── add-blocker.sh
+        ├── get-blockers.sh
+        └── create-sub-issue.sh
 ```
 
 Skills and agents always call `trackers/active/<script>`. The installer copies the right adapter folder there at setup time. Switching trackers means re-running the installer (or copying a different adapter folder manually).
@@ -39,7 +44,7 @@ Skills and agents always call `trackers/active/<script>`. The installer copies t
 
 ## Script interface
 
-Every adapter implements the same **8 scripts** with identical signatures:
+Every adapter implements the same **13 scripts** with identical signatures:
 
 | Script | Args | What it returns |
 |---|---|---|
@@ -51,6 +56,22 @@ Every adapter implements the same **8 scripts** with identical signatures:
 | `remove-label.sh` | `<ID> "<label>"` | Removes a label/tag from an issue/work item |
 | `close-issue.sh` | `<ID> ["<reason>"]` | Closes/completes an issue/work item |
 | `list-issues.sh` | (none) | All open items as JSON array `[{id, title, state, labels, assignees, url}]` |
+| `assign-issue.sh` | `<ID> ["<assignee>"]` | Assigns/claims an item; assignee defaults to the current user |
+| `comment-issue.sh` | `<ID> "<text>"` | Adds a comment to an issue/work item |
+| `add-blocker.sh` | `<ID> <BLOCKER_ID>` | Records that `<ID>` is blocked by `<BLOCKER_ID>` |
+| `get-blockers.sh` | `<ID>` | IDs of items blocking `<ID>` as a JSON array, e.g. `[12, 14]` |
+| `create-sub-issue.sh` | `<PARENT_ID> "<title>" "<body>" "<label>"` | Creates an item as a child of the parent; prints `{"parent", "child", "url"}` JSON |
+
+### Wayfinding operations
+
+The last five scripts (added for `/wayfinder`, useful to any skill) are the **wayfinding operations**: claiming, blocking, commenting, and child creation. Each adapter uses the most native mechanism its tracker has:
+
+| Capability | GitHub | ADO | Todoist | Local |
+|---|---|---|---|---|
+| Claim (`assign-issue.sh`) | Native assignee (`@me` default) | Native assignee (signed-in az user default) | `claimed` **label** (personal Todoist has no assignees — check labels, not assignees) | `assignee:` frontmatter |
+| Blocking (`add-blocker.sh` / `get-blockers.sh`) | `Blocked by: #N, #M` body line (native issue dependencies aren't scriptable via stable `gh` yet) | **Native** predecessor dependency link | `Blocked by:` line in the description | `blocked_by:` frontmatter list |
+| Comment (`comment-issue.sh`) | Native issue comment | Native discussion comment | Native task comment (`td comment add`) | Timestamped block appended to the task file body |
+| Child (`create-sub-issue.sh`) | Native sub-issue (GraphQL) | New Task + parent relation | Native subtask (`--parent-id`) | `parent:` frontmatter |
 
 ---
 

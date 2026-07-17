@@ -51,13 +51,21 @@ for f in $(ls "$ISSUES_DIR"/*.md 2>/dev/null | sort -t/ -k3 -n); do
   # Escape title for JSON (handle double quotes)
   escaped_title=$(echo "$title" | sed 's/"/\\"/g')
 
+  # Assignee frontmatter (absent or "null" means unassigned)
+  assignee=$(grep -m1 '^assignee:' "$f" | sed 's/^assignee: *//')
+  assignees_json="[]"
+  if [ -n "$assignee" ] && [ "$assignee" != "null" ]; then
+    escaped_assignee=$(echo "$assignee" | sed 's/"/\\"/g')
+    assignees_json="[\"${escaped_assignee}\"]"
+  fi
+
   if [ "$first" = "true" ]; then
     first=false
   else
     echo -n ","
   fi
 
-  echo -n "{\"id\":${id},\"title\":\"${escaped_title}\",\"state\":\"open\",\"labels\":${labels_json},\"assignees\":[],\"url\":\"${f}\"}"
+  echo -n "{\"id\":${id},\"title\":\"${escaped_title}\",\"state\":\"open\",\"labels\":${labels_json},\"assignees\":${assignees_json},\"url\":\"${f}\"}"
 done
 
 echo "]"
