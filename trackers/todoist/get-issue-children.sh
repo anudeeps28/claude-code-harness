@@ -24,7 +24,9 @@ source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
 check_auth_todoist
 
-CHILDREN=$(with_retry "$TD" task list --parent "$TASK_ID" --json)
+# `td task list` returns only active (open) tasks; completed children simply
+# do not appear. So every child returned here is OPEN.
+CHILDREN=$(with_retry "$TD" task list --parent "$TASK_ID" --json | jq '(.results // .)')
 
 TOTAL=$(echo "$CHILDREN" | jq 'length' 2>/dev/null)
 
@@ -32,11 +34,9 @@ if [ "$TOTAL" -gt 0 ] 2>/dev/null; then
   echo "# Sub-tasks for Task $TASK_ID"
   echo ""
   echo "$CHILDREN" | jq -r '.[] |
-    "- [" + (if .is_completed then "x" else " " end) + "] " + (.id|tostring) + " " + .content + " (" + (if .is_completed then "CLOSED" else "OPEN" end) + ")"'
+    "- [ ] " + (.id|tostring) + " " + .content + " (OPEN)"'
   echo ""
-  OPEN=$(echo "$CHILDREN" | jq '[.[] | select(.is_completed == false)] | length')
-  CLOSED=$(echo "$CHILDREN" | jq '[.[] | select(.is_completed == true)] | length')
-  echo "_Progress: $CLOSED/$TOTAL complete ($OPEN open)_"
+  echo "_Progress: $TOTAL open (completed sub-tasks are not listed by Todoist)_"
 else
   echo "# Sub-tasks for Task $TASK_ID"
   echo ""

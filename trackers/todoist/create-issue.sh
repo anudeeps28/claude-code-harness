@@ -31,7 +31,7 @@ check_auth_todoist
 # Auto-read project from config when not passed as argument
 if [ -z "$PROJECT" ]; then
   if [ -f "tasks/tracker-config.md" ]; then
-    _proj=$(grep -i "todoist_project\s*=" tasks/tracker-config.md | sed 's/.*=\s*//' | tr -d ' \r\n')
+    _proj=$(grep -i "todoist_project[[:space:]]*=" tasks/tracker-config.md | sed 's/.*=[[:space:]]*//; s/[[:space:]]*$//' | tr -d '\r')
     [ -n "$_proj" ] && [ "$_proj" != "YOUR_TODOIST_PROJECT" ] && PROJECT="$_proj"
   fi
   if [ -z "$PROJECT" ] && [ -f "tasks/notes.md" ]; then

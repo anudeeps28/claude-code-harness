@@ -25,7 +25,7 @@ check_auth_todoist
 TODOIST_PROJECT=""
 
 if [ -f "tasks/tracker-config.md" ]; then
-  _proj=$(grep -i "todoist_project\s*=" tasks/tracker-config.md | sed 's/.*=\s*//' | tr -d ' \r\n')
+  _proj=$(grep -i "todoist_project[[:space:]]*=" tasks/tracker-config.md | sed 's/.*=[[:space:]]*//; s/[[:space:]]*$//' | tr -d '\r')
   [ -n "$_proj" ] && [ "$_proj" != "YOUR_TODOIST_PROJECT" ] && TODOIST_PROJECT="$_proj"
 fi
 
@@ -35,14 +35,23 @@ if [ -z "$TODOIST_PROJECT" ] && [ -f "tasks/notes.md" ]; then
   [ -n "$_proj" ] && TODOIST_PROJECT="$_proj"
 fi
 
-LIST_ARGS=(task list --json)
+# Fall back to the configured default section when none is passed.
+if [ -z "$SECTION" ] && [ -f "tasks/tracker-config.md" ]; then
+  SECTION=$(grep -i "todoist_default_section[[:space:]]*=" tasks/tracker-config.md | sed 's/.*=[[:space:]]*//; s/[[:space:]]*$//' | tr -d '\r')
+fi
 
+# `td task list` (v1.74+) has no --section flag; resolve the section name to an
+# id and filter client-side.
+SECTION_ID=""
+if [ -n "$SECTION" ] && [ -n "$TODOIST_PROJECT" ]; then
+  SECTION_ID=$(with_retry "$TD" section list --project "$TODOIST_PROJECT" --json \
+    | jq -r --arg n "$SECTION" '(.results // .)[] | select(.name==$n) | .id' | head -1)
+fi
+
+LIST_ARGS=(task list --json)
 if [ -n "$TODOIST_PROJECT" ]; then
   LIST_ARGS+=(--project "$TODOIST_PROJECT")
 fi
 
-if [ -n "$SECTION" ]; then
-  LIST_ARGS+=(--section "$SECTION")
-fi
-
-with_retry "$TD" "${LIST_ARGS[@]}"
+with_retry "$TD" "${LIST_ARGS[@]}" \
+  | jq --arg sid "$SECTION_ID" '[ (.results // .)[] | select($sid == "" or .sectionId == $sid) ]'
