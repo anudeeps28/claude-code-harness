@@ -4,6 +4,7 @@
   "private": true,
   "description": "Dev-only manifest for tests and lint. Not copied by the installer; runtime stays zero-dep.",
   "scripts": {
+    "dogfood": "node scripts/dogfood.js",
     "test": "node --test hooks/__tests__/*.test.js trackers/__tests__/*.test.js code-platform/__tests__/*.test.js install/__tests__/*.test.js",
     "test:hooks": "node --test hooks/__tests__/*.test.js",
     "test:trackers": "node --test trackers/__tests__/*.test.js",
