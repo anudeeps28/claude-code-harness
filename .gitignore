@@ -62,3 +62,24 @@ htmlcov/
 *.env.local
 local.settings.json
 appsettings.Development.json
+
+# >>> claude-code-harness managed — do not edit inside this block >>>
+tasks/issues/
+tasks/todo.md
+tasks/lessons.md
+tasks/pr-queue.md
+tasks/flags-and-notes.md
+tasks/people.md
+tasks/admin.md
+tasks/tracker-config.md
+tasks/sprint*.md
+tasks/stories/
+tasks/sessions*.jsonl*
+tasks/metrics*.jsonl*
+# <<< claude-code-harness managed <<<
+
+# Dogfood install: harness installed onto itself for local use.
+# Source of truth is skills/ agents/ hooks/ rules/ at repo root; .claude/ holds
+# personalized, placeholder-substituted copies — build artifacts, never commit.
+.claude/
+tasks/notes.md
