@@ -153,6 +153,9 @@ const MANAGED_GITIGNORE_ENTRIES = [
   'tasks/stories/',
   'tasks/sessions*.jsonl*',
   'tasks/metrics*.jsonl*',
+  // Throwaway prototype scratch — the /prototype skill deletes losing candidates
+  // after a winner is picked, so these are never meant to be tracked.
+  '_prototype/',
 ];
 
 function writeManagedGitignore(projectDir) {
