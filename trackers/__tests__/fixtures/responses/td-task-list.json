@@ -5,9 +5,10 @@
     "description": "Users need to be able to log in.",
     "labels": ["feature", "priority-high"],
     "priority": 3,
-    "is_completed": false,
-    "section_id": "555",
-    "project_id": "111"
+    "isUncompletable": false,
+    "sectionId": "555",
+    "projectId": "111",
+    "url": "https://todoist.com/showTask?id=1234"
   },
   {
     "id": "1235",
@@ -15,8 +16,9 @@
     "description": "Users should be able to reset their password.",
     "labels": ["feature"],
     "priority": 2,
-    "is_completed": false,
-    "section_id": "555",
-    "project_id": "111"
+    "isUncompletable": false,
+    "sectionId": "555",
+    "projectId": "111",
+    "url": "https://todoist.com/showTask?id=1235"
   }
 ]
