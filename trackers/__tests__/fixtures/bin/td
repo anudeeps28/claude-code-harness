@@ -72,6 +72,11 @@ case "$1 $2" in
       cat "$fixture_dir/td-task-4321.json"
       exit 0
     fi
+    # 5678 is viewable but absent from the active task list -> completed.
+    if [ "$ref" = "5678" ]; then
+      cat "$fixture_dir/td-task-5678.json"
+      exit 0
+    fi
     cat "$fixture_dir/td-task-1234.json"
     exit 0
     ;;

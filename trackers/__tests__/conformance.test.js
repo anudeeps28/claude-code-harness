@@ -289,6 +289,24 @@ describe('happy-path-stdout', () => {
     assert.equal(normalize(r.stdout), normalize(readGolden('todoist', 'get-issue.happy.md')));
   });
 
+  // td v1.74 `task view --json` carries no completion flag; state is derived
+  // from active-list membership. An active task reads OPEN with a real project.
+  test('todoist_GetIssue_ActiveTask_ReportsOpenWithProject', () => {
+    const r = runScript('todoist', 'get-issue.sh', ['1234']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /\*\*State:\*\* OPEN/);
+    assert.match(r.stdout, /\*\*Project:\*\* 111/);
+    assert.match(r.stdout, /\*\*Section:\*\* 555/);
+  });
+
+  // 5678 is viewable but absent from the active list -> must read CLOSED.
+  test('todoist_GetIssue_CompletedTask_ReportsClosed', () => {
+    const r = runScript('todoist', 'get-issue.sh', ['5678']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.stdout, /\*\*State:\*\* CLOSED/);
+    assert.match(r.stdout, /\*\*Project:\*\* 111/);
+  });
+
   test('github_CloseIssue_HappyPath_ExitsZero', () => {
     const r = runScript('github', 'close-issue.sh', ['1234']);
     assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);

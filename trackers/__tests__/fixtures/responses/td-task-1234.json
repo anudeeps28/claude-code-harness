@@ -4,9 +4,13 @@
   "description": "Users need to be able to log in.\n\n## Acceptance criteria\n- Valid credentials authenticate the user\n",
   "labels": ["feature", "priority-high"],
   "priority": 3,
-  "is_completed": false,
-  "section_id": "555",
-  "project_id": "111",
-  "parent_id": null,
-  "url": "https://todoist.com/showTask?id=1234"
+  "isUncompletable": false,
+  "sectionId": "555",
+  "projectId": "111",
+  "responsibleUid": null,
+  "deadline": null,
+  "due": null,
+  "duration": null,
+  "url": "https://todoist.com/showTask?id=1234",
+  "webUrl": "https://app.todoist.com/app/task/1234"
 }

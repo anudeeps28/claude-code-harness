@@ -1,0 +1,16 @@
+{
+  "id": "5678",
+  "content": "Ship the beta",
+  "description": "Already delivered.",
+  "labels": ["feature"],
+  "priority": 4,
+  "isUncompletable": false,
+  "sectionId": "555",
+  "projectId": "111",
+  "responsibleUid": null,
+  "deadline": null,
+  "due": null,
+  "duration": null,
+  "url": "https://todoist.com/showTask?id=5678",
+  "webUrl": "https://app.todoist.com/app/task/5678"
+}
