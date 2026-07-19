@@ -351,6 +351,7 @@ function handleModeCrossing(manifest, target, nonInteractive) {
     'tasks/issues/', 'tasks/todo.md', 'tasks/lessons.md', 'tasks/pr-queue.md',
     'tasks/flags-and-notes.md', 'tasks/people.md', 'tasks/admin.md',
     'tasks/tracker-config.md', 'tasks/stories/',
+    'grill-summary.md', 'operator-state.md',
   ];
   try {
     const result = spawnSync('git', ['ls-files', '--', ...managedPatterns], {

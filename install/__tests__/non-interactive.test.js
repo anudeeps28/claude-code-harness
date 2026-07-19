@@ -385,6 +385,8 @@ test('install.js --yes writes managed gitignore block, idempotent on re-install'
     assert.ok(content.includes('tasks/issues/'), 'tasks/issues/ must be in block');
     assert.ok(content.includes('tasks/todo.md'), 'tasks/todo.md must be in block');
     assert.ok(content.includes('_prototype/'), '_prototype/ (throwaway scratch) must be in block');
+    assert.ok(content.includes('grill-summary.md'), 'grill-summary.md (transient handoff) must be in block');
+    assert.ok(content.includes('operator-state.md'), 'operator-state.md (chief-operator state) must be in block');
 
     // Re-run: block should appear exactly once
     runInstallJs(['--yes', '--project', dir, ...LOCAL]);
