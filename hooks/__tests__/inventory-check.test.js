@@ -75,7 +75,7 @@ test('inventory-check_NewAgentMissingFromReadmeTable_Denies', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('inventory-check_NewAgentMissingFromChangelog_Denies', () => {
+test('inventory-check_NewAgentMissingFromChangelog_Warns', () => {
   const dir = makeRepo({
     'README.md': '2 agents\n| `foo` | opus |\n| `bar` | opus |',
     'CHANGELOG.md': '## [Unreleased]\nnothing here',
@@ -83,8 +83,8 @@ test('inventory-check_NewAgentMissingFromChangelog_Denies', () => {
   });
   stageNewFile(dir, 'agents/bar.md', '---\nname: bar\n---');
   const r = runHook({ command: 'git commit -m "add bar"' }, dir);
-  assert.strictEqual(r.exitCode, 2);
-  assert.match(r.json.reason, /CHANGELOG\.md.*missing entry for `bar`/);
+  assert.strictEqual(r.exitCode, 0);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /no entry for new agent `bar`/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -113,16 +113,85 @@ test('inventory-check_AllUpdated_Allows', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('inventory-check_NewSkillMissingFromChangelog_Denies', () => {
+test('inventory-check_NewSkillMissingFromChangelog_Warns', () => {
   const dir = makeRepo({
-    'README.md': '1 skills',
+    'README.md': '2 skills',
     'CHANGELOG.md': '## [Unreleased]\nnothing',
     'skills/foo/SKILL.md': '---\nname: foo\n---',
   });
   stageNewFile(dir, 'skills/bar/SKILL.md', '---\nname: bar\n---');
   const r = runHook({ command: 'git commit -m "add bar skill"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /no entry for new skill `bar`/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_VersionBumpEmptyUnreleased_Denies', () => {
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n## [3.0.0]\n- old stuff',
+    'VERSION': '3.0.0',
+    'skills/foo/SKILL.md': '---\nname: foo\n---',
+  });
+  fs.writeFileSync(path.join(dir, 'VERSION'), '3.1.0');
+  execFileSync('git', ['add', 'VERSION'], { cwd: dir });
+  const r = runHook({ command: 'git commit -m "bump version"' }, dir);
   assert.strictEqual(r.exitCode, 2);
-  assert.match(r.json.reason, /CHANGELOG.*missing entry for skill `bar`/);
+  assert.match(r.json.reason, /\[Unreleased\] has no entries/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_VersionBumpWithUnreleasedEntries_Allows', () => {
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n### Added\n\n- new thing\n\n## [3.0.0]\n- old',
+    'VERSION': '3.0.0',
+    'skills/foo/SKILL.md': '---\nname: foo\n---',
+  });
+  fs.writeFileSync(path.join(dir, 'VERSION'), '3.1.0');
+  execFileSync('git', ['add', 'VERSION'], { cwd: dir });
+  const r = runHook({ command: 'git commit -m "bump version"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_NewHook_Warns', () => {
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n- something',
+  });
+  stageNewFile(dir, 'hooks/new-thing.js', '// hook');
+  const r = runHook({ command: 'git commit -m "add hook"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /New hook `new-thing\.js`/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_RemovedSkill_Warns', () => {
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n- x',
+    'skills/foo/SKILL.md': '---\nname: foo\n---',
+    'skills/bar/SKILL.md': '---\nname: bar\n---',
+  });
+  execFileSync('git', ['rm', 'skills/bar/SKILL.md'], { cwd: dir });
+  const r = runHook({ command: 'git commit -m "remove bar"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /Skill `bar` removed/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_LandingPageCountMismatch_Warns', () => {
+  const dir = makeRepo({
+    'README.md': '2 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n- bar added',
+    'docs/index.html': '<div class="num">1</div><div class="what">Skills</div>',
+    'skills/foo/SKILL.md': '---\nname: foo\n---',
+  });
+  stageNewFile(dir, 'skills/bar/SKILL.md', '---\nname: bar\n---');
+  const r = runHook({ command: 'git commit -m "add bar"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  assert.match(r.json.hookSpecificOutput.additionalContext, /docs\/index\.html shows 1 Skills but skills\/ has 2/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
