@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { walk } = require('../../hooks/lib/walk.js');
+const { DEFAULT_REPO_URL } = require('./source.js');
 
 const IS_WINDOWS = process.platform === 'win32';
 
@@ -95,9 +96,9 @@ function buildSettings({ hooksUnix, sessionStartMsg: _sessionStartMsg, workRoot,
   return settings;
 }
 
-function buildManifest({ harnessVersion, installMode, workflowPack, tracker, trackerMirror, codePlatform, prdMode, answers, installedFiles, now }) {
+function buildManifest({ harnessVersion, installMode, workflowPack, tracker, trackerMirror, codePlatform, prdMode, answers, update, installedFiles, now }) {
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     harnessVersion,
     installMode,
     workflowPack,
@@ -105,6 +106,9 @@ function buildManifest({ harnessVersion, installMode, workflowPack, tracker, tra
     codePlatform: codePlatform || 'none',
     prdMode,
     answers,
+    // Fetch-on-demand update config (schemaVersion 2+). Replaces the old
+    // answers.harnessRepoPath persistent-clone pointer. See install/lib/source.js.
+    update: update || { repoUrl: DEFAULT_REPO_URL, channel: 'latest', pinnedVersion: null, localPath: null },
     installedFiles,
     installedAt: now,
     updatedAt: now,
@@ -115,9 +119,15 @@ function buildManifest({ harnessVersion, installMode, workflowPack, tracker, tra
   return manifest;
 }
 
-function subsFromManifest(manifest, target, harnessRepoPath) {
+function subsFromManifest(manifest, target) {
   const answers = manifest.answers || {};
+  const update = manifest.update || {};
   const mode = manifest.installMode || 'project';
+  // YOUR_HARNESS_REPO_PATH is only meaningful for a local clone (the improve-harness
+  // workflow points the user at it). On the fetch-on-demand channels there is no
+  // persistent clone, so fall back to the legacy pointer (pre-migration manifests)
+  // and finally the repo URL, which still tells the user where to clone from.
+  const harnessRepoPath = update.localPath || answers.harnessRepoPath || update.repoUrl || DEFAULT_REPO_URL;
   const hooksUnix = mode === 'global'
     ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
     : toUnixPath(path.join(target, 'hooks'));
@@ -137,7 +147,7 @@ function subsFromManifest(manifest, target, harnessRepoPath) {
     infraPerson: answers.infraPerson || 'YOUR_INFRA_PERSON',
     devopsPerson: answers.devopsPerson || 'YOUR_DEVOPS_PERSON',
     qaPerson: answers.qaPerson || 'YOUR_QA_PERSON',
-    harnessRepoPath: answers.harnessRepoPath || harnessRepoPath,
+    harnessRepoPath,
     todoistProject: answers.todoistProject || 'YOUR_TODOIST_PROJECT',
     workRoot: answers.workRoot || '',
     isGlobal: mode === 'global',

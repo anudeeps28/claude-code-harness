@@ -9,6 +9,10 @@ const { execFileSync } = require('node:child_process');
 
 const INSTALL_JS = path.resolve(__dirname, '..', 'install.js');
 const INSTALL_SH = path.resolve(__dirname, '..', 'install.sh');
+// Install with the "local" update channel pointed at this repo so post-install
+// --check/--update/--switch-tracker read the real source tree offline (no network fetch).
+const REPO = path.resolve(__dirname, '..', '..');
+const LOCAL = ['--local', REPO];
 
 const ENTERPRISE_ONLY_AGENTS = [
   'story-understand-agent.md',
@@ -66,7 +70,7 @@ test('install.js --yes --global --dry-run completes without hanging', () => {
 test('install.js --yes --project installs without enterprise agents', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const agents = fs.readdirSync(path.join(dir, '.claude', 'agents'));
     for (const enterprise of ENTERPRISE_ONLY_AGENTS) {
       assert.ok(
@@ -83,11 +87,11 @@ test('install.js --yes --project installs without enterprise agents', () => {
 test('install.js --yes --project writes a valid .harness-manifest.json', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
     assert.ok(fs.existsSync(manifestPath), 'manifest must exist after install');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    assert.equal(manifest.schemaVersion, 1);
+    assert.equal(manifest.schemaVersion, 2);
     assert.ok(manifest.harnessVersion, 'harnessVersion must be set');
     assert.equal(manifest.installMode, 'project');
     assert.equal(manifest.workflowPack, 'solo');
@@ -109,13 +113,14 @@ test('install.js --yes --project writes a valid .harness-manifest.json', () => {
 test('install.js --check --project after install prints valid JSON', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const out = runInstallJs(['--check', '--project', dir]).toString();
     const result = JSON.parse(out);
     assert.ok(!result.error, 'no error after valid install');
     assert.ok(result.currentVersion, 'currentVersion present');
     assert.ok(result.latestVersion, 'latestVersion present');
-    assert.ok(typeof result.behind === 'number', 'behind is a number');
+    assert.equal(typeof result.updateAvailable, 'boolean', 'updateAvailable is a boolean');
+    assert.equal(result.channel, 'local', 'channel reflects the local update config');
     assert.ok(Array.isArray(result.orphans), 'orphans is an array');
     assert.ok(Array.isArray(result.drifted), 'drifted is an array');
     assert.equal(result.drifted.length, 0, 'no drift right after install');
@@ -127,7 +132,7 @@ test('install.js --check --project after install prints valid JSON', () => {
 test('install.js --check detects drifted files when installed copy differs from source', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const claudeDir = path.join(dir, '.claude');
     const manifest = JSON.parse(fs.readFileSync(path.join(claudeDir, '.harness-manifest.json'), 'utf8'));
     const firstSkill = manifest.installedFiles.find(f => f.startsWith('skills/') && f.endsWith('.md'));
@@ -161,7 +166,7 @@ test('install.js --check without manifest returns no-manifest error', () => {
 test('install.js --update --project after install succeeds and bumps manifest', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
     const before = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
@@ -181,10 +186,24 @@ test('install.js --update --project after install succeeds and bumps manifest', 
   }
 });
 
+test('install.js --update --pin re-points channel to pinned and persists it', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
+    // Switch to a pinned channel during update; --source keeps it offline.
+    runInstallJs(['--update', '--project', dir, '--pin', '3.1.0', '--source', REPO]);
+    const m = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
+    assert.equal(m.update.channel, 'pinned', 'channel switched to pinned');
+    assert.equal(m.update.pinnedVersion, '3.1.0', 'pinned version persisted');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('install.js --switch-tracker todoist updates manifest and copies scripts', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
     const before = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     assert.equal(before.tracker, 'local', 'default tracker should be local (D2)');
@@ -270,7 +289,7 @@ test('install.js rejects an invalid enum flag value', () => {
 test('install.js prints an actionable re-run command when values are left as placeholders', () => {
   const dir = makeTempProject();
   try {
-    const out = runInstallJs(['--yes', '--project', dir]).toString();
+    const out = runInstallJs(['--yes', '--project', dir, ...LOCAL]).toString();
     assert.ok(out.includes('re-running with:'), 'should offer a re-run command');
     assert.ok(out.includes('--name'), 'should name the flag that fills YOUR_NAME');
     assert.ok(out.includes('--project-name'), 'should name the flag that fills YOUR_PROJECT_NAME');
@@ -332,7 +351,7 @@ test('install.sh --yes --project installs without enterprise agents', () => {
 test('install.js --yes defaults to tracker=local with all 13 local scripts in active/', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
     assert.equal(manifest.tracker, 'local', 'D2: --yes defaults to local');
     assert.strictEqual(manifest.trackerMirror, undefined, 'no mirror in local mode');
@@ -358,7 +377,7 @@ test('install.js --yes defaults to tracker=local with all 13 local scripts in ac
 test('install.js --yes writes managed gitignore block, idempotent on re-install', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const gitignorePath = path.join(dir, '.gitignore');
     assert.ok(fs.existsSync(gitignorePath), '.gitignore must be created');
     const content = fs.readFileSync(gitignorePath, 'utf8');
@@ -367,7 +386,7 @@ test('install.js --yes writes managed gitignore block, idempotent on re-install'
     assert.ok(content.includes('tasks/todo.md'), 'tasks/todo.md must be in block');
 
     // Re-run: block should appear exactly once
-    runInstallJs(['--yes', '--project', dir]);
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
     const content2 = fs.readFileSync(gitignorePath, 'utf8');
     const count = content2.split('claude-code-harness managed').length - 1;
     assert.equal(count, 2, 'exactly 2 sentinel lines (start+end) after re-install');
@@ -379,7 +398,7 @@ test('install.js --yes writes managed gitignore block, idempotent on re-install'
 test('install.js --tracker github --yes installs github adapter', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github', ...LOCAL]);
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
     assert.equal(manifest.tracker, 'github');
     const activeDir = path.join(dir, '.claude', 'trackers', 'active');
@@ -394,7 +413,7 @@ test('install.js --update crossing: old manifest gains trackerMirror, archives t
   const dir = makeTempProject();
   try {
     // Simulate pre-modes manifest by installing then stripping the new field
-    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github', ...LOCAL]);
     const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     delete manifest.trackerMirror;
@@ -428,7 +447,7 @@ test('install.js --update crossing: old manifest gains trackerMirror, archives t
 test('install.js --update crossing: no todo.md present → no archive, no error', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github', ...LOCAL]);
     const manifestPath = path.join(dir, '.claude', '.harness-manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     delete manifest.trackerMirror;
@@ -451,7 +470,7 @@ test('install.js --update crossing: no todo.md present → no archive, no error'
 test('install.js --switch-tracker local creates tasks/issues/ and sets trackerMirror=false', () => {
   const dir = makeTempProject();
   try {
-    runInstallJs(['--yes', '--project', dir, '--tracker', 'github']);
+    runInstallJs(['--yes', '--project', dir, '--tracker', 'github', ...LOCAL]);
     runInstallJs(['--switch-tracker', 'local', '--project', dir]);
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
     assert.equal(manifest.tracker, 'local');

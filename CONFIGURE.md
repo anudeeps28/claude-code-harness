@@ -102,7 +102,7 @@ The **Flag** column is what to pass to the installer (paired with `--yes` for no
 | `YOUR_INFRA_PERSON` | `--infra-person` | Infrastructure/cloud person | Enterprise |
 | `YOUR_DEVOPS_PERSON` | `--devops-person` | CI/CD/deployments person | Enterprise |
 | `YOUR_QA_PERSON` | `--qa-person` | QA/UAT person | Enterprise |
-| `YOUR_HARNESS_REPO_PATH` | `--harness-repo-path` | Absolute path to your local clone of `claude-code-harness` (used by `/improve-harness` to reference harness files in its proposals) | Both |
+| `YOUR_HARNESS_REPO_PATH` | `--local` / `--repo-url` | Where `/improve-harness` points for the harness source: the `--local` clone path if set, else the repo URL. No persistent clone is required — updates fetch on demand (see [Update channel](#update-channel)). | Both |
 | `CLAUDE_HARNESS_WORK_ROOT` | `--work-root` | Env var in `settings.json` consumed by `catalog-skills.js` — folder containing all your projects | Global install only |
 
 ---
@@ -193,7 +193,7 @@ Written automatically by the installer at `<target>/.claude/.harness-manifest.js
 
 | Field | Type | Description |
 |---|---|---|
-| `schemaVersion` | `number` | Manifest format version (currently `1`) |
+| `schemaVersion` | `number` | Manifest format version (currently `2`) |
 | `harnessVersion` | `string` | Harness version at install/update time (from `VERSION`) |
 | `installMode` | `"global"` \| `"project"` | How the harness was installed |
 | `workflowPack` | `"solo"` \| `"enterprise"` | Which workflow pack was chosen |
@@ -202,14 +202,24 @@ Written automatically by the installer at `<target>/.claude/.harness-manifest.js
 | `codePlatform` | `"github"` \| `"azure-repos"` \| `"none"` | Where PRs live (independent of tracker) |
 | `prdMode` | `string` | PRD output mode (`file`, `tracker`, `both-file-canonical`, `both-tracker-canonical`) |
 | `answers` | `object` | All personalization values collected during install |
-| `answers.harnessRepoPath` | `string` | Path to the harness source clone |
+| `update` | `object` | Fetch-on-demand update config (schemaVersion 2+). Replaces the old `answers.harnessRepoPath` clone pointer. |
+| `update.repoUrl` | `string` | Where to fetch the harness from (a fork URL for forks) |
+| `update.channel` | `"latest"` \| `"pinned"` \| `"local"` | How `/update-harness` resolves the source |
+| `update.pinnedVersion` | `string` \| `null` | The version tag when `channel` is `"pinned"` |
+| `update.localPath` | `string` \| `null` | A local clone path when `channel` is `"local"` (harness development / offline) |
 | `installedFiles` | `string[]` | Relative paths of every file copied during install |
 | `installedAt` | `string` | ISO timestamp of first install |
 | `updatedAt` | `string` | ISO timestamp of most recent update |
 
 The manifest is the **only** home for tracker mode and code platform flags. `tasks/tracker-config.md` keeps only personal pointers (Todoist project name, sprint naming conventions, resource names).
 
-To manually edit after install (e.g. change `harnessRepoPath` after moving the clone):
+<a id="update-channel"></a>
+**Update channel.** `/update-harness` keeps **no persistent clone**. It reads `update`, fetches the
+source on demand (shallow clone to a temp dir, discarded after), applies, and cleans up. Default is
+`latest` (newest `main`). Pin a version with `--pin <version>`, return to latest with `--latest`, or
+point at a local clone with `--local <path>` — at install time or with `--update`.
+
+To manually edit after install (e.g. switch to a pinned version):
 
 ```bash
 # Edit the manifest directly — it's plain JSON

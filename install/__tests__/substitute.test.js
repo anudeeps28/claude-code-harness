@@ -374,14 +374,17 @@ test('runCheck_ValidManifest_ReturnsVersionInfo', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-test-'));
   const REPO = path.resolve(__dirname, '../..');
   try {
+    // Use the offline "local" channel pointed at this repo so the check reads the
+    // real source tree without a network fetch.
     const manifest = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       harnessVersion: '1.0.0',
       installMode: 'project',
       workflowPack: 'solo',
       tracker: 'github',
       prdMode: 'file',
-      answers: { harnessRepoPath: REPO },
+      answers: {},
+      update: { repoUrl: 'https://github.com/x/y', channel: 'local', pinnedVersion: null, localPath: REPO },
       installedFiles: ['skills/implement/SKILL.md', 'hooks/safety-check.js'],
       installedAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
@@ -389,10 +392,63 @@ test('runCheck_ValidManifest_ReturnsVersionInfo', () => {
     fs.writeFileSync(path.join(dir, '.harness-manifest.json'), JSON.stringify(manifest), 'utf8');
     const result = runCheck(dir);
     assert.ok(!result.error, 'no error for valid manifest');
+    assert.equal(result.channel, 'local');
     assert.equal(result.currentVersion, '1.0.0');
     assert.ok(result.latestVersion, 'latestVersion present');
-    assert.ok(typeof result.behind === 'number', 'behind is a number');
+    assert.equal(typeof result.updateAvailable, 'boolean', 'updateAvailable is a boolean');
     assert.ok(Array.isArray(result.orphans), 'orphans is an array');
+    assert.ok(Array.isArray(result.drifted), 'drifted is an array');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('runCheck_WithSourceDirOption_BypassesFetchEvenOnLatestChannel', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-source-'));
+  const REPO = path.resolve(__dirname, '../..');
+  try {
+    const manifest = {
+      schemaVersion: 2,
+      harnessVersion: '1.0.0',
+      installMode: 'project',
+      workflowPack: 'solo',
+      tracker: 'github',
+      prdMode: 'file',
+      answers: {},
+      // channel "latest" would normally fetch; --source must override that.
+      update: { repoUrl: 'https://github.com/x/y', channel: 'latest', pinnedVersion: null, localPath: null },
+      installedFiles: ['skills/implement/SKILL.md'],
+      installedAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    fs.writeFileSync(path.join(dir, '.harness-manifest.json'), JSON.stringify(manifest), 'utf8');
+    // The install.js wrapper injects --source from CLI args; the option itself lives
+    // on the updater impl, so exercise that directly.
+    const { runCheck: runCheckImpl } = require('../lib/updater.js');
+    const result = runCheckImpl(dir, { sourceDir: REPO });
+    assert.ok(!result.error, 'no error when source dir is supplied');
+    assert.ok(result.latestVersion, 'latestVersion read from the supplied source');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('runCheck_LegacyManifestMissingClone_ReturnsFetchErrorNotCrash', () => {
+  // A pre-migration manifest whose old clone path is gone. migrateUpdateConfig
+  // sends it to channel "latest"; with a bogus repoUrl the fetch fails cleanly
+  // rather than throwing.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'check-legacy-'));
+  try {
+    const manifest = {
+      schemaVersion: 1,
+      harnessVersion: '1.0.0',
+      answers: { harnessRepoPath: '/definitely/not/here' },
+      update: { repoUrl: 'file:///definitely/not/a/repo', channel: 'latest', pinnedVersion: null, localPath: null },
+      installedFiles: [],
+    };
+    fs.writeFileSync(path.join(dir, '.harness-manifest.json'), JSON.stringify(manifest), 'utf8');
+    const result = runCheck(dir);
+    assert.equal(result.error, 'fetch-failed');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
