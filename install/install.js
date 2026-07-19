@@ -190,6 +190,11 @@ const MANAGED_GITIGNORE_ENTRIES = [
   // Throwaway prototype scratch — the /prototype skill deletes losing candidates
   // after a winner is picked, so these are never meant to be tracked.
   '_prototype/',
+  // Transient skill handoffs — overwritten each session, not permanent records.
+  // grill-summary.md: /grill-me and /wayfinder Decide→Define hand-off (repo root).
+  // operator-state.md: chief-operator agent state, rewritten every session.
+  'grill-summary.md',
+  'operator-state.md',
 ];
 
 function writeManagedGitignore(projectDir) {
