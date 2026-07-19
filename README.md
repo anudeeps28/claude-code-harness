@@ -179,6 +179,11 @@ node claude-code-harness/install/install.js        # Windows, macOS, Linux
 bash claude-code-harness/install/install.sh
 ```
 
+**The clone you just made is disposable** — the installer copies the harness into your project's
+`.claude/` and records how to fetch updates later. You can delete `claude-code-harness/` afterward;
+`/update-harness` re-fetches the source on demand (no persistent clone is kept anywhere). See
+[Updating the harness](#updating-the-harness).
+
 The installer asks:
 1. **Global or project?** — `~/.claude/` (all projects) or `.claude/` (one repo)
 2. **Solo or Enterprise?** — Simpler issues workflow or full sprint ceremony
@@ -205,17 +210,38 @@ node claude-code-harness/install/install.js --yes --project /my/app \
 
 ## Updating the harness
 
+Updates are **fetch-on-demand** — there is no persistent clone to maintain. `/update-harness` reads
+the `update` config in your `.harness-manifest.json`, fetches the harness source (a shallow clone to a
+temp dir, discarded afterward), applies the changes, and cleans up.
+
 ```bash
 /update-harness                  # interactive — checks, shows changelog, asks before applying
 /update-harness --global         # target only the global install
 /update-harness --project        # target only the project install
 ```
 
-Or headless (no Claude needed):
+**Update channel** — how "latest" is resolved. Default is the newest `main`; you can pin a version or
+point at a local clone:
+
+| Channel | What it does | Set it with |
+|---|---|---|
+| `latest` *(default)* | Always the newest `main` on GitHub | `--latest` |
+| `pinned` | Stays on a version tag until you bump it | `--pin <version>` |
+| `local` | Updates from a local clone (harness development / offline) | `--local <path>` |
+
+The channel flags work at **install time** and with **`--update`** to re-point an existing install:
 
 ```bash
-node claude-code-harness/install/install.js --check --project /my/app   # read-only version check
-node claude-code-harness/install/install.js --update --project /my/app  # apply updates
+/update-harness --pin 3.2.0      # pin this install to v3.2.0
+/update-harness --latest         # go back to tracking the newest main
+```
+
+Headless (no Claude needed) — fetches on demand just like the skill:
+
+```bash
+node <harness-checkout>/install/install.js --check  --project /my/app   # read-only version check
+node <harness-checkout>/install/install.js --update --project /my/app   # apply updates
+# --source <dir> reuses an already-fetched checkout instead of fetching again
 ```
 
 Updates are safe:
@@ -224,7 +250,9 @@ Updates are safe:
 - **Orphaned files** (removed from the harness source) are cleaned up automatically
 - **Rollback** in one command: `cp -r "<snapshot-path>/"* "<target>/"`
 
-For installs created before v2.1, `/update-harness` runs a one-time backfill to create `.harness-manifest.json`.
+Installs created before the `update` block gains it automatically on the first update (the old
+`answers.harnessRepoPath` clone pointer is dropped). Installs created before v2.1 also run a one-time
+backfill to create `.harness-manifest.json`.
 
 ---
 

@@ -21,9 +21,24 @@ const {
   runSwitchTracker: runSwitchTrackerImpl, backfillManifest: backfillManifestImpl,
   HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS,
 } = require('./lib/updater.js');
+const { DEFAULT_REPO_URL } = require('./lib/source.js');
+
+// Build the fetch-on-demand update config from CLI flags. Default: latest from
+// GitHub. --pin <ver> pins a version; --local <path> points at a local clone
+// (used for harness development). See install/lib/source.js.
+function buildUpdateConfig(cliArgs) {
+  const repoUrl = cliArgs.repoUrl || DEFAULT_REPO_URL;
+  if (cliArgs.localPath) {
+    return { repoUrl, channel: 'local', pinnedVersion: null, localPath: path.resolve(cliArgs.localPath) };
+  }
+  if (cliArgs.pinnedVersion) {
+    return { repoUrl, channel: 'pinned', pinnedVersion: cliArgs.pinnedVersion, localPath: null };
+  }
+  return { repoUrl, channel: 'latest', pinnedVersion: null, localPath: null };
+}
 
 const REPO_DIR = path.resolve(__dirname, '..');
-const MANIFEST_SCHEMA_VERSION = 1;
+const MANIFEST_SCHEMA_VERSION = 2;
 
 // ── Node version gate ────────────────────────────────────────────────────────
 const major = parseInt(process.versions.node.split('.')[0], 10);
@@ -63,7 +78,10 @@ const VALUE_FLAGS = {
   '--devops-person': 'devopsPerson',
   '--qa-person': 'qaPerson',
   '--work-root': 'workRoot',
-  '--harness-repo-path': 'harnessRepoPath',
+  '--pin': 'pinnedVersion',
+  '--local': 'localPath',
+  '--repo-url': 'repoUrl',
+  '--source': 'source',
   '--code-platform': 'codePlatform',
   '--tracker-mirror': 'trackerMirror',
 };
@@ -94,7 +112,8 @@ for (let i = 0; i < args.length; i++) {
     if (next && !next.startsWith('-')) { switchTracker = next; i++; }
   }
   else if (a === '--backfill') { /* triggers backfill — consumed in main */ }
-  else if (a === '--skip-pull') { /* consumed by runUpdate */ }
+  else if (a === '--skip-pull') { /* legacy no-op — fetch-on-demand has nothing to pull */ }
+  else if (a === '--latest') { cli.channelLatest = '1'; }
   else if (a === '--seed') { /* handled post-install — seeds lessons.md from ~/.claude/learnings/ */ }
   else if (a === '--help' || a === '-h') {
     console.log(`  Usage:
@@ -117,7 +136,14 @@ for (let i = 0; i < args.length; i++) {
     --todoist-project <str>             Todoist project (todoist tracker)
     --org / --lead-dev / --infra-person / --devops-person / --qa-person   team (enterprise)
     --work-root <path>                  work folder (global installs)
-    --harness-repo-path <path>          local claude-code-harness clone
+
+  Update channel (how /update-harness fetches new versions — default: latest from GitHub):
+    --pin <version>                     pin to a version tag (opt into bumps with --update later)
+    --latest                            (re)set the channel to latest
+    --local <path>                      update from a local clone (harness development / offline)
+    --repo-url <url>                    fetch from a fork instead of the canonical repo
+  These flags work at install time and with --update to re-point an existing install.
+  --check/--update also accept --source <dir> to reuse an already-fetched checkout.
 
   Example — fully non-interactive:
     node install/install.js --yes --project /my/app --name "Alex" --project-name "my-app"
@@ -131,11 +157,19 @@ for (let i = 0; i < args.length; i++) {
 let rl = null;
 const ask = (q) => new Promise((resolve) => rl.question(q, (ans) => resolve(ans)));
 
-// ── Thin wrappers that inject REPO_DIR ───────────────────────────────────────
-function runCheck(target) { return runCheckImpl(target, REPO_DIR); }
-function runUpdate(target) { return runUpdateImpl(target, { repoDir: REPO_DIR, cliArgs: args }); }
-function runSwitchTracker(target, tracker) { return runSwitchTrackerImpl(target, tracker, REPO_DIR); }
-function backfillManifest(target, opts = {}) { return backfillManifestImpl(target, opts, REPO_DIR); }
+// ── Thin wrappers ────────────────────────────────────────────────────────────
+// Update/check/switch no longer read a persistent clone — the harness source is
+// fetched on demand from the manifest's `update` config (see install/lib/source.js).
+// A pre-materialized source can be reused via --source (set from cli.source).
+function runCheck(target) { return runCheckImpl(target, { sourceDir: cli.source || null }); }
+function runUpdate(target) {
+  // --pin / --latest / --local / --repo-url during update re-point the channel.
+  const hasChannelFlag = cli.localPath || cli.pinnedVersion || cli.repoUrl || cli.channelLatest;
+  const channelOverride = hasChannelFlag ? buildUpdateConfig(cli) : null;
+  return runUpdateImpl(target, { cliArgs: args, sourceDir: cli.source || null, channelOverride });
+}
+function runSwitchTracker(target, tracker) { return runSwitchTrackerImpl(target, tracker); }
+function backfillManifest(target, opts = {}) { return backfillManifestImpl(target, opts); }
 
 // ── Managed gitignore block (D4) ────────────────────────────────────────────
 const GITIGNORE_SENTINEL_START = '# >>> claude-code-harness managed — do not edit inside this block >>>';
@@ -481,7 +515,9 @@ async function main() {
     workRoot = await promptValue(cli.workRoot, '    Work root (folder containing projects) : ', 'C:\\YOUR_WORK_FOLDER');
   }
 
-  const harnessRepoPath = await promptValue(cli.harnessRepoPath, `    Harness repo path [${REPO_DIR}]: `, REPO_DIR);
+  // Update channel (fetch-on-demand). Default: latest from GitHub. No persistent
+  // clone is recorded — /update-harness fetches the source when it runs.
+  const update = buildUpdateConfig(cli);
   console.log('');
 
   // ── Dry run ────────────────────────────────────────────────────────────────
@@ -663,7 +699,10 @@ async function main() {
     projectName, userName,
     adoProject, adoRepo, adoOrgPath,
     orgName, leadDev, infraPerson, devopsPerson, qaPerson,
-    harnessRepoPath, todoistProject, workRoot, isGlobal: mode === 'global',
+    // YOUR_HARNESS_REPO_PATH is only meaningful for a local clone (improve-harness).
+    // On latest/pinned channels there is no clone, so fall back to the repo URL.
+    harnessRepoPath: update.localPath || update.repoUrl,
+    todoistProject, workRoot, isGlobal: mode === 'global',
     prdMode,
   });
 
@@ -703,8 +742,9 @@ async function main() {
       adoProject, adoRepo, adoOrgPath,
       todoistProject,
       orgName, leadDev, infraPerson, devopsPerson, qaPerson,
-      harnessRepoPath, workRoot,
+      workRoot,
     },
+    update,
     installedFiles: installedFiles.sort(),
     now,
   });

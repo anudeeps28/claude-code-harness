@@ -6,6 +6,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Fetch-on-demand updates — no more persistent clone.** `/update-harness` no longer requires a local `claude-code-harness` clone to sit next to your project. It reads a new `update` block in `.harness-manifest.json`, fetches the harness source on demand (a shallow clone to a temp dir, discarded afterward), applies the update, and cleans up. Nothing lingers in your project, nothing to gitignore, nothing to go stale.
+- **Update channels.** The `update` block records a `channel`: `latest` (default — newest `main`), `pinned` (a version tag you opt into bumping), or `local` (a clone you point at, for harness development / offline). Set at install time or with `--update`: `--pin <version>`, `--latest`, `--local <path>`.
+- **Manifest `schemaVersion` → 2.** The old `answers.harnessRepoPath` clone pointer is replaced by the `update` block. Existing installs migrate automatically on their first `--update` (the pointer is dropped, channel defaults to `latest`) — no manual action needed.
+
+### Added
+
+- **`--source <dir>`** on `--check`/`--update` — reuse an already-materialized harness checkout instead of fetching again (used by the `/update-harness` skill to fetch once and apply).
+
+### Removed
+
+- **`--harness-repo-path` flag** and the "Harness repo path" install prompt — superseded by the update channel flags above. `--skip-pull` is now a no-op (there is no clone to pull).
+
+---
+
 ## [3.1.0] - 2026-07-17
 
 New `/wayfinder` skill and five new tracker contract scripts across all four adapters.

@@ -11,6 +11,9 @@ const {
   toUnixPath, substituteInTree, buildSettings,
   buildManifest, subsFromManifest,
 } = require('./substitution.js');
+const {
+  DEFAULT_REPO_URL, normalizeUpdateConfig, resolveSource, migrateUpdateConfig,
+} = require('./source.js');
 
 const HARNESS_HOOK_SCRIPTS = new Set([
   'safety-check.js',
@@ -226,7 +229,7 @@ function printDryRun(ctx, repoDir) {
   console.log('  Run without --dry-run to install.');
 }
 
-function runCheck(target, repoDir) {
+function runCheck(target, opts = {}) {
   const manifestPath = path.join(target, '.harness-manifest.json');
   if (!fs.existsSync(manifestPath)) {
     return { error: 'no-manifest', message: 'No .harness-manifest.json found. Run the installer first, or use --update to backfill.' };
@@ -239,84 +242,81 @@ function runCheck(target, repoDir) {
     return { error: 'invalid-manifest', message: `Cannot parse .harness-manifest.json: ${e.message}` };
   }
 
-  const harnessRepoPath = (manifest.answers && manifest.answers.harnessRepoPath) || repoDir;
-  if (!fs.existsSync(harnessRepoPath) || !fs.existsSync(path.join(harnessRepoPath, 'VERSION'))) {
-    return { error: 'clone-not-found', message: `Harness clone not found at ${harnessRepoPath}. Git clone it and re-run.` };
+  // Migrate the legacy persistent-clone shape in memory. The change is persisted
+  // on the next --update, not during a read-only check.
+  const { manifest: m } = migrateUpdateConfig(manifest);
+  const update = normalizeUpdateConfig(m.update);
+
+  // Resolve the harness source: a caller-supplied --source dir (already materialized,
+  // e.g. by the update-harness skill) is used as-is; otherwise fetch on demand.
+  // Always cleaned up before returning.
+  let src;
+  if (opts.sourceDir) {
+    if (!fs.existsSync(path.join(opts.sourceDir, 'VERSION'))) {
+      return { error: 'invalid-source', message: `--source ${opts.sourceDir} is not a harness checkout (no VERSION file).` };
+    }
+    src = { dir: opts.sourceDir, cleanup: () => {}, ephemeral: false, channel: update.channel };
+  } else {
+    try {
+      src = resolveSource(update);
+    } catch (e) {
+      return { error: 'fetch-failed', message: e.message, channel: update.channel };
+    }
   }
 
-  const currentVersion = manifest.harnessVersion;
-  const latestVersion = fs.readFileSync(path.join(harnessRepoPath, 'VERSION'), 'utf8').trim();
-
-  let behind = 0;
-  let fetchError = null;
   try {
-    const fetchResult = spawnSync('git', ['fetch', '--quiet'], { cwd: harnessRepoPath, timeout: 15000, stdio: 'pipe' });
-    if (fetchResult.status !== 0) {
-      const stderr = (fetchResult.stderr || '').toString().trim();
-      if (stderr.includes('Could not resolve')) fetchError = 'offline';
-      else fetchError = stderr || 'fetch failed';
-    } else {
-      const trackingResult = spawnSync('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
-      if (trackingResult.status === 0) {
-        const upstream = trackingResult.stdout.toString().trim();
-        const countResult = spawnSync('git', ['rev-list', '--count', `HEAD..${upstream}`], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
-        if (countResult.status === 0) behind = parseInt(countResult.stdout.toString().trim(), 10) || 0;
-      } else {
-        fetchError = 'no-upstream';
+    const currentVersion = m.harnessVersion;
+    const latestVersion = fs.readFileSync(path.join(src.dir, 'VERSION'), 'utf8').trim();
+    const updateAvailable = currentVersion !== latestVersion;
+
+    let changelogExcerpt = '';
+    const changelogPath = path.join(src.dir, 'CHANGELOG.md');
+    if (fs.existsSync(changelogPath)) {
+      const cl = fs.readFileSync(changelogPath, 'utf8');
+      const unreleasedMatch = cl.match(/## \[Unreleased\]\s*\n([\s\S]*?)(?=\n## \[|$)/i);
+      if (unreleasedMatch) changelogExcerpt = unreleasedMatch[1].trim().slice(0, 2000);
+    }
+
+    const orphans = [];
+    const sourceFiles = new Set();
+    for (const dir of ['skills', 'agents', 'hooks', 'rules']) {
+      const srcDir = path.join(src.dir, dir);
+      if (!fs.existsSync(srcDir)) continue;
+      const files = walk(srcDir, { match: () => true });
+      for (const f of files) sourceFiles.add(`${dir}/${path.relative(srcDir, f)}`);
+    }
+    for (const installed of (m.installedFiles || [])) {
+      if (installed === 'settings.json') continue;
+      if (installed.startsWith('trackers/')) continue;
+      if (installed.startsWith('code-platform/')) continue;
+      if (!sourceFiles.has(installed)) orphans.push(installed);
+    }
+
+    const subs = subsFromManifest(m, target);
+    const drifted = [];
+    for (const rel of (m.installedFiles || [])) {
+      if (rel === 'settings.json') continue;
+      const installedPath = path.join(target, rel);
+      const sourcePath = path.join(src.dir, rel);
+      if (!fs.existsSync(installedPath) || !fs.existsSync(sourcePath)) continue;
+      const installedHash = crypto.createHash('sha256').update(fs.readFileSync(installedPath)).digest('hex');
+      let sourceContent = fs.readFileSync(sourcePath);
+      if (/\.(md|sh|js|json|yaml|yml)$/i.test(rel)) {
+        let text = sourceContent.toString('utf8');
+        for (const [key, value] of subs) text = text.split(key).join(value);
+        sourceContent = Buffer.from(text, 'utf8');
       }
+      const sourceHash = crypto.createHash('sha256').update(sourceContent).digest('hex');
+      if (installedHash !== sourceHash) drifted.push(rel);
     }
-  } catch (e) {
-    fetchError = e.message;
-  }
 
-  let dirty = false;
-  const statusResult = spawnSync('git', ['status', '--porcelain'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
-  if (statusResult.status === 0 && statusResult.stdout.toString().trim().length > 0) dirty = true;
-
-  let changelogExcerpt = '';
-  const changelogPath = path.join(harnessRepoPath, 'CHANGELOG.md');
-  if (fs.existsSync(changelogPath)) {
-    const cl = fs.readFileSync(changelogPath, 'utf8');
-    const unreleasedMatch = cl.match(/## \[Unreleased\]\s*\n([\s\S]*?)(?=\n## \[|$)/i);
-    if (unreleasedMatch) changelogExcerpt = unreleasedMatch[1].trim().slice(0, 2000);
+    return {
+      channel: src.channel, currentVersion, latestVersion, updateAvailable,
+      changelogExcerpt, orphans, drifted, manifestPath,
+    };
+  } finally {
+    src.cleanup();
   }
-
-  const orphans = [];
-  const sourceFiles = new Set();
-  for (const dir of ['skills', 'agents', 'hooks', 'rules']) {
-    const srcDir = path.join(harnessRepoPath, dir);
-    if (!fs.existsSync(srcDir)) continue;
-    const files = walk(srcDir, { match: () => true });
-    for (const f of files) sourceFiles.add(`${dir}/${path.relative(srcDir, f)}`);
-  }
-  for (const installed of (manifest.installedFiles || [])) {
-    if (installed === 'settings.json') continue;
-    if (installed.startsWith('trackers/')) continue;
-    if (!sourceFiles.has(installed)) orphans.push(installed);
-  }
-
-  const subs = subsFromManifest(manifest, target, harnessRepoPath);
-  const drifted = [];
-  for (const rel of (manifest.installedFiles || [])) {
-    if (rel === 'settings.json') continue;
-    const installedPath = path.join(target, rel);
-    const sourcePath = path.join(harnessRepoPath, rel);
-    if (!fs.existsSync(installedPath) || !fs.existsSync(sourcePath)) continue;
-    const installedHash = crypto.createHash('sha256').update(fs.readFileSync(installedPath)).digest('hex');
-    let sourceContent = fs.readFileSync(sourcePath);
-    if (/\.(md|sh|js|json|yaml|yml)$/i.test(rel)) {
-      let text = sourceContent.toString('utf8');
-      for (const [key, value] of subs) text = text.split(key).join(value);
-      sourceContent = Buffer.from(text, 'utf8');
-    }
-    const sourceHash = crypto.createHash('sha256').update(sourceContent).digest('hex');
-    if (installedHash !== sourceHash) drifted.push(rel);
-  }
-
-  return {
-    currentVersion, latestVersion, behind, dirty,
-    fetchError, changelogExcerpt, orphans, drifted, manifestPath,
-  };
 }
 
 // D22-D24: Handle the first update crossing into the modes era.
@@ -372,7 +372,7 @@ function handleModeCrossing(manifest, target, nonInteractive) {
   } catch { /* non-critical — skip if git not available */ }
 }
 
-function runUpdate(target, { repoDir, cliArgs = [] }) {
+function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = null } = {}) {
   const manifestPath = path.join(target, '.harness-manifest.json');
   if (!fs.existsSync(manifestPath)) {
     console.error('  Error: No .harness-manifest.json found at ' + target);
@@ -388,21 +388,50 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
     process.exit(1);
   }
 
-  const harnessRepoPath = (manifest.answers && manifest.answers.harnessRepoPath) || repoDir;
-  if (!fs.existsSync(harnessRepoPath) || !fs.existsSync(path.join(harnessRepoPath, 'VERSION'))) {
-    console.error(`  Error: Harness clone not found at ${harnessRepoPath}`);
-    console.error('  Git clone it and re-run, or update answers.harnessRepoPath in the manifest.');
-    process.exit(1);
+  // Migrate the legacy persistent-clone shape; persisted when we write the manifest below.
+  const migration = migrateUpdateConfig(manifest);
+  const m = migration.manifest;
+  if (migration.changed) {
+    console.log('  Migrated update config → fetch-on-demand channel "latest" (no local clone needed).');
   }
+  // A --pin / --latest / --local flag re-points the channel as part of this update.
+  if (channelOverride) {
+    m.update = channelOverride;
+    console.log(`  Update channel set to "${channelOverride.channel}"${channelOverride.channel === 'pinned' ? ` (${channelOverride.pinnedVersion})` : ''}.`);
+  }
+  const update = normalizeUpdateConfig(m.update);
 
+  // Resolve the harness source BEFORE any mutation, so a fetch failure aborts before
+  // we touch the install. A caller-supplied --source dir is used as-is (no fetch,
+  // no cleanup); otherwise fetch on demand and remove it in the finally.
+  let src;
+  if (sourceDir) {
+    if (!fs.existsSync(path.join(sourceDir, 'VERSION'))) {
+      console.error(`  Error: --source ${sourceDir} is not a harness checkout (no VERSION file).`);
+      process.exit(1);
+    }
+    src = { dir: sourceDir, cleanup: () => {}, ephemeral: false, channel: update.channel };
+  } else {
+    try {
+      src = resolveSource(update);
+    } catch (e) {
+      console.error('  Error: ' + e.message);
+      process.exit(1);
+    }
+  }
+  console.log(src.ephemeral
+    ? `  Fetched harness source (channel: ${src.channel})`
+    : `  Using local harness source: ${src.dir}`);
+
+  try {
   const backupsDir = path.join(os.homedir(), '.claude', '.harness-backups');
   fs.mkdirSync(backupsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 15);
   const snapshotDir = path.join(backupsDir, stamp);
   fs.mkdirSync(snapshotDir, { recursive: true });
   for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers']) {
-    const src = path.join(target, d);
-    if (fs.existsSync(src)) fs.cpSync(src, path.join(snapshotDir, d), { recursive: true });
+    const s = path.join(target, d);
+    if (fs.existsSync(s)) fs.cpSync(s, path.join(snapshotDir, d), { recursive: true });
   }
   const settingsFile = path.join(target, 'settings.json');
   if (fs.existsSync(settingsFile)) fs.copyFileSync(settingsFile, path.join(snapshotDir, 'settings.json'));
@@ -415,55 +444,27 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
     fs.rmSync(path.join(backupsDir, old), { recursive: true, force: true });
   }
 
-  const skipPull = cliArgs.includes('--skip-pull');
-  if (!skipPull) {
-    const diffResult = spawnSync('git', ['diff', '--name-only', 'HEAD'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
-    const stagedResult = spawnSync('git', ['diff', '--name-only', '--cached'], { cwd: harnessRepoPath, timeout: 5000, stdio: 'pipe' });
-    const hasDirtyTracked = (diffResult.status === 0 && diffResult.stdout.toString().trim().length > 0)
-      || (stagedResult.status === 0 && stagedResult.stdout.toString().trim().length > 0);
-    if (hasDirtyTracked) {
-      console.error('  Error: Harness clone has uncommitted changes to tracked files.');
-      console.error(`  cd ${harnessRepoPath} && git stash`);
-      console.error(`  Then re-run the update.`);
-      console.error(`  Snapshot at: ${snapshotDir}`);
-      process.exit(1);
-    }
-
-    const pullResult = spawnSync('git', ['pull', '--ff-only'], { cwd: harnessRepoPath, timeout: 30000, stdio: 'pipe' });
-    if (pullResult.status !== 0) {
-      const stderr = (pullResult.stderr || '').toString().trim();
-      console.error('  Error: git pull --ff-only failed.');
-      console.error(`  ${stderr}`);
-      console.error(`  Resolve manually: cd ${harnessRepoPath} && git pull --ff-only`);
-      console.error(`  Snapshot at: ${snapshotDir}`);
-      process.exit(1);
-    }
-    const pullOut = (pullResult.stdout || '').toString().trim();
-    if (pullOut.includes('Already up to date')) {
-      console.log('  Already up to date.');
-    } else {
-      console.log(`  Pulled: ${pullOut.split('\n')[0]}`);
-    }
-  }
+  // No git pull here: a fetched shallow clone is already at the target ref, and the
+  // local channel intentionally uses the working tree as-is (dogfood development).
 
   // ── Mode crossing (D22-D24): first update into the modes era ──────────────
   const nonInteractive = cliArgs.includes('--yes') || cliArgs.includes('-y');
-  if (!('trackerMirror' in manifest)) {
-    handleModeCrossing(manifest, target, nonInteractive);
+  if (!('trackerMirror' in m)) {
+    handleModeCrossing(m, target, nonInteractive);
   }
 
   const installedFiles = [];
-  const { workflowPack, tracker } = manifest;
-  const codePlatform = manifest.codePlatform || 'none';
+  const { workflowPack, tracker } = m;
+  const codePlatform = m.codePlatform || 'none';
   for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active', 'code-platform/active']) {
     fs.mkdirSync(path.join(target, d), { recursive: true });
   }
 
-  installedFiles.push(...copyDirsWithLog(path.join(harnessRepoPath, 'skills'), path.join(target, 'skills'), 'skills'));
-  installedFiles.push(...copyGlob(path.join(harnessRepoPath, 'trackers', tracker || 'github'), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
+  installedFiles.push(...copyDirsWithLog(path.join(src.dir, 'skills'), path.join(target, 'skills'), 'skills'));
+  installedFiles.push(...copyGlob(path.join(src.dir, 'trackers', tracker || 'github'), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
   chmodExecutables(path.join(target, 'trackers/active'));
 
-  const trackerLibSrc = path.join(harnessRepoPath, 'trackers/lib');
+  const trackerLibSrc = path.join(src.dir, 'trackers/lib');
   if (fs.existsSync(trackerLibSrc)) {
     fs.mkdirSync(path.join(target, 'trackers/lib'), { recursive: true });
     installedFiles.push(...copyGlob(trackerLibSrc, path.join(target, 'trackers/lib'), /\.sh$/, 'trackers/lib'));
@@ -480,38 +481,38 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
   }
 
   // Copy code-platform adapter
-  const codePlatformSrcDir = path.join(harnessRepoPath, 'code-platform', codePlatform);
+  const codePlatformSrcDir = path.join(src.dir, 'code-platform', codePlatform);
   if (fs.existsSync(codePlatformSrcDir)) {
     installedFiles.push(...copyGlob(codePlatformSrcDir, path.join(target, 'code-platform/active'), /\.sh$/, 'code-platform/active'));
     chmodExecutables(path.join(target, 'code-platform/active'));
   }
 
-  const codePlatformLibSrc = path.join(harnessRepoPath, 'code-platform/lib');
+  const codePlatformLibSrc = path.join(src.dir, 'code-platform/lib');
   if (fs.existsSync(codePlatformLibSrc)) {
     fs.mkdirSync(path.join(target, 'code-platform/lib'), { recursive: true });
     installedFiles.push(...copyGlob(codePlatformLibSrc, path.join(target, 'code-platform/lib'), /\.sh$/, 'code-platform/lib'));
   }
 
   const agentSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_AGENTS : null;
-  installedFiles.push(...copyFilesWithLog(path.join(harnessRepoPath, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip));
-  installedFiles.push(...copyFilesWithLog(path.join(harnessRepoPath, 'hooks'), path.join(target, 'hooks'), null, 'hooks', true));
+  installedFiles.push(...copyFilesWithLog(path.join(src.dir, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip));
+  installedFiles.push(...copyFilesWithLog(path.join(src.dir, 'hooks'), path.join(target, 'hooks'), null, 'hooks', true));
 
-  const hooksLibSrc = path.join(harnessRepoPath, 'hooks/lib');
+  const hooksLibSrc = path.join(src.dir, 'hooks/lib');
   if (fs.existsSync(hooksLibSrc)) {
     fs.mkdirSync(path.join(target, 'hooks/lib'), { recursive: true });
     installedFiles.push(...copyGlob(hooksLibSrc, path.join(target, 'hooks/lib'), /\.js$/, 'hooks/lib'));
   }
 
-  installedFiles.push(...copyFilesWithLog(path.join(harnessRepoPath, 'rules'), path.join(target, 'rules'), /\.md$/, 'rules'));
+  installedFiles.push(...copyFilesWithLog(path.join(src.dir, 'rules'), path.join(target, 'rules'), /\.md$/, 'rules'));
 
-  const mode = manifest.installMode || 'project';
-  const substitutions = subsFromManifest(manifest, target, harnessRepoPath);
+  const mode = m.installMode || 'project';
+  const substitutions = subsFromManifest(m, target);
   const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform']
     .map((d) => path.join(target, d))
     .filter((d) => fs.existsSync(d));
   for (const dir of sedDirs) substituteInTree(dir, substitutions);
 
-  const oldFiles = new Set(manifest.installedFiles || []);
+  const oldFiles = new Set(m.installedFiles || []);
   const newFiles = new Set(installedFiles);
   let orphansRemoved = 0;
   for (const old of oldFiles) {
@@ -534,7 +535,7 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
     : 'SESSION START: Before doing anything else — read tasks/lessons.md, todo.md, pr-queue.md, and flags-and-notes.md';
   const newHarnessSettings = buildSettings({
     hooksUnix, workflowPack: workflowPack || 'solo', sessionStartMsg,
-    workRoot: manifest.answers?.workRoot || '', isGlobal: mode === 'global',
+    workRoot: m.answers?.workRoot || '', isGlobal: mode === 'global',
   });
 
   if (fs.existsSync(settingsFile)) {
@@ -552,26 +553,29 @@ function runUpdate(target, { repoDir, cliArgs = [] }) {
 
   verifyInstall(target, sedDirs, workflowPack);
 
-  const newVersion = fs.readFileSync(path.join(harnessRepoPath, 'VERSION'), 'utf8').trim();
-  const updatedManifest = {
-    ...manifest,
-    harnessVersion: newVersion,
-    installedFiles: installedFiles.sort(),
-    updatedAt: new Date().toISOString(),
-  };
-  fs.writeFileSync(manifestPath, JSON.stringify(updatedManifest, null, 2) + '\n', 'utf8');
+    const newVersion = fs.readFileSync(path.join(src.dir, 'VERSION'), 'utf8').trim();
+    const updatedManifest = {
+      ...m,
+      harnessVersion: newVersion,
+      installedFiles: installedFiles.sort(),
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(updatedManifest, null, 2) + '\n', 'utf8');
 
-  console.log(`\n  Updated: ${manifest.harnessVersion} → ${newVersion}`);
-  console.log(`  Restore: cp -r "${snapshotDir}/"* "${target}/"`);
+    console.log(`\n  Updated: ${m.harnessVersion} → ${newVersion}`);
+    console.log(`  Restore: cp -r "${snapshotDir}/"* "${target}/"`);
 
-  if (!updatedManifest.tracker) {
-    console.log('');
-    console.log('  ⚠ Tracker not configured for this project.');
-    console.log('  Set it with: node install/install.js --switch-tracker <github|todoist|ado> --project ' + path.dirname(target));
+    if (!updatedManifest.tracker) {
+      console.log('');
+      console.log('  ⚠ Tracker not configured for this project.');
+      console.log('  Set it with: node install/install.js --switch-tracker <github|todoist|ado> --project ' + path.dirname(target));
+    }
+  } finally {
+    src.cleanup();
   }
 }
 
-function runSwitchTracker(target, tracker, repoDir) {
+function runSwitchTracker(target, tracker) {
   const VALID_TRACKERS = new Set(['github', 'todoist', 'ado', 'local', 'none']);
   if (!VALID_TRACKERS.has(tracker)) {
     console.error(`  Error: Invalid tracker "${tracker}". Choose: github, todoist, ado, local, none`);
@@ -590,39 +594,46 @@ function runSwitchTracker(target, tracker, repoDir) {
     process.exit(1);
   }
 
-  const harnessRepoPath = (manifest.answers && manifest.answers.harnessRepoPath) || repoDir;
-  const oldTracker = manifest.tracker || '(none)';
+  // Migrate legacy shape so the tracker switch also persists the fetch-on-demand config.
+  const { manifest: m } = migrateUpdateConfig(manifest);
+  const oldTracker = m.tracker || '(none)';
 
   if (tracker !== 'none') {
-    const trackerSrcDir = path.join(harnessRepoPath, 'trackers', tracker);
-    if (!fs.existsSync(trackerSrcDir)) {
-      console.error(`  Error: Tracker adapter source not found at ${trackerSrcDir}`);
-      process.exit(1);
-    }
+    // Adapter scripts come from the harness source, fetched on demand.
+    const src = resolveSource(normalizeUpdateConfig(m.update));
+    try {
+      const trackerSrcDir = path.join(src.dir, 'trackers', tracker);
+      if (!fs.existsSync(trackerSrcDir)) {
+        console.error(`  Error: Tracker adapter source not found at ${trackerSrcDir}`);
+        process.exit(1);
+      }
 
-    const activeDir = path.join(target, 'trackers', 'active');
-    fs.mkdirSync(activeDir, { recursive: true });
-    for (const f of fs.readdirSync(activeDir)) {
-      if (f.endsWith('.sh')) fs.rmSync(path.join(activeDir, f), { force: true });
-    }
+      const activeDir = path.join(target, 'trackers', 'active');
+      fs.mkdirSync(activeDir, { recursive: true });
+      for (const f of fs.readdirSync(activeDir)) {
+        if (f.endsWith('.sh')) fs.rmSync(path.join(activeDir, f), { force: true });
+      }
 
-    copyGlob(trackerSrcDir, activeDir, /\.sh$/, 'trackers/active');
-    chmodExecutables(activeDir);
-    console.log(`  Copied ${tracker} adapter scripts to trackers/active/`);
+      copyGlob(trackerSrcDir, activeDir, /\.sh$/, 'trackers/active');
+      chmodExecutables(activeDir);
+      console.log(`  Copied ${tracker} adapter scripts to trackers/active/`);
 
-    const libSrc = path.join(harnessRepoPath, 'trackers', 'lib');
-    if (fs.existsSync(libSrc)) {
-      const libDest = path.join(target, 'trackers', 'lib');
-      fs.mkdirSync(libDest, { recursive: true });
-      copyGlob(libSrc, libDest, /\.sh$/);
+      const libSrc = path.join(src.dir, 'trackers', 'lib');
+      if (fs.existsSync(libSrc)) {
+        const libDest = path.join(target, 'trackers', 'lib');
+        fs.mkdirSync(libDest, { recursive: true });
+        copyGlob(libSrc, libDest, /\.sh$/);
+      }
+    } finally {
+      src.cleanup();
     }
   }
 
-  manifest.tracker = tracker === 'none' ? null : tracker;
+  m.tracker = tracker === 'none' ? null : tracker;
   // Switching to local clears mirror; switching to external preserves it
-  if (tracker === 'local') manifest.trackerMirror = false;
-  manifest.updatedAt = new Date().toISOString();
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+  if (tracker === 'local') m.trackerMirror = false;
+  m.updatedAt = new Date().toISOString();
+  fs.writeFileSync(manifestPath, JSON.stringify(m, null, 2) + '\n', 'utf8');
 
   console.log(`  Tracker switched: ${oldTracker} → ${tracker}`);
 
@@ -655,7 +666,7 @@ function runSwitchTracker(target, tracker, repoDir) {
   }
 }
 
-function backfillManifest(target, opts = {}, repoDir) {
+function backfillManifest(target, opts = {}) {
   const agentsDir = path.join(target, 'agents');
   let workflowPack = 'solo';
   if (fs.existsSync(agentsDir)) {
@@ -702,7 +713,6 @@ function backfillManifest(target, opts = {}, repoDir) {
   if (fs.existsSync(path.join(target, 'settings.json'))) installedFiles.push('settings.json');
 
   const harnessVersion = opts.harnessVersion || 'unknown';
-  const harnessRepoPath = opts.harnessRepoPath || repoDir;
   const prdMode = opts.prdMode || 'file';
 
   const now = new Date().toISOString();
@@ -715,9 +725,9 @@ function backfillManifest(target, opts = {}, repoDir) {
     answers: {
       userName: 'YOUR_NAME',
       projectName: 'YOUR_PROJECT_NAME',
-      harnessRepoPath,
       ...(opts.answers || {}),
     },
+    update: opts.update || { repoUrl: DEFAULT_REPO_URL, channel: 'latest', pinnedVersion: null, localPath: null },
     installedFiles: installedFiles.sort(),
     now,
   });
