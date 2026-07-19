@@ -72,7 +72,7 @@ The harness covers the full software development lifecycle. Both solo and enterp
 
 ```mermaid
 flowchart LR
-    P0["Decide<br/>/grill-me · /grill-with-docs<br/>/decision-brief · /plan ●"]
+    P0["Decide<br/>/grill-me · /wayfinder · /grill-with-docs<br/>/decision-brief · /plan ●"]
     P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues · /to-todoist<br/>/sprint-plan ◆"]
     P2["Build<br/>/implement ● · /story ◆<br/>/run-tasks ◆<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr ◆<br/>/local-test · /deploy"]
@@ -84,11 +84,13 @@ flowchart LR
 
 > ● = solo only &nbsp;&nbsp; ◆ = enterprise only &nbsp;&nbsp; unmarked = both
 
+> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** / **`/to-todoist`** creates the build tasks → **`/implement`** / **`/story`** builds them.
+
 #### Solo developer path
 
 ```mermaid
 flowchart LR
-    D["Decide<br/>/plan · /grill-me"]
+    D["Decide<br/>/plan · /grill-me<br/>/wayfinder"]
     Def["Define<br/>/prd · /architect<br/>/research"]
     B["Build<br/>/implement #42<br/>/evaluate · /debug"]
     S["Ship<br/>/local-test"]
@@ -102,7 +104,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    D["Decide<br/>/grill-me<br/>/decision-brief"]
+    D["Decide<br/>/grill-me · /wayfinder<br/>/decision-brief"]
     Def["Define<br/>/sprint-plan<br/>/prd · /architect"]
     B["Build<br/>/story 9950<br/>/evaluate · /debug"]
     S["Ship<br/>/babysit-pr<br/>/deploy"]
@@ -118,6 +120,7 @@ flowchart LR
 |---|---|
 | Stress-test an idea, plan, or design | `/grill-me` |
 | Stress-test a plan against your domain glossary and ADRs | `/grill-with-docs` |
+| Chart a big, fuzzy effort — too many decisions to settle in one `/grill-me` | `/wayfinder` |
 | Kill a bad feature before spending a sprint | `/decision-brief` |
 | Cache research on an external API or integration | `/research` |
 | Test a UI or architecture approach before committing | `/prototype` |
