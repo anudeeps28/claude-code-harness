@@ -10,13 +10,16 @@
 //   - BASH_RULES: applied to Bash command strings
 //   - WRITE_RULES: applied to Write file content + path (skipped for docs)
 
-const { readStdinJson, deny, ok, runHook } = require('./lib/hook-io');
+const { readStdinJson, deny, ask, ok, runHook } = require('./lib/hook-io');
 
 // ── Bash command rules ────────────────────────────────────────────────
+// action: 'ask' routes the command to the user's approval prompt (oversight —
+// the human signs off in the moment). Everything else hard-denies (destructive,
+// never allowed). Destructive denials always win over ask prompts (see checkRules).
 const BASH_RULES = [
-  // 1. Git: commit and push (user wants oversight)
-  { id: 'git-commit', re: /\bgit\s+commit\b/i, reason: 'git commit — needs your approval' },
-  { id: 'git-push',   re: /\bgit\s+push\b/i,   reason: 'git push — needs your approval' },
+  // 1. Git: commit and push — human oversight, not a ban. Prompt for approval.
+  { id: 'git-commit', re: /\bgit\s+commit\b/i, action: 'ask', reason: 'git commit — approve to let Claude run it' },
+  { id: 'git-push',   re: /\bgit\s+push\b/i,   action: 'ask', reason: 'git push — approve to let Claude run it' },
 
   // 2. Git: destructive operations
   { id: 'git-reset-hard',  re: /\bgit\s+reset\s+--hard\b/i,            reason: 'git reset --hard — destroys uncommitted work' },
@@ -106,8 +109,16 @@ function looksLikeHardcodedSecret(content) {
 }
 
 function checkRules(rules, text) {
+  // Destructive denials take precedence: a command that both matches an ask rule
+  // and a deny rule (e.g. "git commit && rm -rf") must be hard-blocked, not merely
+  // prompted. So run all deny rules first, then the ask prompts.
   for (const rule of rules) {
+    if (rule.action === 'ask') continue;
     if (rule.re.test(text)) deny(rule.reason, rule.id);
+  }
+  for (const rule of rules) {
+    if (rule.action !== 'ask') continue;
+    if (rule.re.test(text)) ask(rule.reason, rule.id);
   }
 }
 

@@ -26,9 +26,6 @@ function write(filePath, content) { return runHook('Write', { file_path: filePat
 // ── Bash rule positive cases (each rule must fire) ────────────────────
 
 const BASH_DENY_CASES = [
-  // Git oversight
-  { name: 'git commit', cmd: 'git commit -m "x"', expectReason: /git commit/ },
-  { name: 'git push', cmd: 'git push origin main', expectReason: /git push/ },
   // Git destructive
   { name: 'git reset --hard', cmd: 'git reset --hard HEAD~1', expectReason: /reset --hard/ },
   { name: 'git checkout .', cmd: 'git checkout .', expectReason: /checkout \./ },
@@ -88,6 +85,33 @@ for (const { name, cmd, expectReason } of BASH_DENY_CASES) {
     assert.match(r.json.reason, expectReason);
   });
 }
+
+// ── Git oversight: ask (prompt) rather than hard-deny ─────────────────
+
+const BASH_ASK_CASES = [
+  { name: 'git commit', cmd: 'git commit -m "x"', expectReason: /git commit/ },
+  { name: 'git push', cmd: 'git push origin main', expectReason: /git push/ },
+];
+
+for (const { name, cmd, expectReason } of BASH_ASK_CASES) {
+  test(`Bash_${name.replace(/\s+/g, '_')}_AsksExit0`, () => {
+    const r = bash(cmd);
+    assert.equal(r.exitCode, 0, `expected exit 0 (ask), got ${r.exitCode}: ${r.stdout}`);
+    const out = r.json && r.json.hookSpecificOutput;
+    assert.ok(out, `expected hookSpecificOutput, got ${r.stdout}`);
+    assert.equal(out.permissionDecision, 'ask');
+    assert.match(out.permissionDecisionReason, expectReason);
+  });
+}
+
+// Destructive denials must win over ask prompts: a command that both commits and
+// deletes must be hard-denied, never merely prompted.
+test('Bash_GitCommitAndRmRf_DeniedNotAsked', () => {
+  const r = bash('git commit -m x && rm -rf /tmp/foo');
+  assert.equal(r.exitCode, 2, `expected exit 2 (deny), got ${r.exitCode}: ${r.stdout}`);
+  assert.equal(r.json.decision, 'deny');
+  assert.match(r.json.reason, /rm -rf/);
+});
 
 // ── Bash false-positive negatives (these must NOT fire) ───────────────
 
