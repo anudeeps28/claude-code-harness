@@ -134,11 +134,27 @@ function pruneOldRotations(filePath, keep) {
   } catch { /* prune is best-effort */ }
 }
 
-// PreToolUse deny — exit 2 + JSON on stdout. Prevents the tool call.
+// PreToolUse deny — exit 2 + JSON on stdout. Prevents the tool call outright.
 function deny(reason, rule) {
   recordMetric({ decision: 'deny', rule });
   process.stdout.write(JSON.stringify({ decision: 'deny', reason }));
   process.exit(2);
+}
+
+// PreToolUse ask — routes the tool call to the user's approval prompt instead of
+// hard-blocking it. Use for oversight gates (e.g. git commit/push) where the intent
+// is "a human must sign off", not "never allowed". Exit 0; the runtime shows the
+// prompt and the user allows or denies.
+function ask(reason, rule) {
+  recordMetric({ decision: 'ask', rule });
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'ask',
+      permissionDecisionReason: reason,
+    },
+  }));
+  process.exit(0);
 }
 
 // PostToolUse block — tells Claude to stop and address before further work.
@@ -218,6 +234,7 @@ function runHook(hookName, fn) {
 module.exports = {
   readStdinJson,
   deny,
+  ask,
   blockPost,
   injectContext,
   ok,
