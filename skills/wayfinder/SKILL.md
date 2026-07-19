@@ -1,6 +1,6 @@
 ---
 name: wayfinder
-description: "Plan an effort too big for one session as a map of decision tickets on the tracker, resolving one per session until the way is clear. Mode-aware (local/tracker/both). Usage: /wayfinder <loose idea> | /wayfinder <map ID> [<ticket ID>]"
+description: "Plan an effort too big for one session as a map of decision tickets on the tracker, resolving one per session until the way is clear — then hand the resolved spec to the build pipeline as a grill-summary. Mode-aware (local/tracker/both). Usage: /wayfinder <loose idea> | /wayfinder <map ID> [<ticket ID>]"
 argument-hint: "<loose idea> | <map ID> [<ticket ID>]"
 ---
 
@@ -96,7 +96,27 @@ Never resolve more than one ticket per session (research tickets excepted — th
 
 **Escalation gate:** if a ticket can't be resolved after honest effort (missing access, a decision the human refuses to make yet, contradictory constraints), do not grind. Comment the blocker onto the ticket, log it in `flags-and-notes.md` under "Active Blockers" as `- [WAYFINDER] <blocker> — <what's needed to unblock>`, release the claim story-side by telling YOUR_NAME, and stop. *(Gate type: escalation — surfaces the issue, waits for a human decision.)*
 
-The map is **done** when no open tickets remain and no fog is left in Not yet specified — nothing left to decide before someone goes and does the thing. Say so explicitly and point at the destination artifact.
+The map is **done** when no open tickets remain and no fog is left in Not yet specified — nothing left to decide before someone goes and does the thing. Say so explicitly and point at the destination artifact — for a build map, that artifact is the `grill-summary.md` hand-off (see **Handoff** below).
+
+---
+
+## Handoff — feeding the build pipeline
+
+Wayfinder plans; the build phases build. The seam between them is a **standard artifact**, so the pipeline needs no gluing by hand — wayfinder is a drop-in front-end to the build flow (grill-me on steroids: same output contract, resolved across many sessions instead of one).
+
+**When the destination is a buildable spec** (a "build something" map), the map's terminal synthesis — the final `task` ticket (e.g. "assemble the spec"), or simply the closing act once the last decision lands — writes the resolved decisions to **`grill-summary.md` at the repo root**: the same Decide→Define hand-off `/grill-me` produces. Shape it as a grill-summary:
+
+- **What we're building** — the Destination.
+- **Scope boundaries** — the map's Out of scope (plus anything left deferred in Not yet specified).
+- **Resolved decisions / forks** — one per closed ticket, lifted from the map's `Decided:` comments.
+
+Then the normal flow consumes it with **zero glue**:
+
+`/wayfinder` → **`grill-summary.md`** → `/architect` (auto-detects it → `ARCHITECTURE.md`) → `/to-issues` or `/to-todoist` (build tasks) → `/implement` or `/story` (build).
+
+**When the destination is a locked decision or a change made in place** (not a build), there is no grill-summary hand-off — the map plus its `Decided:` comments *are* the artifact; point at them and stop.
+
+Writing the grill-summary is the map's one planning deliverable — it records decisions for the next phase; it does not build (consistent with "plan, don't do").
 
 ---
 
