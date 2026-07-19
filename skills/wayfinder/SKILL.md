@@ -114,6 +114,8 @@ Then the normal flow consumes it with **zero glue**:
 
 `/wayfinder` → **`grill-summary.md`** → `/architect` (auto-detects it → `ARCHITECTURE.md`) → `/to-issues` or `/to-todoist` (build tasks) → `/implement` or `/story` (build).
 
+`/plan` is not a step in this chain — it reads the tracker tasks that `/to-issues` / `/to-todoist` create and prioritizes them, so it runs *after* decomposition (never before) whenever you have a backlog to pick from.
+
 **When the destination is a locked decision or a change made in place** (not a build), there is no grill-summary hand-off — the map plus its `Decided:` comments *are* the artifact; point at them and stop.
 
 Writing the grill-summary is the map's one planning deliverable — it records decisions for the next phase; it does not build (consistent with "plan, don't do").

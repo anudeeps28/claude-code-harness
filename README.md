@@ -72,7 +72,7 @@ The harness covers the full software development lifecycle. Both solo and enterp
 
 ```mermaid
 flowchart LR
-    P0["Decide<br/>/grill-me · /wayfinder · /grill-with-docs<br/>/decision-brief · /plan ●"]
+    P0["Decide<br/>/grill-me · /wayfinder · /grill-with-docs<br/>/decision-brief"]
     P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues · /to-todoist<br/>/sprint-plan ◆"]
     P2["Build<br/>/implement ● · /story ◆<br/>/run-tasks ◆<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr ◆<br/>/local-test · /deploy"]
@@ -84,20 +84,23 @@ flowchart LR
 
 > ● = solo only &nbsp;&nbsp; ◆ = enterprise only &nbsp;&nbsp; unmarked = both
 
-> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** / **`/to-todoist`** creates the build tasks → **`/implement`** / **`/story`** builds them.
+> **`/plan` ● is not a linear stage.** It reads your *existing* tracker backlog and prioritizes it — so it runs *after* `/to-issues` / `/to-todoist` have created tasks, never before. Think of it as the recurring "what's next?" step at the top of each cycle, feeding straight into `/implement`.
+
+> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** / **`/to-todoist`** creates the build tasks → **`/implement`** / **`/story`** builds them. (Already sitting on a backlog? **`/plan`** prioritizes your existing issues and picks the next one to **`/implement`** — it reads tasks that already exist, so it comes *after* decomposition, never before.)
 
 #### Solo developer path
 
 ```mermaid
 flowchart LR
-    D["Decide<br/>/plan · /grill-me<br/>/wayfinder"]
+    D["Decide<br/>/grill-me<br/>/wayfinder"]
     Def["Define<br/>/prd · /architect<br/>/research"]
     B["Build<br/>/implement #42<br/>/evaluate · /debug"]
     S["Ship<br/>/local-test"]
     L["Learn<br/>/zoom-out<br/>/improve-harness"]
 
     D --> Def --> B --> S --> L
-    L -.->|"next issue"| D
+    L -.->|"new idea"| D
+    L -.->|"next from backlog · /plan"| B
 ```
 
 #### Enterprise team path
