@@ -40,6 +40,14 @@ if [ -z "$PROJECT" ]; then
   fi
 fi
 
+# Auto-read default section from config when not passed as argument.
+# Mirrors the project auto-read above and the same key get-sprint-issues.sh reads
+# for listing. Blank config = no-op: the task lands at the project root as before.
+if [ -z "$SECTION" ] && [ -f "tasks/tracker-config.md" ]; then
+  _sec=$(grep -i "todoist_default_section[[:space:]]*=" tasks/tracker-config.md | sed 's/.*=[[:space:]]*//; s/[[:space:]]*$//' | tr -d '\r')
+  [ -n "$_sec" ] && SECTION="$_sec"
+fi
+
 CREATE_ARGS=(task add "$TITLE")
 
 if [ -n "$BODY" ]; then
