@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "description": "Role roster for OS-orchestrated role sessions (DevOS SPEC §3.1). Each pipeline stage runs as a fresh top-level session with a role identity; an external orchestrator (the Bridge) reads this roster, spawns each role in pipeline order, and enforces gates. Handoff between roles = the harness's existing artifacts (grill-summary, docs/, tasks/stories/).",
+  "pipeline": ["navigator", "shipwright", "lookout", "warden", "harbormaster"],
+  "roles": {
+    "navigator": {
+      "displayName": "Navigator",
+      "stages": ["decide", "define"],
+      "skills": ["grill-me", "wayfinder", "architect", "plan", "decision-brief"],
+      "agent": "navigator",
+      "producesArtifacts": ["grill-summary.md", "docs/SPEC.md", "docs/ARCHITECTURE.md", "tasks/notes.md"]
+    },
+    "shipwright": {
+      "displayName": "Shipwright",
+      "stages": ["build"],
+      "skills": ["implement", "run-tasks"],
+      "agent": "shipwright",
+      "producesArtifacts": ["tasks/stories/<id>/plan.md", "code + unit tests"]
+    },
+    "lookout": {
+      "displayName": "Lookout",
+      "stages": ["test"],
+      "skills": ["tdd", "local-test"],
+      "agent": "lookout",
+      "producesArtifacts": ["test results", "e2e goal-gate verdict"]
+    },
+    "warden": {
+      "displayName": "Warden",
+      "stages": ["review"],
+      "skills": ["evaluate"],
+      "agent": "warden",
+      "producesArtifacts": ["tasks/stories/<id>/evaluation.md"]
+    },
+    "harbormaster": {
+      "displayName": "Harbormaster",
+      "stages": ["ship"],
+      "skills": ["deploy", "babysit-pr", "sync-tracker", "improve-harness"],
+      "agent": "harbormaster",
+      "producesArtifacts": ["PR", "deploy verification", "closed tracker items"]
+    }
+  }
+}

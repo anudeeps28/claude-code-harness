@@ -16,6 +16,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ### Added
 
+- **Role roster + crew agents (role-session orchestration).** New `harness-roles.json` installed into `.claude/`, declaring the pipeline as ordered, stage-scoped roles — **Navigator** (decide/define), **Shipwright** (build), **Lookout** (test), **Warden** (review), **Harbormaster** (ship) — each mapping to the pack's skills (solo: `/implement`; enterprise: `/story`) and to a new agent definition (`agents/navigator.md` … `harbormaster.md`). An external orchestrator (e.g. DevOS's Bridge, per its SPEC §3.1) reads the roster and spawns each stage as a fresh top-level session with that role identity; handoff between roles stays the harness's existing artifacts (`grill-summary.md`, `docs/`, `tasks/stories/`). Pack-specific templates live in `templates/harness-roles.{solo,enterprise}.json`; installer and updater keep the installed copy in sync.
 - **`--source <dir>`** on `--check`/`--update` — reuse an already-materialized harness checkout instead of fetching again (used by the `/update-harness` skill to fetch once and apply).
 
 ### Removed
