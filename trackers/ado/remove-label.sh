@@ -40,7 +40,7 @@ if [ -z "$EXISTING_TAGS" ]; then
 fi
 
 # Remove the tag (case-insensitive), then clean up separators
-NEW_TAGS=$(echo "$EXISTING_TAGS" | sed "s/[;,] *$TAG//gi" | sed "s/$TAG[;,] *//gi" | sed "s/$TAG//gi" | sed 's/^[; ]*//;s/[; ]*$//')
+NEW_TAGS=$(echo "$EXISTING_TAGS" | sed "s/[;,] *${TAG}//gi" | sed "s/${TAG}[;,] *//gi" | sed "s/${TAG}//gi" | sed 's/^[; ]*//;s/[; ]*$//')
 
 with_retry az boards work-item update \
   --id "$WORK_ITEM_ID" \

@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Dev dependencies in package.json (eslint, typescript, c8, @types/node)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+
+  # The GitHub Actions used in .github/workflows/*.yml (checkout, setup-node)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore

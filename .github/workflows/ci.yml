@@ -11,15 +11,20 @@ permissions:
 
 jobs:
   test:
-    name: Test & Lint
+    name: Test & Lint (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
 
       - run: npm install
 
@@ -31,3 +36,15 @@ jobs:
 
       - name: Test with coverage
         run: npm run test:coverage
+
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # shellcheck is preinstalled on ubuntu-latest runners.
+      # Gate at error severity only; warnings/info are not enforced yet.
+      - name: ShellCheck
+        run: git ls-files -z '*.sh' | xargs -0 -r shellcheck --severity=error
