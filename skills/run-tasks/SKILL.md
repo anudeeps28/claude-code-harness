@@ -18,6 +18,32 @@ You run the pending XML tasks for story **#[story ID]** from `tasks/stories/[sto
 
 ---
 
+## Autonomous mode (inherited — no flag of its own)
+
+`/run-tasks` has **no `--autonomous` flag.** It inherits autonomous mode from its caller per
+`rules/autonomous-mode.md`. Detect the mode via either signal: the invocation context (an autonomous
+`/implement` / `/story` says so when it hands off), or `run-mode: autonomous` in
+`tasks/stories/$ARGUMENTS/executor-state.md` (the standalone-resume path — read it in Step 2). With
+neither signal, run interactively exactly as below.
+
+When the run is autonomous, apply the self-answer rule from `rules/autonomous-mode.md` to this skill's
+checkpoints, and append each self-answered decision to `tasks/stories/$ARGUMENTS/decisions-log.md`:
+
+- **Step 2 "no goal defined" A/B** → self-answer **(A) define the goal** (reversible; a gate is
+  strictly better than none), run the Phase 1.5 goal step, log it. If the goal genuinely cannot be
+  defined without a human ruling, that is a pause-anyway trigger.
+- **Step 3 execution-mode A/B** → `--auto` is implied (autonomous implies `--auto`), so this question
+  never fires — use mode B.
+- **Step 4F wave STOP** → in mode B the wave pause already fires **only on FAIL/BLOCKED**, and that
+  stays: a FAIL/BLOCKED is a genuine block, not a checkpoint. All-passed waves auto-continue.
+- **Step 6 goal gate** → already deterministic; on failure it re-approaches and escalates to `/debug`
+  (inherited-autonomous) per the 3-attempt rule — unchanged.
+
+The mode never skips a phase, the goal gate, local tests, or a failure pause. Pause only on a
+pause-anyway trigger (contradiction, irreversible action, scope change, 3-failed-attempts).
+
+---
+
 ## Step 1 — Find the task plan
 
 Read `YOUR_PROJECT_ROOT\tasks\stories\$ARGUMENTS\plan.md` — the always-local story plan that `/story` and `/implement` write. It is the source of truth for the task plan in **every** tracker mode; `todo.md` is only a generated dashboard and never holds the XML plan.
@@ -38,6 +64,10 @@ cd YOUR_PROJECT_ROOT && git status && git branch --show-current
 ```
 
 Confirm you are on the correct feature branch for story #$ARGUMENTS. If you are on `master`, say so and ask YOUR_NAME to confirm the branch before continuing.
+
+**Autonomous check:** read `tasks/stories/$ARGUMENTS/executor-state.md` — if it contains `run-mode:
+autonomous`, this is an inherited autonomous run (see "Autonomous mode" above); otherwise run
+interactively.
 
 **Goal check:** Read `tasks/stories/$ARGUMENTS/test-strategy.md` (or `tasks/stories/$ARGUMENTS/plan.md` if no test-strategy exists). Look for a defined e2e gate / acceptance criteria / goal definition.
 

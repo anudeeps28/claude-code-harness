@@ -87,12 +87,27 @@ A task **FAIL or BLOCKED** result also halts the run — that is a genuine block
 `--auto`'s "pause on failure" behavior is unchanged.
 
 **Decisions log.** Keep a running list of every self-answered decision as
-`- <question> → <chosen option> (reversible; <one-line why>)`. Accumulate it across all phases and
-surface it verbatim in the PR body under **"Decisions made on your behalf"** (Phase 3).
+`- <question> → <chosen option> (reversible; <one-line why>)`. Accumulate it across all phases in the
+shared sink `tasks/stories/<id>/decisions-log.md` (create it if absent) — inherited sub-skills append
+to the **same** file — and surface it verbatim in the PR body under **"Decisions made on your
+behalf"** (Phase 3).
 
-**Scope of this mode here:** `--autonomous` governs `/implement`'s own checkpoints only. Propagating
-the mode into invoked sub-skills (`/run-tasks`, `/tdd`, `/local-test`, `/debug`, evaluator agents) is
-a separate, follow-on task — until it lands, a sub-skill may still pause on its own checkpoint.
+**Propagation to sub-skills (inherited).** The full autonomous convention — the self-answer rule,
+pause-anyway triggers, decisions-log sink, and inheritance mechanism — is centralized in
+`rules/autonomous-mode.md`. Sub-skills and agents **inherit** the mode; they have **no `--autonomous`
+flag of their own**. When `--autonomous` is set, `/implement` propagates the mode two ways:
+1. **Invocation context** — every sub-skill/agent spawn below (`/local-test`, `/debug`, the executor
+   and review agents) is told, in its invocation, that this is an autonomous run and to self-answer
+   its checkpoints per `rules/autonomous-mode.md`, appending to the shared decisions-log.
+2. **Durable marker** — write `run-mode: autonomous` into `tasks/stories/<id>/executor-state.md` (the
+   file this flow already updates every wave), so a standalone resume (e.g. `/run-tasks <id>` after an
+   interruption) inherits the mode without a live orchestrator.
+
+`/local-test` and the review agents (evaluator / acceptance / architect / security) have no human
+checkpoints, so the mode is a **no-op** for them — they always report back and never pause; their
+findings' fix-vs-skip decision is self-answered here in Phase 3. `/debug` runs inherited-autonomous
+and **self-drives** the diagnosis, pausing only if it cannot build a deterministic signal or exhausts
+its hypotheses (see `rules/autonomous-mode.md`).
 
 Throughout the phases below, any block that says **STOP** is **auto-resolved by the self-answer rule
 above when `--autonomous` is set** — record the decision and proceed, unless a pause-anyway trigger fires.
@@ -297,7 +312,7 @@ For **each wave:**
 |---|---|---|---|
 | 1 | "..." | PASS/FAIL/BLOCKED | [one line] |
 
-**C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved.
+**C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved. **If `--autonomous` is set, include a `run-mode: autonomous` line in this file** so a standalone resume (`/run-tasks <id>`) inherits the mode (see the propagation contract in "Autonomous mode" above).
 
 **D. STOP after each wave (behavior depends on execution mode):**
 
@@ -377,7 +392,7 @@ Spawn a **`story-pr-agent`** (foreground) with:
 - Story ID: [issue ID or branch name]
 - Completed tasks: [list from Phase 2]
 - Branch: [current branch]
-- [If `--autonomous`] Decisions log: [the full running list of self-answered decisions] — the PR body MUST include a **"Decisions made on your behalf"** section rendering this list verbatim, so the reviewer sees every reversible call made without them.
+- [If `--autonomous`] Decisions log: the contents of `tasks/stories/<id>/decisions-log.md` (the shared sink that `/implement` **and** every inherited sub-skill appended to) — the PR body MUST include a **"Decisions made on your behalf"** section rendering this list verbatim, so the reviewer sees every reversible call made without them.
 
 Output the PR preparation report.
 
@@ -410,7 +425,7 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 - `--full` expands to `--discuss --research` at parse time; it does NOT imply `--quick`, so `--full --quick` is a valid, meaningful combo
 - `--autonomous` skips only the **human STOP checkpoints** — it NEVER skips a phase, the goal definition, the evaluator/acceptance/e2e gate, local tests, or a failure pause; it implies `--auto` but NOT `--quick`, and it does not change any default or `--auto` behavior
 - In `--autonomous`, every self-answered decision is logged and surfaced in the PR under "Decisions made on your behalf"; the PR is opened non-draft as the single human gate
-- `--autonomous` here governs `/implement`'s own checkpoints only — propagating the mode into invoked sub-skills is a separate follow-on task
+- `--autonomous` propagates to invoked sub-skills and agents, which **inherit** the mode (no flag of their own) per `rules/autonomous-mode.md` — via invocation context plus a `run-mode: autonomous` marker in `executor-state.md`; `/local-test` and the review agents are no-ops, and `/debug` self-drives
 - For 1-2 file changes, don't over-decompose into multiple tasks
 - A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests
 - If NOT ACCEPTED by the acceptance-test-agent, the feature is not done — fix before PR

@@ -15,6 +15,35 @@ You are the diagnosis orchestrator. The 3-attempt rule has triggered — somethi
 
 ---
 
+## Autonomous mode (inherited — no flag of its own)
+
+`/debug` has **no `--autonomous` flag.** It inherits autonomous mode from its caller per
+`rules/autonomous-mode.md` — typically an autonomous `/implement` / `/run-tasks` reaching the
+3-attempt rule and routing here — detected via the invocation context. Run directly by a human with
+no such signal, it stays fully interactive, exactly as below.
+
+`/debug` is the **destination of the 3-attempt rule**, so its inherited behavior is deliberate: it
+**self-drives** the diagnosis rather than hard-pausing. The feedback loop makes each step reversible
+and deterministic, which is exactly what makes self-answering safe here.
+
+When the run is autonomous, apply the self-answer rule and log each hypothesis decision to the run's
+decisions log:
+
+- **Step 1b "can't build a feedback loop" A/B/C** → **pause (genuine block).** No deterministic
+  signal means no safe self-drive. This is one of the two places `/debug` stops for a human.
+- **Step 4 "choose a hypothesis" STOP** → self-select the **highest-confidence untested** hypothesis
+  and proceed; log the choice.
+- **Step 5 "say go" + one-change-at-a-time** → run the single change, run the feedback loop, and
+  **revert on FAIL** (reversible by construction). Continue down the ranked list one at a time.
+- **Step 5 "3 failed hypotheses" A/B/C** → **pause (genuine block).** Exhausting the ranked
+  hypotheses is a real escalation to the human — the second place `/debug` stops.
+
+Steps 6 (regression test) and 7 (instrumentation cleanup) are mandatory in every mode and are never
+skipped. The net effect: the 3-attempt → `/debug` route tries a deterministic diagnosis first, and
+the human is involved only when `/debug` itself cannot build a signal or cannot resolve the issue.
+
+---
+
 ## Step 1 — Build the feedback loop (THIS IS THE SKILL)
 
 Before any diagnosis begins, you need a **deterministic, agent-runnable pass/fail signal** — a single command that returns PASS or FAIL reliably and quickly.
