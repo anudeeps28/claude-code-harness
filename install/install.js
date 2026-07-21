@@ -577,6 +577,14 @@ async function main() {
   const agentSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_AGENTS : null;
   installedFiles.push(...copyFilesWithLog(path.join(REPO_DIR, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip));
 
+  console.log(`  Copying role roster (${workflowPack} pack)...`);
+  const rosterSrc = path.join(REPO_DIR, `templates/harness-roles.${workflowPack}.json`);
+  if (fs.existsSync(rosterSrc)) {
+    fs.copyFileSync(rosterSrc, path.join(target, 'harness-roles.json'));
+    installedFiles.push('harness-roles.json');
+    console.log('    Installed: harness-roles.json');
+  }
+
   console.log('  Copying hooks...');
   installedFiles.push(...copyFilesWithLog(path.join(REPO_DIR, 'hooks'), path.join(target, 'hooks'), null, 'hooks', /* filesOnly */ true));
   const hooksLibSrc = path.join(REPO_DIR, 'hooks/lib');

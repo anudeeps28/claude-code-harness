@@ -496,6 +496,14 @@ function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = n
 
   const agentSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_AGENTS : null;
   installedFiles.push(...copyFilesWithLog(path.join(src.dir, 'agents'), path.join(target, 'agents'), /\.md$/, 'agents', false, agentSkip));
+
+  const rosterSrc = path.join(src.dir, `templates/harness-roles.${workflowPack}.json`);
+  if (fs.existsSync(rosterSrc)) {
+    fs.copyFileSync(rosterSrc, path.join(target, 'harness-roles.json'));
+    installedFiles.push('harness-roles.json');
+    console.log('    Updated:   harness-roles.json');
+  }
+
   installedFiles.push(...copyFilesWithLog(path.join(src.dir, 'hooks'), path.join(target, 'hooks'), null, 'hooks', true));
 
   const hooksLibSrc = path.join(src.dir, 'hooks/lib');
