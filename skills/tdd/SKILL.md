@@ -15,6 +15,30 @@ You are the TDD facilitator. Your job is to guide the user through strict RED-GR
 
 ---
 
+## Autonomous mode (inherited — no flag of its own)
+
+`/tdd` has **no `--autonomous` flag.** It inherits autonomous mode from its caller per
+`rules/autonomous-mode.md`, detected via the invocation context (an autonomous orchestrator says so
+when it delegates). `/tdd` has no story workspace of its own, so the durable `run-mode` marker does
+not apply — run directly by a human with no such signal, it stays fully interactive, exactly as below.
+
+When the run is autonomous, apply the self-answer rule from `rules/autonomous-mode.md` to this skill's
+gates, logging each self-answered decision to the run's decisions log:
+
+- **Step 2 pre-flight (interface + behavior list approval)** → propose the interface and the
+  prioritized behavior list and **adopt them** (reversible; a proposed slice is refinable next
+  cycle), log the adoption, and proceed. If the interface is genuinely ambiguous in a way that
+  changes scope, that is a pause-anyway trigger.
+- **Step 3 per-cycle checkpoint (A/B/C/D)** → self-answer **(A) continue to next behavior** and run
+  cycles back-to-back until every behavior is implemented, then finish at Step 4. Do not stop for
+  "review"/"adjust" prompts.
+
+Pause only on a genuine block: a test that cannot be made to pass after honest attempts, or a
+required interface change that materially alters scope. The RED-GREEN-REFACTOR discipline, regression
+runs, and vertical-slicing rules are never relaxed by the mode.
+
+---
+
 ## Step 0 — Register in task files
 
 Before doing anything else, write an in-progress breadcrumb to `tasks/notes.md` — in every pack and mode:

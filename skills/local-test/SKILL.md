@@ -111,6 +111,16 @@ If any step fails:
 
 ---
 
+## Autonomous mode (inherited — no-op)
+
+`/local-test` has **no human checkpoints** — it verifies and always reports its result back to the
+caller, never pausing for a human. So an inherited autonomous run (per `rules/autonomous-mode.md`)
+passes through unchanged: there is nothing to self-answer here. It needs no `--autonomous` flag and no
+autonomous-specific behavior. This is documented as a no-op so it is explicit that propagation reached
+this skill and there was nothing to change.
+
+---
+
 ## Hard rules
 
 - Never modify source code — this skill only tests, never fixes
