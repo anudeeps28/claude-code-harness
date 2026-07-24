@@ -26,7 +26,9 @@ const BASH_RULES = [
   { id: 'git-checkout-dot', re: /\bgit\s+checkout\s+\.\s*$/i,          reason: 'git checkout . — discards all unstaged changes' },
   { id: 'git-checkout-dd', re: /\bgit\s+checkout\s+--\s/i,             reason: 'git checkout -- — discards file changes' },
   { id: 'git-clean',       re: /\bgit\s+clean\s+-[a-z]*f/i,            reason: 'git clean -f — deletes untracked files permanently' },
-  { id: 'git-branch-D',    re: /\bgit\s+branch\s+-D\b/,                reason: 'git branch -D — force-deletes a branch' },
+  // Force-delete = -D in any flag cluster, or any delete flag (-d/--delete)
+  // combined with any force flag (-f/--force) in either order.
+  { id: 'git-branch-D',    re: /\bgit\s+branch\b(?:(?=.*\s-\w*D\b)|(?=.*\s(?:--delete\b|-[a-z]*d[a-z]*\b))(?=.*\s(?:--force\b|-[a-z]*f[a-z]*\b)))/, reason: 'git branch force-delete — discards a branch without merge check' },
   { id: 'git-rebase-main', re: /\bgit\s+rebase\b.*(master|main)\b/i,   reason: 'git rebase on master/main — dangerous' },
   { id: 'git-restore-dot', re: /\bgit\s+restore\s+\.\s*$/i,            reason: 'git restore . — discards all unstaged changes' },
 
