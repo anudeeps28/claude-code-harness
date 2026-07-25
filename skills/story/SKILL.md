@@ -1,6 +1,6 @@
 ---
 name: story
-description: Goal-driven story execution — understand → define goal → plan → execute → verify → e2e gate → PR. Done = goal met (acceptance + e2e gate green), not just compiles. Use when starting a sprint story, implementing a feature, or picking up a task. Usage: /story <story-id> [--auto]
+description: Goal-driven story execution — understand → define goal → plan → execute → verify → e2e gate → PR. Done = goal met (acceptance + e2e gate green), not just compiles. Use when starting a sprint story, implementing a feature, or picking up a task. Usage: /story <story-id> [--auto] [--autonomous]
 argument-hint: Story ID e.g. 9950
 ---
 
@@ -13,7 +13,11 @@ argument-hint: Story ID e.g. 9950
 You are the story execution orchestrator for YOUR_PROJECT_NAME.
 
 Parse `$ARGUMENTS`:
-1. **Extract flags:** strip `--auto` if present. `--auto` → auto-run all waves without pausing between them (still stops on failure).
+1. **Extract flags:** strip `--auto` and `--autonomous` if present.
+   - `--auto` → auto-run all waves without pausing between them (still stops on failure).
+   - `--autonomous` → run the entire flow with **no human STOP checkpoints** — self-answer reversible questions, pause only when genuinely blocked, auto-push and open a non-draft PR as the single human gate (see **Autonomous mode** below). Implies `--auto`.
+
+   `--auto` and `--autonomous` are orthogonal and may be combined. Before proceeding, expand `--autonomous` to also set `--auto`. `--autonomous` does NOT imply `--quick` (there is no `--quick` flag on `/story`) — every phase, the goal definition, all four Phase 3.6 reviews, and the Phase 3.7 e2e goal gate still run.
 2. **Story ID:** the remaining argument after stripping flags.
 
 The story to execute is: **#[story ID]**
@@ -32,6 +36,65 @@ cd YOUR_PROJECT_ROOT && git status && git branch --show-current
 mkdir -p YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS
 ```
 Confirm you are on the right branch for story #$ARGUMENTS. The `tasks/stories/$ARGUMENTS/` directory is where handoff contracts will be written throughout this story.
+
+---
+
+## Autonomous mode (only if `--autonomous` is set)
+
+`--autonomous` on `/story` is an **explicit autonomous entry point** in its own right — the human
+typing the flag on this invocation *is* the signal that turns this run autonomous directly, no
+upstream orchestrator required. Autonomy is never assumed; it is only ever triggered by an explicit
+signal (see `rules/autonomous-mode.md`, the single source of truth for this convention).
+
+When set, run the **entire** flow — Understand → Goal → Plan → Execute → Local Verify → Review → e2e
+Gate → PR — **without stopping at any human checkpoint**. The PR is the single human gate. This mode
+changes *only* whether the flow pauses; it changes nothing about *what work is done* — every phase
+(including Goal Definition, all four Phase 3.6 reviews, and the Phase 3.7 e2e gate) still runs.
+
+**Self-answer rule.** At every point where the flow would normally STOP and wait for YOUR_NAME:
+- If the decision is **reversible** AND there is a clear recommended option → **take the recommended
+  option, do not wait**, and append one line to the **decisions log** (see below).
+- Otherwise → **pause and ask** (this is the only thing that stops an autonomous run mid-flight).
+
+**Pause-anyway triggers** (an autonomous run stops and asks the human on any of these):
+- a **contradiction** — the story, brief, or code conflict in a way you cannot reconcile with a recommendation;
+- an **irreversible action** — anything destructive or hard to undo (deleting data, force-push, history rewrite, etc.);
+- a **scope change** — the work turns out materially larger or different than the approved brief/goal;
+- the **3-failed-attempts** rule fires (route to `/debug` as usual).
+
+A task **FAIL or BLOCKED** result also halts the run — that is a genuine block, not a checkpoint, and
+`--auto`'s "pause on failure" behavior is unchanged.
+
+**Decisions log.** Keep a running list of every self-answered decision as
+`- <question> → <chosen option> (reversible; <one-line why>)`. Accumulate it across all phases in the
+shared sink `tasks/stories/$ARGUMENTS/decisions-log.md` (create it if absent) — inherited sub-skills
+append to the **same** file — and surface it verbatim in the PR body under **"Decisions made on your
+behalf"** (Phase 4). Because it is rendered verbatim into the PR (public on a public repo), each line
+is human-readable rationale only — never put secrets, tokens, or PII in the decisions log.
+
+**Propagation to sub-skills (inherited).** The full autonomous convention — the self-answer rule,
+pause-anyway triggers, decisions-log sink, and inheritance mechanism — is centralized in
+`rules/autonomous-mode.md`. Sub-skills and agents **inherit** the mode; they have **no `--autonomous`
+flag of their own**. When `--autonomous` is set, `/story` propagates the mode two ways:
+1. **Invocation context** — every sub-agent/sub-skill spawned below (`story-understand-agent`,
+   `story-plan-agent`, `story-executor-agent`, `/local-test`, the evaluator/acceptance/architect/
+   security review agents, `/troubleshoot`, `/debug`, `story-pr-agent`) is told, in its invocation,
+   that this is an autonomous run so it self-answers any checkpoints of its own per
+   `rules/autonomous-mode.md`, appending to the shared decisions-log. For the checkpoint-less
+   components (`/local-test` and the four review agents) this invocation context is simply a
+   **mode pass-through / no-op** — they have nothing to self-answer and always report back.
+2. **Durable marker** — write `run-mode: autonomous` into `tasks/stories/$ARGUMENTS/executor-state.md`
+   (the file this flow already updates every wave), so a standalone resume (e.g. `/run-tasks
+   $ARGUMENTS` after an interruption) inherits the mode without a live orchestrator.
+
+`/local-test` and the four Phase 3.6 review agents (evaluator / acceptance / architect / security)
+have no human checkpoints, so the mode is a **no-op** for them — they always report back and never
+pause; their findings' fix-vs-skip decision is self-answered here in Phase 3.6. `/debug` runs
+inherited-autonomous and **self-drives** the diagnosis, pausing only if it cannot build a
+deterministic signal or exhausts its hypotheses (see `rules/autonomous-mode.md`).
+
+Throughout the phases below, any block that says **STOP** is **auto-resolved by the self-answer rule
+above when `--autonomous` is set** — record the decision and proceed, unless a pause-anyway trigger fires.
 
 ---
 
@@ -58,9 +121,11 @@ Then say **exactly**:
 
 *(Confirm to proceed to Phase 2. Say "yes" or give corrections.)*
 
+*(In `--autonomous`: skipped — accept the brief as-is, log "brief accepted as understood", and continue. If the brief materially contradicts the story, that is a pause-anyway trigger.)*
+
 ---
 
-Do NOT proceed until YOUR_NAME responds.
+Do NOT proceed until YOUR_NAME responds (unless `--autonomous`).
 
 ---
 
@@ -105,9 +170,11 @@ Then say **exactly**:
 
 *(Confirm to proceed to Phase 2. The plan is built to satisfy this goal.)*
 
+*(In `--autonomous`: the goal is still fully **defined** here — never skipped — but the confirmation is self-answered. Adopt the goal you defined, log "goal self-approved: [one-line gate]", and continue. The escape hatch ("skip gate — no runtime impact") is itself a reversible call you may self-answer.)*
+
 ---
 
-Do NOT proceed until YOUR_NAME responds. The confirmed goal is the input to Phase 2 — the plan agent turns it into the test strategy + test/eval tasks.
+Do NOT proceed until YOUR_NAME responds (unless `--autonomous`). The confirmed goal is the input to Phase 2 — the plan agent turns it into the test strategy + test/eval tasks.
 
 ---
 
@@ -138,9 +205,11 @@ Then say **exactly**:
 
 *(Say "approve" or "approve A" for wave-by-wave, "approve B" for auto-run, or describe what to change. Tip: use `--auto` flag to skip this question next time.)*
 
+*(In `--autonomous`: skipped — the plan is self-approved (log "plan self-approved: [N] tasks"), and because `--autonomous` implies `--auto`, execution runs in mode B. A materially wrong or oversized plan is a scope-change pause-anyway trigger. The plan-revision stall detector below still applies.)*
+
 ---
 
-Do NOT proceed until YOUR_NAME approves.
+Do NOT proceed until YOUR_NAME approves (unless `--autonomous`).
 
 **Plan revision stall detection:** If YOUR_NAME requests changes to the plan, re-spawn the plan agent with corrections. Track the number of issues/changes requested across revision iterations. If the issue count does not decrease between consecutive iterations (the plan is not converging), stop and say:
 
@@ -206,7 +275,7 @@ Collect all results before proceeding.
 
 **E. Mark PASSed tasks done in the plan** — mark each done with `✅` in `tasks/stories/$ARGUMENTS/plan.md` in one Edit pass. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved. Never hand-edit `tasks/todo.md` — it is a generated dashboard (D9), not the task plan.
 
-**E2. Update the executor state handoff:** Write/update `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the source of truth for what's been done.
+**E2. Update the executor state handoff:** Write/update `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the source of truth for what's been done. If `--autonomous` is set, include a `run-mode: autonomous` line in this file so a standalone resume (`/run-tasks $ARGUMENTS`) inherits the mode (see **Autonomous mode**).
 
 **F. STOP after every wave (behavior depends on execution mode):**
 
@@ -223,7 +292,9 @@ Collect all results before proceeding.
 
 ---
 
-Do NOT start the next wave until YOUR_NAME says "yes".
+*(In `--autonomous`: mode-B semantics apply — `--autonomous` implies `--auto`, so wave-by-wave pauses never fire; all-pass continues immediately to the next wave, and a FAIL/BLOCKED still halts the run as a genuine block, same as mode B's "pause on failure".)*
+
+Do NOT start the next wave until YOUR_NAME says "yes" (unless `--autonomous`, in mode B).
 
 **If mode B (auto-run):**
 - Show the wave result table (step D) so YOUR_NAME can see progress in real-time.
@@ -332,7 +403,9 @@ Review each finding above. For each: say "fix" (I'll address it before PR) or "s
 
 ---
 
-Do NOT proceed until YOUR_NAME responds.
+*(In `--autonomous`: skipped — self-answer each finding's fix-vs-skip by the confidence threshold: ≥ threshold → fix and log; below → skip and log. A BLOCK finding (architecture/security) or a NOT ACCEPTED acceptance verdict is not skippable — it must be **fixed and logged** (a code fix on your own branch is reversible, so this is self-answered, not a pause); if it can't be resolved, the 3-attempt rule routes to `/debug` per `rules/autonomous-mode.md`. The four review agents themselves are no-ops; only the fix-vs-skip decision on their findings is self-answered here.)*
+
+Do NOT proceed until YOUR_NAME responds (unless `--autonomous`).
 
 **If all four pass (✅ YES, ACCEPTED, CLEAR, CLEAR):**
 
@@ -343,7 +416,9 @@ Say:
 
 ---
 
-Do NOT proceed until YOUR_NAME confirms.
+*(In `--autonomous`: auto-confirmed — log "Phase 3.6 clear, proceeding to Phase 3.7" and continue immediately.)*
+
+Do NOT proceed until YOUR_NAME confirms (unless `--autonomous`).
 
 ---
 
@@ -364,11 +439,13 @@ _(If YOUR_NAME took the "skip gate — no runtime impact" escape hatch at Phase 
 
 ---
 
-Do NOT proceed until YOUR_NAME confirms.
+*(In `--autonomous`: the e2e gate itself STILL RUNS and still blocks PR — only this confirmation is self-answered. Log "e2e gate green for #$ARGUMENTS, proceeding to Phase 4" and continue immediately.)*
+
+Do NOT proceed until YOUR_NAME confirms (unless `--autonomous`).
 
 **If the gate FAILS — diagnostic re-approach (evidence-driven, NOT blind retry):**
 
-A failed gate never triggers a blind re-run. Each iteration runs an explicit cycle, in-session with YOUR_NAME at the gates (no background autonomous loop — only a slow deploy/build step, if any, may run in the background):
+A failed gate never triggers a blind re-run. Each iteration runs an explicit cycle, in-session with YOUR_NAME at the gates (no background autonomous loop — only a slow deploy/build step, if any, may run in the background). *(In `--autonomous`: still in-session and still no background loop — only the diagnostic decisions at each step are self-answered per the self-answer rule instead of waiting on YOUR_NAME; the same evidence-driven cycle and 3-attempt → `/debug` rule below apply unchanged.)*
 
 1. **Observe the ACTUAL state** using the story's observability plan. If you can't see what the system actually did, build a probe (endpoint, query, log line) — respecting data-access rules.
 2. **Compare three things:** *intended* (the acceptance criterion) vs *implemented* (what we actually changed) vs *observed* (what the system actually does/returns).
@@ -389,6 +466,7 @@ Spawn a **`story-pr-agent`** (foreground) with:
 - Story ID: $ARGUMENTS
 - The list of all completed tasks (task id + name + files changed, from Phase 3 results)
 - Current branch name (from git branch --show-current)
+- [If `--autonomous`] Decisions log: the contents of `tasks/stories/$ARGUMENTS/decisions-log.md` (the shared sink /story and every inherited sub-skill appended to) — the PR body MUST include a **Decisions made on your behalf** section rendering this list verbatim.
 
 Wait for it to return the full PR preparation report.
 
@@ -403,7 +481,9 @@ Then say **exactly**:
 
 ---
 
-Wait for YOUR_NAME to run the git commands and confirm. Only then raise the PR using `gh pr create`.
+*(In `--autonomous`: skipped — do not wait. First confirm you are on the story branch, not the default branch: if `git branch --show-current` returns `main`/`master` (or the repo default), treat it as a pause-anyway trigger and stop — never auto-push to the default branch. Otherwise commit, push the branch, and open the PR yourself with `gh pr create` as a **non-draft** PR, with the decisions log rendered in the PR body. Committing/pushing your own branch and opening a PR are reversible and non-destructive; force-push or any history rewrite is NOT, and remains a pause-anyway trigger.)*
+
+Wait for YOUR_NAME to run the git commands and confirm (unless `--autonomous`, in which case do it now). Only then raise the PR using `gh pr create`.
 
 ---
 
@@ -421,3 +501,6 @@ Wait for YOUR_NAME to run the git commands and confirm. Only then raise the PR u
 - If YOUR_NAME says "stop" at any point — stop immediately, summarize state, ask what to do next
 - A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests, not just building
 - If the acceptance-test-agent reports NOT ACCEPTED, the feature is not done — fix before proceeding to PR
+- `--autonomous` skips only the **human STOP checkpoints** — it NEVER skips a phase, the goal definition, the four Phase 3.6 reviews, the Phase 3.7 e2e gate, local tests (Phase 3.5), or a failure pause; it implies `--auto` but NOT `--quick` (there is no `--quick` flag on `/story`), and it does not change any default or `--auto` behavior
+- In `--autonomous`, every self-answered decision is logged and surfaced in the PR under "Decisions made on your behalf"; the PR is opened non-draft as the single human gate
+- `--autonomous` propagates to invoked sub-skills and agents, which **inherit** the mode (no flag of their own) per `rules/autonomous-mode.md` — via invocation context plus a `run-mode: autonomous` marker in `executor-state.md`; `/local-test` and the four Phase 3.6 review agents are no-ops, and `/debug` self-drives
