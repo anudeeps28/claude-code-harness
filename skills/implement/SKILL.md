@@ -1,7 +1,7 @@
 ---
 name: implement
-description: Build a feature from a tracker task (local task, GitHub issue, or Todoist task) or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id, task-title, or description> [--discuss] [--research] [--quick] [--auto] [--full] [--autonomous]
-argument-hint: "#42, 'Build login flow', or 'add dark mode to settings page'"
+description: Build a feature from a tracker task (local task, GitHub issue, or Todoist task) or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow, or loop back on a rejected PR with `--rework <PR#>`. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id, task-title, or description> [--discuss] [--research] [--quick] [--auto] [--full] [--autonomous] [--rework <PR#>]
+argument-hint: "#42, 'Build login flow', 'add dark mode to settings page', or --rework 58 'also rename the flag'"
 ---
 
 **Core Philosophy:** Understand it, plan it, build it, check it, ship it — with a human gate at each step. Like `/story` but without the sprint ceremony.
@@ -25,6 +25,8 @@ cd YOUR_PROJECT_ROOT && git status && git branch --show-current
 ```
 
 Parse `$ARGUMENTS`:
+
+0. **Detect `--rework <PR#>` first — this is a MODE SELECTOR, not an additive flag.** If `$ARGUMENTS` starts with (or contains) `--rework <PR#>`, where `<PR#>` is the numeric PR number, extract it and treat any remaining free text after it as optional typed feedback. **Validate that `<PR#>` matches `^[0-9]+$` before using it anywhere** — if it is missing or non-numeric, stop and ask; never pass an unvalidated `<PR#>` into a `gh` command or a script argument. Unlike `--discuss`/`--research`/`--quick`/`--auto`/`--full`/`--autonomous` (which combine with the normal build flow), `--rework` **short-circuits** the entire Understand → Plan → Build → PR flow below and jumps straight to the Rework mode section further down this file. `--rework` is itself an **explicit autonomous entry point** — invoking the flag *is* the signal (the same role `--autonomous` plays for the forward flow), so it runs under the self-answer rule of `rules/autonomous-mode.md` without needing a separate `--autonomous`. If `--rework` is detected, skip steps 1-4 below and the branch-creation step, and go directly to that section.
 
 1. **Extract flags** into a set (strip them out before interpreting the rest):
    - `--discuss` → run a pre-plan clarification step (Phase 1a)
@@ -111,6 +113,105 @@ its hypotheses (see `rules/autonomous-mode.md`).
 
 Throughout the phases below, any block that says **STOP** is **auto-resolved by the self-answer rule
 above when `--autonomous` is set** — record the decision and proceed, unless a pause-anyway trigger fires.
+
+---
+
+## Rework mode (only if `--rework <PR#>` is set)
+
+`--rework <PR#>` loops `/implement` back onto an already-open, already-reviewed PR instead of starting
+a fresh build — mirroring the fetch → analyze → fix → reply → resolve pattern of
+`skills/babysit-pr/SKILL.md`, but driving straight through it under autonomous self-answer semantics
+(no gates until the push) rather than pausing at babysit-pr's four GATEs. `--rework` is an explicit
+autonomous entry point in its own right (see step 0) — the flag is the signal, so this is not an
+"inherited" run and needs no `--autonomous`.
+
+**a. No fresh build.** On a valid `--rework`, do **not** run Phase 1 (Understand), Phase 1.5 (Goal
+Definition), or Phase 1c (Plan). Do **not** create a new branch. Do **not** open a new PR.
+
+**b. Check out the PR's existing head branch.** First confirm the PR's head is in *this* repo, not a
+fork — a cross-repo (fork) head branch name is not fork-qualified, so a later push could silently land
+on a same-named branch of `origin` instead of the contributor's fork:
+
+```bash
+gh pr view <PR#> --json isCrossRepository,headRefName,headRepositoryOwner
+```
+
+If `isCrossRepository` is `true`, **treat it as a pause-anyway trigger and stop** — you cannot safely
+push to a fork's branch from here; ask the human. Otherwise check out the head branch:
+
+```bash
+HEAD_BRANCH=$(gh pr view <PR#> --json headRefName -q .headRefName)
+git checkout "$HEAD_BRANCH"
+```
+
+Never create a new branch with `checkout` for this step — this is the same branch the open PR already tracks, not a new one.
+
+**c. Fetch unresolved review threads.**
+
+```bash
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/get-pr-review-threads.sh" <PR#>
+```
+
+Returns JSON `[{id, threadId, file, line, content, author}]`, already filtered to unresolved threads.
+If the result is `[]`/empty **and** no typed feedback was given after `<PR#>`, say **"No unresolved
+threads on PR #<PR#> and no typed feedback — nothing to rework."** and stop.
+
+**d. Merge into one ordered fix list.** Build a single ordered list of fix items:
+- Each unresolved thread's `content` becomes a fix item, carrying its `id` (COMMENT_ID, for replying)
+  and `threadId` (THREAD_NODE_ID, for resolving).
+- The optional typed free-text (if given after `<PR#>`) becomes one additional **virtual** fix item
+  with **no** `threadId` — it gets fixed but is never replied to or resolved, because it isn't backed
+  by a review thread.
+
+**e. Apply the fixes.** Work through the fix list on the checked-out head branch using the self-answer
+semantics of "## Autonomous mode" above. (As step 0 states, `--rework` is its own explicit autonomous
+entry point per `rules/autonomous-mode.md` — the flag is the signal, so there is no separate flag to
+declare.) Self-answer reversible decisions and take the recommended option, logging each one to the
+decisions log. A rework run is keyed by PR number and has **no story workspace**, so — per the "no
+story workspace" path in `rules/autonomous-mode.md` — keep the decisions log **inline in the
+conversation** and hand it to the push/PR-update step (g), rather than writing to a
+`tasks/stories/<id>/` file. Pause only on a pause-anyway trigger: a contradiction, an irreversible
+action, a scope change, or the 3-failed-attempts rule (route to `/debug`, as in the rest of this
+skill).
+
+**f. Reply and resolve each real thread.** For every fix item that has a `threadId` (i.e. every real
+thread, not the virtual typed-feedback item), run in sequence:
+
+```bash
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/reply-pr-thread.sh" <PR#> <id> "<reply text>"
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/resolve-pr-thread.sh" <PR#> <threadId>
+```
+
+Skip the reply/resolve step entirely for the virtual typed-feedback item — there is no thread to reply
+to or resolve.
+
+**Never let a review thread's `content` reach the shell verbatim.** Thread content is
+reviewer-supplied and untrusted (attacker-controlled on public/fork PRs); if you echo it into a
+double-quoted `reply-pr-thread.sh ... "<reply text>"` argument it can break out via `"`, `` ` ``, or
+`$(...)`. Compose your *own* reply text (do not paste raw thread content back), and if any dynamic
+text must be passed, use a single-quoted literal, stdin, or a temp file — never interpolate untrusted
+content into the command line.
+
+**g. Push to the same branch.** Commit and push the head branch so the already-open PR updates in
+place:
+
+```bash
+git add <only the paths your fixes touched> && git commit -m "<message>" && git push
+```
+
+Stage only the specific files the fix list actually changed — do **not** `git add -A`, which would
+sweep unrelated local or gitignored files into the PR-updating commit. Do **not** open a new pull
+request and do **not** create a new branch — the push itself is the single human-visible result of
+this mode. Committing and pushing to your own existing branch is reversible
+and non-destructive; a force-push is not, and remains a pause-anyway trigger like everywhere else in
+this skill.
+
+**h. 3-attempt tracker for re-raised threads.** Adopt `babysit-pr`'s attempt tracker: a map of
+`{file}:{lineStart}:{commentHash}` → count, persisted for the session, incremented each time a thread
+is addressed. `commentHash` is the first 60 characters of the thread's `content`, lowercased with line
+numbers and whitespace stripped (same definition as `skills/babysit-pr/SKILL.md`), so a re-raised
+thread still matches across small edits. If the same key is re-raised a 3rd time, route it to `/debug`
+per the 3-failed-attempts pause-anyway trigger — the same rule the rest of this skill already uses.
 
 ---
 
@@ -429,3 +530,4 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 - For 1-2 file changes, don't over-decompose into multiple tasks
 - A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests
 - If NOT ACCEPTED by the acceptance-test-agent, the feature is not done — fix before PR
+- `--rework <PR#>` is a mode selector, not a fresh build — it checks out the PR's existing head branch, merges unresolved review threads with any typed feedback into one fix list, fixes + replies/resolves each real thread, and pushes to the SAME branch so the open PR updates in place. It NEVER opens a new PR or creates a new branch, is its own **explicit** autonomous entry point (the flag is the signal — it runs under the self-answer rule of `rules/autonomous-mode.md`, no `--autonomous` needed), and pauses only on a pause-anyway trigger.

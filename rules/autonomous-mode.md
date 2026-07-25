@@ -5,6 +5,15 @@ This file is the **single source of truth** for how autonomous mode behaves acro
 work — `/story`). Every sub-skill and agent an orchestrator invokes **inherits** the mode; sub-skills
 have **no `--autonomous` flag of their own** (grill decision, fork 6).
 
+**Explicit autonomous entry points.** Autonomy always begins at an *explicit* signal (never assumed —
+see "How the mode is inherited" below). There are two kinds: `--autonomous` on an orchestrator (the
+forward flow), and `--rework <PR#>` on `/implement` (the reject-loop that re-enters an open PR). Both
+are direct, human-typed flags whose presence *is* the signal, so both run under the self-answer rule
+without contradicting "autonomy is only ever inherited from a signal" — the flag itself is that signal.
+`--rework` is **not** a second `--autonomous`-style flag on sub-skills; it is a mode selector on the
+orchestrator that happens to imply autonomous semantics. A rework run is keyed by PR number and has no
+story workspace, so its decisions log stays inline (see the decisions-log section).
+
 **Location:** `rules/autonomous-mode.md` (installed alongside `.claude/skills/`; the `.claude/` copy
 is a symlink to this file).
 **Referenced by:** `skills/implement/SKILL.md`, `skills/run-tasks/SKILL.md`, `skills/tdd/SKILL.md`,
@@ -78,10 +87,13 @@ signals, checked in this order:
    though no live orchestrator is present.
 
 **Default = interactive.** A skill invoked directly by a human with **neither** signal present runs
-with all its normal STOP checkpoints. Autonomy is never assumed — it is only ever inherited from an
-explicit signal. Skills that do not operate on a story workspace (`/tdd`, `/debug` when run
-standalone) can only inherit via signal 1; run directly by a human they stay interactive, which is
-correct.
+with all its normal STOP checkpoints. Autonomy is never assumed — it is only ever triggered by an
+explicit signal. Alongside the two inheritance signals above, a **human-typed autonomous entry flag is
+itself an explicit signal**: `--autonomous` on an orchestrator, or `--rework <PR#>` on `/implement`,
+each turns that same run autonomous directly (no upstream orchestrator required) — this is consistent
+with "never assumed," because the flag the human typed *is* the signal. Skills that do not operate on a
+story workspace (`/tdd`, `/debug` when run standalone) can only inherit via signal 1; run directly by a
+human with no flag they stay interactive, which is correct.
 
 ---
 
