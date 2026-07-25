@@ -16,8 +16,8 @@ story workspace, so its decisions log stays inline (see the decisions-log sectio
 
 **Location:** `rules/autonomous-mode.md` (installed alongside `.claude/skills/`; the `.claude/` copy
 is a symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md`, `skills/run-tasks/SKILL.md`, `skills/tdd/SKILL.md`,
-`skills/debug/SKILL.md`, `skills/local-test/SKILL.md`.
+**Referenced by:** `skills/implement/SKILL.md`, `skills/story/SKILL.md`, `skills/run-tasks/SKILL.md`,
+`skills/tdd/SKILL.md`, `skills/debug/SKILL.md`, `skills/local-test/SKILL.md`.
 
 ---
 
