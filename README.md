@@ -21,7 +21,7 @@ See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
 AI coding tools are powerful — but unstructured. You start a task, the model edits 12 files, and you're not sure what happened or why. There's no plan to review, no evaluation to catch mistakes, and no way to know if the change actually matches what was asked for.
 
-**This harness adds the structure.** Every feature runs through human gates — understand, plan, execute, evaluate, PR — and nothing advances without your explicit "go". Not an autonomous agent. A supervised one.
+**This harness adds the structure.** Every feature runs through human gates — understand, plan, execute, evaluate, PR — and nothing advances without your explicit "go". Not an autonomous agent. A supervised one. (An optional `--autonomous` flag moves the gate to the PR instead of removing it — see [Autonomous mode](#autonomous-mode---autonomous) below.)
 
 **If you're on a team**, it goes further. Context switching costs you 20 minutes every session re-reading the story, the architecture doc, and the last PR. Code review bots leave 15 threads and you fix them one at a time, push, wait, repeat. Sprint status lives in your head. And management doesn't trust AI-generated code because nobody can prove a human approved the plan before code was written. The harness handles all of that — tracker integration, PR review loops, sprint files, and the audit trail your team needs.
 
@@ -38,6 +38,8 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 /implement #42 --full             ← --discuss + --research (max understanding)
 /implement #42 --auto             ← run all waves without pausing between them
 /implement #42 --full --quick     ← max understanding, skip post-build evaluation
+/implement #42 --autonomous       ← full pipeline, zero STOPs, opens a PR as the only gate
+/implement --rework 58 "also rename the flag"   ← re-enter a rejected PR, fix on the same branch, push
 /plan                             ← prioritize your open issues
 ```
 
@@ -47,11 +49,14 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 - `--quick` — skip Phase 3 (evaluation + acceptance testing)
 - `--auto` — auto-run all waves without pausing between them (still stops on failure)
 - `--full` — sugar for `--discuss --research`; orthogonal to `--quick` and `--auto`
+- `--autonomous` — run the entire flow with no human STOP checkpoints; self-answer reversible decisions, pause only when genuinely blocked, auto-push and open a non-draft PR as the single human gate. Implies `--auto` (NOT `--quick`).
+- `--rework <PR#>` — mode selector (not additive): re-enter an already-open, rejected PR, merge its review comments with optional typed feedback, fix on the same branch, and push so the PR updates. Its own explicit autonomous entry point.
 
 ### Enterprise teams
 ```
 /story 9950                 ← 8-phase story lifecycle with human gates
 /story 9950 --auto          ← same, but auto-run waves (pause only on failure)
+/story 9950 --autonomous    ← same 8-phase flow, zero STOPs, PR is the only gate
 /sprint-plan 8              ← reads tracker, creates sprint file, surfaces gaps
 /babysit-pr 163             ← loops PR reviews until zero threads remain
 ```
@@ -419,6 +424,39 @@ Phase 4: COMMIT + PR
 
 ---
 
+### Autonomous mode (`--autonomous`)
+
+`--autonomous` is a per-run flag on both `/implement` and `/story` that runs the whole pipeline —
+understand → plan → build → test → review → PR — with **no human STOP checkpoints**. It implies
+`--auto`, but it does NOT imply `--quick`: evaluation, acceptance testing, and the e2e goal gate
+still run. Autonomy is never a default — it only ever starts from an explicit per-run flag.
+
+**Self-answer rule.** At every point that would normally STOP and wait for you: if the decision is
+reversible AND there's a clear recommended option, the agent takes it and logs one line to
+`tasks/stories/<id>/decisions-log.md`. Otherwise it pauses and asks.
+
+**Pause-anyway triggers** — the agent stops and asks regardless of the self-answer rule: a
+contradiction it can't reconcile, an irreversible action, a scope change, or the 3-failed-attempts
+rule (routes to `/debug`). A task FAIL or BLOCKED also halts the run.
+
+**The PR is the single human gate.** It's opened non-draft, and it carries a "Decisions made on your behalf" section rendering the decisions log verbatim — so you see every reversible call made without
+you. There is no auto-merge: the PR always waits for your verdict — approve to merge, or request
+changes and then re-enter the PR yourself with `/implement --rework <PR#>` (see the reject loop below).
+
+**Two entry doors.** (1) A task already in the tracker → `/implement #42 --autonomous` (or
+`/story 9950 --autonomous`) runs autonomously end to end. (2) A loose idea → define it interactively
+first with `/wayfinder` or `/grill-me` (these stay a conversation, never autonomous), then hand the
+resulting task to an autonomous run.
+
+**Reject loop.** `/implement --rework <PR#> ["typed feedback"]` re-enters a rejected PR — it merges
+the PR's review comments with any optional typed feedback into one fix list, fixes on the same
+branch, and pushes so the PR updates in place.
+
+**DevOS Bridge.** This is the harness half of DevOS's launch-and-watch pipeline; the DevOS Bridge
+(separate repo) will later spawn each pipeline role as its own session using this same flag.
+
+---
+
 ## Agents
 
 | Agent | Model | Used by | Role |
@@ -598,7 +636,7 @@ claude-code-harness/
 
 ## Key design decisions
 
-- **Human gates everywhere** — Nothing advances without your explicit "go". Not an autonomous agent — a supervised one.
+- **Human gates everywhere** — Nothing advances without your explicit "go". Not an autonomous agent — a supervised one. The optional per-run `--autonomous` flag doesn't change that stance — it MOVES the single human gate to the PR (opened non-draft, never auto-merged), it never removes it.
 - **3-attempt rule** — If something fails 3 times, stops retrying and invokes `/debug` for root-cause diagnosis. Prevents infinite loops.
 - **Early-exit on high confidence** — Troubleshoot investigations can stop before 5 iterations when root cause is confirmed (>95% confidence, stress-tested).
 - **File-based state** — `tasks/` files are the source of truth. No database, no external service. Git-friendly, diff-friendly, human-readable.
