@@ -8,17 +8,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ## [Unreleased]
 
+---
+
+## [3.2.0] - 2026-07-25
+
+Autonomous pipeline mode (`--autonomous` on `/implement` and `/story`, plus the `--rework` reject loop), the role roster for session orchestration, and fetch-on-demand harness updates.
+
+### Added
+
+- **Autonomous pipeline mode (`--autonomous`).** New per-run flag on `/implement` and `/story` that runs the entire pipeline (understand → plan → build → test → review → PR) with no human STOP checkpoints: the agent self-answers reversible decisions (logged to `tasks/stories/<id>/decisions-log.md` and surfaced verbatim in the PR under "Decisions made on your behalf") and pauses only on a contradiction, irreversible action, scope change, or the 3-failed-attempts rule. Implies `--auto`; the non-draft PR is the single human gate (never auto-merged). `/implement --rework <PR#>` re-enters a rejected PR — merging review comments with optional typed feedback, fixing on the same branch, and pushing. Convention in `rules/autonomous-mode.md`; sub-skills and agents inherit the mode with no flags of their own. Harness half of DevOS's launch-and-watch pipeline (the DevOS Bridge will spawn role sessions with this flag).
+- **Role roster + crew agents (role-session orchestration).** New `harness-roles.json` installed into `.claude/`, declaring the pipeline as ordered, stage-scoped roles — **Navigator** (decide/define), **Shipwright** (build), **Lookout** (test), **Warden** (review), **Harbormaster** (ship) — each mapping to the pack's skills (solo: `/implement`; enterprise: `/story`) and to a new agent definition (`agents/navigator.md` … `harbormaster.md`). An external orchestrator (e.g. DevOS's Bridge, per its SPEC §3.1) reads the roster and spawns each stage as a fresh top-level session with that role identity; handoff between roles stays the harness's existing artifacts (`grill-summary.md`, `docs/`, `tasks/stories/`). Pack-specific templates live in `templates/harness-roles.{solo,enterprise}.json`; installer and updater keep the installed copy in sync.
+- **`--source <dir>`** on `--check`/`--update` — reuse an already-materialized harness checkout instead of fetching again (used by the `/update-harness` skill to fetch once and apply).
+
 ### Changed
 
 - **Fetch-on-demand updates — no more persistent clone.** `/update-harness` no longer requires a local `claude-code-harness` clone to sit next to your project. It reads a new `update` block in `.harness-manifest.json`, fetches the harness source on demand (a shallow clone to a temp dir, discarded afterward), applies the update, and cleans up. Nothing lingers in your project, nothing to gitignore, nothing to go stale.
 - **Update channels.** The `update` block records a `channel`: `latest` (default — newest `main`), `pinned` (a version tag you opt into bumping), or `local` (a clone you point at, for harness development / offline). Set at install time or with `--update`: `--pin <version>`, `--latest`, `--local <path>`.
 - **Manifest `schemaVersion` → 2.** The old `answers.harnessRepoPath` clone pointer is replaced by the `update` block. Existing installs migrate automatically on their first `--update` (the pointer is dropped, channel defaults to `latest`) — no manual action needed.
 
-### Added
+### Fixed
 
-- **Role roster + crew agents (role-session orchestration).** New `harness-roles.json` installed into `.claude/`, declaring the pipeline as ordered, stage-scoped roles — **Navigator** (decide/define), **Shipwright** (build), **Lookout** (test), **Warden** (review), **Harbormaster** (ship) — each mapping to the pack's skills (solo: `/implement`; enterprise: `/story`) and to a new agent definition (`agents/navigator.md` … `harbormaster.md`). An external orchestrator (e.g. DevOS's Bridge, per its SPEC §3.1) reads the roster and spawns each stage as a fresh top-level session with that role identity; handoff between roles stays the harness's existing artifacts (`grill-summary.md`, `docs/`, `tasks/stories/`). Pack-specific templates live in `templates/harness-roles.{solo,enterprise}.json`; installer and updater keep the installed copy in sync.
-- **`--source <dir>`** on `--check`/`--update` — reuse an already-materialized harness checkout instead of fetching again (used by the `/update-harness` skill to fetch once and apply).
-- **Autonomous pipeline mode (`--autonomous`).** New per-run flag on `/implement` and `/story` that runs the entire pipeline (understand → plan → build → test → review → PR) with no human STOP checkpoints: the agent self-answers reversible decisions (logged to `tasks/stories/<id>/decisions-log.md` and surfaced verbatim in the PR under "Decisions made on your behalf") and pauses only on a contradiction, irreversible action, scope change, or the 3-failed-attempts rule. Implies `--auto`; the non-draft PR is the single human gate (never auto-merged). `/implement --rework <PR#>` re-enters a rejected PR — merging review comments with optional typed feedback, fixing on the same branch, and pushing. Convention in `rules/autonomous-mode.md`; sub-skills and agents inherit the mode with no flags of their own. Harness half of DevOS's launch-and-watch pipeline (the DevOS Bridge will spawn role sessions with this flag).
+- **Safety hook: block all `git branch` force-delete spellings.** The `git-branch-D` rule in `hooks/safety-check.js` only matched the literal `-D` flag, so equivalent force-deletes via clustered or long flags (`-fD`, `-df`, `--delete --force`, `-d --force`, …) slipped through unguarded. The rule now catches a force-delete however it is written, with tests covering every variant and guarding safe deletes, branch listing, and tip-moves from false positives.
 
 ### Removed
 
