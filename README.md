@@ -288,17 +288,20 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 | **implement** | `/implement #42` or `/implement "add dark mode"` | Build a feature from issue or description — plan, execute, evaluate, PR |
 | **plan** | `/plan` | Read open issues, prioritize, create a simple work plan |
 
-### Enterprise workflow (4 skills)
+### Enterprise workflow (2 skills)
+
+These are the only skills the solo pack does **not** install — they drive the sprint/story lifecycle and spawn enterprise-only agents.
+
 | Skill | Usage | What it does |
 |---|---|---|
 | **story** | `/story <ID>` | 8-phase story lifecycle: understand → define goal → plan → execute → local verify → review → e2e gate → PR |
 | **sprint-plan** | `/sprint-plan <N>` | Sprint planning — reads tracker, writes sprint file, surfaces gaps |
-| **babysit-pr** | `/babysit-pr <PR>` | Drive a PR to zero review threads |
-| **run-tasks** | `/run-tasks <ID>` | Resume story execution (Phase 3 only) |
 
 ### Shared skills (both packs)
 | Skill | Usage | What it does |
 |---|---|---|
+| **run-tasks** | `/run-tasks <ID>` | Resume task execution from a story plan — the resume path for both `/implement` and `/story` |
+| **babysit-pr** | `/babysit-pr <PR>` | Drive a PR to zero review threads |
 | **evaluate** | `/evaluate` | Adversarial quality check before PR |
 | **debug** | `/debug` (alias: `/diagnose`) | Feedback-loop-first diagnosis — builds a deterministic pass/fail signal, then tests ranked falsifiable hypotheses one at a time |
 | **troubleshoot** | `/troubleshoot` | Deep behavioral bug investigation (up to 5 iterations) |

@@ -477,7 +477,9 @@ test('backfillManifest_DetectsEnterprisePackWhenEnterpriseAgentsPresent', () => 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
   try {
     fs.mkdirSync(path.join(dir, 'agents'), { recursive: true });
-    fs.writeFileSync(path.join(dir, 'agents', 'story-understand-agent.md'), '# test', 'utf8');
+    // story-plan-agent is enterprise-only; story-understand/-executor/-pr ship in
+    // both packs (solo's /implement spawns them), so they are not pack markers.
+    fs.writeFileSync(path.join(dir, 'agents', 'story-plan-agent.md'), '# test', 'utf8');
     const { detected } = backfillManifest(dir, { harnessVersion: '2.0.0' });
     assert.equal(detected.workflowPack, 'enterprise');
   } finally {

@@ -15,13 +15,22 @@ const REPO = path.resolve(__dirname, '..', '..');
 const LOCAL = ['--local', REPO];
 
 const ENTERPRISE_ONLY_AGENTS = [
-  'story-understand-agent.md',
   'story-plan-agent.md',
-  'story-executor-agent.md',
-  'story-pr-agent.md',
   'sprint-plan-gap-analyzer.md',
   'sprint-plan-docs-reader.md',
   'sprint-plan-tracker-reader.md',
+];
+
+const ENTERPRISE_ONLY_SKILLS = ['story', 'sprint-plan'];
+
+// Agents that solo-pack skills (/implement, /run-tasks) spawn by name. Skipping
+// any of these in the solo pack leaves those skills pointing at agents that were
+// never installed — the roster drift this list guards against.
+const SOLO_REQUIRED_AGENTS = [
+  'implement-planner-agent.md',
+  'story-understand-agent.md',
+  'story-executor-agent.md',
+  'story-pr-agent.md',
 ];
 
 function makeTempProject() {
@@ -79,6 +88,123 @@ test('install.js --yes --project installs without enterprise agents', () => {
       );
     }
     assert.ok(agents.length > 0, 'should install some agents');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js solo install ships every agent its skills spawn by name', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
+    const agents = fs.readdirSync(path.join(dir, '.claude', 'agents'));
+    for (const required of SOLO_REQUIRED_AGENTS) {
+      assert.ok(
+        agents.includes(required),
+        `${required} is spawned by a solo-pack skill and must be installed in solo mode`,
+      );
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js solo install omits enterprise-only skills', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
+    const skills = fs.readdirSync(path.join(dir, '.claude', 'skills'));
+    for (const skill of ENTERPRISE_ONLY_SKILLS) {
+      assert.ok(
+        !skills.includes(skill),
+        `enterprise skill /${skill} should not be installed in solo mode`,
+      );
+    }
+    assert.ok(skills.includes('implement'), 'solo pack must ship /implement');
+    assert.ok(skills.includes('run-tasks'), 'solo pack must ship /run-tasks');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('install.js enterprise install ships enterprise skills and agents', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, '--pack', 'enterprise', ...LOCAL]);
+    const skills = fs.readdirSync(path.join(dir, '.claude', 'skills'));
+    const agents = fs.readdirSync(path.join(dir, '.claude', 'agents'));
+    for (const skill of ENTERPRISE_ONLY_SKILLS) {
+      assert.ok(skills.includes(skill), `enterprise pack must ship /${skill}`);
+    }
+    for (const agent of [...ENTERPRISE_ONLY_AGENTS, ...SOLO_REQUIRED_AGENTS]) {
+      assert.ok(agents.includes(agent), `enterprise pack must ship ${agent}`);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('every agent spawned by an installed solo skill exists in the solo install', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
+    const claudeDir = path.join(dir, '.claude');
+    const agents = new Set(
+      fs.readdirSync(path.join(claudeDir, 'agents')).map((f) => f.replace(/\.md$/, '')),
+    );
+    const skillsDir = path.join(claudeDir, 'skills');
+    const missing = [];
+    for (const skill of fs.readdirSync(skillsDir)) {
+      const skillFile = path.join(skillsDir, skill, 'SKILL.md');
+      if (!fs.existsSync(skillFile)) continue;
+      const text = fs.readFileSync(skillFile, 'utf8');
+      // Matches the skills' own convention for naming an agent to spawn:
+      // "Spawn a **`story-pr-agent`**" / "spawn a `story-executor-agent`".
+      for (const m of text.matchAll(/spawn(?:ing)?\s+(?:each\s+as\s+)?an?\s+\*{0,2}`([a-z0-9-]+-agent)`/gi)) {
+        if (!agents.has(m[1])) missing.push(`skills/${skill} spawns ${m[1]}`);
+      }
+    }
+    assert.deepStrictEqual(missing, [], `solo install has skills spawning uninstalled agents:\n${missing.join('\n')}`);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('update migrates a pre-pack-filter solo install: prunes enterprise skills, restores story agents', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
+    const claudeDir = path.join(dir, '.claude');
+
+    // Regress to the pre-fix shape: enterprise skills present, story agents absent.
+    for (const skill of ENTERPRISE_ONLY_SKILLS) {
+      fs.cpSync(path.join(REPO, 'skills', skill), path.join(claudeDir, 'skills', skill), { recursive: true });
+    }
+    const dropped = ['story-understand-agent.md', 'story-executor-agent.md', 'story-pr-agent.md'];
+    for (const agent of dropped) fs.rmSync(path.join(claudeDir, 'agents', agent), { force: true });
+
+    const manifestPath = path.join(claudeDir, '.harness-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.installedFiles = [
+      ...manifest.installedFiles.filter((f) => !dropped.some((d) => f === `agents/${d}`)),
+      ...ENTERPRISE_ONLY_SKILLS.map((s) => `skills/${s}/SKILL.md`),
+    ];
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+
+    runInstallJs(['--update', '--project', dir, ...LOCAL]);
+
+    const skills = fs.readdirSync(path.join(claudeDir, 'skills'));
+    for (const skill of ENTERPRISE_ONLY_SKILLS) {
+      assert.ok(!skills.includes(skill), `update should prune enterprise skill /${skill} from a solo install`);
+    }
+    const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
+    for (const agent of dropped) {
+      assert.ok(agents.includes(agent), `update should restore ${agent} to a solo install`);
+    }
+    assert.equal(
+      JSON.parse(fs.readFileSync(manifestPath, 'utf8')).workflowPack, 'solo',
+      'pack must stay solo across the migration',
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

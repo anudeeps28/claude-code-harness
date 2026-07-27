@@ -19,7 +19,7 @@ const {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck: runCheckImpl, runUpdate: runUpdateImpl,
   runSwitchTracker: runSwitchTrackerImpl, backfillManifest: backfillManifestImpl,
-  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS,
+  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS,
 } = require('./lib/updater.js');
 const { DEFAULT_REPO_URL } = require('./lib/source.js');
 
@@ -551,7 +551,8 @@ async function main() {
   }
 
   console.log('  Copying skills...');
-  installedFiles.push(...copyDirsWithLog(path.join(REPO_DIR, 'skills'), path.join(target, 'skills'), 'skills'));
+  const skillSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_SKILLS : null;
+  installedFiles.push(...copyDirsWithLog(path.join(REPO_DIR, 'skills'), path.join(target, 'skills'), 'skills', skillSkip));
 
   console.log(`  Copying tracker adapter (${tracker})...`);
   installedFiles.push(...copyGlob(path.join(REPO_DIR, 'trackers', tracker), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
