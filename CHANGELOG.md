@@ -8,6 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ## [Unreleased]
 
+### Fixed
+
+- **Solo installs no longer ship skills that spawn uninstalled agents.** `/implement` and `/run-tasks` spawn `story-understand-agent`, `story-executor-agent`, and `story-pr-agent` by name, but all three were on the enterprise-only skip list — so a solo install had skills pointing at agents that were never copied. The three now ship in both packs (only `story-plan-agent` and the `sprint-plan-*` agents stay enterprise-only). Existing solo installs pick them up on `/update-harness`.
+- **Skills are now pack-filtered.** Previously *every* skill was copied to *every* install, so solo users received `/story` and `/sprint-plan` — which depend on the enterprise-only agents and cannot run in a solo install. Solo installs now omit both, and `--update` prunes them from installs made before this change.
+- **Install verification catches roster drift.** `verifyInstall` now asserts that every agent a pack's skills spawn is present, and that no enterprise-only skill leaked into a solo install — so this class of mismatch fails at install time instead of surfacing mid-run.
+
+### Changed
+
+- **Autonomous mode: a missing dependency is a pause-anyway trigger.** A named skill, agent, script, or tracker adapter that is not installed now stops an autonomous run instead of being self-answered. Substituting a `general-purpose` agent for a purpose-built one is explicitly forbidden: an agent definition is a quality contract, so replacing it changes *what work was done*, not just how — which fails the reversibility test. Previously such a substitution passed the self-answer rule and was disclosed only as a line in the decisions log. See `rules/autonomous-mode.md`.
+
 ---
 
 ## [3.2.0] - 2026-07-25

@@ -6,11 +6,15 @@ const { walk } = require('../../hooks/lib/walk.js');
 
 const IS_WINDOWS = process.platform === 'win32';
 
-function copyDirsWithLog(srcRoot, destRoot, label) {
+function copyDirsWithLog(srcRoot, destRoot, label, skipSet = null) {
   const installed = [];
   if (!fs.existsSync(srcRoot)) return installed;
   for (const entry of fs.readdirSync(srcRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
+    if (skipSet && skipSet.has(entry.name)) {
+      console.log(`    Skipped:   ${label}/${entry.name} (enterprise-only)`);
+      continue;
+    }
     const destPath = path.join(destRoot, entry.name);
     const existed = fs.existsSync(destPath);
     console.log(`    ${existed ? 'Updating:  ' : 'Installing:'} ${label}/${entry.name}`);

@@ -28,14 +28,23 @@ const HARNESS_HOOK_SCRIPTS = new Set([
   'tracker-sync.js',
 ]);
 
+// Agents only the enterprise pack's skills spawn. The story-understand / -executor
+// / -pr agents are NOT here: /implement and /run-tasks (both solo skills) spawn them
+// by name, so skipping them in solo left those skills pointing at agents that were
+// never installed.
 const ENTERPRISE_ONLY_AGENTS = new Set([
-  'story-understand-agent.md',
   'story-plan-agent.md',
-  'story-executor-agent.md',
-  'story-pr-agent.md',
   'sprint-plan-gap-analyzer.md',
   'sprint-plan-docs-reader.md',
   'sprint-plan-tracker-reader.md',
+]);
+
+// Skills that only exist in the enterprise pack. Previously every skill was copied
+// to every install, so solo users got /story and /sprint-plan — which spawn the
+// enterprise-only agents above and cannot work in a solo install.
+const ENTERPRISE_ONLY_SKILLS = new Set([
+  'story',
+  'sprint-plan',
 ]);
 
 function isHarnessHook(hookEntry) {
@@ -94,7 +103,14 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
   console.log('  Verifying installation...');
   let fail = 0;
   const required = [
-    ...(workflowPack === 'enterprise' ? ['skills/story/SKILL.md'] : ['skills/implement/SKILL.md']),
+    ...(workflowPack === 'enterprise'
+      ? ['skills/story/SKILL.md', 'agents/story-plan-agent.md']
+      : ['skills/implement/SKILL.md']),
+    // Spawned by /implement and /run-tasks, so required in BOTH packs.
+    'agents/story-understand-agent.md',
+    'agents/story-executor-agent.md',
+    'agents/story-pr-agent.md',
+    'agents/implement-planner-agent.md',
     'hooks/safety-check.js',
     'rules/code-style.md',
     'trackers/active/get-issue.sh',
@@ -113,6 +129,14 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     if (fs.existsSync(path.join(target, name))) {
       console.log(`  [LEAKED]  ${name} — dev-only artefact found in install`);
       fail++;
+    }
+  }
+  if (workflowPack === 'solo') {
+    for (const skill of ENTERPRISE_ONLY_SKILLS) {
+      if (fs.existsSync(path.join(target, 'skills', skill))) {
+        console.log(`  [PACK]    skills/${skill} — enterprise-only skill in a solo install`);
+        fail++;
+      }
     }
   }
   if (fail === 0) console.log('  [OK] All critical files present, no dev artefacts leaked');
@@ -461,7 +485,21 @@ function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = n
     fs.mkdirSync(path.join(target, d), { recursive: true });
   }
 
-  installedFiles.push(...copyDirsWithLog(path.join(src.dir, 'skills'), path.join(target, 'skills'), 'skills'));
+  const skillSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_SKILLS : null;
+  installedFiles.push(...copyDirsWithLog(path.join(src.dir, 'skills'), path.join(target, 'skills'), 'skills', skillSkip));
+
+  // Migrate: installs made before skills were pack-filtered carry enterprise-only
+  // skill directories. Per-file orphan removal empties them but leaves the dir, so
+  // prune the whole directory. Harness-managed path only; the snapshot backs it up.
+  if (skillSkip) {
+    for (const skill of skillSkip) {
+      const skillDir = path.join(target, 'skills', skill);
+      if (fs.existsSync(skillDir)) {
+        fs.rmSync(skillDir, { recursive: true, force: true });
+        console.log(`    Migrated: removed skills/${skill} (enterprise-only)`);
+      }
+    }
+  }
   installedFiles.push(...copyGlob(path.join(src.dir, 'trackers', tracker || 'github'), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
   chmodExecutables(path.join(target, 'trackers/active'));
 
@@ -750,5 +788,5 @@ function backfillManifest(target, opts = {}) {
 module.exports = {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck, runUpdate, runSwitchTracker, backfillManifest,
-  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS,
+  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS,
 };

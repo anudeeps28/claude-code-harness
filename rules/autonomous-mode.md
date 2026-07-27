@@ -50,6 +50,14 @@ An autonomous run stops and asks the human on any of these, regardless of the se
 - **Scope change** — the work turns out materially larger or different than the approved brief/goal.
 - **3-failed-attempts** — the 3-attempt rule fires (route to `/debug`, which itself runs inherited-
   autonomous; see "How `/debug` behaves" below).
+- **Missing dependency** — a skill, agent, script, or tracker adapter the flow names by identity is
+  not installed. **Never substitute a replacement.** A named agent definition *is* a quality contract
+  (its system prompt encodes the planning structure, executor discipline, or review checklist the
+  phase depends on); swapping in a `general-purpose` agent with an improvised prompt silently changes
+  *what work was done*, not just how it was done — so it fails the reversibility test no matter how
+  close the substitute looks. Same for a missing skill or tracker script: stop and report the exact
+  missing identity and the phase that needed it. This is a harness defect, not a decision — route it
+  to `/improve-harness` once unblocked.
 
 A task **FAIL or BLOCKED** result also halts the run — that is a genuine block, not a checkpoint, and
 `--auto`'s "pause on failure" behavior is unchanged. `--autonomous` implies `--auto`.
