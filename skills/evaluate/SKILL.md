@@ -18,6 +18,18 @@ Parse arguments from: **$ARGUMENTS**
 
 ---
 
+## Phase marker
+
+Before spawning the evaluator agent (Step 2), write `tasks/stories/<story-id>/phase.md` per
+`rules/phase-markers.md` — overwrite it in full with the six plain `key: value` lines
+(`schemaVersion: 1`, `phase: reviewing` (the reviewing phase, displayed as Warden), `role: reviewer`,
+`updated: <ISO-8601 UTC now>`, `skill: evaluate`, `detail: Step 2 — evaluator-agent`). `role` is always
+`reviewer` for `/evaluate`. `/evaluate` writes this marker only when it has a story id / story
+workspace to write into — if there is no story ID and no `tasks/stories/<id>/` workspace (e.g. running
+against a bare branch name with no plan file), skip the marker entirely.
+
+---
+
 ## Step 1 — Determine context
 
 Run:
@@ -40,6 +52,9 @@ If no plan file exists and no story ID was provided, set scope to "quick" automa
 ---
 
 ## Step 2 — Launch evaluator
+
+**Write the phase marker** (per `rules/phase-markers.md` — the full six-key marker, see "Phase marker"
+above) before spawning, if a story workspace exists.
 
 Spawn an **`evaluator-agent`** (foreground) with:
 

@@ -116,6 +116,16 @@ above when `--autonomous` is set** — record the decision and proceed, unless a
 
 ---
 
+## Phase marker
+
+At every phase boundary, write `tasks/stories/<id>/phase.md` per `rules/phase-markers.md` — overwrite
+it in full with the six plain `key: value` lines (`schemaVersion: 1`, `phase`, `role: builder`,
+`updated`, `skill`, `detail`), immediately BEFORE spawning that phase's agent. This happens in every
+run mode, interactive and autonomous alike — it is not gated on `--autonomous`. `role` is always
+`builder` for `/implement`. See the concrete write points at each phase below.
+
+---
+
 ## Rework mode (only if `--rework <PR#>` is set)
 
 `--rework <PR#>` loops `/implement` back onto an already-open, already-reviewed PR instead of starting
@@ -216,6 +226,10 @@ per the 3-failed-attempts pause-anyway trigger — the same rule the rest of thi
 ---
 
 ## Phase 1 — Understand
+
+**Write the phase marker** (per `rules/phase-markers.md`) before spawning: `schemaVersion: 1`,
+`phase: planning` (the planning phase, displayed as Navigator), `role: builder`, `updated: <ISO-8601
+UTC now>`, `skill: implement`, `detail: Phase 1 — story-understand-agent`.
 
 Spawn a **`story-understand-agent`** (foreground) with this prompt:
 
@@ -321,6 +335,10 @@ Capture the inventory verbatim. It will be passed to the planner.
 
 ### Phase 1c — Plan
 
+**Write the phase marker** before spawning: `schemaVersion: 1`, `phase: planning` (the planning phase,
+displayed as Navigator), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: implement`,
+`detail: Phase 1c — implement-planner-agent`.
+
 Spawn an **`implement-planner-agent`** (foreground) with the Phase 1 brief as input:
 
 > Task: $ARGUMENTS (pass through exactly — issue ID or description, flags already stripped)
@@ -379,6 +397,12 @@ Do NOT proceed until YOUR_NAME responds (unless `--autonomous`).
 ---
 
 ## Phase 2 — Execute (wave by wave)
+
+**Write the phase marker** before launching Wave 1: `schemaVersion: 1`, `phase: coding` (the coding
+phase, displayed as Shipwright), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: implement`,
+`detail: Phase 2 Wave 1 — story-executor-agent`. Update `detail` and `updated` (keeping `phase:
+coding`) as execution moves between waves — write the full six-key marker per
+`rules/phase-markers.md` on every wave transition.
 
 Once YOUR_NAME approves, note the **execution mode**: if `--auto` flag was set, use mode B. Otherwise use what they chose at STOP 1 (A = wave-by-wave, B = auto-run; default A if not specified). `--autonomous` implies `--auto`, so an autonomous run is always mode B — the wave pauses never fire, but a FAIL/BLOCKED still halts the run exactly as mode B's "pause on failure" does.
 
@@ -440,6 +464,10 @@ Do NOT start the next wave until YOUR_NAME responds.
 
 ## Phase 2.5 — Local Verification
 
+**Write the phase marker** before running `/local-test`: `schemaVersion: 1`, `phase: testing` (the
+testing phase, displayed as Lookout), `role: builder`, `updated: <ISO-8601 UTC now>`,
+`skill: implement`, `detail: Phase 2.5 — local-test`.
+
 After all tasks pass, run `/local-test 2` (or `/local-test 1` if Docker is not available — note that integration testing was skipped).
 
 If tests fail → fix first, do NOT proceed.
@@ -449,9 +477,13 @@ If tests pass → proceed to Phase 3.
 
 ## Phase 3 — Evaluate + PR
 
-**If `--quick` was passed:** Skip evaluation and acceptance testing, go straight to PR preparation.
+**If `--quick` was passed:** Skip evaluation and acceptance testing, go straight to PR preparation
+(write the `shipping` phase marker below before that step).
 
-**Otherwise:** Spawn **all four review agents in parallel** (foreground):
+**Otherwise:** **Write the phase marker** before spawning the review agents: `schemaVersion: 1`,
+`phase: reviewing` (the reviewing phase, displayed as Warden), `role: builder`, `updated: <ISO-8601 UTC
+now>`, `skill: implement`, `detail: Phase 3 — evaluator/acceptance/architect/security review`.
+Spawn **all four review agents in parallel** (foreground):
 
 **Agent 1 — Evaluator:** Spawn an **`evaluator-agent`** with:
 
@@ -488,6 +520,10 @@ Wait for **all four** to return. Show all reports.
 **e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1a / the test strategy. Run `/local-test e2e` for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) for YOUR_NAME to sign off. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs implemented vs observed → root-cause (route behavioral gaps to `/troubleshoot`, the 3-attempt trigger to `/debug`) → fix → re-run. Three evidence-based re-approaches without a green gate → STOP and invoke `/debug`; do not attempt a 4th (a blind repeat doesn't count as a re-approach). The gate blocks PR until green or human-accepted.
 
 **After evaluation + acceptance + the e2e gate pass (or were skipped with `--quick`):**
+
+**Write the phase marker** before spawning `story-pr-agent`: `schemaVersion: 1`, `phase: shipping`
+(the shipping phase, displayed as Harbormaster), `role: builder`, `updated: <ISO-8601 UTC now>`,
+`skill: implement`, `detail: Phase 3 — story-pr-agent`.
 
 Spawn a **`story-pr-agent`** (foreground) with:
 - Story ID: [issue ID or branch name]

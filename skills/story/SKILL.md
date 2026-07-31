@@ -98,9 +98,23 @@ above when `--autonomous` is set** — record the decision and proceed, unless a
 
 ---
 
+## Phase marker
+
+At every phase boundary, write `tasks/stories/$ARGUMENTS/phase.md` per `rules/phase-markers.md` —
+overwrite it in full with the six plain `key: value` lines (`schemaVersion: 1`, `phase`,
+`role: builder`, `updated`, `skill`, `detail`), immediately BEFORE spawning that phase's agent. This
+happens in every run mode, interactive and autonomous alike — it is not gated on `--autonomous`.
+`role` is always `builder` for `/story`. See the concrete write points at each phase below.
+
+---
+
 ## Phase 1 — Understand
 
 Glob `YOUR_PROJECT_ROOT\tasks\sprint*.md` and pick the latest sprint file.
+
+**Write the phase marker** (per `rules/phase-markers.md`) before spawning: `schemaVersion: 1`,
+`phase: planning` (the planning phase, displayed as Navigator), `role: builder`, `updated: <ISO-8601
+UTC now>`, `skill: story`, `detail: Phase 1 — story-understand-agent`.
 
 Spawn a **`story-understand-agent`** (foreground) with this prompt:
 
@@ -184,6 +198,10 @@ Once YOUR_NAME confirms Phase 1 (with or without corrections) and the Phase 1.5 
 
 If YOUR_NAME gave corrections, append them to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/brief.md` under the "Corrections from YOUR_NAME" section.
 
+**Write the phase marker** before spawning: `schemaVersion: 1`, `phase: planning` (the planning
+phase, displayed as Navigator), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: story`,
+`detail: Phase 2 — story-plan-agent`.
+
 Spawn a **`story-plan-agent`** (foreground) with the full Phase 1 brief as input, the **Phase 1.5 goal** (modality + concrete gate + acceptance-criteria-as-gate + observability), plus any corrections YOUR_NAME gave. The plan agent turns the goal into the test-strategy block and the matching test/eval tasks.
 
 Wait for it to return the XML task plan and test strategy. Output it under the heading:
@@ -223,6 +241,12 @@ Do not loop more than 3 plan revision iterations without escalating.
 ---
 
 ## Phase 3 — Execute (wave by wave)
+
+**Write the phase marker** before launching Wave 1: `schemaVersion: 1`, `phase: coding` (the coding
+phase, displayed as Shipwright), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: story`,
+`detail: Phase 3 Wave 1 — story-executor-agent`. Update `detail` and `updated` (keeping `phase:
+coding`) as execution moves between waves — write the full six-key marker per
+`rules/phase-markers.md` on every wave transition.
 
 Once YOUR_NAME approves the plan, note the **execution mode**: if `--auto` flag was set, use mode B. Otherwise use what they chose at STOP 2 (A = wave-by-wave, B = auto-run; default A if not specified). If there is only 1 wave, execution mode is always A (no point asking — there's nothing to auto-continue through). Parse the `parallel_group` attribute on each `<task>` and group tasks into waves. Show the wave summary table before starting:
 
@@ -313,6 +337,10 @@ A wave is not complete until every task has PASSed or been escalated. Do not adv
 
 ## Phase 3.5 — Local Verification
 
+**Write the phase marker** before running `/local-test`: `schemaVersion: 1`, `phase: testing` (the
+testing phase, displayed as Lookout), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: story`,
+`detail: Phase 3.5 — local-test`.
+
 After all waves in Phase 3 are complete and YOUR_NAME confirms, run `/local-test 2` to verify the full build, all tests, and end-to-end smoke test pass with the changes.
 
 If `/local-test` fails:
@@ -325,6 +353,10 @@ If `/local-test` passes, proceed directly to Phase 3.6.
 ---
 
 ## Phase 3.6 — Evaluation + Acceptance Testing + Architecture + Security Review
+
+**Write the phase marker** before spawning the review agents: `schemaVersion: 1`,
+`phase: reviewing` (the reviewing phase, displayed as Warden), `role: builder`, `updated: <ISO-8601
+UTC now>`, `skill: story`, `detail: Phase 3.6 — evaluator/acceptance/architect/security review`.
 
 After local tests pass, spawn **all four agents in parallel** (foreground). Each has fresh context and a different adversarial lens:
 
@@ -424,6 +456,10 @@ Do NOT proceed until YOUR_NAME confirms (unless `--autonomous`).
 
 ## Phase 3.7 — Goal-seeking e2e gate
 
+**Write the phase marker** before running the gate: `schemaVersion: 1`, `phase: testing` (the testing
+phase, displayed as Lookout), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: story`,
+`detail: Phase 3.7 — e2e goal gate`.
+
 This is the terminal check: the story is **not done** until its goal is met. Run the **e2e gate defined in Phase 1.5** (the chosen modality + concrete gate, recorded in `tasks/stories/$ARGUMENTS/test-strategy.md`). Phase 3.6 asks "is the code sound?"; Phase 3.7 asks "does it actually meet the goal end-to-end?"
 
 _(If YOUR_NAME took the "skip gate — no runtime impact" escape hatch at Phase 1.5, note it and skip straight to Phase 4.)_
@@ -461,6 +497,10 @@ A failed gate never triggers a blind re-run. Each iteration runs an explicit cyc
 ## Phase 4 — Commit + Sync + PR
 
 Once the goal is met (Phase 3.7 gate green or human-accepted) and YOUR_NAME confirms:
+
+**Write the phase marker** before spawning `story-pr-agent`: `schemaVersion: 1`, `phase: shipping`
+(the shipping phase, displayed as Harbormaster), `role: builder`, `updated: <ISO-8601 UTC now>`,
+`skill: story`, `detail: Phase 4 — story-pr-agent`.
 
 Spawn a **`story-pr-agent`** (foreground) with:
 - Story ID: $ARGUMENTS

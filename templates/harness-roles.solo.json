@@ -1,42 +1,32 @@
 {
-  "schemaVersion": 1,
-  "description": "Role roster for OS-orchestrated role sessions (DevOS SPEC §3.1). Each pipeline stage runs as a fresh top-level session with a role identity; an external orchestrator (the Bridge) reads this roster, spawns each role in pipeline order, and enforces gates. Handoff between roles = the harness's existing artifacts (grill-summary, docs/, tasks/stories/).",
-  "pipeline": ["navigator", "shipwright", "lookout", "warden", "harbormaster"],
+  "schemaVersion": 2,
+  "description": "Role roster for OS-orchestrated role sessions (DevOS SPEC §3.1 rev 2026-07-31). Two sessions run per work item: a build session (understand, plan, code, test, fix, commit/push/draft the PR body) and a fresh, adversarial, report-only review session. The five nautical names (Navigator, Shipwright, Lookout, Warden, Harbormaster) are display phases only — NOT sessions and NOT agents — surfaced via each role's `phases[]`. An external orchestrator (the Bridge) reads this roster, spawns each role in pipeline order, and enforces gates. Handoff between roles = the harness's existing artifacts in the story workspace `tasks/stories/<id>/`. Every value in this roster is argv data, never shell text: a consumer spawning a process from `model`/`effort` must pass them as an argument array, never interpolate them into a shell string (the model id `claude-opus-5[1m]` contains glob-significant brackets).",
+  "pipeline": ["builder", "reviewer"],
   "roles": {
-    "navigator": {
-      "displayName": "Navigator",
-      "stages": ["decide", "define"],
-      "skills": ["grill-me", "wayfinder", "architect", "plan", "decision-brief"],
-      "agent": "navigator",
-      "producesArtifacts": ["grill-summary.md", "docs/SPEC.md", "docs/ARCHITECTURE.md", "tasks/notes.md"]
-    },
-    "shipwright": {
-      "displayName": "Shipwright",
-      "stages": ["build"],
+    "builder": {
+      "displayName": "Builder",
       "skills": ["implement", "run-tasks"],
-      "agent": "shipwright",
-      "producesArtifacts": ["tasks/stories/<id>/plan.md", "code + unit tests"]
+      "agent": "builder",
+      "phases": [
+        {"id": "planning", "displayName": "Navigator"},
+        {"id": "coding", "displayName": "Shipwright"},
+        {"id": "testing", "displayName": "Lookout"},
+        {"id": "shipping", "displayName": "Harbormaster"}
+      ],
+      "model": "claude-opus-5[1m]",
+      "effort": "medium",
+      "producesArtifacts": ["tasks/stories/<id>/plan.md", "tasks/stories/<id>/phase.md", "code + unit tests", "pushed branch + drafted PR body"]
     },
-    "lookout": {
-      "displayName": "Lookout",
-      "stages": ["test"],
-      "skills": ["tdd", "local-test"],
-      "agent": "lookout",
-      "producesArtifacts": ["test results", "e2e goal-gate verdict"]
-    },
-    "warden": {
-      "displayName": "Warden",
-      "stages": ["review"],
+    "reviewer": {
+      "displayName": "Reviewer",
       "skills": ["evaluate"],
-      "agent": "warden",
-      "producesArtifacts": ["tasks/stories/<id>/evaluation.md"]
-    },
-    "harbormaster": {
-      "displayName": "Harbormaster",
-      "stages": ["ship"],
-      "skills": ["deploy", "babysit-pr", "sync-tracker", "improve-harness"],
-      "agent": "harbormaster",
-      "producesArtifacts": ["PR", "deploy verification", "closed tracker items"]
+      "agent": "reviewer",
+      "phases": [
+        {"id": "reviewing", "displayName": "Warden"}
+      ],
+      "model": "claude-opus-5[1m]",
+      "effort": "high",
+      "producesArtifacts": ["tasks/stories/<id>/phase.md", "tasks/stories/<id>/evaluation.md", "tasks/stories/<id>/acceptance.md", "tasks/stories/<id>/architecture-review.md", "tasks/stories/<id>/security-review.md"]
     }
   }
 }
