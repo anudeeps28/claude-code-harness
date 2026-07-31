@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-34 skills, 17 agents, 7 cross-platform Node hooks, 5 path-scoped rules, tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+34 skills, 19 agents, 7 cross-platform Node hooks, 10 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -481,8 +481,29 @@ branch, and pushes so the PR updates in place.
 | `debug-agent` | opus | `/debug` | Root cause diagnosis |
 | `troubleshoot-investigator` | opus | `/troubleshoot` | Behavioral bug investigation |
 | `chief-operator` | opus | standalone (`--agent`) | Main-session project operator — researches, decides, delegates via handoff files + tracker tasks. Never implements. |
+| `builder` | opus (1M) | role session (`--agent`) | The build session of the two-session pipeline — understand → plan → code → test → fix, then commit/push and draft the PR body |
+| `reviewer` | opus (1M) | role session (`--agent`) | The fresh adversarial review session — report-only, BLOCK vs ADVISORY verdict to the story files, never edits code |
 
 **Model routing:** Opus for thinking/judging, Sonnet for writing code, Haiku for simple data gathering.
+The two **role identities** (`builder`, `reviewer`) are not sub-agents — they are whole sessions an
+external orchestrator spawns, declared in the role roster below.
+
+### Role roster
+
+`.claude/harness-roles.json` (schemaVersion 2) declares the per-work-item pipeline as **two sessions**:
+
+| Role | Runs | Model / effort | Produces |
+|---|---|---|---|
+| `builder` | `/implement` (solo) or `/story` (enterprise), `/run-tasks` | opus 1M / medium | plan, code + tests, pushed branch, drafted PR body |
+| `reviewer` | `/evaluate` | opus 1M / high | evaluation, acceptance, architecture and security reports — never code |
+
+Each role also carries a `phases[]` list — **display metadata only** (planning → Navigator, coding →
+Shipwright, testing → Lookout, reviewing → Warden, shipping → Harbormaster). Renaming a persona is a
+roster data edit, not a code change. The skills announce the current phase by writing
+`tasks/stories/<id>/phase.md` at every subagent boundary — see `rules/phase-markers.md`.
+
+The roster is per-project data: a team on a tighter plan edits their own copy to declare smaller
+models, with no code change anywhere.
 
 ---
 
@@ -502,9 +523,9 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 
 ---
 
-## Path-scoped rules
+## Rules
 
-Rules in `rules/` activate only when Claude reads matching files:
+`rules/` holds 10 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
 
 | Rule | Applies to | Content |
 |---|---|---|
@@ -513,6 +534,16 @@ Rules in `rules/` activate only when Claude reads matching files:
 | `test-philosophy.md` | `**/*` | Testing philosophy — 3 levels of testing, mandatory test strategy, verify commands must include tests |
 | `security.md` | `**/*.{cs,ts,js,py}` | No hardcoded secrets, parameterized queries |
 | `documentation.md` | `docs/**`, `*.md` | Don't modify architecture docs |
+
+The other 5 are always-referenced convention docs, not path-scoped:
+
+| Rule | Content |
+|---|---|
+| `autonomous-mode.md` | `--autonomous` self-answer rule, pause-anyway triggers, decisions log |
+| `git-worktrees.md` | Worktree naming, lifecycle, and cleanup conventions |
+| `next-task.md` | Live-check procedure for "what's next" questions across tracker + local sources |
+| `phase-markers.md` | The `phase.md` marker contract written at every subagent boundary |
+| `progress-tracking.md` | `TodoWrite` as the in-session mirror of the durable story plan |
 
 ---
 
@@ -619,9 +650,9 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 34 skills
-├── agents/           ← 17 agents (16 sub-agents + 1 main-session operator)
+├── agents/           ← 19 agents (16 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
-├── rules/            ← 5 path-scoped rules
+├── rules/            ← 10 rules (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
 ├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects

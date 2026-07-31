@@ -780,11 +780,17 @@ async function main() {
   }
 
   // ── Verify ─────────────────────────────────────────────────────────────────
-  verifyInstall(target, sedDirs, workflowPack);
+  const verifyFailures = verifyInstall(target, sedDirs, workflowPack);
 
   // ── Done ───────────────────────────────────────────────────────────────────
-  console.log('\n  ────────────────────────────────────────────────────────────────');
-  console.log('  claude-code-harness installed successfully.');
+  if (verifyFailures > 0) {
+    console.log('\n  ══════════════════════════════════════════════════════════════');
+    console.log(`  ⚠ install verification FAILED — ${verifyFailures} problem(s) above`);
+    console.log('  ══════════════════════════════════════════════════════════════');
+  } else {
+    console.log('\n  ────────────────────────────────────────────────────────────────');
+    console.log('  claude-code-harness installed successfully.');
+  }
   console.log(`  Workflow pack: ${workflowPack}\n`);
   if (mode === 'global') console.log('  Skills are now available in every project on this machine.');
   else console.log(`  Skills installed in: ${projectDir}`);

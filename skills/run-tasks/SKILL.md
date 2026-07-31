@@ -44,6 +44,19 @@ pause-anyway trigger (contradiction, irreversible action, scope change, 3-failed
 
 ---
 
+## Phase marker
+
+At each phase boundary it owns, `/run-tasks` writes `tasks/stories/$ARGUMENTS/phase.md` per
+`rules/phase-markers.md` — overwrite it in full with the six plain `key: value` lines
+(`schemaVersion: 1`, `phase`, `role: builder`, `updated`, `skill`, `detail`), immediately BEFORE
+spawning that step's agent. This happens in every run mode, interactive and autonomous alike. `role`
+is always `builder` for `/run-tasks`. Because `/run-tasks` only ever runs Phase 3 (execution) and
+local verification — and its sequence may revisit phases (e.g. back to `coding` after a failed goal
+gate) — it must **not** write `phase: planning` or `phase: shipping` — those belong to
+`/story`/`/implement`. See the concrete write points below.
+
+---
+
 ## Step 1 — Find the task plan
 
 Read `YOUR_PROJECT_ROOT\tasks\stories\$ARGUMENTS\plan.md` — the always-local story plan that `/story` and `/implement` write. It is the source of truth for the task plan in **every** tracker mode; `todo.md` is only a generated dashboard and never holds the XML plan.
@@ -117,6 +130,12 @@ Do NOT start execution until YOUR_NAME responds.
 ---
 
 ## Step 4 — Execute wave by wave
+
+**Write the phase marker** before launching Wave 1: `schemaVersion: 1`, `phase: coding` (the coding
+phase, displayed as Shipwright), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: run-tasks`,
+`detail: Step 4 Wave 1 — story-executor-agent`. Update `detail` and `updated` (keeping `phase: coding`)
+as execution moves between waves — write the full six-key marker per `rules/phase-markers.md` on every
+wave transition.
 
 **Seed the live progress checklist first.** Before launching Wave 1, create a `TodoWrite` list with
 one item per pending `<task>` (across all waves), using the task names from the plan. This gives
@@ -203,6 +222,10 @@ A wave is not complete until all its tasks have either PASSed or been escalated 
 
 ## Step 5 — Local verification
 
+**Write the phase marker** before running `/local-test`: `schemaVersion: 1`, `phase: testing` (the
+testing phase, displayed as Lookout), `role: builder`, `updated: <ISO-8601 UTC now>`,
+`skill: run-tasks`, `detail: Step 5 — local-test`.
+
 After all waves pass, run `/local-test 2` to verify the full build, all tests, and end-to-end smoke test pass with the changes.
 
 If `/local-test` fails:
@@ -215,6 +238,10 @@ If `/local-test` passes, proceed to Step 6.
 ---
 
 ## Step 6 — Goal gate (if goal was defined)
+
+**Write the phase marker** before running the gate: `schemaVersion: 1`, `phase: testing` (the testing
+phase, displayed as Lookout), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: run-tasks`,
+`detail: Step 6 — goal gate`.
 
 If a goal was defined in Step 2 (or the user defined one via option A), run the e2e gate now:
 

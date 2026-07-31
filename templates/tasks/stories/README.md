@@ -11,6 +11,9 @@ tasks/stories/<story-id>/
 ├── brief.md          # Phase 1 output — 8-point understanding brief
 ├── plan.md           # Phase 2 output — XML task plan + rationale
 ├── executor-state.md # Phase 3 output — per-task results, updated live
+├── phase.md          # Current phase marker — written by the build skill at every phase
+│                      # boundary; see rules/phase-markers.md. Machine-read by external
+│                      # orchestrators (e.g. DevOS's Story State Reader).
 └── evaluation.md     # Phase 3.6 output — evaluator findings + verdict
 ```
 

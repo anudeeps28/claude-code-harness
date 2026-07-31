@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { verifyInstall } = require('../lib/updater.js');
 
 const INSTALL_JS = path.resolve(__dirname, '..', 'install.js');
 const INSTALL_SH = path.resolve(__dirname, '..', 'install.sh');
@@ -33,6 +34,10 @@ const SOLO_REQUIRED_AGENTS = [
   'story-pr-agent.md',
 ];
 
+const REMOVED_ROLE_AGENTS = ['navigator.md', 'shipwright.md', 'lookout.md', 'warden.md', 'harbormaster.md'];
+const ROSTER_MODEL = 'claude-opus-5[1m]';
+const PHASE_IDS = ['planning', 'coding', 'testing', 'reviewing', 'shipping'];
+
 function makeTempProject() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-test-'));
   fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
@@ -46,6 +51,20 @@ function runInstallJs(extraArgs, opts = {}) {
     input: '',
     ...opts,
   });
+}
+
+// The pack→install-args mapping used by every test that installs both packs.
+function installArgsFor(pack, dir) {
+  return pack === 'solo'
+    ? ['--yes', '--project', dir, ...LOCAL]
+    : ['--yes', '--project', dir, '--pack', pack, ...LOCAL];
+}
+
+// The dirs verifyInstall scans for unresolved placeholders — mirrors runUpdate's sedDirs.
+function sedDirsFor(claudeDir) {
+  return ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform']
+    .map((d) => path.join(claudeDir, d))
+    .filter((d) => fs.existsSync(d));
 }
 
 function runInstallSh(extraArgs, opts = {}) {
@@ -170,6 +189,193 @@ test('every agent spawned by an installed solo skill exists in the solo install'
   }
 });
 
+// ── Roster v2 conformance ────────────────────────────────────────────────────
+
+test('installed roster is schemaVersion 2 with the builder/reviewer pipeline', () => {
+  for (const pack of ['solo', 'enterprise']) {
+    const dir = makeTempProject();
+    try {
+      const args = installArgsFor(pack, dir);
+      runInstallJs(args);
+      const roster = JSON.parse(fs.readFileSync(path.join(dir, '.claude', 'harness-roles.json'), 'utf8'));
+
+      assert.strictEqual(roster.schemaVersion, 2, `${pack}: schemaVersion must be 2`);
+      assert.deepStrictEqual(roster.pipeline, ['builder', 'reviewer'], `${pack}: pipeline must be builder/reviewer`);
+      assert.deepStrictEqual(
+        Object.keys(roster.roles).sort(),
+        ['builder', 'reviewer'],
+        `${pack}: roles must be exactly builder/reviewer`,
+      );
+
+      const allPhaseIds = [];
+      for (const roleName of ['builder', 'reviewer']) {
+        const role = roster.roles[roleName];
+        for (const field of ['displayName', 'agent', 'model']) {
+          assert.ok(typeof role[field] === 'string' && role[field].length > 0, `${pack} ${roleName}: ${field} must be a non-empty string`);
+        }
+        assert.strictEqual(role.model, ROSTER_MODEL, `${pack} ${roleName}: model must be ${ROSTER_MODEL}`);
+        assert.strictEqual(role.stages, undefined, `${pack} ${roleName}: stages must be absent (removed from the roster shape)`);
+        for (const field of ['skills', 'producesArtifacts', 'phases']) {
+          assert.ok(Array.isArray(role[field]) && role[field].length > 0, `${pack} ${roleName}: ${field} must be a non-empty array`);
+        }
+        for (const p of role.phases) {
+          assert.ok(typeof p === 'object' && p !== null, `${pack} ${roleName}: phases entries must be objects`);
+          assert.ok(typeof p.id === 'string' && p.id.length > 0, `${pack} ${roleName}: phases[].id must be a non-empty string`);
+          assert.ok(typeof p.displayName === 'string' && p.displayName.length > 0, `${pack} ${roleName}: phases[].displayName must be a non-empty string`);
+          assert.ok(PHASE_IDS.includes(p.id), `${pack} ${roleName}: phases[].id ${p.id} must be one of ${PHASE_IDS.join(',')}`);
+          allPhaseIds.push(p.id);
+        }
+      }
+      assert.strictEqual(roster.roles.builder.effort, 'medium', `${pack}: builder effort must be medium`);
+      assert.strictEqual(roster.roles.reviewer.effort, 'high', `${pack}: reviewer effort must be high`);
+
+      assert.deepStrictEqual(
+        [...new Set(allPhaseIds)].sort(),
+        [...PHASE_IDS].sort(),
+        `${pack}: union of roles' phases must cover all five phase ids`,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('every roster role agent is installed and the old role agents are gone', () => {
+  for (const pack of ['solo', 'enterprise']) {
+    const dir = makeTempProject();
+    try {
+      const args = installArgsFor(pack, dir);
+      runInstallJs(args);
+      const claudeDir = path.join(dir, '.claude');
+      const roster = JSON.parse(fs.readFileSync(path.join(claudeDir, 'harness-roles.json'), 'utf8'));
+      const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
+
+      for (const roleName of Object.keys(roster.roles)) {
+        const agentFile = `${roster.roles[roleName].agent}.md`;
+        assert.ok(agents.includes(agentFile), `${pack}: ${agentFile} (roster role ${roleName}) must be installed`);
+      }
+      assert.ok(agents.includes('builder.md'), `${pack}: builder.md must be installed`);
+      assert.ok(agents.includes('reviewer.md'), `${pack}: reviewer.md must be installed`);
+      for (const removed of REMOVED_ROLE_AGENTS) {
+        assert.ok(!agents.includes(removed), `${pack}: ${removed} must not be installed`);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  for (const removed of REMOVED_ROLE_AGENTS) {
+    assert.ok(!fs.existsSync(path.join(REPO, 'agents', removed)), `${removed} must not exist in the repo source`);
+  }
+});
+
+test('roster skills are installed in their pack', () => {
+  for (const pack of ['solo', 'enterprise']) {
+    const dir = makeTempProject();
+    try {
+      const args = installArgsFor(pack, dir);
+      runInstallJs(args);
+      const claudeDir = path.join(dir, '.claude');
+      const roster = JSON.parse(fs.readFileSync(path.join(claudeDir, 'harness-roles.json'), 'utf8'));
+
+      for (const roleName of ['builder', 'reviewer']) {
+        for (const skill of roster.roles[roleName].skills) {
+          const skillDir = path.join(claudeDir, 'skills', skill);
+          assert.ok(
+            fs.existsSync(skillDir) && fs.statSync(skillDir).isDirectory(),
+            `${pack}: roster skill ${skill} (role ${roleName}) must be an installed skill directory`,
+          );
+        }
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+// Required phase-marker keys per rules/phase-markers.md. Verifies the skill names
+// ALL of them (not just a substring of the top-of-file section) — a skill that lost
+// every concrete per-boundary write instruction but kept the intro paragraph would
+// still fail this, because the "six plain key: value lines" list has to name each key.
+const MARKER_KEYS = ['schemaVersion', 'phase', 'role', 'updated', 'skill', 'detail'];
+
+function assertMarkerKeysNamed(text, label) {
+  const normalized = text.replace(/\s+/g, ' ');
+  const m = normalized.match(/six plain `key: value` lines[^(]*\(([^)]*)\)/i);
+  assert.ok(m, `${label}: must name the six phase-marker keys in a "six plain key: value lines (...)" list`);
+  const listed = m[1];
+  for (const key of MARKER_KEYS) {
+    assert.ok(
+      new RegExp('`' + key + '(:|`)').test(listed),
+      `${label}: marker key list must name \`${key}\` (got: ${listed})`,
+    );
+  }
+}
+
+test('phase-marker rule ships and the build skills reference it', () => {
+  const soloDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', soloDir, ...LOCAL]);
+    const soloClaudeDir = path.join(soloDir, '.claude');
+    assert.ok(fs.existsSync(path.join(soloClaudeDir, 'rules', 'phase-markers.md')), 'solo: rules/phase-markers.md must be installed');
+    for (const skill of ['implement', 'run-tasks']) {
+      const skillFile = path.join(soloClaudeDir, 'skills', skill, 'SKILL.md');
+      const text = fs.readFileSync(skillFile, 'utf8');
+      assert.ok(text.includes('rules/phase-markers.md'), `solo: skills/${skill}/SKILL.md must reference rules/phase-markers.md`);
+      assert.ok(text.includes('phase.md'), `solo: skills/${skill}/SKILL.md must mention phase.md`);
+      assertMarkerKeysNamed(text, `solo: skills/${skill}/SKILL.md`);
+    }
+    for (const id of PHASE_IDS) {
+      const implementText = fs.readFileSync(path.join(soloClaudeDir, 'skills', 'implement', 'SKILL.md'), 'utf8');
+      assert.ok(
+        new RegExp('`phase: ' + id + '`').test(implementText),
+        `solo: skills/implement/SKILL.md must write \`phase: ${id}\` — must cover all five phase ids`,
+      );
+    }
+    const evaluateText = fs.readFileSync(path.join(soloClaudeDir, 'skills', 'evaluate', 'SKILL.md'), 'utf8');
+    assert.ok(evaluateText.includes('`role: reviewer`'), 'solo: skills/evaluate/SKILL.md must carry a `role: reviewer` marker instruction');
+
+    for (const skill of fs.readdirSync(path.join(soloClaudeDir, 'skills'))) {
+      const skillFile = path.join(soloClaudeDir, 'skills', skill, 'SKILL.md');
+      if (!fs.existsSync(skillFile)) continue;
+      assert.ok(!fs.readFileSync(skillFile, 'utf8').includes('persona:'), `solo: skills/${skill}/SKILL.md must not use \`persona:\` as a marker key (removed from the contract)`);
+    }
+  } finally {
+    fs.rmSync(soloDir, { recursive: true, force: true });
+  }
+
+  const entDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', entDir, '--pack', 'enterprise', ...LOCAL]);
+    const entClaudeDir = path.join(entDir, '.claude');
+    assert.ok(fs.existsSync(path.join(entClaudeDir, 'rules', 'phase-markers.md')), 'enterprise: rules/phase-markers.md must be installed');
+    for (const skill of ['implement', 'run-tasks', 'story']) {
+      const skillFile = path.join(entClaudeDir, 'skills', skill, 'SKILL.md');
+      const text = fs.readFileSync(skillFile, 'utf8');
+      assert.ok(text.includes('rules/phase-markers.md'), `enterprise: skills/${skill}/SKILL.md must reference rules/phase-markers.md`);
+      assert.ok(text.includes('phase.md'), `enterprise: skills/${skill}/SKILL.md must mention phase.md`);
+      assertMarkerKeysNamed(text, `enterprise: skills/${skill}/SKILL.md`);
+    }
+    for (const id of PHASE_IDS) {
+      const implementText = fs.readFileSync(path.join(entClaudeDir, 'skills', 'implement', 'SKILL.md'), 'utf8');
+      assert.ok(
+        new RegExp('`phase: ' + id + '`').test(implementText),
+        `enterprise: skills/implement/SKILL.md must write \`phase: ${id}\` — must cover all five phase ids`,
+      );
+    }
+    const evaluateText = fs.readFileSync(path.join(entClaudeDir, 'skills', 'evaluate', 'SKILL.md'), 'utf8');
+    assert.ok(evaluateText.includes('`role: reviewer`'), 'enterprise: skills/evaluate/SKILL.md must carry a `role: reviewer` marker instruction');
+
+    for (const skill of fs.readdirSync(path.join(entClaudeDir, 'skills'))) {
+      const skillFile = path.join(entClaudeDir, 'skills', skill, 'SKILL.md');
+      if (!fs.existsSync(skillFile)) continue;
+      assert.ok(!fs.readFileSync(skillFile, 'utf8').includes('persona:'), `enterprise: skills/${skill}/SKILL.md must not use \`persona:\` as a marker key (removed from the contract)`);
+    }
+  } finally {
+    fs.rmSync(entDir, { recursive: true, force: true });
+  }
+});
+
 test('update migrates a pre-pack-filter solo install: prunes enterprise skills, restores story agents', () => {
   const dir = makeTempProject();
   try {
@@ -207,6 +413,124 @@ test('update migrates a pre-pack-filter solo install: prunes enterprise skills, 
     );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('update migrates a pre-roster-v2 solo install: v1 5-role roster becomes v2 builder/reviewer, old role agents pruned', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
+    const claudeDir = path.join(dir, '.claude');
+
+    // Regress to the pre-change v1 shape: a 5-role roster (navigator/shipwright/
+    // lookout/warden/harbormaster) plus their agent files, all tracked by the manifest.
+    const oldRoleNames = ['navigator', 'shipwright', 'lookout', 'warden', 'harbormaster'];
+    for (const name of oldRoleNames) {
+      fs.writeFileSync(path.join(claudeDir, 'agents', `${name}.md`), `# ${name} (v1 role agent)\n`, 'utf8');
+    }
+    const v1Roster = {
+      schemaVersion: 1,
+      pipeline: oldRoleNames,
+      roles: Object.fromEntries(oldRoleNames.map((name) => [
+        name,
+        {
+          displayName: name,
+          agent: name,
+          stages: ['understand'],
+          skills: ['implement'],
+          model: ROSTER_MODEL,
+          effort: 'medium',
+          producesArtifacts: [],
+        },
+      ])),
+    };
+    fs.writeFileSync(path.join(claudeDir, 'harness-roles.json'), JSON.stringify(v1Roster, null, 2), 'utf8');
+
+    const manifestPath = path.join(claudeDir, '.harness-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.installedFiles = [
+      ...manifest.installedFiles,
+      ...oldRoleNames.map((name) => `agents/${name}.md`),
+    ];
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+
+    runInstallJs(['--update', '--project', dir, ...LOCAL]);
+
+    const roster = JSON.parse(fs.readFileSync(path.join(claudeDir, 'harness-roles.json'), 'utf8'));
+    assert.strictEqual(roster.schemaVersion, 2, 'update should migrate the roster to schemaVersion 2');
+    assert.deepStrictEqual(roster.pipeline, ['builder', 'reviewer'], 'update should replace the pipeline with builder/reviewer');
+    assert.deepStrictEqual(Object.keys(roster.roles).sort(), ['builder', 'reviewer'], 'update should replace the roles with builder/reviewer');
+
+    const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
+    for (const name of oldRoleNames) {
+      assert.ok(!agents.includes(`${name}.md`), `update should prune the old v1 role agent ${name}.md`);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('verifyInstall is a real gate: passes on a good install, fails on each corruption', () => {
+  const goodDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', goodDir, ...LOCAL]);
+    const claudeDir = path.join(goodDir, '.claude');
+    assert.strictEqual(
+      verifyInstall(claudeDir, sedDirsFor(claudeDir), 'solo'), 0,
+      'a fresh, uncorrupted install must pass verifyInstall with 0 failures',
+    );
+  } finally {
+    fs.rmSync(goodDir, { recursive: true, force: true });
+  }
+
+  // (i) truncate a required agent file to zero bytes.
+  const truncDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', truncDir, ...LOCAL]);
+    const claudeDir = path.join(truncDir, '.claude');
+    fs.writeFileSync(path.join(claudeDir, 'agents', 'builder.md'), '', 'utf8');
+    assert.ok(
+      verifyInstall(claudeDir, sedDirsFor(claudeDir), 'solo') > 0,
+      'a zero-byte required agent file (agents/builder.md) must fail verifyInstall',
+    );
+  } finally {
+    fs.rmSync(truncDir, { recursive: true, force: true });
+  }
+
+  // (ii) corrupt the installed roster's schemaVersion.
+  const schemaDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', schemaDir, ...LOCAL]);
+    const claudeDir = path.join(schemaDir, '.claude');
+    const rosterPath = path.join(claudeDir, 'harness-roles.json');
+    const roster = JSON.parse(fs.readFileSync(rosterPath, 'utf8'));
+    roster.schemaVersion = 1;
+    fs.writeFileSync(rosterPath, JSON.stringify(roster, null, 2), 'utf8');
+    assert.ok(
+      verifyInstall(claudeDir, sedDirsFor(claudeDir), 'solo') > 0,
+      'a roster with schemaVersion 1 must fail verifyInstall',
+    );
+  } finally {
+    fs.rmSync(schemaDir, { recursive: true, force: true });
+  }
+
+  // (iii) roster drift: roles.reviewer.agent renamed to a name with no matching agent file.
+  // This is the case a hardcoded required-file list cannot catch — verifyInstall must
+  // derive the required agent from the roster itself.
+  const driftDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', driftDir, ...LOCAL]);
+    const claudeDir = path.join(driftDir, '.claude');
+    const rosterPath = path.join(claudeDir, 'harness-roles.json');
+    const roster = JSON.parse(fs.readFileSync(rosterPath, 'utf8'));
+    roster.roles.reviewer.agent = 'nonexistent-reviewer-agent';
+    fs.writeFileSync(rosterPath, JSON.stringify(roster, null, 2), 'utf8');
+    assert.ok(
+      verifyInstall(claudeDir, sedDirsFor(claudeDir), 'solo') > 0,
+      'a roster whose roles.reviewer.agent has no matching agent file must fail verifyInstall',
+    );
+  } finally {
+    fs.rmSync(driftDir, { recursive: true, force: true });
   }
 });
 

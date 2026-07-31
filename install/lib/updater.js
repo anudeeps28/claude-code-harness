@@ -99,6 +99,21 @@ function reconcileSettings(existingSettings, newHarnessSettings) {
 // literals in code), not unfilled template values — excluded from the scan below.
 const SENTINEL_PLACEHOLDERS = ['YOUR_TODOIST_PROJECT'];
 
+// Returns null if `rel` (relative to `target`) is a present, non-empty regular file;
+// otherwise a short reason string ('missing', 'empty', 'not a file') for the caller to
+// report. A dangling symlink reports as 'missing' — statSync throws following it.
+function checkRequiredFile(target, rel) {
+  let stat;
+  try {
+    stat = fs.statSync(path.join(target, rel));
+  } catch {
+    return 'missing';
+  }
+  if (!stat.isFile()) return 'not a file';
+  if (stat.size === 0) return 'empty';
+  return null;
+}
+
 function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
   console.log('  Verifying installation...');
   let fail = 0;
@@ -111,6 +126,7 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/story-executor-agent.md',
     'agents/story-pr-agent.md',
     'agents/implement-planner-agent.md',
+    'harness-roles.json',
     'hooks/safety-check.js',
     'rules/code-style.md',
     'trackers/active/get-issue.sh',
@@ -119,11 +135,53 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'code-platform/lib/retry.sh',
   ];
   for (const rel of required) {
-    if (!fs.existsSync(path.join(target, rel))) {
-      console.log(`  [MISSING] ${rel}`);
+    const reason = checkRequiredFile(target, rel);
+    if (reason) {
+      console.log(`  [MISSING] ${rel} (${reason})`);
       fail++;
     }
   }
+
+  // Roster drift check: parse harness-roles.json (if present and readable) and derive
+  // the role-identity agent files it points at — a renamed/missing roles.*.agent is
+  // roster drift, not just a missing hardcoded filename.
+  const rosterReason = checkRequiredFile(target, 'harness-roles.json');
+  if (!rosterReason) {
+    const rosterPath = path.join(target, 'harness-roles.json');
+    let roster = null;
+    try {
+      roster = JSON.parse(fs.readFileSync(rosterPath, 'utf8'));
+    } catch (e) {
+      console.log(`  [ROSTER] harness-roles.json is not valid JSON: ${e.message}`);
+      fail++;
+    }
+    if (roster) {
+      if (roster.schemaVersion !== 2) {
+        console.log(`  [ROSTER] harness-roles.json schemaVersion ${roster.schemaVersion} is not supported (expected 2)`);
+        fail++;
+      }
+      const pipeline = Array.isArray(roster.pipeline) ? roster.pipeline : [];
+      const roles = roster.roles && typeof roster.roles === 'object' ? roster.roles : {};
+      const roleAgentFiles = [];
+      for (const roleKey of pipeline) {
+        const role = roles[roleKey];
+        if (!role || typeof role.agent !== 'string' || !role.agent) {
+          console.log(`  [ROSTER] pipeline entry "${roleKey}" has no matching roles.${roleKey}.agent`);
+          fail++;
+          continue;
+        }
+        roleAgentFiles.push(`agents/${role.agent}.md`);
+      }
+      for (const rel of roleAgentFiles) {
+        const reason = checkRequiredFile(target, rel);
+        if (reason) {
+          console.log(`  [MISSING] ${rel} (${reason}) — referenced by harness-roles.json roster`);
+          fail++;
+        }
+      }
+    }
+  }
+
   const forbidden = ['package.json', 'node_modules', 'eslint.config.js', '__tests__', 'coverage'];
   for (const name of forbidden) {
     if (fs.existsSync(path.join(target, name))) {
@@ -173,6 +231,7 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     console.log('  or edit the files manually. See CONFIGURE.md for the placeholder reference.');
   }
   console.log('');
+  return fail;
 }
 
 // Maps each personalization placeholder to the CLI flag that fills it, so the
@@ -598,7 +657,7 @@ function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = n
   }
   installedFiles.push('settings.json');
 
-  verifyInstall(target, sedDirs, workflowPack);
+  const verifyFailures = verifyInstall(target, sedDirs, workflowPack);
 
     const newVersion = fs.readFileSync(path.join(src.dir, 'VERSION'), 'utf8').trim();
     const updatedManifest = {
@@ -608,6 +667,13 @@ function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = n
       updatedAt: new Date().toISOString(),
     };
     fs.writeFileSync(manifestPath, JSON.stringify(updatedManifest, null, 2) + '\n', 'utf8');
+
+    if (verifyFailures > 0) {
+      console.log('');
+      console.log('  ══════════════════════════════════════════════════════════════');
+      console.log(`  ⚠ install verification FAILED — ${verifyFailures} problem(s) above`);
+      console.log('  ══════════════════════════════════════════════════════════════');
+    }
 
     console.log(`\n  Updated: ${m.harnessVersion} → ${newVersion}`);
     console.log(`  Restore: cp -r "${snapshotDir}/"* "${target}/"`);
