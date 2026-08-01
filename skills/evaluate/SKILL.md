@@ -88,6 +88,12 @@ Fix the failures above, then run `/evaluate` again.
 
 Review the findings above. For each one, say "fix" (I'll help fix it) or "skip" (acceptable risk). Or say "proceed" to continue to PR with all findings as-is.
 
+Before presenting a finding as skippable, apply the **ship test** (`rules/deferrals.md`) to it: with
+this left undone, does the change behave incorrectly for the project's **real configured inputs** —
+not for the values its tests use? Mark any finding that fails the test as **BLOCKER (not deferrable)**
+in the list, whatever severity the evaluator assigned it, and say why. A finding the human then skips
+must be registered as a tracker item, not left as prose.
+
 ---
 
 **If ✅ YES (all clear):**
@@ -104,4 +110,5 @@ Ready to proceed to PR.
 - Never skip the evaluator agent — always spawn it, even if changes look trivial
 - Never override a hard gate failure — if build/tests fail, the verdict is always ❌ NO
 - Present the full report — don't summarize or filter findings
+- Apply the ship test (`rules/deferrals.md`) to every finding before presenting it as skippable — the evaluator's severity label is an input, not a verdict; it doesn't know what the project has configured
 - If the user says "fix" for a finding, help implement the fix, then re-run `/evaluate`

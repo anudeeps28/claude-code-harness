@@ -4,9 +4,9 @@ description: "Reconcile merged PRs and completed work against open tracker items
 argument-hint: "--dry-run | --import-backup [file]"
 ---
 
-**Core Philosophy:** Tracker items that have been delivered (PR merged) should be closed. This skill is the interactive judgment layer the sweep hook (`hooks/tracker-sync.js`) points at — the sweep handles explicit evidence mechanically; this skill handles ambiguous evidence with user confirmation.
+**Core Philosophy:** Tracker items that have been delivered (PR merged) should be closed, and work that was deferred should be *open* — reconciliation runs in both directions. This skill is the interactive judgment layer the sweep hook (`hooks/tracker-sync.js`) points at — the sweep handles explicit evidence mechanically; this skill handles ambiguous evidence with user confirmation, and harvests deferrals that were only ever written as prose (Step 6.5, per `rules/deferrals.md`).
 
-**Triggers:** "sync tracker", "close completed issues", "update tracker", "reconcile PRs", "clean up tracker", "import backup"
+**Triggers:** "sync tracker", "close completed issues", "update tracker", "reconcile PRs", "clean up tracker", "import backup", "what did we defer", "find deferred work"
 
 ---
 
@@ -85,12 +85,14 @@ Show a summary table:
 | #456 | Add dark mode | Sprint table "Done" (no PR) | Open | ⚠ Ambiguous — needs confirmation |
 | #789 | Refactor auth | PR #67 merged | Already closed | Skip |
 
-If `--dry-run` was passed, stop here with:
+If `--dry-run` was passed, report:
 
 ---
 **Dry run complete.** [N] items have explicit delivery evidence and would be closed. [M] items have ambiguous evidence and need manual confirmation. Run `/sync-tracker` (without --dry-run) to close them.
 
 ---
+
+…then skip Step 6 and continue to **Step 6.5** (which is also read-only under `--dry-run`).
 
 ---
 
@@ -116,6 +118,48 @@ Output:
 **Sync complete.** Closed [N] delivered items in [tracker type]. [M] items were already closed. [K] open items have no delivery evidence (still in progress).
 
 ---
+
+Then continue to **Step 6.5** — closing delivered work is only half of reconciliation; the other half
+is work that was deferred and never registered.
+
+---
+
+## Step 6.5 — Harvest orphaned deferrals
+
+Per `rules/deferrals.md`, a deferral is only real if it is a tracker item — prose in a PR body or a
+notes file never resurfaces on its own. This step finds deferrals recorded before that rule, or by a
+run that skipped it.
+
+**Scan these sinks** for deferral language (`Deferred`, `Follow-up`, `follow-ups`, `TODO later`,
+`known gap`, `not required by`, `tracked as a follow-up`):
+
+```bash
+grep -rin "deferred\|follow-up\|known gap" tasks/notes.md tasks/lessons.md tasks/stories/*/decisions-log.md tasks/stories/*/evaluation.md 2>/dev/null
+gh pr list --state merged --limit 50 --json number,body --jq '.[] | select(.body | test("(?i)deferred|follow-up")) | "PR #\(.number)"'
+```
+
+**Drop any line that already carries a tracker id** (`#123`, an ADO `AB#204`, or a Todoist task id) —
+that one is registered and will surface on its own.
+
+**Report the survivors** as a table — source, the line, and what it appears to cost:
+
+| Source | Deferred item | Cost while undone | Ship test |
+|---|---|---|---|
+| notes.md ledger (PR #22) | Model→window map hardcoded | Recycles context early on the configured model | ⚠ needs answer |
+
+**Apply the ship test to each survivor before offering it as a task** (`rules/deferrals.md`): with this
+left undone, does the shipped change behave incorrectly for the project's **real configured inputs**?
+A survivor that fails the test is not backlog — it is an **unshipped bug in already-merged code**.
+Flag it as such, loudly and separately from the backlog list. A sweep is exactly where a mislabeled
+blocker would otherwise get laundered into a low-priority task.
+
+**Never register silently.** Ask the user which survivors to create, then for each approved one:
+
+```bash
+bash .claude/trackers/active/create-issue.sh "<title>" "<what's undone / cost / ship-test answer / source PR>" "deferred"
+```
+
+If `--dry-run` was passed, report the table and stop — create nothing.
 
 ---
 

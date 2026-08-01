@@ -517,6 +517,19 @@ Wait for **all four** to return. Show all reports.
 
 **If findings >= 75% confidence, acceptance gaps, or ADVISORY findings exist:** Show them. For each: YOUR_NAME says "fix" or "skip".
 
+**Before any finding may be skipped, apply the ship test** (`rules/deferrals.md`): with this item left
+undone, does the change behave incorrectly for its **real configured inputs** — the roster, config,
+env, model or endpoint the project actually declares, not the values its tests use? If yes, it is a
+blocker, not a deferral: fix it in-run, regardless of the agent's `ADVISORY` label or how large the
+*ideal* fix would be (a one-line correction that makes the shipped behavior right is the blocker; the
+proper redesign is the deferral — split them and test each separately). A green test suite is not
+evidence of a No; tests can encode the defect.
+
+**Every finding that survives the ship test is registered before the PR is opened** —
+`bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "deferred"` — and the PR's
+"Deferred / follow-ups" section references it **by its tracker id**. A deferral bullet with no id is a
+defect in the run, not a record.
+
 **e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1a / the test strategy. Run `/local-test e2e` for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) for YOUR_NAME to sign off. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs implemented vs observed → root-cause (route behavioral gaps to `/troubleshoot`, the 3-attempt trigger to `/debug`) → fix → re-run. Three evidence-based re-approaches without a green gate → STOP and invoke `/debug`; do not attempt a 4th (a blind repeat doesn't count as a re-approach). The gate blocks PR until green or human-accepted.
 
 **After evaluation + acceptance + the e2e gate pass (or were skipped with `--quick`):**
@@ -566,4 +579,6 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 - For 1-2 file changes, don't over-decompose into multiple tasks
 - A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests
 - If NOT ACCEPTED by the acceptance-test-agent, the feature is not done — fix before PR
+- Never skip a review finding without applying the ship test in `rules/deferrals.md` — a finding whose absence makes the shipped change behave incorrectly for its real configured inputs is a blocker, and no `ADVISORY` label, green test suite, or "the proper fix is bigger than this story" converts it into a deferral
+- Never write a deferral as prose alone — register it as a tracker item at defer-time and cite its id in the PR; if the tracker call fails, say so explicitly rather than downgrading the item back to a sentence
 - `--rework <PR#>` is a mode selector, not a fresh build — it checks out the PR's existing head branch, merges unresolved review threads with any typed feedback into one fix list, fixes + replies/resolves each real thread, and pushes to the SAME branch so the open PR updates in place. It NEVER opens a new PR or creates a new branch, is its own **explicit** autonomous entry point (the flag is the signal — it runs under the self-answer rule of `rules/autonomous-mode.md`, no `--autonomous` needed), and pauses only on a pause-anyway trigger.

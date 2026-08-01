@@ -114,7 +114,13 @@ mode passes through them unchanged:
 - **Report-only review agents** — `evaluator-agent`, `acceptance-test-agent`,
   `architect-reviewer-agent`, `security-reviewer-agent`. They return findings; they never pause for a
   human. The **fix-vs-skip decision on their findings** lives in the orchestrator and is self-answered
-  there (a finding at/above the confidence threshold → fix and log; below → skip and log).
+  there (a finding at/above the confidence threshold → fix and log; below → skip and log) — **subject
+  to the ship test in `rules/deferrals.md`**, which is not self-answerable away. Before skipping any
+  finding, ask whether the change behaves incorrectly for its *real configured inputs* without it. A
+  Yes means the run is about to ship something broken, which fails the reversibility test: fix it
+  in-run, and if it cannot be fixed in-run, that is a **contradiction** pause-anyway trigger, not a
+  logged decision. A No is self-answerable — register the deferral as a tracker item, log the line,
+  carry on.
 
 These are documented as no-ops so it is explicit that "propagation" reached them and there was
 nothing to change.

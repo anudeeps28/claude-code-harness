@@ -433,9 +433,18 @@ Do NOT proceed. Show the BLOCK findings. These must be fixed — architectural v
 
 Review each finding above. For each: say "fix" (I'll address it before PR) or "skip" (acceptable, proceed). Or say "proceed" to move to Phase 4 with findings as-is.
 
+**Apply the ship test to every finding before it is presented as skippable** (`rules/deferrals.md`):
+with this left undone, does the change behave incorrectly for the project's **real configured inputs**
+— the roster, config, env, model or endpoint actually declared, not the values its tests use? A
+finding that fails the test is a **blocker**, whatever severity label it carries: fix it in-run. A
+green test suite is not evidence of a No, and "the proper fix is bigger than this story" describes the
+*ideal* fix — if a small correction makes the shipped behavior right, that correction is the blocker
+and the redesign is the deferral. Every finding that survives the test is registered as a tracker item
+before Phase 4 and cited in the PR by its id, never as prose alone.
+
 ---
 
-*(In `--autonomous`: skipped — self-answer each finding's fix-vs-skip by the confidence threshold: ≥ threshold → fix and log; below → skip and log. A BLOCK finding (architecture/security) or a NOT ACCEPTED acceptance verdict is not skippable — it must be **fixed and logged** (a code fix on your own branch is reversible, so this is self-answered, not a pause); if it can't be resolved, the 3-attempt rule routes to `/debug` per `rules/autonomous-mode.md`. The four review agents themselves are no-ops; only the fix-vs-skip decision on their findings is self-answered here.)*
+*(In `--autonomous`: skipped — self-answer each finding's fix-vs-skip by the confidence threshold: ≥ threshold → fix and log; below → skip and log. The ship test above still gates the "skip" branch and is NOT self-answerable away — a finding that fails it is shipping-broken, so it is fixed in-run, and if it cannot be fixed in-run that is a pause-anyway trigger per `rules/autonomous-mode.md`. A BLOCK finding (architecture/security) or a NOT ACCEPTED acceptance verdict is not skippable — it must be **fixed and logged** (a code fix on your own branch is reversible, so this is self-answered, not a pause); if it can't be resolved, the 3-attempt rule routes to `/debug` per `rules/autonomous-mode.md`. The four review agents themselves are no-ops; only the fix-vs-skip decision on their findings is self-answered here.)*
 
 Do NOT proceed until YOUR_NAME responds (unless `--autonomous`).
 
@@ -541,6 +550,8 @@ Wait for YOUR_NAME to run the git commands and confirm (unless `--autonomous`, i
 - If YOUR_NAME says "stop" at any point — stop immediately, summarize state, ask what to do next
 - A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests, not just building
 - If the acceptance-test-agent reports NOT ACCEPTED, the feature is not done — fix before proceeding to PR
+- Never skip a review finding without applying the ship test in `rules/deferrals.md` — a finding whose absence makes the shipped change behave incorrectly for its real configured inputs is a blocker, and no `ADVISORY` label, green test suite, or "the proper fix is bigger than this story" converts it into a deferral
+- Never write a deferral as prose alone — register it as a tracker item at defer-time and cite its id in the PR; if the tracker call fails, say so explicitly rather than downgrading the item back to a sentence
 - `--autonomous` skips only the **human STOP checkpoints** — it NEVER skips a phase, the goal definition, the four Phase 3.6 reviews, the Phase 3.7 e2e gate, local tests (Phase 3.5), or a failure pause; it implies `--auto` but NOT `--quick` (there is no `--quick` flag on `/story`), and it does not change any default or `--auto` behavior
 - In `--autonomous`, every self-answered decision is logged and surfaced in the PR under "Decisions made on your behalf"; the PR is opened non-draft as the single human gate
 - `--autonomous` propagates to invoked sub-skills and agents, which **inherit** the mode (no flag of their own) per `rules/autonomous-mode.md` — via invocation context plus a `run-mode: autonomous` marker in `executor-state.md`; `/local-test` and the four Phase 3.6 review agents are no-ops, and `/debug` self-drives

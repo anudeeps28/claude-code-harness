@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-34 skills, 19 agents, 7 cross-platform Node hooks, 10 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+34 skills, 19 agents, 7 cross-platform Node hooks, 11 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -652,7 +652,7 @@ claude-code-harness/
 ├── skills/           ← 34 skills
 ├── agents/           ← 19 agents (16 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
-├── rules/            ← 10 rules (5 path-scoped)
+├── rules/            ← 11 rules (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
 ├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects
