@@ -497,13 +497,19 @@ external orchestrator spawns, declared in the role roster below.
 | `builder` | `/implement` (solo) or `/story` (enterprise), `/run-tasks` | opus 1M / medium | plan, code + tests, pushed branch, drafted PR body |
 | `reviewer` | `/evaluate` | opus 1M / high | evaluation, acceptance, architecture and security reports — never code |
 
+Each role also declares its model's `contextWindow` in tokens (both roles: 1,000,000 for opus 1M).
+An orchestrator sizes its context-recycle check off this rather than guessing from the model id, so a
+new model's window is a roster edit and never a code change. It is optional and additive — an absent
+or invalid value falls back to model-derived sizing — but the shipped roster always declares it, and
+`model` and `contextWindow` are only correct together: change one and you must change the other.
+
 Each role also carries a `phases[]` list — **display metadata only** (planning → Navigator, coding →
 Shipwright, testing → Lookout, reviewing → Warden, shipping → Harbormaster). Renaming a persona is a
 roster data edit, not a code change. The skills announce the current phase by writing
 `tasks/stories/<id>/phase.md` at every subagent boundary — see `rules/phase-markers.md`.
 
 The roster is per-project data: a team on a tighter plan edits their own copy to declare smaller
-models, with no code change anywhere.
+models and windows, with no code change anywhere.
 
 ---
 

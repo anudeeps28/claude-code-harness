@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "description": "Role roster for OS-orchestrated role sessions (DevOS SPEC §3.1 rev 2026-07-31). Two sessions run per work item: a build session (understand, plan, code, test, fix, commit/push/draft the PR body) and a fresh, adversarial, report-only review session. The five nautical names (Navigator, Shipwright, Lookout, Warden, Harbormaster) are display phases only — NOT sessions and NOT agents — surfaced via each role's `phases[]`. An external orchestrator (the Bridge) reads this roster, spawns each role in pipeline order, and enforces gates. Handoff between roles = the harness's existing artifacts in the story workspace `tasks/stories/<id>/`. Every value in this roster is argv data, never shell text: a consumer spawning a process from `model`/`effort` must pass them as an argument array, never interpolate them into a shell string (the model id `claude-opus-5[1m]` contains glob-significant brackets).",
+  "description": "Role roster for OS-orchestrated role sessions (DevOS SPEC §3.1 rev 2026-07-31). Two sessions run per work item: a build session (understand, plan, code, test, fix, commit/push/draft the PR body) and a fresh, adversarial, report-only review session. The five nautical names (Navigator, Shipwright, Lookout, Warden, Harbormaster) are display phases only — NOT sessions and NOT agents — surfaced via each role's `phases[]`. An external orchestrator (the Bridge) reads this roster, spawns each role in pipeline order, and enforces gates. Handoff between roles = the harness's existing artifacts in the story workspace `tasks/stories/<id>/`. Each role also declares its model's `contextWindow` in tokens (optional, additive — a session sizes its context-recycle check off this rather than guessing from the model id; an absent or invalid value falls back to model-derived sizing). Every value in this roster is argv data, never shell text: a consumer spawning a process from `model`/`effort` must pass them as an argument array, never interpolate them into a shell string (the model id `claude-opus-5[1m]` contains glob-significant brackets).",
   "pipeline": ["builder", "reviewer"],
   "roles": {
     "builder": {
@@ -15,6 +15,7 @@
       ],
       "model": "claude-opus-5[1m]",
       "effort": "medium",
+      "contextWindow": 1000000,
       "producesArtifacts": ["tasks/stories/<id>/plan.md", "tasks/stories/<id>/phase.md", "code + unit tests", "pushed branch + drafted PR body"]
     },
     "reviewer": {
@@ -26,6 +27,7 @@
       ],
       "model": "claude-opus-5[1m]",
       "effort": "high",
+      "contextWindow": 1000000,
       "producesArtifacts": ["tasks/stories/<id>/phase.md", "tasks/stories/<id>/evaluation.md", "tasks/stories/<id>/acceptance.md", "tasks/stories/<id>/architecture-review.md", "tasks/stories/<id>/security-review.md"]
     }
   }

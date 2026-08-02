@@ -36,6 +36,9 @@ const SOLO_REQUIRED_AGENTS = [
 
 const REMOVED_ROLE_AGENTS = ['navigator.md', 'shipwright.md', 'lookout.md', 'warden.md', 'harbormaster.md'];
 const ROSTER_MODEL = 'claude-opus-5[1m]';
+// Must stay in step with ROSTER_MODEL — the roster declares the window rather than the
+// consumer deriving it from the model id, so the two are only correct together.
+const ROSTER_CONTEXT_WINDOW = 1_000_000;
 const PHASE_IDS = ['planning', 'coding', 'testing', 'reviewing', 'shipping'];
 
 function makeTempProject() {
@@ -228,6 +231,20 @@ test('installed roster is schemaVersion 2 with the builder/reviewer pipeline', (
       }
       assert.strictEqual(roster.roles.builder.effort, 'medium', `${pack}: builder effort must be medium`);
       assert.strictEqual(roster.roles.reviewer.effort, 'high', `${pack}: reviewer effort must be high`);
+
+      // Every role declares its model's context window. Optional/additive in the reader
+      // (an absent value falls back to deriving the window from the model id), but the
+      // SHIPPED roster must declare it: SPEC §3.1 makes the roster the source of truth so
+      // a window change is a settings edit, not a code change. Asserted here because the
+      // original defect was exactly this field going missing and the fallback being wrong.
+      for (const roleName of ['builder', 'reviewer']) {
+        const win = roster.roles[roleName].contextWindow;
+        assert.ok(
+          typeof win === 'number' && Number.isFinite(win) && win > 0,
+          `${pack} ${roleName}: contextWindow must be a positive finite number`,
+        );
+        assert.strictEqual(win, ROSTER_CONTEXT_WINDOW, `${pack} ${roleName}: contextWindow must be ${ROSTER_CONTEXT_WINDOW} for model ${ROSTER_MODEL}`);
+      }
 
       assert.deepStrictEqual(
         [...new Set(allPhaseIds)].sort(),
