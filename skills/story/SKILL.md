@@ -37,6 +37,31 @@ mkdir -p YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS
 ```
 Confirm you are on the right branch for story #$ARGUMENTS. The `tasks/stories/$ARGUMENTS/` directory is where handoff contracts will be written throughout this story.
 
+**Act on that `git status` output — do not just print it.** Per `rules/wave-execution.md`, treat it as possible foreign work when the tree is dirty **and** any of these hold:
+
+- the current branch is already another story's branch;
+- another story's `tasks/stories/<other-id>/executor-state.md` shows an in-progress run with a recent `updated` timestamp;
+- another story's `tasks/stories/<other-id>/phase.md` is fresh (freshness comes from `updated`, never from the file merely existing — see `rules/phase-markers.md`).
+
+**Show what you found and ask.** Do not refuse outright, and do not proceed silently — a dirty tree is often YOUR_NAME's own scratch work, so the call is theirs:
+
+```
+This working directory has uncommitted changes that may belong to another story:
+
+  branch: <actual>   (this run wants: <intended branch>)
+  modified: <files>
+  untracked: <paths>
+  tasks/stories/<other-id>/phase.md — updated <N> minutes ago (phase: <phase>)
+
+Building two stories in one folder commingles their uncommitted work — see
+rules/git-worktrees.md. Recommended: build this story in its own worktree.
+
+(A) Stop — I'll set up a separate worktree
+(B) These are my own changes, continue here
+```
+
+This is **not** self-answerable under `--autonomous` — proceeding could destroy another run's uncommitted work, which fails the reversibility test. An autonomous run **pauses** here.
+
 ---
 
 ## Autonomous mode (only if `--autonomous` is set)
@@ -263,31 +288,58 @@ progress live and the work order is locked in before any code changes. The story
 (`tasks/stories/$ARGUMENTS/plan.md`) stays the source of truth; the `TodoWrite` list is its in-session
 mirror. See `rules/progress-tracking.md`.
 
-For **each wave**, in ascending group order:
+For **each wave**, in ascending group order. Wave execution follows `rules/wave-execution.md` — the steps below are its concrete write-up for this skill.
 
-**A0. Conflict detection (before launching):**
+**A0a. Branch-drift check (EVERY wave, including single-task waves):**
 
-Before launching any wave with 2+ tasks, validate that no two tasks in that wave share a file. For every pair of tasks in the wave, compare their `<files>` lists. If ANY file appears in more than one task's `<files>`:
+```bash
+git branch --show-current
+```
+
+If it is not the branch this story is being built on, **STOP immediately** — do not launch the wave. Another session sharing this working directory has switched the branch, and anything launched now writes this story's work onto someone else's branch. Report expected vs actual and stop. This is a **contradiction** pause-anyway trigger — never self-answered, even under `--autonomous`.
+
+**A0b. Conflict detection (before launching):**
+
+Agents in a wave share one working directory, so this check is the only thing keeping them off each other's files. Before launching any wave with 2+ tasks, compare — for every pair of tasks — **both**:
+
+- task A's `<files>` vs task B's `<files>` — **two writers** on one file; and
+- task A's `<read_first>` vs task B's `<files>` — **a reader against a writer**: A reads the file for context while B is rewriting it, so A works from a half-written version. This one is silent — nothing in the build output reveals it.
+
+If ANY file appears on both sides of either comparison:
 
 1. **Show the conflict:**
 
-   > ⚠️ **File conflict detected in Wave [n]:** `[filename]` appears in both Task [x] ("[name]") and Task [y] ("[name]").
+   > ⚠️ **File conflict detected in Wave [n]:** `[filename]` appears in both Task [x] ("[name]") and Task [y] ("[name]"). [If reader/writer: Task [x] reads it while Task [y] rewrites it.]
 
 2. **Auto-split:** Move the conflicting task with the higher ID into a new wave immediately after the current one. Renumber subsequent waves. Show the updated wave table.
 
 3. **Tell YOUR_NAME:** "Wave [n] was split due to file overlap. Revised wave plan: [show updated table]."
 
-Do NOT skip this check. The plan agent is supposed to prevent file overlaps, but this is the runtime safety net. If there is no conflict, proceed silently (do not announce that the check passed).
+Do NOT skip this check. The plan agent is supposed to prevent file overlaps, but this is the runtime safety net — and since wave agents share one directory, it is the *only* net. If there is no conflict, proceed silently (do not announce that the check passed).
 
 **A. Announce the wave:**
 Say: **"Wave [n]/[total] — launching [k] task(s) in parallel: [task names]"**
 
 **B. Launch all tasks in the wave:**
-- `type="auto"` and `type="test"` tasks: spawn each as a **background** `story-executor-agent` with `isolation: "worktree"`, passing the single `<task>` XML block and story ID. Launch ALL in the same message simultaneously. (A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its `<verify>`.)
+- `type="auto"` and `type="test"` tasks: spawn each as a **background** `story-executor-agent` — with **no `isolation`**, so it runs in this working directory on this branch — passing the single `<task>` XML block and story ID. Launch ALL in the same message simultaneously. (A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its `<verify>`.)
+
+  **Never pass `isolation: "worktree"` here.** An isolated worktree forks from the default branch and sees only *committed* state, while this skill commits nothing until Phase 4 — so a dependent wave gets a copy without the files the earlier waves just wrote, and its `<verify>` fails on missing modules. See `rules/wave-execution.md`. Agents edit in parallel and serialize only on `<verify>`, via the lock in `agents/story-executor-agent.md` Step 3.
 - `type="manual"` tasks: display the `<action>` as instructions for YOUR_NAME. Do not spawn an agent. Treat as BLOCKED pending human confirmation.
 
 **C. Wait for all background agents to complete.**
 Collect all results before proceeding.
+
+**C1. Post-wave integrity checks (both, every wave):**
+
+*Stray-file check* — compare what actually changed against what the wave declared:
+
+```bash
+git status --porcelain
+```
+
+Every changed path must appear in some task's `<files>` (this wave or an earlier completed one). A path declared by **no** task means an agent edited outside its scope — the failure A0b cannot prevent, since it trusts the plan's file lists. Name the file and **STOP**; do not roll into the next wave. It may be a sibling agent's work being silently overwritten, and it will otherwise ship inside the story diff unnoticed. Ignore gitignored paths, the story workspace (`tasks/stories/$ARGUMENTS/`), and `tasks/.verify.lock` (a leftover lock means an agent died mid-verify — `rmdir` it and carry on; its own BLOCKED report already covers that).
+
+*Branch-drift check* — re-run A0a. Checking both sides of a wave catches a hijack within one wave instead of at the end of the run.
 
 **D. Show the consolidated wave result table:**
 
@@ -327,9 +379,18 @@ Do NOT start the next wave until YOUR_NAME says "yes" (unless `--autonomous`, in
 - After the **final wave** (all waves done, all passed), show the full summary and proceed to Phase 3.5.
 
 **G. On failure — 3-attempt rule (per task, tracked independently):**
-- Attempt 1 failed: re-spawn that task only as a background worktree agent with the error included. Other passing tasks in the wave are not re-run.
-- Attempt 2 failed: spawn again with both previous errors included.
-- Attempt 3 failed: **STOP. Say "3-attempt rule triggered on task [id]. Invoking /debug."** Invoke `/debug`. Do NOT attempt a 4th time.
+
+**Before every retry, restore that task's files** (see `rules/wave-execution.md`). The failed agent left partially-applied edits in the shared working directory. Revert **only that task's declared `<files>`**:
+
+```bash
+git checkout -- <that task's tracked files>
+```
+
+and delete any untracked files it created. A0b guarantees waves are file-disjoint, so this can never touch a sibling's work — but never use a blanket `git checkout .` or `git stash`, which would destroy the other agents' in-flight work. Without this, attempt 2 reads attempt 1's wreckage as if it were existing code and works *around* it, and `/debug` receives three failures layered together.
+
+- Attempt 1 failed: restore, then re-spawn that task only as a background agent (no `isolation`) with the error included. Other passing tasks in the wave are not re-run.
+- Attempt 2 failed: restore, then spawn again with both previous errors included.
+- Attempt 3 failed: restore, then **STOP. Say "3-attempt rule triggered on task [id]. Invoking /debug."** Invoke `/debug`. Do NOT attempt a 4th time.
 
 A wave is not complete until every task has PASSed or been escalated. Do not advance with an unresolved FAIL or BLOCKED.
 
@@ -544,6 +605,9 @@ Wait for YOUR_NAME to run the git commands and confirm (unless `--autonomous`, i
 - Never skip Phase 3.6 (evaluation + acceptance + architecture + security review) — even if changes look trivial, always run all four agents
 - Never skip Phase 3.7 (e2e goal gate) — a failed gate blocks PR; re-approach is evidence-driven (observe → compare → root-cause → decide), never a blind retry, and never a background autonomous loop
 - Never commit during Phase 3 — all commits happen in Phase 4
+- **Never spawn a wave agent with `isolation: "worktree"`** — a worktree forks from the default branch and sees only committed state, and this skill commits nothing until Phase 4, so a dependent wave cannot see the files the earlier waves just wrote (`rules/wave-execution.md`)
+- Check the branch hasn't drifted before AND after every wave — a branch changing mid-run means another session is sharing this directory, and it is a contradiction pause-anyway trigger, never self-answered
+- Restore a failed task's declared `<files>` before each retry — never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight work
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - Always follow the git commit format from `tasks/lessons.md`
 - Never add "Co-Authored-By: Claude Sonnet 4.6" to commit messages — this is explicitly prohibited

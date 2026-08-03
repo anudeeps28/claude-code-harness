@@ -24,6 +24,31 @@ Read `YOUR_PROJECT_ROOT/tasks/notes.md` if it exists — it contains conventions
 cd YOUR_PROJECT_ROOT && git status && git branch --show-current
 ```
 
+**Act on that output — do not just print it.** Per `rules/wave-execution.md`, treat it as possible foreign work when the tree is dirty **and** any of these hold:
+
+- the current branch is already another story's branch (e.g. `implement/<some-other-id>`);
+- another story's `tasks/stories/<other-id>/executor-state.md` shows an in-progress run with a recent `updated` timestamp;
+- another story's `tasks/stories/<other-id>/phase.md` is fresh (freshness comes from `updated`, never from the file merely existing — see `rules/phase-markers.md`).
+
+**Show what you found and ask.** Do not refuse outright, and do not proceed silently — a dirty tree is often YOUR_NAME's own scratch work, so the call is theirs:
+
+```
+This working directory has uncommitted changes that may belong to another story:
+
+  branch: implement/<other-id>   (this run wants: <intended branch>)
+  modified: <files>
+  untracked: <paths>
+  tasks/stories/<other-id>/phase.md — updated <N> minutes ago (phase: <phase>)
+
+Building two stories in one folder commingles their uncommitted work — see
+rules/git-worktrees.md. Recommended: build this story in its own worktree.
+
+(A) Stop — I'll set up a separate worktree
+(B) These are my own changes, continue here
+```
+
+This is **not** self-answerable under `--autonomous` — proceeding could destroy another run's uncommitted work, which fails the reversibility test. An autonomous run **pauses** here.
+
 Parse `$ARGUMENTS`:
 
 0. **Detect `--rework <PR#>` first — this is a MODE SELECTOR, not an additive flag.** If `$ARGUMENTS` starts with (or contains) `--rework <PR#>`, where `<PR#>` is the numeric PR number, extract it and treat any remaining free text after it as optional typed feedback. **Validate that `<PR#>` matches `^[0-9]+$` before using it anywhere** — if it is missing or non-numeric, stop and ask; never pass an unvalidated `<PR#>` into a `gh` command or a script argument. Unlike `--discuss`/`--research`/`--quick`/`--auto`/`--full`/`--autonomous` (which combine with the normal build flow), `--rework` **short-circuits** the entire Understand → Plan → Build → PR flow below and jumps straight to the Rework mode section further down this file. `--rework` is itself an **explicit autonomous entry point** — invoking the flag *is* the signal (the same role `--autonomous` plays for the forward flow), so it runs under the self-answer rule of `rules/autonomous-mode.md` without needing a separate `--autonomous`. If `--rework` is detected, skip steps 1-4 below and the branch-creation step, and go directly to that section.
@@ -423,12 +448,28 @@ in the work order before any code changes. (Skip for the single-task case — a 
 
 For **each wave:**
 
-**A0. Conflict check (only when the wave has 2+ tasks):** Compare every task pair's `<files>`. If any file appears in two tasks in this wave, they would run in separate worktrees and clobber each other at merge-back — auto-split: move the higher-id task into a new wave immediately after this one, renumber the rest, and show the updated wave table ("Wave [n] split due to file overlap in `[file]`."). If there's no overlap, proceed silently. (No-op for the single-task fast path.)
+Wave execution follows `rules/wave-execution.md` — the checks below are its concrete write-up for this skill.
+
+**A0a. Branch-drift check (EVERY wave, including the single-task fast path):**
+
+```bash
+git branch --show-current
+```
+
+If it is not the branch this run created, **STOP immediately** — do not launch the wave. Another session sharing this working directory has switched the branch, and anything launched now writes this feature's work onto someone else's branch. Report expected vs actual and stop. This is a **contradiction** pause-anyway trigger — never self-answered, even under `--autonomous`.
+
+**A0b. Overlap check (only when the wave has 2+ tasks):** Agents in a wave share one working directory, so this check is the only thing keeping them off each other's files. For every task pair, compare **both**:
+- task A's `<files>` vs task B's `<files>` — two writers on one file
+- task A's `<read_first>` vs task B's `<files>` — a reader against a writer; A reads for context while B rewrites, so A works from a half-written file. Silent — nothing in the build output reveals it.
+
+On any overlap, auto-split: move the higher-id task into a new wave immediately after this one, renumber the rest, and show the updated wave table ("Wave [n] split due to file overlap in `[file]` (Task [x] writes, Task [y] reads)."). If there's no overlap, proceed silently.
 
 **A. Announce:** "Wave [n]/[total] — [task names]"
 
 **B. Launch tasks:**
-- `type="auto"` and `type="test"`: spawn each as a **background** `story-executor-agent` with `isolation: "worktree"`. Launch all in the same wave simultaneously. (A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its verify.)
+- `type="auto"` and `type="test"`: spawn each as a **background** `story-executor-agent` — with **no `isolation`**, so it runs in this working directory on this branch. Launch all in the same wave simultaneously. (A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its verify.)
+
+  **Never pass `isolation: "worktree"` here.** An isolated worktree forks from the default branch and sees only *committed* state, while this skill commits nothing until Phase 3 — so a dependent wave gets a copy without the files the earlier waves just wrote, and its `<verify>` fails on missing modules. See `rules/wave-execution.md` for the full rationale. Agents edit in parallel and serialize only on `<verify>`, via the lock in `agents/story-executor-agent.md` Step 3.
 - `type="manual"`: display instructions for YOUR_NAME.
 
 **C. Wait for all to complete.** Show results:
@@ -436,6 +477,18 @@ For **each wave:**
 | Task | Name | Result | Summary |
 |---|---|---|---|
 | 1 | "..." | PASS/FAIL/BLOCKED | [one line] |
+
+**C1. Post-wave integrity checks (both, every wave):**
+
+*Stray-file check* — compare what actually changed against what the wave declared:
+
+```bash
+git status --porcelain
+```
+
+Every changed path must appear in some task's `<files>` (this wave or an earlier completed one). A path declared by **no** task means an agent edited outside its scope — the failure the overlap check cannot prevent, since it trusts the plan's file lists. Name the file and **STOP**; do not roll into the next wave. It may be a sibling agent's work being silently overwritten, and it will otherwise ship inside the story diff unnoticed. Ignore gitignored paths, the story workspace (`tasks/stories/<id>/`), and `tasks/.verify.lock` (a leftover lock means an agent died mid-verify — `rmdir` it and carry on; its own BLOCKED report already covers that).
+
+*Branch-drift check* — re-run A0a. Checking both sides of a wave catches a hijack within one wave instead of at the end of the run.
 
 **C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved. **If `--autonomous` is set, include a `run-mode: autonomous` line in this file** so a standalone resume (`/run-tasks <id>`) inherits the mode (see the propagation contract in "Autonomous mode" above).
 
@@ -457,8 +510,16 @@ Do NOT start the next wave until YOUR_NAME responds.
 - After the **final wave** (all waves done, all passed), show the full summary and proceed to Phase 2.5.
 
 **On failure — 3-attempt rule:**
-- Attempt 1-2 failed → re-spawn with error context
-- Attempt 3 failed → **STOP.** Say "3-attempt rule. Invoking /debug." Invoke `/debug`.
+- Attempt 1-2 failed → **restore that task's files first, then** re-spawn with error context
+- Attempt 3 failed → restore that task's files, then **STOP.** Say "3-attempt rule. Invoking /debug." Invoke `/debug`.
+
+**Restoring a failed task's files (before every retry — see `rules/wave-execution.md`):** the agent left partially-applied edits in the shared working directory. Revert **only that task's declared `<files>`**:
+
+```bash
+git checkout -- <that task's tracked files>
+```
+
+and delete any untracked files it created. The overlap check guarantees waves are file-disjoint, so this can never touch a sibling's work — but never use a blanket `git checkout .` or `git stash`, which would destroy the other agents' in-flight work. Without this, attempt 2 reads attempt 1's wreckage as if it were existing code and works *around* it, `/debug` receives three failures layered together, and a stopped run leaves broken fragments in the diff beside the passing tasks' work.
 
 ---
 
@@ -567,6 +628,9 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 - Never skip Phase 1 (understand) — the brief grounds planning in what the codebase actually looks like
 - Never skip Phase 1.5 (goal definition) — the goal is the input to planning and the terminal condition; the only way past the gate is the explicit "skip gate — no runtime impact" escape hatch
 - Never commit during Phase 2 — all commits happen in Phase 3
+- **Never spawn a wave agent with `isolation: "worktree"`** — a worktree forks from the default branch and sees only committed state, and this skill commits nothing until Phase 3, so a dependent wave cannot see the files the earlier waves just wrote (`rules/wave-execution.md`)
+- Check the branch hasn't drifted before AND after every wave — a branch changing mid-run means another session is sharing this directory, and it is a contradiction pause-anyway trigger, never self-answered
+- Restore a failed task's declared `<files>` before each retry — never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight work
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - If YOUR_NAME says "stop" at any point → stop immediately
 - `--quick` skips evaluation, acceptance testing, and the e2e goal gate — never skips human gates, local tests, or Phase 1.5

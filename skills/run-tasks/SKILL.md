@@ -78,6 +78,33 @@ cd YOUR_PROJECT_ROOT && git status && git branch --show-current
 
 Confirm you are on the correct feature branch for story #$ARGUMENTS. If you are on `master`, say so and ask YOUR_NAME to confirm the branch before continuing.
 
+**Record the branch name** — every wave re-checks it against this value (Step 4, A0a).
+
+**Act on that `git status` output — do not just print it.** Per `rules/wave-execution.md`, treat it as possible foreign work when the tree is dirty **and** any of these hold:
+
+- the current branch is another story's branch, not #$ARGUMENTS';
+- another story's `tasks/stories/<other-id>/executor-state.md` shows an in-progress run with a recent `updated` timestamp;
+- another story's `tasks/stories/<other-id>/phase.md` is fresh (freshness comes from `updated`, never from the file merely existing — see `rules/phase-markers.md`).
+
+**Show what you found and ask.** Do not refuse outright, and do not proceed silently — a dirty tree is often YOUR_NAME's own scratch work (and on a resume, often this very story's partial work, which is expected and fine), so the call is theirs:
+
+```
+This working directory has uncommitted changes that may belong to another story:
+
+  branch: <actual>   (this run wants: <intended branch>)
+  modified: <files>
+  untracked: <paths>
+  tasks/stories/<other-id>/phase.md — updated <N> minutes ago (phase: <phase>)
+
+Building two stories in one folder commingles their uncommitted work — see
+rules/git-worktrees.md. Recommended: build this story in its own worktree.
+
+(A) Stop — I'll set up a separate worktree
+(B) These are my own changes, continue here
+```
+
+This is **not** self-answerable under an inherited autonomous run — proceeding could destroy another run's uncommitted work, which fails the reversibility test. An autonomous run **pauses** here.
+
 **Autonomous check:** read `tasks/stories/$ARGUMENTS/executor-state.md` — if it contains `run-mode:
 autonomous`, this is an inherited autonomous run (see "Autonomous mode" above); otherwise run
 interactively.
@@ -143,7 +170,24 @@ YOUR_NAME live visibility and locks in the work order before any code changes. M
 task(s) `in_progress` as you launch them. The story plan (`tasks/stories/$ARGUMENTS/plan.md`) stays the
 source of truth — the `TodoWrite` list is its in-session mirror. See `rules/progress-tracking.md`.
 
-For **each wave**, in ascending group order:
+For **each wave**, in ascending group order. Wave execution follows `rules/wave-execution.md` — the steps below are its concrete write-up for this skill.
+
+### A0a. Branch-drift check (EVERY wave, including single-task waves)
+
+```bash
+git branch --show-current
+```
+
+If it is not the branch recorded in Step 2, **STOP immediately** — do not launch the wave. Another session sharing this working directory has switched the branch, and anything launched now writes this story's work onto someone else's branch. Report expected vs actual and stop. This is a **contradiction** pause-anyway trigger — never self-answered under an inherited autonomous run.
+
+### A0b. Overlap check (waves with 2+ tasks)
+
+Agents in a wave share one working directory, so this is the only thing keeping them off each other's files. For every task pair, compare **both**:
+
+- task A's `<files>` vs task B's `<files>` — **two writers** on one file; and
+- task A's `<read_first>` vs task B's `<files>` — **a reader against a writer**: A reads the file for context while B rewrites it, so A works from a half-written version. Silent — nothing in the build output reveals it.
+
+On any overlap, auto-split: move the higher-id task into a new wave immediately after this one, renumber the rest, and show the updated wave table, naming the file and both tasks. If there is no overlap, proceed silently.
 
 ### A. Announce the wave
 
@@ -153,11 +197,13 @@ Say: **"Wave [n]/[total] — launching [k] task(s) in parallel: [task names]"**
 
 For **each task** in the wave:
 
-- If `type="auto"` or `type="test"`: spawn a `story-executor-agent` as a **background agent** with `isolation: "worktree"`, passing:
+- If `type="auto"` or `type="test"`: spawn a `story-executor-agent` as a **background agent** with **no `isolation`** — it runs in this working directory on this branch — passing:
   - The single `<task>` XML block
   - Story ID: $ARGUMENTS
 
   A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its `<verify>`. No special handling.
+
+  **Never pass `isolation: "worktree"` here.** An isolated worktree forks from the default branch and sees only *committed* state, while nothing is committed until the story's PR phase — so a dependent wave gets a copy without the files the earlier waves just wrote, and its `<verify>` fails on missing modules. See `rules/wave-execution.md`. Agents edit in parallel and serialize only on `<verify>`, via the lock in `agents/story-executor-agent.md` Step 3.
 
 - If `type="manual"`: do NOT spawn an agent. Instead, display the full `<action>` content as instructions for YOUR_NAME to follow, then treat it as BLOCKED pending human confirmation.
 
@@ -166,6 +212,18 @@ Launch ALL auto/test tasks in the wave simultaneously (one Agent call per task, 
 ### C. Wait for all background agents to complete
 
 Do not output anything while waiting. The platform will notify you as each agent finishes. Collect all results before proceeding.
+
+### C1. Post-wave integrity checks (both, every wave)
+
+*Stray-file check* — compare what actually changed against what the wave declared:
+
+```bash
+git status --porcelain
+```
+
+Every changed path must appear in some task's `<files>` (this wave or an earlier completed one). A path declared by **no** task means an agent edited outside its scope — the failure A0b cannot prevent, since it trusts the plan's file lists. Name the file and **STOP**; do not roll into the next wave. It may be a sibling agent's work being silently overwritten, and it will otherwise ship inside the story diff unnoticed. Ignore gitignored paths, the story workspace (`tasks/stories/$ARGUMENTS/`), and `tasks/.verify.lock` (a leftover lock means an agent died mid-verify — `rmdir` it and carry on; its own BLOCKED report already covers that).
+
+*Branch-drift check* — re-run A0a. Checking both sides of a wave catches a hijack within one wave instead of at the end of the run.
 
 ### D. Show the consolidated wave result
 
@@ -212,9 +270,17 @@ Do NOT start the next wave until YOUR_NAME says "yes" (or "retry" / "continue" f
 
 Track failure attempts per task ID independently.
 
-- Attempt 1 failed: include the full error in the retry agent prompt. Spawn fresh background worktree agent for that task only. Re-run the rest of the wave's passing tasks are NOT re-run.
-- Attempt 2 failed: spawn again with both previous errors included.
-- Attempt 3 failed: **STOP. Say "3-attempt rule triggered on task [id]. Invoking /debug."** Then invoke `/debug`. Do NOT attempt a 4th time.
+**Before every retry, restore that task's files** (see `rules/wave-execution.md`). The failed agent left partially-applied edits in the shared working directory. Revert **only that task's declared `<files>`**:
+
+```bash
+git checkout -- <that task's tracked files>
+```
+
+and delete any untracked files it created. A0b guarantees waves are file-disjoint, so this can never touch a sibling's work — but never use a blanket `git checkout .` or `git stash`, which would destroy the other agents' in-flight work. Without this, attempt 2 reads attempt 1's wreckage as if it were existing code and works *around* it, and `/debug` receives three failures layered together.
+
+- Attempt 1 failed: restore that task's files, then spawn a fresh background agent (no `isolation`) for that task only, with the full error in its prompt. The wave's passing tasks are NOT re-run.
+- Attempt 2 failed: restore, then spawn again with both previous errors included.
+- Attempt 3 failed: restore, then **STOP. Say "3-attempt rule triggered on task [id]. Invoking /debug."** Then invoke `/debug`. Do NOT attempt a 4th time.
 
 A wave is not complete until all its tasks have either PASSed or been escalated (to /debug or manual resolution). Do not advance to the next wave with an unresolved failure.
 
@@ -267,6 +333,9 @@ Say:
 ## Hard rules
 
 - Never commit anything — that is Phase 4's job
+- **Never spawn a wave agent with `isolation: "worktree"`** — a worktree forks from the default branch and sees only committed state, and nothing is committed until the story's PR phase, so a dependent wave cannot see the files the earlier waves just wrote (`rules/wave-execution.md`)
+- Check the branch hasn't drifted before AND after every wave — a branch changing mid-run means another session is sharing this directory, and it is a contradiction pause-anyway trigger, never self-answered
+- Restore a failed task's declared `<files>` before each retry — never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight work
 - In mode A, never skip a STOP checkpoint between waves. In mode B, always stop on failure/blocked — never auto-continue past errors
 - Never start Wave N+1 while Wave N has an unresolved FAIL or BLOCKED
 - If YOUR_NAME says "stop" at any point — stop immediately, show which tasks are ✅ done and which are pending, and which wave you were on

@@ -59,11 +59,38 @@ For Rule 4: do NOT proceed. Report BLOCKED with an explanation of what architect
 
 Run the exact command from `<verify>`. Do not modify it.
 
+**Take the verify lock first.** You share the working directory with the other agents in your wave
+(see "You share the working directory"), and builds write to shared scratch locations —
+`node_modules/.cache`, `.next`, `tsconfig.tsbuildinfo`, `obj/`, `target/`, `__pycache__`. Two builds
+running at once there produce failures that have nothing to do with the code. Editing stays parallel;
+only the verify step is serialized:
+
 ```bash
-cd YOUR_PROJECT_ROOT && <verify command>
+cd YOUR_PROJECT_ROOT
+
+# Acquire (mkdir is atomic). Break a lock older than 20 minutes — its owner died.
+LOCK=tasks/.verify.lock
+for i in $(seq 1 400); do
+  if mkdir "$LOCK" 2>/dev/null; then break; fi
+  if [ -d "$LOCK" ] && [ -z "$(find "$LOCK" -maxdepth 0 -mmin -20 2>/dev/null)" ]; then
+    rmdir "$LOCK" 2>/dev/null
+  fi
+  sleep 3
+done
+
+<verify command>; VERIFY_RC=$?
+
+rmdir "$LOCK" 2>/dev/null
+exit $VERIFY_RC
 ```
 
-Capture full stdout and stderr.
+**Always release the lock**, on success and on failure alike — a lock you leave behind stalls every
+sibling agent until the 20-minute break-in fires. If you cannot acquire it within the loop (20
+minutes), do not run the verify anyway: report **BLOCKED** with "verify lock held by another agent for
+over 20 minutes" so the orchestrator can investigate rather than corrupt a sibling's build.
+
+Capture full stdout and stderr from the verify command itself — `VERIFY_RC` is its result, not the
+lock's.
 
 ---
 
@@ -130,7 +157,10 @@ This agent runs with `permissionMode: bypassPermissions` — tool calls execute 
 
 - You may READ files listed in the task's `<read_first>` element (context only — never modify these)
 - You may ONLY modify files listed in the task's `<files>` element
-- You may ONLY run the command in the task's `<verify>` element — no other Bash commands
+- You may ONLY run the command in the task's `<verify>` element, plus the verify-lock commands in
+  Step 3 (`mkdir`/`rmdir`/`find`/`sleep` on `tasks/.verify.lock`) — no other Bash commands
+- You may NEVER run a git command that changes state — see "Never run a git command that changes
+  state" below. This is unconditional and has no exceptions
 - You may NOT access files outside `YOUR_PROJECT_ROOT`
 - You may NOT install packages, modify configs, or change infrastructure
 
@@ -138,7 +168,7 @@ This agent runs with `permissionMode: bypassPermissions` — tool calls execute 
 
 These are orchestrator-owned. If a task's `<action>` implies modifying one of these, report BLOCKED — do not proceed.
 
-- Anything in `tasks/` — `todo.md`, `lessons.md`, `flags-and-notes.md`, `pr-queue.md`, `people.md`, `tracker-config.md`, `sprint*.md`, `stories/*/brief.md`, `stories/*/plan.md`, `stories/*/test-strategy.md`
+- Anything in `tasks/` — `todo.md`, `lessons.md`, `flags-and-notes.md`, `pr-queue.md`, `people.md`, `tracker-config.md`, `sprint*.md`, `stories/*/brief.md`, `stories/*/plan.md`, `stories/*/test-strategy.md`. **One exception:** `tasks/.verify.lock`, the verify lock directory you create and remove in Step 3.
 - `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json`
 - Anything in `docs/` — architecture docs are reference specifications
 - `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md`
@@ -148,16 +178,42 @@ These are orchestrator-owned. If a task's `<action>` implies modifying one of th
 ## What NOT to do
 
 - Do NOT commit or stage anything — Phase 4 handles all git operations
-- Do NOT run any command other than the `<verify>` command
+- Do NOT run any command other than the `<verify>` command (and the lock commands in Step 3)
 - Do NOT ask questions mid-task — complete and report
 - Do NOT add extra features or "nice to have" improvements not in `<action>`
 
+### Never run a git command that changes state
+
+This rule is **unconditional** — it applies in every run mode, every phase, and regardless of what
+state you believe the repository is in.
+
+Forbidden, always: `git checkout`, `git switch`, `git branch`, `git stash`, `git pull`, `git fetch`,
+`git merge`, `git rebase`, `git reset`, `git restore`, `git clean`, `git add`, `git commit`,
+`git push`.
+
+You share the orchestrator's working directory (see below). Any of these commands changes the branch
+or the tree **for the whole run** — including for the sibling agents working beside you right now —
+and there is no way to warn them. A single `git checkout` moves every subsequent task's work onto the
+wrong branch; this has happened in real runs and cost a manual recovery.
+
+You have no legitimate reason to run any of them. Your job is exactly three things: edit the files in
+`<files>`, run the `<verify>` command, report back. All git operations belong to the orchestrator, in
+a later phase.
+
+Read-only git (`git status`, `git diff`, `git log`) is fine if it helps you understand the code.
+
 ---
 
-## Worktree isolation
+## You share the working directory
 
-You run inside an isolated git worktree. This means:
-- Your changes are on a temporary branch — they will be merged by the orchestrator
-- Temp files you create inside the worktree are automatically cleaned up when the agent exits
-- Do NOT run `git checkout`, `git branch`, or any branch-switching commands
-- Do NOT reference absolute paths outside `YOUR_PROJECT_ROOT` — they may not exist in the worktree
+You run **directly in the orchestrator's working directory**, on its feature branch — not in an
+isolated copy. Other executor agents from the same wave may be working alongside you at the same
+moment. The wave was planned so that no two agents in it touch the same file, so staying inside your
+`<files>` list is what keeps that guarantee true.
+
+- Your edits are immediately visible to everyone — there is no merge step and no undo
+- Files you did not touch may change under you as sibling agents work; that is expected, ignore them
+- Never create scratch/temp files in the working directory. If you need a temp file, put it in the
+  system temp directory and delete it before you finish — anything you leave behind lands in the
+  story's diff and has to be cleaned up by hand
+- Do NOT reference absolute paths outside `YOUR_PROJECT_ROOT`

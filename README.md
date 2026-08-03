@@ -541,7 +541,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `security.md` | `**/*.{cs,ts,js,py}` | No hardcoded secrets, parameterized queries |
 | `documentation.md` | `docs/**`, `*.md` | Don't modify architecture docs |
 
-The other 5 are always-referenced convention docs, not path-scoped:
+The other 6 are always-referenced convention docs, not path-scoped:
 
 | Rule | Content |
 |---|---|
@@ -550,6 +550,7 @@ The other 5 are always-referenced convention docs, not path-scoped:
 | `next-task.md` | Live-check procedure for "what's next" questions across tracker + local sources |
 | `phase-markers.md` | The `phase.md` marker contract written at every subagent boundary |
 | `progress-tracking.md` | `TodoWrite` as the in-session mirror of the durable story plan |
+| `wave-execution.md` | Wave agents share the working directory — pre/post-wave checks, verify lock, restore-on-failure |
 
 ---
 
