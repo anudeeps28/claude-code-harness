@@ -6,6 +6,12 @@
 fixture_dir="$(dirname "$0")/../responses"
 all="$*"
 
+# Argv recorder — set FIXTURE_ARGS_LOG to capture the exact command lines the
+# adapter builds, so tests can assert on flags (--type, --area, --fields, ...).
+if [ -n "$FIXTURE_ARGS_LOG" ]; then
+  printf '%s\n' "$all" >> "$FIXTURE_ARGS_LOG"
+fi
+
 # ── Auth surface (called by lib/auth-check.sh, never via with_retry) ──
 case "$1 $2" in
   "account show")

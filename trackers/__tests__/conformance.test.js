@@ -69,7 +69,7 @@ function cleanup(dir) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
-function runScript(adapter, script, args, { fixtureMode, fixtureAuth, retryCounter, retrySucceedAt } = {}) {
+function runScript(adapter, script, args, { fixtureMode, fixtureAuth, retryCounter, retrySucceedAt, extraEnv } = {}) {
   const { root, adapterDir } = prepareAdapter(adapter);
   try {
     // bash always uses ':' as PATH separator, regardless of host OS.
@@ -87,6 +87,7 @@ function runScript(adapter, script, args, { fixtureMode, fixtureAuth, retryCount
       env.FIXTURE_RETRY_COUNTER = retryCounter;
       env.FIXTURE_RETRY_SUCCEED_AT = String(retrySucceedAt || 2);
     }
+    if (extraEnv) Object.assign(env, extraEnv);
     const result = spawnSync('bash', [path.join(adapterDir, script), ...args], {
       encoding: 'utf8',
       env,
@@ -463,6 +464,88 @@ describe('happy-path-stdout', () => {
     const out = JSON.parse(r.stdout);
     assert.equal(out.parent, 1234);
     assert.equal(out.child, 5678);
+  });
+
+  // ── ADO create-time env overrides (/to-issues destination + work item type) ──
+  //
+  // These pin the three defects that make an ADO board silently wrong: `--tags`
+  // is not a valid arg on `az boards work-item create` (unrecognized-arguments
+  // failure), a hardcoded type can't create the parent Feature, and a missing
+  // area/iteration lands items at the project root where no filtered board view
+  // shows them.
+
+  // Runs an ADO script with an argv log and returns the recorded `az` command lines.
+  function runAdoAndCaptureArgs(script, args, extraEnv = {}) {
+    const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ado-args-')), 'az.log');
+    try {
+      const r = runScript('ado', script, args, {
+        extraEnv: { ...extraEnv, FIXTURE_ARGS_LOG: logFile },
+      });
+      const lines = fs.existsSync(logFile)
+        ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+        : [];
+      return { ...r, argLines: lines, createLine: lines.find((l) => l.includes('work-item create')) || '' };
+    } finally { cleanup(path.dirname(logFile)); }
+  }
+
+  test('ado_CreateIssue_Tags_PassedAsSystemTagsFieldNotTagsFlag', () => {
+    const r = runAdoAndCaptureArgs('create-issue.sh', ['A story', 'A body', 'priority:medium']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--fields System\.Tags=priority:medium/);
+    assert.ok(!/--tags/.test(r.createLine), `--tags is not a valid create arg: ${r.createLine}`);
+  });
+
+  test('ado_CreateIssue_NoEnvOverrides_DefaultsToUserStoryAndOmitsPaths', () => {
+    const r = runAdoAndCaptureArgs('create-issue.sh', ['A story', 'A body', 'priority:medium']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--type User Story/);
+    assert.ok(!/--area/.test(r.createLine), `area should be omitted when unset: ${r.createLine}`);
+    assert.ok(!/--iteration/.test(r.createLine), `iteration should be omitted when unset: ${r.createLine}`);
+  });
+
+  test('ado_CreateIssue_WorkItemTypeEnv_CreatesFeature', () => {
+    const r = runAdoAndCaptureArgs(
+      'create-issue.sh',
+      ['A feature', 'A body', 'priority:medium'],
+      { ADO_WORK_ITEM_TYPE: 'Feature' },
+    );
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--type Feature/);
+  });
+
+  test('ado_CreateIssue_AreaAndIterationEnv_ForwardedToAz', () => {
+    const r = runAdoAndCaptureArgs(
+      'create-issue.sh',
+      ['A story', 'A body', 'priority:medium'],
+      { ADO_AREA_PATH: 'TEST_PROJ\\Harness', ADO_ITERATION_PATH: 'TEST_PROJ\\Sprint 3' },
+    );
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--area TEST_PROJ\\Harness/);
+    assert.match(r.createLine, /--iteration TEST_PROJ\\Sprint 3/);
+  });
+
+  test('ado_CreateSubIssue_NoEnvOverrides_DefaultsToTask', () => {
+    const r = runAdoAndCaptureArgs('create-sub-issue.sh', ['1234', 'Child task', 'A body']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--type Task/);
+  });
+
+  test('ado_CreateSubIssue_EnvOverrides_StoryTypeAndPathsForwarded', () => {
+    const r = runAdoAndCaptureArgs(
+      'create-sub-issue.sh',
+      ['1234', 'A story', 'A body', 'priority:medium'],
+      {
+        ADO_WORK_ITEM_TYPE: 'Product Backlog Item',
+        ADO_AREA_PATH: 'TEST_PROJ\\Harness',
+        ADO_ITERATION_PATH: 'TEST_PROJ\\Sprint 3',
+      },
+    );
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--type Product Backlog Item/);
+    assert.match(r.createLine, /--area TEST_PROJ\\Harness/);
+    assert.match(r.createLine, /--iteration TEST_PROJ\\Sprint 3/);
+    assert.match(r.createLine, /--fields System\.Tags=priority:medium/);
+    assert.ok(!/--tags/.test(r.createLine), `--tags is not a valid create arg: ${r.createLine}`);
   });
 
   test('todoist_AssignIssue_HappyPath_AddsClaimedLabel', () => {

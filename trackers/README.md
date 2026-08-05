@@ -84,6 +84,27 @@ Requires:
 
 The installer fills in `YOUR_ADO_PROJECT`, `YOUR_ADO_REPO`, and `YOUR_ADO_ORG_PATH` automatically. If you need to change them later, they are at the top of each script in `.claude/trackers/active/`.
 
+### Environment overrides on item creation
+
+`create-issue.sh` and `create-sub-issue.sh` read three optional env vars. They are env vars rather than positional args because arg4 is already the milestone slot in the GitHub adapter and the section slot in Todoist:
+
+| Env var | Applies to | Default | Why you'd set it |
+|---|---|---|---|
+| `ADO_WORK_ITEM_TYPE` | both | `User Story` (create) / `Task` (sub-issue) | Create a parent `Feature`, or use `Product Backlog Item` on a Scrum-process project — Scrum rejects `User Story` server-side with VS402323. |
+| `ADO_AREA_PATH` | both | unset → omitted | Without it ADO drops the item at the project root: created successfully but invisible in the team's filtered board views. A child does **not** inherit its parent's area path. |
+| `ADO_ITERATION_PATH` | both | unset → omitted | Same as above — puts the item in a sprint. |
+
+```bash
+ADO_WORK_ITEM_TYPE="Feature" \
+ADO_AREA_PATH="Developer Playground\SDLC Harness" \
+ADO_ITERATION_PATH="Developer Playground\Sprint 3" \
+  bash trackers/active/create-issue.sh "Ingest pipeline" "Parent feature" "priority:medium"
+```
+
+Set project-wide defaults in `tasks/tracker-config.md` (`ado_area_path`, `ado_iteration_path`, `ado_story_work_item_type`); `/to-issues` reads them and still confirms the destination before writing.
+
+> **Tags go through `--fields`, not `--tags`.** `az boards work-item create` has no `--tags` argument (verified against azure-devops extension 1.0.2 and 1.0.6) — passing it fails with "unrecognized arguments". Both create scripts pass tags as the semicolon-separated `System.Tags` field instead.
+
 `get-sprint-issues.sh` runs two WIQL queries — one for User Stories, one for Tasks — and outputs them labelled so the `sprint-plan-tracker-reader` agent can match tasks to parent stories.
 
 ---

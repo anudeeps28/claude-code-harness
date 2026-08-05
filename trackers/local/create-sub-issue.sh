@@ -50,4 +50,10 @@ if [ -x "$RENDER_SCRIPT" ] || [ -f "$RENDER_SCRIPT" ]; then
   bash "$RENDER_SCRIPT" "$ISSUES_DIR" 2>/dev/null || true
 fi
 
-echo "{\"parent\": ${PARENT_ID}, \"child\": ${CHILD_ID}, \"url\": \"${CHILD_FILE}\"}"
+# JSON-escape the path before interpolating it. On Windows LOCAL_ISSUES_DIR can be an absolute path
+# with backslashes, and a raw `\` makes the output invalid JSON — so every caller that parses .child
+# (e.g. /to-issues Phase 6b) fails on a task that was actually created fine.
+CHILD_FILE_JSON=${CHILD_FILE//\\/\\\\}
+CHILD_FILE_JSON=${CHILD_FILE_JSON//\"/\\\"}
+
+echo "{\"parent\": ${PARENT_ID}, \"child\": ${CHILD_ID}, \"url\": \"${CHILD_FILE_JSON}\"}"
