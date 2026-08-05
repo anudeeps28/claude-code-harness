@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-34 skills, 19 agents, 7 cross-platform Node hooks, 11 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+35 skills, 19 agents, 7 cross-platform Node hooks, 11 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -141,6 +141,7 @@ flowchart LR
 | Break a PRD into Todoist milestones and tasks | `/to-todoist` |
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
 | Build a feature from an issue | `/story` or `/implement` |
+| Get a queue of small fixes shipped before a demo | `/hackathon` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
 | Debug a hard or recurring bug | `/debug` (or `/diagnose`) |
 | Investigate a behavioral bug (wrong output, wrong logic) | `/troubleshoot` |
@@ -327,6 +328,7 @@ These are the only skills the solo pack does **not** install — they drive the 
 | **triage** | `/triage <issue-id>` | Route incoming issues through a 5-state workflow with bug/enhancement categorization, reproduction attempts, and tracker label management |
 | **design-artifacts** | `/design-artifacts [all \| doc-name ...]` | Generate the project-level spec stack from ARCHITECTURE.md + PRD — database schema, API reference, sequence diagrams, data flow, deployment, dev guide, debugging guide |
 | **tdd** | `/tdd <feature or behavior>` | Strict RED-GREEN-REFACTOR cycles with vertical slicing — one behavior at a time, test first, no refactoring while RED |
+| **hackathon** | `/hackathon [list of changes]` | Demo-deadline mode — work a queue of small changes one at a time, each built, launched, and looked at before the next. Cuts process, never verification |
 | **calibrate** | `/calibrate` | Learning effectiveness dashboard — shows how learnings are performing, promotes high-scoring ones to permanent rules, archives ineffective ones |
 | **sync-tracker** | `/sync-tracker [--dry-run]` | Reconcile merged PRs and completed work against open tracker items — closes delivered issues/tasks in GitHub, Todoist, or ADO |
 | **update-harness** | `/update-harness [--global\|--project]` | Check for and apply updates to your claude-code-harness installation — resolves target, shows changelog, applies updates with human confirmation |
@@ -656,7 +658,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 34 skills
+├── skills/           ← 35 skills
 ├── agents/           ← 19 agents (16 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 11 rules (5 path-scoped)
