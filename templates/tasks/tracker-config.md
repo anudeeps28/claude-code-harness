@@ -12,6 +12,35 @@
 
 **Sprint/Iteration naming:** [e.g. "Sprint 5"]
 
+```
+feeds_agent_scheduler = false
+```
+
+Set to `true` if an agent scheduler picks work straight off this board. `/to-issues` then refuses
+`--with-tasks` and stops at feature → story, because a scheduler with no work-item-type filter would
+try to launch an agent session for every child task too. The breakdown goes into each story body's
+`## Breakdown` section instead, and `/story` / `/implement` produce the real task plan at build time.
+
+### ADO settings *(ADO only — delete if using GitHub or Todoist)*
+
+```
+ado_area_path =
+ado_iteration_path =
+```
+
+Default destination for work items created by `/to-issues` (it still asks before writing). Without an
+area and iteration, ADO drops new items at the project root — created successfully but invisible in
+the team's filtered board views. The adapters read these as the `ADO_AREA_PATH` / `ADO_ITERATION_PATH`
+env vars. Use the project's own path separator, e.g. `Developer Playground\SDLC Harness`.
+
+```
+ado_story_work_item_type = User Story
+```
+
+The story-level work item type for this project's process — `User Story` on Agile, `Product Backlog
+Item` on Scrum. Scrum projects reject `User Story` server-side with VS402323. Passed to the adapters
+as `ADO_WORK_ITEM_TYPE`.
+
 ### GitHub sprint settings *(GitHub only — delete if using ADO or Todoist)*
 
 ```
