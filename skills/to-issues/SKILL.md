@@ -133,6 +133,22 @@ Identify 3–12 stories. For each story, prepare:
 | **Labels** | priority label + any risk labels |
 | **Touches** | the files/modules/components this story will modify — used by Phase 3.5, not written to the tracker |
 
+### Design content travels IN the ticket — never as an external link
+
+Learned from a live post-mortem (2026-08-18): a story cited an approved prototype via a claude.ai
+URL. Build agents cannot open external links, so the whole visual spec was invisible to the builder —
+the page shipped with the wrong layout while every gate passed. Hard rules:
+
+- **Never cite a URL the build agent cannot fetch** (claude.ai artifacts, Figma, wiki pages behind
+  auth). The operative content — layout, placement, flows, visual decisions — must be **written into
+  the story body in words**. A link may appear only as provenance, never as the spec.
+- **If a real artifact file matters** (prototype HTML, mockup image, sample data), attach it to the
+  tracker item or commit it into the repo and reference the path. Order of preference: words in the
+  ticket → tracker attachment → repo file path. External links are banned as spec carriers.
+- **Visual stories get a placement criterion.** If the story has any approved look, at least one
+  acceptance criterion must pin WHERE things go ("the tree renders in the left side panel; the note
+  fills the main pane") — layout must be checkable, not implied.
+
 **Story ordering:** schema/data first → backend/API → frontend/UI → integration/polish.
 
 **Create the stories in the order you want them run.** On a board that sorts unranked items by id, creation order *is* run order — so the sequence you settle on here decides which of several ready stories a scheduler starts first. This skill deliberately does not set an explicit rank field.
