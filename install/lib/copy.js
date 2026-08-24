@@ -20,7 +20,7 @@ function copyDirsWithLog(srcRoot, destRoot, label, skipSet = null) {
     console.log(`    ${existed ? 'Updating:  ' : 'Installing:'} ${label}/${entry.name}`);
     fs.cpSync(path.join(srcRoot, entry.name), destPath, { recursive: true, force: true });
     const files = walk(destPath, { match: () => true });
-    for (const f of files) installed.push(`${label}/${path.relative(destRoot, f)}`);
+    for (const f of files) installed.push(`${label}/${path.relative(destRoot, f).split(path.sep).join('/')}`);
   }
   return installed;
 }
