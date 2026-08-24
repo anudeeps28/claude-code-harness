@@ -82,7 +82,7 @@ Rules — non-negotiable:
 
 Open `YOUR_PROJECT_ROOT\tasks\stories\<STORY_ID>\plan.md`. For each completed task, confirm its `<task>` line is marked `✅` (execution should have marked it during Phase 3). If any delivered task is still unmarked, prepend `✅` to its name line in one Edit pass. Do NOT change any other content.
 
-**Never edit `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry by `trackers/lib/render-todo.sh`, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. Closing the tracker item (Step 7) regenerates the board in local/both mode.
+**Never edit `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry by `trackers/lib/render-todo.sh`, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. The board regenerates when the tracker-sync sweep closes the item after merge (local/both mode).
 
 ---
 
@@ -99,19 +99,15 @@ Apply the edit with the Edit tool.
 
 ---
 
-## Step 7 — Close the tracker item
+## Step 7 — Do NOT close the tracker item
 
-If the story ID maps to a registry item — a **local task** in `tasks/issues/` (local mode), or a GitHub issue / Todoist task / ADO work item (tracker/both mode) — close it now:
+**Closed = merged.** Never close the tracker item at PR time — an open PR is not delivered work, and downstream consumers (dependency graphs, orchestrators) treat a closed item as "safe to build on."
 
-```bash
-bash .claude/trackers/active/close-issue.sh <STORY_ID>
-```
+The item closes automatically at merge:
+- **GitHub / ADO trackers:** the PR's closing keyword (`Closes #N` / `Fixes AB#N`, Step 8) closes it when the PR merges.
+- **Local / Todoist trackers:** the `tracker-sync` sweep hook (or an orchestrator's merge checklist) closes it after merge by reading the anchored `Task: <ID>` trailers from the merged PR body (Step 8). The todo.md dashboard regenerates as part of that sweep in local/both mode.
 
-`close-issue.sh` is the same call in every mode: the active backend (local / github / todoist / ado) knows how to close its own item, and in local/both mode the todo.md dashboard regenerates automatically afterward.
-
-If the script exits non-zero (e.g. tracker not configured, auth expired, or already closed), log a warning but do NOT fail the PR preparation. The PR is the primary deliverable; tracker sync is best-effort — and the merged PR's closing references (Step 8) are the durable record the sweep hook acts on.
-
-If the story is not tracked (no numeric ID, or the ID doesn't match any registry item), skip this step silently.
+Your only job in this step: confirm Step 8 will emit the correct closing reference so the merged PR carries the evidence. If the story is not tracked (no ID, or the ID doesn't match any registry item), there is nothing to confirm.
 
 ---
 
@@ -119,8 +115,8 @@ If the story is not tracked (no numeric ID, or the ID doesn't match any registry
 
 First determine the **tracker mode** from `.claude/.harness-manifest.json`: `tracker: "local"` → **local mode**; any other tracker → **tracker/both mode**. This decides how the PR closes its work item when it merges (the sweep hook `tracker-sync.js` reads these references from the merged PR body, D21):
 
-- **Local mode:** end the PR body with an anchored git-trailer line `Task: <STORY_ID>` — one line per delivered local task (the story, plus any child task IDs that are local registry items). The line must be exactly `Task: <number>` with nothing after the number (the sweep matches `^Task: N$`). Do **not** use GitHub's `Closes #N` for local tasks — GitHub would try to close its own unrelated issue #N.
-- **Tracker/both mode:** use the tracker's native closing keyword instead — `Closes #<STORY_ID>` for GitHub, `Fixes AB#<STORY_ID>` for Azure DevOps. (Todoist has no PR-close keyword — Step 7's `close-issue.sh` is what closes it.)
+- **Local mode:** end the PR body with an anchored git-trailer line `Task: <STORY_ID>` — one line per delivered local task (the story, plus any child task IDs that are local registry items). The line must be exactly `Task: <id>` with nothing after the id (the sweep matches `^Task: <alphanumeric>$`). Do **not** use GitHub's `Closes #N` for local tasks — GitHub would try to close its own unrelated issue #N.
+- **Tracker/both mode:** use the tracker's native closing keyword — `Closes #<STORY_ID>` for GitHub, `Fixes AB#<STORY_ID>` for Azure DevOps. **Todoist has no PR-close keyword: use the same anchored `Task: <STORY_ID>` trailer as local mode** (Todoist IDs are alphanumeric; the sweep accepts them) — the tracker-sync sweep closes the task after the PR merges.
 
 Output a ready-to-use PR description with an Approach Note section:
 
@@ -148,7 +144,8 @@ Build: [PASS/FAIL — from Phase 3 verify outputs]
 Tests: [result if dotnet test was run, otherwise "N/A — integration tests require deployed env"]
 
 [Closing reference — from Step 8, pick ONE form per the tracker mode:
- local mode:  Task: <STORY_ID>       (its own line, exact `Task: N`; one line per delivered local task)
+ local mode:  Task: <STORY_ID>       (its own line, exact `Task: <id>`; one line per delivered local task)
+ todoist:     Task: <STORY_ID>       (same anchored trailer; Todoist IDs are alphanumeric)
  github:      Closes #<STORY_ID>
  ado:         Fixes AB#<STORY_ID>]
 ```

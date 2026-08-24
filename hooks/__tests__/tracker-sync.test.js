@@ -268,6 +268,39 @@ test('extractTaskTrailers: does NOT match "Tasks: 42" (plural)', () => {
   assert.equal(refs.length, 0);
 });
 
+// --- Todoist trailer support (closed = merged) ---
+
+const usesTaskTrailers = extractFunction('usesTaskTrailers', hookSource);
+
+test('extractTaskTrailers: matches alphanumeric Todoist id', () => {
+  const refs = extractTaskTrailers('Body\n\nTask: 6hM5pM4FxJvMQxX8');
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0].id, '6hM5pM4FxJvMQxX8');
+});
+
+test('extractTaskTrailers: does NOT match alphanumeric id with trailing text', () => {
+  const refs = extractTaskTrailers('Task: 6hM5pM4FxJvMQxX8 extra');
+  assert.equal(refs.length, 0);
+});
+
+test('usesTaskTrailers: true for local mode', () => {
+  assert.equal(usesTaskTrailers({ tracker: 'local' }, 'local'), true);
+});
+
+test('usesTaskTrailers: true for todoist tracker (any mode)', () => {
+  assert.equal(usesTaskTrailers({ tracker: 'todoist' }, 'tracker'), true);
+  assert.equal(usesTaskTrailers({ tracker: 'todoist' }, 'both'), true);
+});
+
+test('usesTaskTrailers: false for github/ado trackers', () => {
+  assert.equal(usesTaskTrailers({ tracker: 'github' }, 'tracker'), false);
+  assert.equal(usesTaskTrailers({ tracker: 'ado' }, 'both'), false);
+});
+
+test('usesTaskTrailers: false-y when manifest is null and mode not local', () => {
+  assert.equal(!!usesTaskTrailers(null, 'tracker'), false);
+});
+
 // --- Graceful gh absence ---
 
 test('SessionEnd exits 0 when gh is not available (graceful skip)', () => {

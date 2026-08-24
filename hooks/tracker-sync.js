@@ -144,16 +144,23 @@ function extractClosingRefs(prBody) {
   return refs;
 }
 
-// Local-mode trailers: anchored "Task: 42" lines in PR body (D21)
+// Task trailers: anchored "Task: 42" lines in PR body (D21).
+// Local-mode ids are numeric; Todoist ids are alphanumeric — both use this
+// trailer because neither platform has a PR closing keyword.
 function extractTaskTrailers(prBody) {
   if (!prBody) return [];
   const refs = [];
   const lines = prBody.split('\n');
   for (const line of lines) {
-    const m = line.match(/^Task: (\d+)$/);
+    const m = line.match(/^Task: ([A-Za-z0-9]+)$/);
     if (m) refs.push({ type: 'local', id: m[1] });
   }
   return refs;
+}
+
+// Trackers without a platform closing keyword rely on Task: trailers.
+function usesTaskTrailers(manifest, mode) {
+  return mode === 'local' || (manifest && manifest.tracker === 'todoist');
 }
 
 // --- SessionStart ---
@@ -189,7 +196,7 @@ function sessionStart(projectRoot, manifest, mode) {
     const prs = fetchMergedPRs();
     for (const pr of prs) {
       const body = (pr.body || '') + '\n' + (pr.title || '');
-      const closingRefs = mode === 'local'
+      const closingRefs = usesTaskTrailers(manifest, mode)
         ? extractTaskTrailers(pr.body || '')
         : extractClosingRefs(body);
       for (const ref of closingRefs) {
@@ -230,9 +237,9 @@ function sessionEnd(projectRoot, manifest, mode) {
   for (const pr of prs) {
     const body = pr.body || '';
 
-    // Extract evidence based on mode
+    // Extract evidence based on mode/tracker
     let refs;
-    if (mode === 'local') {
+    if (usesTaskTrailers(manifest, mode)) {
       refs = extractTaskTrailers(body);
     } else {
       refs = extractClosingRefs(body + '\n' + (pr.title || ''));
