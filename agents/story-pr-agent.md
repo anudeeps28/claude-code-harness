@@ -45,6 +45,17 @@ If any item is FAIL: describe exactly what needs to be fixed before the PR is ra
 
 ---
 
+## Step 3.5 — Worktree setup freshness check
+
+Look at the diff from Step 2 for changes that affect what a fresh worktree needs to build:
+- A dependency manifest added, removed, or renamed (`package.json`/lock files, `*.csproj`, `requirements.txt`, `pyproject.toml`, `go.mod`, `Gemfile`, etc.)
+- A new required gitignored config file (a new `.env.example`, a `.gitignore` addition that the build reads)
+- A new setup/restore step introduced by this story
+
+If any apply: update the **"Worktree setup"** section of `tasks/lessons.md` (or `tasks/notes.md` in the solo pack) — files to copy, restore commands — with the Edit tool, and note the update in the PR description's Gotchas line. If the section doesn't exist yet, create it. If none apply, output "Worktree setup: no changes needed" and move on.
+
+---
+
 ## Step 4 — Draft atomic commit messages
 
 One commit per completed task. The commit covers only that task's files.

@@ -128,4 +128,4 @@ This rule is stack-agnostic. The project-specific bits live in **`tasks/lessons.
 - **Files / folders that are SHARED automatically (don't copy)** — `tasks/`, the `.git` history, OS-level secret stores keyed by an in-tree ID.
 - **Restore commands to run after creating a worktree** — the exact build/dependency commands for the stack (npm/pnpm/yarn install, dotnet restore, pip install, poetry install, bundle install, go mod download, etc.).
 
-If that section is missing in `lessons.md` / `notes.md`, ask the user once for the values and write them in. The harness's `/sync-tasks` and `/improve-harness` skills will keep that section healthy over time.
+If that section is missing in `lessons.md` / `notes.md`, ask the user once for the values and write them in. The section is kept fresh by the `story-pr-agent`'s pre-PR freshness check (Step 3.5): whenever a change adds or renames a dependency manifest, a required gitignored config file, or a setup/restore step, the agent updates this section before the PR is opened.
