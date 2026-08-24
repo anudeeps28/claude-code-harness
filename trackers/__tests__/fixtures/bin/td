@@ -6,6 +6,12 @@ set -e
 
 fixture_dir="$(dirname "$0")/../responses"
 
+# Argv recorder — set FIXTURE_ARGS_LOG to capture the exact command lines the
+# adapter builds, so tests can assert on flags (--priority, --uncompletable, ...).
+if [ -n "$FIXTURE_ARGS_LOG" ]; then
+  printf '%s\n' "$*" >> "$FIXTURE_ARGS_LOG"
+fi
+
 # Flags the REAL td CLI does not have (discovered via live smoke, v3.1):
 # there is no --add-label/--remove-label (only --labels, which REPLACES),
 # no --label (singular), and parent linking is --parent, not --parent-id.

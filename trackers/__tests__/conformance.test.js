@@ -548,6 +548,101 @@ describe('happy-path-stdout', () => {
     assert.ok(!/--tags/.test(r.createLine), `--tags is not a valid create arg: ${r.createLine}`);
   });
 
+  // ── Todoist create-time env overrides (/to-issues native priority + milestone header) ──
+  //
+  // Todoist has two abilities the flat adapter args cannot express: native p1-p4
+  // priority (which actually SORTS the list, unlike a `priority:high` text label)
+  // and uncompletable tasks (a task with no checkbox — used as a milestone header
+  // so a whole milestone can't be ticked off by accident). /to-issues passes both
+  // as optional env vars, the same passthrough shape ADO_WORK_ITEM_TYPE uses, so
+  // the skill stays backend-agnostic and adapters that lack the concept ignore it.
+
+  // Runs a Todoist script with an argv log and returns the recorded `td` command lines.
+  function runTodoistAndCaptureArgs(script, args, extraEnv = {}) {
+    const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'td-args-')), 'td.log');
+    try {
+      const r = runScript('todoist', script, args, {
+        extraEnv: { ...extraEnv, FIXTURE_ARGS_LOG: logFile },
+      });
+      const lines = fs.existsSync(logFile)
+        ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+        : [];
+      return { ...r, argLines: lines, createLine: lines.find((l) => l.startsWith('task add')) || '' };
+    } finally { cleanup(path.dirname(logFile)); }
+  }
+
+  test('todoist_CreateIssue_NoEnvOverrides_OmitsPriorityAndUncompletable', () => {
+    const r = runTodoistAndCaptureArgs('create-issue.sh', ['A story', 'A body', 'priority:medium']);
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.ok(!/--priority/.test(r.createLine), `priority should be omitted when unset: ${r.createLine}`);
+    assert.ok(!/--uncompletable/.test(r.createLine), `uncompletable should be omitted when unset: ${r.createLine}`);
+  });
+
+  test('todoist_CreateIssue_PriorityEnv_ForwardedToTd', () => {
+    const r = runTodoistAndCaptureArgs(
+      'create-issue.sh',
+      ['A story', 'A body', 'priority:high'],
+      { TRACKER_PRIORITY: 'p1' },
+    );
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--priority p1/);
+    // The text label still travels — native priority augments it, never replaces it.
+    assert.match(r.createLine, /--labels priority:high/);
+  });
+
+  test('todoist_CreateIssue_UncompletableEnv_ForwardedToTd', () => {
+    const r = runTodoistAndCaptureArgs(
+      'create-issue.sh',
+      ['Milestone: Foundations', 'A body', ''],
+      { TRACKER_UNCOMPLETABLE: '1' },
+    );
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--uncompletable/);
+  });
+
+  test('todoist_CreateIssue_InvalidPriority_FailsLoudly', () => {
+    const r = runTodoistAndCaptureArgs(
+      'create-issue.sh',
+      ['A story', 'A body', ''],
+      { TRACKER_PRIORITY: 'urgent' },
+    );
+    assert.notEqual(r.exitCode, 0, 'an unusable priority must fail, not be silently dropped');
+    assert.match(r.stderr, /TRACKER_PRIORITY/);
+    assert.equal(r.createLine, '', 'no task should be created on invalid input');
+  });
+
+  test('todoist_CreateSubIssue_PriorityEnv_ForwardedToTd', () => {
+    const r = runTodoistAndCaptureArgs(
+      'create-sub-issue.sh',
+      ['1234', 'A story', 'A body', 'priority:medium'],
+      { TRACKER_PRIORITY: 'p2' },
+    );
+    assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    assert.match(r.createLine, /--priority p2/);
+    assert.match(r.createLine, /--parent id:1234/);
+  });
+
+  test('todoist_CreateSubIssue_InvalidPriority_FailsLoudly', () => {
+    const r = runTodoistAndCaptureArgs(
+      'create-sub-issue.sh',
+      ['1234', 'A story', 'A body', ''],
+      { TRACKER_PRIORITY: 'p9' },
+    );
+    assert.notEqual(r.exitCode, 0, 'an unusable priority must fail, not be silently dropped');
+    assert.match(r.stderr, /TRACKER_PRIORITY/);
+  });
+
+  // The passthrough must be inert everywhere else: a backend with no such concept
+  // ignores the vars rather than failing, so /to-issues can set them unconditionally.
+  for (const adapter of ['github', 'local', 'ado']) {
+    test(`${adapter}_CreateIssue_TodoistOnlyEnvVars_Ignored`, () => {
+      const r = runScript(adapter, 'create-issue.sh', ['A story', 'A body', 'priority:medium'], {
+        extraEnv: { TRACKER_PRIORITY: 'p1', TRACKER_UNCOMPLETABLE: '1' },
+      });
+      assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
+    });
+  }
+
   test('todoist_AssignIssue_HappyPath_AddsClaimedLabel', () => {
     const r = runScript('todoist', 'assign-issue.sh', ['1234']);
     assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);

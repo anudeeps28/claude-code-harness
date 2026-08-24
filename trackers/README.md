@@ -156,6 +156,27 @@ Todoist doesn't have native equivalents for all GitHub/ADO concepts. The adapter
 | Label | Label |
 | Milestone | Uncompletable parent task |
 
+### Environment overrides on item creation
+
+`create-issue.sh` and `create-sub-issue.sh` read two optional env vars. Like the ADO ones above they
+are env vars rather than positional args, because the positional slots are already spoken for
+(arg4 = section, arg5 = project here; arg4 = milestone on GitHub):
+
+| Env var | Values | Default | Why you'd set it |
+|---|---|---|---|
+| `TRACKER_PRIORITY` | `p1` · `p2` · `p3` · `p4` | unset → omitted | Todoist's **native** priority, which sorts and colours the board. A `priority:high` text label does neither. An out-of-range value **fails the create** rather than being silently dropped. |
+| `TRACKER_UNCOMPLETABLE` | any non-empty value | unset → omitted | Creates the task with no checkbox — used for a milestone/feature header so a whole feature can't be ticked off by accident. |
+
+```bash
+TRACKER_PRIORITY=p1 TRACKER_UNCOMPLETABLE=1 \
+  bash trackers/active/create-issue.sh "Ingest pipeline" "Parent feature" "priority:high" "Sprint 1" "My Project"
+```
+
+These are named `TRACKER_*`, not `TODOIST_*`, on purpose: they are the **portable** create-time
+modifiers. A backend with no such concept simply never reads them, so `/to-issues` sets them on every
+call without branching on the backend. Only add a new `TRACKER_*` var when at least one backend can
+express it natively and the rest can safely ignore it.
+
 ### Sprint / section mapping
 
 `get-sprint-issues.sh` lists tasks in a named Todoist section. Configure the project in `tasks/tracker-config.md`:
