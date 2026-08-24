@@ -1,6 +1,6 @@
 ---
 name: to-issues
-description: Decompose planning artifacts into tracker tasks with proper hierarchy and real dependency links — a parent feature, its stories as children, and blocked-by edges between the stories that genuinely block one another, so an agent scheduler can run the independent ones in parallel and hold the rest. Backend-aware: creates GitHub issues, ADO work items, Todoist tasks, or local task files depending on your tracker mode. Reads from grill-summary, research, architecture, decision-brief, or PRD — no single artifact required. Usage: /to-issues [--parent "<id>"] [--milestone "<name>"] [--project "<name>"]
+description: Decompose planning artifacts into tracker tasks with proper hierarchy and real dependency links — a parent feature, its stories as children, and blocked-by edges between the stories that genuinely block one another, so an agent scheduler can run the independent ones in parallel and hold the rest. Backend-aware: creates GitHub issues, ADO work items, Todoist tasks, or local task files depending on your tracker mode, using each backend's native features where they exist (Todoist p1-p4 priority and uncompletable feature headers, ADO work item types and area/iteration paths). Reads from grill-summary, research, architecture, decision-brief, or PRD — no single artifact required. Usage: /to-issues [--parent "<id>"] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run]
 triggers: /to-issues
 ---
 
@@ -19,12 +19,14 @@ Reads from ALL available planning artifacts in the decide/define phases. No sing
 ## Input
 
 ```
-/to-issues [--parent "<id>"] [--milestone "<name>"] [--project "<name>"] [--with-tasks]
+/to-issues [--parent "<id>"] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--with-tasks] [--dry-run]
 ```
 
 - `--parent "<id>"` — attach the stories to an existing parent feature instead of creating one. Without it, the skill creates the parent itself (see Phase 6a).
 - `--milestone "<name>"` — group all stories under this milestone (creates it if it doesn't exist). If not provided, infers a name from the grill-summary or architecture title. GitHub only.
-- `--project "<name>"` — add all issues to a Projects v2 board (optional, for devs who want kanban/roadmap views). GitHub only.
+- `--project "<name>"` — **the meaning depends on the backend, and they are unrelated values.** On GitHub it is a Projects v2 board to add every issue to (optional, for kanban/roadmap views). On Todoist it is the destination *project* the items are filed into (see Phase 3.6) — not a board view but the bucket itself. Ignored on ADO and local.
+- `--section "<name>"` — the section within the destination Todoist project to file items under (creates it if it doesn't exist). Todoist only.
+- `--dry-run` — show the full decomposition and stop at Phase 4. Nothing is created.
 - `--with-tasks` — also create child items for each story's breakdown. **Refused when the board feeds an agent scheduler** — see below. Default off: the breakdown lives in the story body.
 
 ### Why `--with-tasks` is refused on scheduler-backed boards
@@ -48,7 +50,8 @@ When that is `true`, stop at feature → story. The breakdown still travels — 
 Before doing anything else:
 
 1. Check that `trackers/active/create-issue.sh` exists. If not, halt: *"Tracker adapter not found. Run the harness installer or add `create-issue.sh` to `.claude/trackers/active/`."*
-2. Scan for at least ONE planning artifact (see Phase 1). If none exist, halt: *"No planning artifacts found. Run `/grill-me` to establish shared understanding first, then optionally `/research` and `/architect`."*
+2. Check that the active backend's CLI is actually callable — `gh` for GitHub, `az` for ADO, `td` (or `$TODOIST_CLI`) for Todoist; `local` needs none. If it is missing, halt: *"The <backend> adapter is installed but its CLI (`<cmd>`) is not on PATH. Install it, or re-run the harness installer and pick a different tracker."*
+3. Scan for at least ONE planning artifact (see Phase 1). If none exist, halt: *"No planning artifacts found. Run `/grill-me` to establish shared understanding first, then optionally `/research` and `/architect`."*
 
 ## Phase 0 — Detect active backend and probe capabilities
 
@@ -79,7 +82,25 @@ Then probe two **capabilities** by checking whether the script exists in `tracke
 
 Carry this into the Phase 4 and Phase 7 reports so nobody mistakes a convention line for a native tracker link.
 
-If `tracker === 'todoist'`, add a deprecation pointer: *"This project's tracker is Todoist — prefer `/to-todoist`, which creates the Todoist milestone/subtask hierarchy. Continue only for flat issue creation."*
+### Create-time env overrides — the capabilities that are not scripts
+
+Two Todoist abilities have no adapter script to probe for, because they are *modifiers on a create*
+rather than operations of their own: **native p1–p4 priority** (which actually sorts the board, unlike
+a `priority:high` text label) and **uncompletable items** (an item with no checkbox — used for the
+parent feature so a whole feature can't be ticked off by accident). Both are passed as optional
+environment variables on the create call, the same passthrough shape `ADO_WORK_ITEM_TYPE` already uses:
+
+| Env var | Values | Honored by | Ignored by |
+|---|---|---|---|
+| `TRACKER_PRIORITY` | `p1` · `p2` · `p3` · `p4` | `todoist` → native priority | `github` · `ado` · `local` |
+| `TRACKER_UNCOMPLETABLE` | any non-empty value | `todoist` → item has no checkbox | `github` · `ado` · `local` |
+
+**Set them unconditionally — do not branch on the backend.** An adapter that has no such concept never
+reads the variable, so there is nothing to guard. Branching here is how a backend added later silently
+misses a capability it does in fact have.
+
+`TRACKER_PRIORITY` is validated by the adapter: anything outside `p1`–`p4` **fails the create loudly**
+rather than being dropped. Derive it from the story's priority label (Phase 3) — never invent a scale.
 
 ## Phase 1 — Read all available artifacts
 
@@ -131,7 +152,22 @@ Identify 3–12 stories. For each story, prepare:
 | **Acceptance criteria** | 3–5 statements in Given/When/Then format |
 | **Breakdown** | 2–5 implementation steps. These become child items only when `--with-tasks` is honored; otherwise they go in the story body's `## Breakdown` section |
 | **Labels** | priority label + any risk labels |
+| **Priority** | `p1`–`p4`, from the mapping below. Written as a text label everywhere, and additionally as native tracker priority where the backend has one (Phase 0) |
 | **Touches** | the files/modules/components this story will modify — used by Phase 3.5, not written to the tracker |
+
+### Priority mapping
+
+One scale, derived from the story's role in the graph — not from how important it feels:
+
+| The story is… | Priority | Label |
+|---|---|---|
+| Foundational schema/data work, or blocking two or more other stories | `p1` | `priority:high` |
+| Core feature implementation, API endpoints | `p2` | `priority:high` |
+| UI, integration, secondary features | `p3` | `priority:medium` |
+| Polish, documentation, nice-to-haves | `p4` | `priority:low` |
+
+The label always travels. The `p1`–`p4` value additionally goes out as `TRACKER_PRIORITY` on the
+create call, where it becomes a native sort order on backends that have one and is ignored elsewhere.
 
 ### Design content travels IN the ticket — never as an external link
 
@@ -195,7 +231,7 @@ What "destination" means per backend:
 |---|---|---|
 | `ado` | iteration path + area path | `az boards iteration project list`, `az boards area project list` |
 | `github` | milestone (and project board, if `--project`) | `gh api repos/:owner/:repo/milestones`, `gh project list` |
-| `todoist` | project + section | `td` project/section listing — prefer routing to `/to-todoist` |
+| `todoist` | project + section | `td project list`, `td section list "<project>"` |
 | `local` | n/a — skip this phase | — |
 
 1. **Try to list the real options** from the active tracker, read-only. Use a `trackers/active/` script if one exists for it; otherwise the backend's own CLI, per the table.
@@ -205,6 +241,12 @@ What "destination" means per backend:
 > *"Where should these go? Iterations found: Sprint 1, Sprint 2, Sprint 3 (current). Areas found: Developer Playground\SDLC Harness, Developer Playground\Platform. Which iteration and area?"*
 
 Default the offer to the `ado_area_path` / `ado_iteration_path` values in `tasks/tracker-config.md` if set, else to whatever the last `/to-issues` run used if that is recorded in `tasks/notes.md`.
+
+**On Todoist**, resolve project and section in this order, and still show the result for confirmation:
+`--project` / `--section` args → `todoist_project` / `todoist_default_section` in `tasks/tracker-config.md`
+→ a `## Todoist` section in `tasks/notes.md` with `project:` / `section:` fields. If no project resolves
+from any of them, ask outright — do **not** let the adapter fall through to its own config default, which
+is the silent mis-filing this phase exists to prevent.
 
 ## Phase 4 — Review with user
 
@@ -261,13 +303,15 @@ Present the proposed decomposition — stories, destination, edges, and both gra
 - The **mermaid graph** shows the blocking edges, arrow pointing *from blocker to blocked* (reading direction = execution order). Draw `overlap` edges dotted and labelled so they are distinguishable from `prerequisite` edges. Use `flowchart LR`.
 - If there are **no edges at all**, say so explicitly — "every story is independent; all N can run in parallel" — and skip the mermaid block rather than drawing a graph with no arrows.
 
-Do not proceed to Phase 5 without explicit user approval. If the user changes any edge, re-run the Phase 3.5 cycle check before continuing.
+If `--dry-run` was passed, stop here and print: *"Dry run complete. Nothing was created. Re-run without `--dry-run` to create these items."*
+
+Otherwise, do not proceed to Phase 5 without explicit user approval. If the user changes any edge, re-run the Phase 3.5 cycle check before continuing.
 
 ## Phase 5 — Setup infrastructure
 
-**GitHub-only.** `setup-labels.sh`, `create-milestone.sh`, `create-project.sh` (and `add-to-project.sh` in Phase 6) exist ONLY under `trackers/github/`. Run this phase only when `backend === 'github'` (equivalently: only run each call if the script exists in `trackers/active/`). For `local`/`todoist`/`ado`, skip label/milestone/project setup and print: *"Backend <X> has no label/milestone/project infrastructure in the standard adapter interface — skipping Phase 5; work items are created directly."*
+`setup-labels.sh`, `create-milestone.sh`, `create-project.sh` (and `add-to-project.sh` in Phase 6) exist ONLY under `trackers/github/`, so **5a–5c are GitHub-only** — run them only when `backend === 'github'` (equivalently: only run each call if the script exists in `trackers/active/`). **5d is Todoist-only.** For `local`/`ado`, skip this phase entirely and print: *"Backend <X> has no label/milestone/project infrastructure in the standard adapter interface — skipping Phase 5; work items are created directly."*
 
-Before creating issues, set up the supporting GitHub infrastructure:
+Before creating issues, set up the supporting infrastructure:
 
 ### 5a — Labels
 
@@ -291,6 +335,24 @@ bash trackers/active/create-project.sh "<project-name>"
 ```
 Store the project number for adding items later. Note: requires `gh auth refresh -s project`.
 
+### 5d — Todoist project and section (Todoist only)
+
+The Todoist adapter files into a project and, optionally, a section. Both must already exist —
+`td` will not create them on the fly, and a create against a missing one fails per item.
+
+Confirm the project resolved in Phase 3.6 exists:
+```bash
+td project list --json
+```
+If it is absent, **halt**: *"Project '<name>' not found in Todoist. Create it first, or re-run with `--project \"<existing>\"`."* Do not create the project — a mistyped name would silently spawn a second board.
+
+Then, only if a section was resolved, create it if it is missing (creating a *section* inside a
+confirmed project is safe and additive):
+```bash
+td section list "<project>" --json
+td section create --project "<project>" --name "<section>"
+```
+
 ## Phase 6 — Create issues
 
 Order of operations is fixed: **parent first, then stories in the approved order, then the edges.** Edges last, because they need the real IDs of both ends.
@@ -306,14 +368,33 @@ export ADO_ITERATION_PATH="<iteration from Phase 3.6>"
 
 Skip if `--parent <id>` was passed; use that ID as the parent instead.
 
+**One run creates exactly one parent.** If the work needs several parent headers, that is several runs
+— decompose the first, then re-run for the next group. Do not try to emit two parents from one run:
+the dependency graph in Phase 3.5 is built across the whole story set and assumes one root. This is a
+deliberate narrowing from the milestone-grouped decomposition Todoist users had before the merge, and
+it is a fair trade because ordering is now carried by real blocked-by edges rather than implied by
+which milestone bucket a story sat in — edges a scheduler can actually read, which bucket membership
+never was.
+
 On ADO the work item type is set via the `ADO_WORK_ITEM_TYPE` env var — an env var rather than a positional arg because arg4 is the milestone slot in the GitHub adapter and the section slot in Todoist.
+
+The parent feature is also the one item created **uncompletable** (Phase 0): it is a header for the
+stories beneath it, and completing it would mean claiming the whole feature is done. Backends without
+the concept ignore the variable, so it is set unconditionally.
 
 ```bash
 # ado
-ADO_WORK_ITEM_TYPE="Feature" bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium"
+ADO_WORK_ITEM_TYPE="Feature" TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
+  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium"
 
-# github / local / todoist
-bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium"
+# github / local
+TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
+  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium"
+
+# todoist — arg4 is the SECTION and arg5 the PROJECT, both from Phase 3.6, so the
+# feature lands where the user confirmed and not wherever the adapter's config points
+TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
+  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium" "<section>" "<project>"
 ```
 
 Parse the printed ID and hold it as `PARENT_ID`. If the parent fails to create, **halt** — do not create orphan stories.
@@ -328,11 +409,16 @@ Where the hierarchy capability exists, create each story as a child of the paren
 
 ```bash
 # ado
-ADO_WORK_ITEM_TYPE="User Story" bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>"
+ADO_WORK_ITEM_TYPE="User Story" TRACKER_PRIORITY=<p1-p4> \
+  bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>"
 
 # github / local / todoist
-bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>"
+TRACKER_PRIORITY=<p1-p4> \
+  bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>"
 ```
+
+`TRACKER_PRIORITY` carries **that story's** value from the Phase 3 mapping — it changes per call. A
+subtask inherits its parent's project and section on Todoist, so no destination args are needed here.
 
 Every adapter prints `{"parent": N, "child": N, "url": "..."}` — parse `.child` and record it against the story's number from the Phase 4 table. You need that map for 6c.
 
@@ -346,7 +432,11 @@ bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-l
 ```bash
 bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>"
 ```
-- **todoist** — 3-arg form, and NEVER pass the milestone name as arg4 (in the Todoist adapter arg4 is the SECTION slot and arg5 is PROJECT, so forwarding a milestone name silently mis-files the task). Prefer routing to `/to-todoist`.
+- **todoist** — 5-arg form, where **arg4 is the SECTION and arg5 is the PROJECT** (not milestone/project as on GitHub). Pass the Phase 3.6 values; never forward a milestone name into arg4, which would silently mis-file the task into a section that does not exist:
+```bash
+TRACKER_PRIORITY=<p1-p4> \
+  bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>" "<section>" "<project>"
+```
 
 Story body format:
 ```markdown
@@ -481,7 +571,7 @@ Then match the rest of the summary to where items actually landed:
 - **ado** — `#N` + the work item URL; next step `/implement #<n>`. Include the Feature and Destination rows; omit the GitHub milestone/project/label rows (Phase 5 was skipped).
 - **github** — `Issue #N` + URL; next step `/implement #<n>`. Add the infrastructure rows that apply: milestone (N stories assigned), project, labels created/updated.
 - **local** — `task #<id> (tasks/issues/<id>.md)`; next step `/implement #<id>`. Mark milestone/project/label rows "n/a for local backend".
-- **todoist** — task URL/title; next step `/implement "<title>"`. Omit the GitHub infrastructure rows.
+- **todoist** — task URL/title, plus the project and section they landed in and each item's `p1`–`p4` priority; note that the parent feature was created uncompletable. Next step `/implement "<title>"`. Omit the GitHub milestone/project/label rows (5a–5c were skipped).
 
 If `--with-tasks` was honored, note how many child items were created per story; if it was refused, say so and point at the `## Breakdown` sections.
 
@@ -493,4 +583,5 @@ If `--with-tasks` was honored, note how many child items were created per story;
 - **Never write a cycle.** The cycle check in Phase 3.5 is a hard gate — a downstream scheduler is likely to fail open and silently ignore the ordering instead of complaining.
 - **Never use a "related"-style link as a blocker**, and never write cross-project edges.
 - Works on personal GitHub plans — no org features required
+- **Never branch the create-time env overrides on the backend name.** Set `TRACKER_PRIORITY` (and `TRACKER_UNCOMPLETABLE` on the parent) on every call; adapters that lack the concept ignore them, and a bad `TRACKER_PRIORITY` fails loudly rather than being silently dropped
 - Child items for the breakdown are optional via `--with-tasks`, and refused when `feeds_agent_scheduler = true` — by default the breakdown lives in the story body

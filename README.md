@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-35 skills, 19 agents, 7 cross-platform Node hooks, 11 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+34 skills, 19 agents, 7 cross-platform Node hooks, 11 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -78,7 +78,7 @@ The harness covers the full software development lifecycle. Both solo and enterp
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me · /wayfinder · /grill-with-docs<br/>/decision-brief"]
-    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues · /to-todoist<br/>/sprint-plan ◆"]
+    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues<br/>/sprint-plan ◆"]
     P2["Build<br/>/implement ● · /story ◆<br/>/run-tasks ◆<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr ◆<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage · /improve-codebase-architecture"]
@@ -89,9 +89,9 @@ flowchart LR
 
 > ● = solo only &nbsp;&nbsp; ◆ = enterprise only &nbsp;&nbsp; unmarked = both
 
-> **`/plan` ● is not a linear stage.** It reads your *existing* tracker backlog and prioritizes it — so it runs *after* `/to-issues` / `/to-todoist` have created tasks, never before. Think of it as the recurring "what's next?" step at the top of each cycle, feeding straight into `/implement`.
+> **`/plan` ● is not a linear stage.** It reads your *existing* tracker backlog and prioritizes it — so it runs *after* `/to-issues` has created tasks, never before. Think of it as the recurring "what's next?" step at the top of each cycle, feeding straight into `/implement`.
 
-> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** / **`/to-todoist`** creates the build tasks → **`/implement`** / **`/story`** builds them. (Already sitting on a backlog? **`/plan`** prioritizes your existing issues and picks the next one to **`/implement`** — it reads tasks that already exist, so it comes *after* decomposition, never before.)
+> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** creates the build tasks → **`/implement`** / **`/story`** builds them. (Already sitting on a backlog? **`/plan`** prioritizes your existing issues and picks the next one to **`/implement`** — it reads tasks that already exist, so it comes *after* decomposition, never before.)
 
 #### Solo developer path
 
@@ -138,7 +138,6 @@ flowchart LR
 | Critique an architecture doc for gaps and risks | `/architect-critique` |
 | Generate the full spec stack (DB schema, API ref, diagrams) | `/design-artifacts` |
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
-| Break a PRD into Todoist milestones and tasks | `/to-todoist` |
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
 | Build a feature from an issue | `/story` or `/implement` |
 | Get a queue of small fixes shipped before a demo | `/hackathon` |
@@ -316,8 +315,7 @@ These are the only skills the solo pack does **not** install — they drive the 
 | **wayfinder** | `/wayfinder <loose idea>` or `/wayfinder <map ID>` | Plan an effort too big for one session as a map of decision tickets on the tracker — chart once, then resolve one ticket per session until the way is clear. Works on all four trackers |
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 | **prd-critique** | `/prd-critique <path> [--brief <path>]` | Run 6 critique checks on a PRD — metric validity, NFR specificity, failure modes, assumption traceability, rollback plan, intent clarity. Read-only |
-| **to-issues** | `/to-issues [--parent "<id>"] [--milestone "<name>"]` | Decompose planning artifacts into a parent feature + vertical-slice stories with real blocked-by edges — each slice end-to-end demoable with Given/When/Then criteria, cycle-checked before anything is written, so a scheduler can run the independent stories in parallel |
-| **to-todoist** | `/to-todoist --project "X" --section "Y"` | Decompose planning artifacts into Todoist milestones and tasks — milestones as uncompletable parents, tasks as prioritized subtasks. Full tracker adapter integration (session routing, `/plan`, `/implement`) |
+| **to-issues** | `/to-issues [--parent "<id>"] [--milestone "<name>"] [--section "<name>"]` | Decompose planning artifacts into a parent feature + vertical-slice stories with real blocked-by edges — each slice end-to-end demoable with Given/When/Then criteria, cycle-checked before anything is written, so a scheduler can run the independent stories in parallel. Uses each backend natively: GitHub milestones/projects, ADO work item types and area/iteration paths, Todoist p1–p4 priority, sections, and an uncompletable feature header |
 | **grill-with-docs** | `/grill-with-docs <plan or design>` | Like /grill-me but anchored in CONTEXT.md and ADRs — challenges vague terms against the glossary, surfaces plan-vs-decision contradictions, updates CONTEXT.md with resolved terms |
 | **research** | `/research <topic> [--urls ...]` | Research an external API, integration, or library — caches provenance-tagged findings in research.md for downstream agents to read |
 | **architect** | `/architect <path-to-PRD>` | Design system architecture from a PRD — interactive 8-section ARCHITECTURE.md with Mermaid diagrams, cost model, and compliance gates |
@@ -658,7 +656,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 35 skills
+├── skills/           ← 34 skills
 ├── agents/           ← 19 agents (16 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 11 rules (5 path-scoped)
