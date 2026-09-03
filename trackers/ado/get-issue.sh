@@ -43,6 +43,7 @@ fi
 echo "$RAW_JSON" | jq -r '
   "# " + (.fields["System.WorkItemType"] // "Item") + " #" + (.id|tostring) + ": " + (.fields["System.Title"] // "Untitled"),
   "",
+  "**Type:** " + (.fields["System.WorkItemType"] // "Unknown"),
   "**State:** " + (.fields["System.State"] // "Unknown"),
   "**Priority:** " + ((.fields["Microsoft.VSTS.Common.Priority"] // 0)|tostring),
   "**Story Points:** " + ((.fields["Microsoft.VSTS.Scheduling.StoryPoints"] // 0)|tostring),

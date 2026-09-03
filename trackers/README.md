@@ -48,7 +48,22 @@ Every adapter implements the same **13 scripts** with identical signatures:
 
 | Script | Args | What it returns |
 |---|---|---|
-| `get-issue.sh` | `<ID>` | Full issue/work item details (title, body, state, labels) |
+| `get-issue.sh` | `<ID>` | Full issue/work item details (title, body, **type**, state, labels) |
+
+**Every adapter's `get-issue.sh` must emit a `**Type:**` line**, carrying the tracker's own word for
+the item — `Bug`, `Story`, `Feature`, `Task` — or `Unknown` where the tracker has nothing to report.
+Do not translate it into a category of our own invention.
+
+Only the value `Bug` changes any behaviour downstream: a bug fix is planned test-first whether or not
+`--tdd` was passed (`rules/test-philosophy.md`). Every other value, including `Unknown`, behaves as it
+always has — so a tracker that cannot report a type is safe by construction and never blocks planning.
+
+| Tracker | Source |
+|---|---|
+| ADO | `System.WorkItemType` |
+| GitHub | native issue type if enabled, else a `bug` label |
+| Local | `type:` in the issue file's frontmatter, else a `bug` label |
+| Todoist | a `bug` label — nothing else is available |
 | `get-issue-children.sh` | `<ID>` | Child tasks or sub-issues for the given ID |
 | `get-sprint-issues.sh` | `<SPRINT_NUMBER>` | All issues in the given sprint |
 | `create-issue.sh` | `"<title>" "<body>" "<label>"` | Creates a new issue/work item; prints the URL |
@@ -190,6 +205,7 @@ id: 42
 title: Add dark mode support
 state: open
 labels: [feature, ui]
+type: Bug
 parent: null
 created: 2026-07-15T10:00:00Z
 closed: null
@@ -199,6 +215,22 @@ close_reason: null
 Design notes, research links, or any other task-specific content.
 Hand-editing the body is fine — it's where task notes live.
 ```
+
+### Environment overrides on item creation
+
+`create-issue.sh` reads one optional env var. It is an env var rather than a positional arg for the same reason as the ADO adapter: arg4 is already the milestone slot in the GitHub adapter and the section slot in Todoist.
+
+| Env var | Applies to | Default | Why you would set it |
+|---|---|---|---|
+| `LOCAL_ISSUE_TYPE` | `create-issue.sh`, and `create-sub-issue.sh` by environment inheritance (it shells out to `create-issue.sh`) | unset -> no `type:` line, so `get-issue.sh` falls back to inferring `Bug` from a `bug` label | Only the value `Bug` changes behaviour downstream: a bug fix is planned test-first whether or not `--tdd` was passed (`rules/test-philosophy.md`). Without this, every issue the harness files for itself reads `**Type:** Unknown`. |
+
+```bash
+LOCAL_ISSUE_TYPE="Bug" bash trackers/active/create-issue.sh "Sanitize path input" "Found during review" "deferred"
+```
+
+Set but empty behaves exactly as unset. CR and LF are stripped from the value before it is written, so it can never forge a sibling frontmatter field. The value is otherwise written verbatim, including spaces (`User Story` round-trips intact).
+
+> `create-sub-issue.sh` has no default of its own, unlike ADO, where the parent defaults to `User Story` and the child to `Task`. A child created while `LOCAL_ISSUE_TYPE` is exported inherits the parent value.
 
 ### Task IDs
 

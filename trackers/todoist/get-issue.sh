@@ -67,6 +67,7 @@ fi
 echo "$RAW" | jq -r --arg state "$STATE" '
   "# Task " + (.id|tostring) + ": " + .content,
   "",
+  "**Type:** " + (if ((.labels // []) | map(ascii_downcase) | index("bug")) then "Bug" else "Unknown" end),
   "**State:** " + $state,
   "**Priority:** " + (if .priority == 4 then "p1" elif .priority == 3 then "p2" elif .priority == 2 then "p3" else "p4" end),
   "**Labels:** " + (if (.labels | length) > 0 then (.labels | join(", ")) else "None" end),
