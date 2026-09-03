@@ -140,6 +140,7 @@ flowchart LR
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
 | Break a PRD into Todoist milestones and tasks | `/to-todoist` |
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
+| Build a whole story or issue test-first | `/story <ID> --tdd` or `/implement #42 --tdd` |
 | Build a feature from an issue | `/story` or `/implement` |
 | Get a queue of small fixes shipped before a demo | `/hackathon` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
@@ -286,7 +287,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 ### Solo workflow (2 skills)
 | Skill | Usage | What it does |
 |---|---|---|
-| **implement** | `/implement #42` or `/implement "add dark mode"` | Build a feature from issue or description — plan, execute, evaluate, PR |
+| **implement** | `/implement #42` or `/implement "add dark mode"` | Build a feature from issue or description — plan, execute, evaluate, PR. `--tdd` for test-first |
 | **plan** | `/plan` | Read open issues, prioritize, create a simple work plan |
 
 ### Enterprise workflow (2 skills)
@@ -295,7 +296,7 @@ These are the only skills the solo pack does **not** install — they drive the 
 
 | Skill | Usage | What it does |
 |---|---|---|
-| **story** | `/story <ID>` | 8-phase story lifecycle: understand → define goal → plan → execute → local verify → review → e2e gate → PR |
+| **story** | `/story <ID>` | 8-phase story lifecycle: understand → define goal → plan → execute → local verify → review → e2e gate → PR. `--tdd` for test-first |
 | **sprint-plan** | `/sprint-plan <N>` | Sprint planning — reads tracker, writes sprint file, surfaces gaps |
 
 ### Shared skills (both packs)
@@ -392,6 +393,8 @@ Phase 2: PLAN
   → Decomposes into XML task plan with parallel groups
   → Produces test strategy — acceptance criteria, integration scenarios, regression guardrails
   → Mandatory type="test" tasks in every plan
+  → With --tdd (and always for bug fixes): each slice ordered
+    empty shell → failing test → real code, three separate agents
   → Writes handoff contracts: plan.md + test-strategy.md
   → STOP 2: "Approve the plan and test strategy?"
 
