@@ -5,6 +5,11 @@ live, in-session visibility into multi-step work — the auto-updating checklist
 ticks off item by item, and shows what the harness is about to do *before* it changes any code.
 
 **Location:** `.claude/rules/progress-tracking.md` (installed alongside `.claude/skills/`).
+**If `TodoWrite` is not available in the environment, skip it and say so once.** It is a live progress
+mirror, not a source of truth — the story plan and the phase marker are. A hard instruction with no
+fallback made a real run stop to decide whether a missing tool was a blocker; it is not. Note its
+absence in the run report and carry on.
+
 **Referenced by:** the multi-step execution skills (`/story`, `/run-tasks`, `/implement`, `/tdd`,
 `/troubleshoot`, `/babysit-pr`, `/deploy`). Each one points here for the convention below.
 

@@ -214,3 +214,10 @@ The e2e gate is met by **machine-green OR human-accepted** — never bypassed.
 - **Be specific.** Name the test file, the test method, the line number. "There's probably a test for this" is not evidence.
 - **Tests must exist.** Reading code and saying "this looks correct" is NOT acceptance testing. A criterion is only PASS if a test exercises it and the test passes. Code that "looks right" but has no test is PARTIAL at best.
 - **No commentary outside the structured report.** Output the report template above and nothing else.
+- **Writing your own report file is allowed, and expected.** The orchestrating skills require
+  `tasks/stories/<id>/acceptance.md` as a handoff artifact, and `/improve-harness` silently skips any
+  story missing it. "Never fix code" and "no commentary" are about not touching the *codebase* and not
+  padding your answer — they are not a ban on writing your report to the story workspace. Write the
+  same content you return, to that path, and nowhere else. A real run hit this collision: the agent
+  read its own contract as forbidding the file, declined to write it, and the orchestrator had to
+  reconstruct it by hand from the returned text.

@@ -26,6 +26,22 @@
     <done>Measurable success criteria</done>
   </task>
 
+  <!-- Test-first (--tdd, and always for bug fixes): each behaviour slice is ordered
+       empty shell -> failing test -> real code, as three separate tasks in three
+       consecutive waves. A bug fix has no shell step. The test task carries
+       must_fail="true", runs alone in its wave, and passes only when the test fails
+       on an assertion. The implementation task reads the test via <read_first> and
+       must never list it in <files>. See rules/test-philosophy.md. -->
+
+  <task id="2" parallel_group="2" type="test" must_fail="true">
+    <name>Failing test for the behaviour</name>
+    <read_first>src/File1.cs</read_first>
+    <files>tests/Project.Tests/File1Tests.cs</files>
+    <action>Assert a concrete value the empty shell cannot return — never null, empty or zero.</action>
+    <verify>dotnet build tests/Project.Tests/Project.Tests.csproj &amp;&amp; dotnet test tests/Project.Tests/Project.Tests.csproj --filter "FullyQualifiedName~TheTestName"</verify>
+    <done>Exactly one test ran, it was this one, and it failed on the assertion — not a compile error, not skipped.</done>
+  </task>
+
   <!-- more tasks -->
 
 </tasks>

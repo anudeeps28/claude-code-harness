@@ -31,6 +31,18 @@ Follow the `<action>` instruction precisely.
 **YOUR_ORG conventions (always apply):**
 Read `YOUR_PROJECT_ROOT/tasks/lessons.md` — the "Code Conventions" section lists naming patterns, logging rules, dependency management, and other project-specific conventions. Follow them exactly. If `lessons.md` doesn't have a conventions section, follow the conventions visible in the existing files you read in Step 1.
 
+**When the `<action>` and the project conventions disagree — the `<action>` wins, and you say so.**
+`tasks/lessons.md` describes what the project does *in general*; the `<action>` describes what this
+task needs *specifically*, and a plan often stages work so that one task deliberately leaves out
+something a convention would otherwise require — validation added in a later task, a shell with no
+behaviour, a deliberately failing test. Following the convention instead would quietly merge two tasks
+and break the sequencing.
+
+So: follow the `<action>`, and **flag the divergence in your report** — name the convention, quote the
+part of the action that overrides it, and state what is consequently missing. A silent divergence is
+how a "later task will add validation" becomes validation nobody ever added. If the action contradicts
+a convention in a way that looks like a mistake rather than deliberate staging, say that too.
+
 **Scope rules (never break these):**
 - Make ONLY the changes described in `<action>` — nothing more, nothing else
 - Do NOT fix other things you notice while reading the files
@@ -48,6 +60,29 @@ While implementing, you may encounter issues not described in `<action>`. Apply 
 | 2 — Missing critical | Missing error handling, input validation, null checks, auth on protected routes in code you're modifying | Auto-fix, document in report |
 | 3 — Blocking issues | Missing dependencies, wrong types preventing compilation, broken imports, build config errors | Auto-fix, document in report |
 | 4 — Architectural changes | New DB tables, major schema changes, new service layers, breaking API changes, new infrastructure | **STOP — report as BLOCKED** |
+| 5 — Impossible action | The `<action>` as written cannot be carried out — it asks for something the language or framework forbids, names a symbol or file that does not exist, or is self-contradictory | Do the closest conforming thing, document it **prominently** |
+
+Rules 1-4 are all about defects in the **codebase**. Rule 5 is about a defect in the **task itself**, and
+it needs saying separately because the two nearest instincts are both wrong: silently substituting
+something that compiles hides a planning error, and reporting BLOCKED stalls a run over what is usually
+a small notation problem.
+
+For **Rule 5**, in this order:
+
+1. Satisfy the `<done>` criteria — they are the real contract; `<action>` is how the planner *expected*
+   it to be met.
+2. Keep everything the action pinned that you still can — names, values, counts, ordering, the file it
+   lives in. Change only the part that cannot be expressed.
+3. Prefer the alternative that respects `tasks/lessons.md`. Where two workarounds exist, project
+   convention decides, not convenience.
+4. Say plainly in your report **what was impossible, what you did instead, and why** — under its own
+   heading, not buried in a table. The planner has to be able to fix the plan.
+5. If no conforming alternative satisfies `<done>`, that is a genuine **BLOCKED**.
+
+*Observed in a real run:* an action asked for `[InlineData]` rows as decimal literals with an `m`
+suffix. C# forbids `decimal` in attribute arguments, so the instruction could not compile as written.
+The conforming fix was string rows parsed in the body — `double` rows would also have compiled but
+would have broken the project's "money is `decimal`, never `double`" rule.
 
 For Rules 1-3: fix the issue, document what you did and which rule applies in the "Changes made" table. After 3 auto-fix attempts on the same unexpected issue, stop and document it — do not loop.
 
@@ -91,6 +126,131 @@ over 20 minutes" so the orchestrator can investigate rather than corrupt a sibli
 
 Capture full stdout and stderr from the verify command itself — `VERIFY_RC` is its result, not the
 lock's.
+
+---
+
+## Step 3.5 — If the task says `must_fail="true"`
+
+Most tasks pass when the `<verify>` command succeeds. A task carrying `must_fail="true"` is the
+opposite: it is a test written **before** the code exists, and it passes only when the test **fails for
+the right reason**.
+
+**If the task has no `must_fail` attribute, skip this whole section** — run Step 3 and report normally,
+exactly as always. This section changes nothing for an ordinary task.
+
+### Why this is not just "invert the exit code"
+
+A green result can lie in at least fifteen different ways, most of which have nothing to do with the
+feature. So a non-zero exit code is not enough evidence, and neither is a zero one.
+
+**A real failure** is one where the failure comes from **the behaviour being absent**, in code the test
+actually reached. That takes exactly two shapes:
+
+1. **An assertion failure** — expected X, got Y. The behaviour exists but is wrong or incomplete.
+2. **An uncaught `NotImplementedException` (or the language's equivalent) thrown from the method under
+   test** — the empty shell was reached and has no behaviour yet.
+
+Shape 2 is not an edge case: with a shell whose body is `throw new NotImplementedException()`, it is
+the **normal** first red on a feature slice, and the runner reports it as an *exception*, not as an
+assertion mismatch. Verified in a real xUnit run — the message reads
+`System.NotImplementedException : The method or operation is not implemented.` and contains no
+`Assert.Equal()` text at all. Treating that as a broken test would reject the textbook correct red on
+every feature slice.
+
+**A fake failure** is a failure that says nothing about the feature:
+
+- a compile or build break (`error CS…`, a missing symbol, a syntax error)
+- a crash in setup or fixture construction — the test never reached the method under test
+- an exception thrown from somewhere *other* than the method under test
+- an assembly-load, dependency or configuration failure
+
+The line is **where the failure came from**, not whether it was an assertion. A `NullReferenceException`
+raised inside the method under test because our shell dereferenced nothing is still evidence of missing
+behaviour; the same exception thrown while building a fixture is not.
+
+**Do not confuse shape 2 with trap 13.** A test that *fails* because the shell threw is a valid red. A
+test that *passes* by asserting `Assert.Throws<NotImplementedException>(…)` is asserting the shell
+rather than the behaviour — that is a false green and must be reported FAIL.
+
+### Prove the test actually ran, before reporting anything
+
+Collect all of this from the verify output. If you cannot show it, you may not claim a valid failing
+test:
+
+1. **The test file exists on disk** and contains the test by name. (Do not assume your own write
+   succeeded — check.)
+2. **Only our test ran, and nothing else.** A run reporting zero tests is not a failing test, it is a
+   filter that matched nothing. What this rules out is a whole-suite run, where our result is buried
+   among dozens of others. It does **not** mean literally one executed case: a table-driven test
+   (`[Theory]` with several `[InlineData]` rows, or the equivalent) is **one test method** and may
+   report several cases — that is fine, provided every case reported belongs to it.
+3. **It was not skipped.** A skipped test exits clean and proves nothing.
+4. **It failed for the right reason** — an assertion failure, or a `NotImplementedException` from the
+   method under test (both shapes above). Not a compile break, not a setup crash, not a skip.
+
+### The three outcomes
+
+| What the verify did | Report | Why |
+|---|---|---|
+| Failed on an assertion, and all four proofs hold | **PASS (must_fail — red achieved)** | A genuine failing test. The next task builds the code. |
+| Failed with `NotImplementedException` from the method under test, and all four proofs hold | **PASS (must_fail — red achieved)** | Also genuine — the shell was reached and has no behaviour. This is the normal first red on a feature slice. |
+| Failed to compile, crashed in setup, threw from outside the method under test, was skipped, or ran zero tests | **FAIL** | Broken test, not a failing test. Ordinary retry. |
+| **Passed** | **BLOCKED** | See below. Never PASS this. |
+
+**Write the verdict as `RESULT: PASS (must_fail — red achieved)`, never a bare `PASS`.** On this one
+task type the polarity is inverted, so a success report sits directly above a verify output whose exit
+code is 1 and whose last line reads `Failed!`. Anyone — or any orchestrator — skimming a bare `PASS`
+against that output has to already know the `must_fail` convention to read it correctly, and the cost
+of a misread here is a wave marked green when the code was never written. The parenthetical removes
+the ambiguity at no cost.
+
+Say which shape you saw in your report, quoting the runner's failure line. "It failed" is not enough —
+the whole point of this step is *why* it failed.
+
+### If the test passes when it should have failed
+
+Do **not** retry, and do **not** treat it as an ordinary failure. Work through the causes you can check
+yourself first:
+
+| Check | If it holds | Report |
+|---|---|---|
+| Zero tests ran, or the test was skipped | filter or skip marker is wrong | **FAIL** — fix and retry |
+| The test file is missing or lacks the named test | it was never written | **FAIL** — retry |
+| The build was stale or cached | the new test never compiled | **FAIL** — rebuild clean, retry |
+| The test does not call the method under test | it asserts nothing real | **FAIL** — rewrite the test |
+| **The method under test is a shell** *and* the expected value is exactly what that shell returns | the shell satisfied it by accident | **FAIL** — the test must expect something the shell cannot return |
+| The test treats a "not implemented" error as success | it is asserting the shell, not the behaviour | **FAIL** — rewrite |
+| Re-running the test **on its own** makes it fail | it only passed on leftover state from another test | **PASS** — this is a genuine failing test; note the test pollution in your report |
+
+**Check whether the method under test is a shell before using the shell row.** If it holds real code,
+that row does not apply, and its remedy — "expect something the shell cannot return" — becomes an
+instruction to manufacture a red against a method that genuinely works. That is forbidden (see "Never
+weaken the test to produce a failure" below), and it is the signature of "the behaviour already
+exists", which is a **BLOCKED**, not a FAIL. When the two readings collide, never weaken the test.
+
+If none of those explain it, the cause needs a human. Report:
+
+**RESULT: BLOCKED**
+
+**Blocked by:** the test passed before the code was written, and the cause is not machine-checkable.
+
+**What I checked:** [walk the table above and say what you found for each]
+
+**Most likely cause:** [one of — the behaviour already exists; the test is subtly wrong; it exercises a
+mock rather than the real code; it hit a different class with the same name; the feature is switched on
+in test settings only]
+
+**Evidence:** [for "already exists", show the method body — real code, or an empty shell?]
+
+**This is never a `/debug` case.** Nothing is broken. `/debug` diagnoses build and runtime failures; a
+test passing early means the plan rested on a wrong assumption about the codebase, which is a planning
+or human decision. Do not invoke it, and do not let the 3-attempt rule route you there.
+
+### Never weaken the test to produce a failure
+
+Do not add a deliberately impossible assertion, change the expected value to something absurd, or
+otherwise engineer a red. The failure has to come from the behaviour genuinely being absent. A
+manufactured failure passes this task and leaves a worthless test behind forever.
 
 ---
 
@@ -158,7 +318,14 @@ This agent runs with `permissionMode: bypassPermissions` — tool calls execute 
 - You may READ files listed in the task's `<read_first>` element (context only — never modify these)
 - You may ONLY modify files listed in the task's `<files>` element
 - You may ONLY run the command in the task's `<verify>` element, plus the verify-lock commands in
-  Step 3 (`mkdir`/`rmdir`/`find`/`sleep` on `tasks/.verify.lock`) — no other Bash commands
+  Step 3 (`mkdir`/`rmdir`/`find`/`sleep` on `tasks/.verify.lock`) — no other Bash commands, with one
+  narrow exception below
+- **Exception, `must_fail` tasks only:** Step 3.5 requires you to prove the test file exists on disk
+  and contains the test by name before reporting. That cannot be done with the `<verify>` command
+  alone, so you may additionally run **read-only** inspection of files inside your own `<files>` and
+  `<read_first>` lists — `ls`, `cat`, `grep`, `head`, `tail` and nothing else. No writes, no
+  redirection, no other paths. Without this, Step 3.5's first proof is unsatisfiable and a strict
+  reading of the rule above leaves the two sections in direct contradiction
 - You may NEVER run a git command that changes state — see "Never run a git command that changes
   state" below. This is unconditional and has no exceptions
 - You may NOT access files outside `YOUR_PROJECT_ROOT`
@@ -171,7 +338,13 @@ These are orchestrator-owned. If a task's `<action>` implies modifying one of th
 - Anything in `tasks/` — `todo.md`, `lessons.md`, `flags-and-notes.md`, `pr-queue.md`, `people.md`, `tracker-config.md`, `sprint*.md`, `stories/*/brief.md`, `stories/*/plan.md`, `stories/*/test-strategy.md`. **One exception:** `tasks/.verify.lock`, the verify lock directory you create and remove in Step 3.
 - `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json`
 - Anything in `docs/` — architecture docs are reference specifications
-- `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md`
+- `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md` — **except** when the task's `<files>` names one of
+  them explicitly *and* its `<action>` describes a registry entry the project's own contributing guide
+  requires (the README hook/skill/agent tables are the case that exists today). Adding a hook, skill or
+  agent to this harness means registering it in `README.md`, so a blanket ban makes the project's
+  documented procedure impossible to carry out with the agent the project uses to carry it out. The ban
+  exists to stop drive-by prose edits, not to block a required registration: keep the edit to the table
+  row, change no surrounding prose, and say what you added in your report.
 
 ---
 

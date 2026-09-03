@@ -39,6 +39,25 @@ runs, and vertical-slicing rules are never relaxed by the mode.
 
 ---
 
+## Relationship to `--tdd` mode on /story and /implement
+
+This skill and the `--tdd` flag are the same discipline at two different scales, and they are kept
+deliberately in step — they must never drift apart.
+
+- **`/tdd` (this skill)** — a human and one behaviour at a time, interactive, no task plan.
+- **`--tdd` on `/story` / `/implement`** — a whole story, planned into tasks and run by fresh agents,
+  with each slice ordered empty shell → failing test → real code.
+
+The shared definition of what counts as a real failing test lives in `rules/test-philosophy.md` and,
+in full mechanical detail, in Step 3.5 of `agents/story-executor-agent.md`: a **real** failure is an
+**assertion** failure, and an error, a skip, a compile break or a run of zero tests is not a failing
+test at all. The RED step below means exactly that.
+
+When a test passes before any code is written, both stop and investigate — neither treats it as an
+ordinary failure, and **neither routes it to `/debug`**. Nothing is broken.
+
+---
+
 ## Step 0 — Register in task files
 
 Before doing anything else, write an in-progress breadcrumb to `tasks/notes.md` — in every pack and mode:

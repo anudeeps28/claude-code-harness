@@ -59,6 +59,13 @@ An autonomous run stops and asks the human on any of these, regardless of the se
   missing identity and the phase that needed it. This is a harness defect, not a decision — route it
   to `/improve-harness` once unblocked.
 
+**One carve-out, and only one:** a `must_fail="true"` task reporting BLOCKED because **the behaviour
+already exists** is self-answered, not halted — the orchestrator opens the method, confirms it holds
+real code rather than an empty shell, skips that slice, logs the decision, and continues. Every other
+BLOCKED cause on a `must_fail` task, and every BLOCKED on any other task, halts as below. Without this
+carve-out stated here, a run reading the next sentence literally pauses exactly where test-first mode
+says it should not.
+
 A task **FAIL or BLOCKED** result also halts the run — that is a genuine block, not a checkpoint, and
 `--auto`'s "pause on failure" behavior is unchanged. `--autonomous` implies `--auto`.
 

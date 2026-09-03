@@ -13,8 +13,9 @@ argument-hint: Story ID e.g. 9950
 You are the story execution orchestrator for YOUR_PROJECT_NAME.
 
 Parse `$ARGUMENTS`:
-1. **Extract flags:** strip `--auto` and `--autonomous` if present.
+1. **Extract flags:** strip `--auto`, `--autonomous` and `--tdd` if present.
    - `--auto` → auto-run all waves without pausing between them (still stops on failure).
+   - `--tdd` → **test-first mode**: the planner orders each behaviour slice as empty shell → failing test → real code. Off by default. Bug fixes are test-first even without it. See **Test-first mode** below.
    - `--autonomous` → run the entire flow with **no human STOP checkpoints** — self-answer reversible questions, pause only when genuinely blocked, auto-push and open a non-draft PR as the single human gate (see **Autonomous mode** below). Implies `--auto`.
 
    `--auto` and `--autonomous` are orthogonal and may be combined. Before proceeding, expand `--autonomous` to also set `--auto`. `--autonomous` does NOT imply `--quick` (there is no `--quick` flag on `/story`) — every phase, the goal definition, all four Phase 3.6 reviews, and the Phase 3.7 e2e goal gate still run.
@@ -86,6 +87,10 @@ changes *only* whether the flow pauses; it changes nothing about *what work is d
 - an **irreversible action** — anything destructive or hard to undo (deleting data, force-push, history rewrite, etc.);
 - a **scope change** — the work turns out materially larger or different than the approved brief/goal;
 - the **3-failed-attempts** rule fires (route to `/debug` as usual).
+
+**One carve-out, and only one:** a `must_fail="true"` task reporting BLOCKED because **the behaviour
+already exists** is self-answered, not halted — see **Test-first mode** below. Every other BLOCKED
+cause halts as described here.
 
 A task **FAIL or BLOCKED** result also halts the run — that is a genuine block, not a checkpoint, and
 `--auto`'s "pause on failure" behavior is unchanged.
@@ -363,6 +368,7 @@ Every changed path must appear in some task's `<files>` (this wave or an earlier
 [If FAIL]: Task [id] failed — "[error]". Say "retry" to re-run, or "debug" to invoke /debug.
 [If BLOCKED]: Task [id] blocked — "[what is needed from whom]". Resolve externally, then say "continue".
 [If all passed]: All [k] tasks in Wave [n] passed.
+[If this wave held a `must_fail` task that passed]: ⚠️ The test suite is **deliberately red** right now — `[test name]` fails on purpose, and Wave [n+1] is what makes it pass. If you run the tests at this checkpoint you will see a failure; that is the expected state, not a broken build.
 
 *Continue to Wave [n+1]: "[wave n+1 task names]"? (Say "yes" to continue, or "stop" to pause.)*
 
@@ -597,6 +603,71 @@ Wait for YOUR_NAME to run the git commands and confirm (unless `--autonomous`, i
 
 ---
 
+## Test-first mode (`--tdd`)
+
+`--tdd` is **off by default**. Without it, and for anything that is not a bug fix, this skill behaves
+exactly as it always has — the planner emits no `must_fail` attribute, and every rule below is inert.
+
+**The one exception: bug fixes are test-first whether or not `--tdd` was passed.** For a bug the code
+already exists, so there is no shell step and the cost is near zero, and the failing test is the proof
+the bug was genuinely reproduced. Whether an item is a bug comes from the tracker's `Type:` line, never
+from the wording of the description — see `agents/story-plan-agent.md` / `agents/implement-planner-agent.md`.
+
+When the mode is on, the planner orders each behaviour slice as **empty shell → failing test → real
+code**, three separate tasks in three consecutive waves (two for a bug fix, which needs no shell). The
+full planning contract lives in the planner agent; the full execution contract lives in Step 3.5 of
+`agents/story-executor-agent.md`. What this skill owns is below.
+
+### Waves
+
+A task carrying `must_fail="true"` **runs alone in its wave** (`rules/wave-execution.md`). Do not batch
+it with siblings — another agent in the same wave can create the very behaviour the test is proving
+absent, and the failing test goes green for a reason that has nothing to do with the test.
+
+### A failed `must_fail` task is never restored
+
+The standing rule — restore a failed task's declared `<files>` before retrying — is **exempt** for
+`must_fail` tasks. For an ordinary task a failure means wreckage. Here it usually means the test passed
+when it should not have, and the test file is intact and is the exact evidence needed to work out why.
+Restoring deletes it and retries from nothing.
+
+### When a `must_fail` task reports BLOCKED
+
+The executor checks every machine-checkable cause first (zero tests ran, test skipped, file never
+written, stale build, the test asserts nothing, the shell's default satisfied it, a "not implemented"
+error treated as success, leftover state from another test). If it reports BLOCKED, the remaining
+causes need a person:
+
+- the behaviour **already exists** and nothing needs building
+- the test is subtly wrong
+- it exercises a mock rather than the real code
+- it hit a different class with the same name
+- the feature is switched on in test settings only
+
+Show the executor's evidence and ask. **This never goes to `/debug`** — nothing is broken. `/debug`
+diagnoses build and runtime failures; a test passing before its code exists means the plan rested on a
+wrong assumption about the codebase, which is a planning decision. The 3-attempt rule must not route it
+there either.
+
+### Under `--autonomous`
+
+One case is self-answerable, the rest are not:
+
+- **The behaviour already exists** — checkable from the run: open the method and see whether it holds
+  real code or an empty shell. If it holds real code, skip that slice, log the decision, and surface it
+  in the PR under "Decisions made on your behalf". **Skipping the slice means dropping the
+  implementation task, not the test.** The test that wrongly went green is a legitimate passing
+  regression test for behaviour that genuinely exists — keep it. It also stays on disk anyway, because
+  a `must_fail` task's files are never restored. Deleting it would throw away real coverage and hide
+  that the plan was wrong about the codebase.
+- **Every other BLOCKED cause** is a **pause-anyway trigger** per `rules/autonomous-mode.md` — a wrong
+  assumption about the codebase is a scope problem, and scope problems are already on that list.
+
+Because nobody is watching at the moment it happens, a run pausing here must report **what it left
+behind** in the working directory.
+
+---
+
 ## Hard rules (never break these)
 
 - Never chain phases — always wait for explicit confirmation at each STOP
@@ -607,6 +678,8 @@ Wait for YOUR_NAME to run the git commands and confirm (unless `--autonomous`, i
 - Never commit during Phase 3 — all commits happen in Phase 4
 - **Never spawn a wave agent with `isolation: "worktree"`** — a worktree forks from the default branch and sees only committed state, and this skill commits nothing until Phase 4, so a dependent wave cannot see the files the earlier waves just wrote (`rules/wave-execution.md`)
 - Check the branch hasn't drifted before AND after every wave — a branch changing mid-run means another session is sharing this directory, and it is a contradiction pause-anyway trigger, never self-answered
+- `--tdd` is off by default and orthogonal to `--auto` / `--autonomous`; it never skips a phase, a gate or a STOP. **Bug fixes are test-first even without it** — this is the single exception to "no flag, no change"
+- A `must_fail="true"` task runs **alone in its wave**, is **never restored** after a failure, and a test that passes when it should have failed **never goes to `/debug`** — nothing is broken
 - Restore a failed task's declared `<files>` before each retry — never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight work
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - Always follow the git commit format from `tasks/lessons.md`
