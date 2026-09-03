@@ -19,6 +19,7 @@ const HARNESS_HOOK_SCRIPTS = new Set([
   'safety-check.js',
   'catalog-trigger.js',
   'drift-check.js',
+  'plan-lint-check.js',
   'inventory-check.js',
   'pre-compact.js',
   'session-start-msg.js',

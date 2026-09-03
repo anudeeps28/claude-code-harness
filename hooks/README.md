@@ -14,6 +14,7 @@ Node.js scripts that run automatically on Claude Code tool events. The installer
 | `catalog-trigger.js` | `PostToolUse` | `Write\|Edit` | When a skill, agent, or command file is edited, spawns `catalog-skills.js` in the background |
 | `catalog-skills.js` | (called by trigger) | — | Scans all skills, agents, and hooks across `CLAUDE_HARNESS_WORK_ROOT` + `~/.claude/` and writes `SKILLS_CATALOG.md` to the work root |
 | `drift-check.js` | `PostToolUse` | `Write\|Edit` | When one of the 7 enterprise task files is edited, checks cross-file invariants. Soft-warns on enum mismatches, hard-blocks on people.md ↔ flags-and-notes.md cross-reference drift (directs user to `/sync-tasks`). Set `CLAUDE_HARNESS_DRIFT_LEVEL=full` to also check branch naming + sprint story brief.md presence. |
+| `plan-lint-check.js` | `PostToolUse` | `Write\|Edit` | When a `tasks/stories/<id>/plan.md` is written or edited, lints its `<tasks>` XML with `lib/plan-lint.js` and blocks (PostToolUse decision block) if the test-first red-window rules are violated; exits 0 immediately for any other path. |
 | `pre-compact.js` | `PreCompact` | `*` | Appends a timestamp marker to `tasks/todo.md` and injects a reminder for Claude to save its in-progress state |
 | `session-log.js` | `SessionEnd` | `*` | Appends a JSONL line to `tasks/sessions.jsonl` with timestamp, session ID, branch, and story ID |
 | `lib/hook-io.js` | (shared lib) | — | stdin JSON read + stdout JSON write helpers |
@@ -76,6 +77,7 @@ npm run test:coverage    # with c8 coverage report
 - `safety-check.test.js` — 72 cases: every BASH_RULES entry, false-positive negatives, ACR/docs allowlists, secret heuristic, out-of-scope tools.
 - `hook-io.test.js` — 13 cases: runHook timeout/exception/rejection envelopes, readStdinJson error logging, recordMetric schema, appendWithRotation thresholds + pruning.
 - `drift-check.test.js` — 12 cases: all 6 drift invariants (positive, negative, placeholder).
+- `plan-lint-check.test.js` — 3 cases: blocks a plan.md whose tasks XML violates the red window, does not block a clean plan.md, exits 0 silently for a path that is not a story plan.md.
 - `frontmatter.test.js` — 10 cases: YAML edge cases.
 - `session-log.test.js` — 3 cases: append-on-fresh, append-preserves, 10 MB rotation.
 - `trackers/__tests__/conformance.test.js` — 19 cases: arg validation, happy-path golden match, failure modes, retry-and-succeed, contract presence (×2 adapters).

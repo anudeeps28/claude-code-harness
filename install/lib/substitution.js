@@ -75,6 +75,7 @@ function buildSettings({ hooksUnix, sessionStartMsg: _sessionStartMsg, workRoot,
         hooks: [
           { type: 'command', command: nodeCmd('catalog-trigger.js') },
           { type: 'command', command: nodeCmd('drift-check.js') },
+          { type: 'command', command: nodeCmd('plan-lint-check.js') },
         ],
       }],
       PreCompact: [{ matcher: '*', hooks: [{ type: 'command', command: nodeCmd('pre-compact.js') }] }],
