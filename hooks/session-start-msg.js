@@ -7,7 +7,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const os = require('node:os');
 const { readStdinJson, ok: _ok, runHook } = require('./lib/hook-io');
+const { detectShadowedSkills, formatShadowWarning } = require('./lib/skill-shadowing');
 
 function git(args) {
   try { return execFileSync('git', args, { encoding: 'utf8' }).trim(); }
@@ -58,6 +60,22 @@ runHook('session-start-msg', async () => {
     if (hasBoard) files.push('todo.md');
     files.push('pr-queue.md', 'flags-and-notes.md');
     parts.push(`Read ${files.join(', ')} for project context.`);
+  }
+
+  // A user-level skill of the same name takes precedence over this project's. When the two differ,
+  // invoking the skill by name silently runs the OTHER file — edits here appear to do nothing, and a
+  // run can execute an older flow and still report success. Found the hard way: a `/implement --tdd`
+  // run was served a stale user-level copy with no --tdd in it at all.
+  try {
+    const warning = formatShadowWarning(
+      detectShadowedSkills(
+        path.join(projectRoot, '.claude', 'skills'),
+        path.join(os.homedir(), '.claude', 'skills')
+      )
+    );
+    if (warning) parts.push(warning);
+  } catch {
+    /* diagnostics must never break session start */
   }
 
   console.log(parts.join(' '));
