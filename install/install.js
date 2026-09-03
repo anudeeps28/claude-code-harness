@@ -130,7 +130,7 @@ for (let i = 0; i < args.length; i++) {
     --name <str>            your name (fills YOUR_NAME)
     --project-name <str>    human-readable project name (fills YOUR_PROJECT_NAME)
     --pack <solo|enterprise>            workflow pack (default: solo)
-    --tracker <github|ado|todoist>      issue tracker (default: github)
+    --tracker <local|github|ado|todoist>  issue tracker (default: local with --yes, else asked)
     --prd-mode <file|tracker|both-file-canonical|both-tracker-canonical>
     --ado-project / --ado-repo / --ado-org-path   ADO fields (enterprise + ado)
     --todoist-project <str>             Todoist project (todoist tracker)

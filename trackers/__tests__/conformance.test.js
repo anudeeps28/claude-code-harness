@@ -69,6 +69,15 @@ function cleanup(dir) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
 }
 
+// `node --test` runs test FILES concurrently, and every adapter call here spawns bash, which on
+// Windows also spawns git and the fixture CLIs. Under that contention a script that takes well
+// under a second on its own can sit for 15+ seconds waiting on process creation, and the old 15s
+// limit turned that into a flaky failure that looked exactly like a broken adapter — the run would
+// go red on a different test each time with no diff to explain it. The scripts themselves are fast;
+// only process startup is slow, so a generous ceiling costs nothing on a healthy run and only ever
+// fires on a genuine hang.
+const SCRIPT_TIMEOUT_MS = 90000;
+
 function runScript(adapter, script, args, { fixtureMode, fixtureAuth, retryCounter, retrySucceedAt, extraEnv } = {}) {
   const { root, adapterDir } = prepareAdapter(adapter);
   try {
@@ -91,7 +100,7 @@ function runScript(adapter, script, args, { fixtureMode, fixtureAuth, retryCount
     const result = spawnSync('bash', [path.join(adapterDir, script), ...args], {
       encoding: 'utf8',
       env,
-      timeout: 15000,
+      timeout: SCRIPT_TIMEOUT_MS,
     });
     return {
       exitCode: result.status,
@@ -134,7 +143,7 @@ function runLocalScript(script, args, { issuesDir } = {}) {
       encoding: 'utf8',
       env,
       cwd: root,
-      timeout: 15000,
+      timeout: SCRIPT_TIMEOUT_MS,
     });
     return {
       exitCode: result.status,
@@ -147,7 +156,7 @@ function runLocalScript(script, args, { issuesDir } = {}) {
 }
 
 // Like runLocalScript but returns root for inspection before cleanup
-function runLocalScriptKeep(script, args) {
+function runLocalScriptKeep(script, args, extraEnv = {}) {
   const { root, adapterDir, issuesDir } = prepareLocalAdapter();
   const env = {
     ...process.env,
@@ -155,12 +164,13 @@ function runLocalScriptKeep(script, args) {
     TODO_OUTPUT: path.join(root, 'tasks', 'todo.md'),
     RETRY_BACKOFF_1: '0',
     RETRY_BACKOFF_2: '0',
+    ...extraEnv,
   };
   const result = spawnSync('bash', [path.join(adapterDir, script), ...args], {
     encoding: 'utf8',
     env,
     cwd: root,
-    timeout: 15000,
+    timeout: SCRIPT_TIMEOUT_MS,
   });
   return {
     exitCode: result.status,
@@ -169,6 +179,30 @@ function runLocalScriptKeep(script, args) {
     root,
     issuesDir,
     adapterDir,
+  };
+}
+
+// Runs a script inside an EXISTING ctx.root (from runLocalScriptKeep), so a created issue
+// can be read back by get-issue.sh in the same temp root. Does not clean up — caller owns ctx.root.
+function runLocalScriptInRoot(ctx, script, args, extraEnv = {}) {
+  const env = {
+    ...process.env,
+    LOCAL_ISSUES_DIR: ctx.issuesDir,
+    TODO_OUTPUT: path.join(ctx.root, 'tasks', 'todo.md'),
+    RETRY_BACKOFF_1: '0',
+    RETRY_BACKOFF_2: '0',
+    ...extraEnv,
+  };
+  const result = spawnSync('bash', [path.join(ctx.adapterDir, script), ...args], {
+    encoding: 'utf8',
+    env,
+    cwd: ctx.root,
+    timeout: SCRIPT_TIMEOUT_MS,
+  });
+  return {
+    exitCode: result.status,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
   };
 }
 
@@ -350,6 +384,71 @@ describe('happy-path-stdout', () => {
       assert.match(content, /state: open/);
       assert.match(content, /labels: \[feature\]/);
     } finally { cleanup(result.root); }
+  });
+
+  test('local_CreateIssue_TypeEnv_WritesTypeLineAndRoundTrips', () => {
+    const ctx1 = runLocalScriptKeep('create-issue.sh', ['A deferred finding', 'A body', 'deferred'], { LOCAL_ISSUE_TYPE: 'Bug' });
+    try {
+      assert.equal(ctx1.exitCode, 0, `non-zero exit: ${ctx1.stderr}`);
+      const content1 = fs.readFileSync(path.join(ctx1.issuesDir, '1237.md'), 'utf8');
+      assert.match(content1, /^type: Bug$/m);
+      const getResult1 = runLocalScriptInRoot(ctx1, 'get-issue.sh', ['1237']);
+      assert.match(getResult1.stdout, /\*\*Type:\*\* Bug/);
+    } finally { cleanup(ctx1.root); }
+
+    const ctx2 = runLocalScriptKeep('create-issue.sh', ['A story', 'A body', 'deferred'], { LOCAL_ISSUE_TYPE: 'User Story' });
+    try {
+      assert.equal(ctx2.exitCode, 0, `non-zero exit: ${ctx2.stderr}`);
+      const content2 = fs.readFileSync(path.join(ctx2.issuesDir, '1237.md'), 'utf8');
+      assert.match(content2, /^type: User Story$/m);
+      const getResult2 = runLocalScriptInRoot(ctx2, 'get-issue.sh', ['1237']);
+      assert.match(getResult2.stdout, /\*\*Type:\*\* User Story/);
+    } finally { cleanup(ctx2.root); }
+  });
+
+  test('local_CreateIssue_NoTypeEnv_OmitsTypeLineAndKeepsLabelFallback', () => {
+    const ctxA = runLocalScriptKeep('create-issue.sh', ['No type', 'A body', 'deferred']);
+    try {
+      assert.equal(ctxA.exitCode, 0, `non-zero exit: ${ctxA.stderr}`);
+      const contentA = fs.readFileSync(path.join(ctxA.issuesDir, '1237.md'), 'utf8');
+      assert.doesNotMatch(contentA, /^type:/m);
+      const expectedFieldOrder = ['id', 'title', 'state', 'labels', 'parent', 'assignee', 'blocked_by', 'created', 'closed', 'close_reason'];
+      const frontmatterA = contentA.split('---\n')[1];
+      const fieldsA = frontmatterA.trim().split('\n').map((line) => line.split(':')[0]);
+      assert.deepEqual(fieldsA, expectedFieldOrder);
+      const getResultA = runLocalScriptInRoot(ctxA, 'get-issue.sh', ['1237']);
+      assert.match(getResultA.stdout, /\*\*Type:\*\* Unknown/);
+    } finally { cleanup(ctxA.root); }
+
+    const ctxB = runLocalScriptKeep('create-issue.sh', ['No type', 'A body', 'bug']);
+    try {
+      assert.equal(ctxB.exitCode, 0, `non-zero exit: ${ctxB.stderr}`);
+      const getResultB = runLocalScriptInRoot(ctxB, 'get-issue.sh', ['1237']);
+      assert.match(getResultB.stdout, /\*\*Type:\*\* Bug/);
+    } finally { cleanup(ctxB.root); }
+
+    const ctxC = runLocalScriptKeep('create-issue.sh', ['Empty type', 'A body', 'deferred'], { LOCAL_ISSUE_TYPE: '' });
+    try {
+      assert.equal(ctxC.exitCode, 0, `non-zero exit: ${ctxC.stderr}`);
+      const contentC = fs.readFileSync(path.join(ctxC.issuesDir, '1237.md'), 'utf8');
+      assert.doesNotMatch(contentC, /^type:/m);
+      const getResultC = runLocalScriptInRoot(ctxC, 'get-issue.sh', ['1237']);
+      assert.match(getResultC.stdout, /\*\*Type:\*\* Unknown/);
+    } finally { cleanup(ctxC.root); }
+  });
+
+  test('local_CreateIssue_TypeEnvWithNewline_CannotForgeFrontmatterFields', () => {
+    const ctx = runLocalScriptKeep('create-issue.sh', ['Forged', 'A body', 'deferred'], { LOCAL_ISSUE_TYPE: 'Bug\nstate: closed\nparent: 99' });
+    try {
+      assert.equal(ctx.exitCode, 0, `non-zero exit: ${ctx.stderr}`);
+      const content = fs.readFileSync(path.join(ctx.issuesDir, '1237.md'), 'utf8');
+      const stateLines = content.split('\n').filter((l) => /^state:/.test(l));
+      assert.deepEqual(stateLines, ['state: open'], 'LOCAL_ISSUE_TYPE forged a second state: field');
+      const parentLines = content.split('\n').filter((l) => /^parent:/.test(l));
+      assert.deepEqual(parentLines, ['parent: null'], 'LOCAL_ISSUE_TYPE forged a second parent: field');
+      const getResult = runLocalScriptInRoot(ctx, 'get-issue.sh', ['1237']);
+      assert.match(getResult.stdout, /\*\*State:\*\* OPEN/);
+    } finally { cleanup(ctx.root); }
   });
 
   test('local_ListIssues_HappyPath_ReturnsOpenTasksJSON', () => {
@@ -732,7 +831,7 @@ describe('failure-modes', () => {
         RETRY_BACKOFF_2: '0',
       };
       const result = spawnSync('bash', [path.join(adapterDir, 'get-issue.sh'), '1234'], {
-        encoding: 'utf8', env, cwd: tmp, timeout: 15000,
+        encoding: 'utf8', env, cwd: tmp, timeout: SCRIPT_TIMEOUT_MS,
       });
       assert.equal(result.status, 1);
       assert.match(result.stderr, /not found/i);

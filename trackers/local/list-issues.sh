@@ -25,12 +25,12 @@ echo -n "["
 for f in $(ls "$ISSUES_DIR"/*.md 2>/dev/null | sort -t/ -k3 -n); do
   [ -f "$f" ] || continue
 
-  state=$(grep -m1 '^state:' "$f" | sed 's/^state: *//')
+  state=$(grep -m1 '^state:' "$f" | sed 's/^state: *//' | tr -d '')
   [ "$state" = "open" ] || continue
 
   id=$(basename "$f" .md)
-  title=$(grep -m1 '^title:' "$f" | sed 's/^title: *//')
-  labels_raw=$(grep -m1 '^labels:' "$f" | sed 's/^labels: *//;s/\[//;s/\]//')
+  title=$(grep -m1 '^title:' "$f" | sed 's/^title: *//' | tr -d '')
+  labels_raw=$(grep -m1 '^labels:' "$f" | sed 's/^labels: *//;s/\[//;s/\]//' | tr -d '')
 
   # Build labels JSON array
   labels_json="[]"
@@ -49,15 +49,18 @@ for f in $(ls "$ISSUES_DIR"/*.md 2>/dev/null | sort -t/ -k3 -n); do
   fi
 
   # Escape title for JSON (handle double quotes)
-  escaped_title=$(echo "$title" | sed 's/"/\\"/g')
+  escaped_title=$(echo "$title" | sed 's@\\@\\\\@g; s@"@\\"@g')
 
   # Assignee frontmatter (absent or "null" means unassigned)
-  assignee=$(grep -m1 '^assignee:' "$f" | sed 's/^assignee: *//')
+  assignee=$(grep -m1 '^assignee:' "$f" | sed 's/^assignee: *//' | tr -d '')
   assignees_json="[]"
   if [ -n "$assignee" ] && [ "$assignee" != "null" ]; then
-    escaped_assignee=$(echo "$assignee" | sed 's/"/\\"/g')
+    escaped_assignee=$(echo "$assignee" | sed 's@\\@\\\\@g; s@"@\\"@g')
     assignees_json="[\"${escaped_assignee}\"]"
   fi
+
+  # Escape the path for JSON: backslash first (Windows paths are full of them), then quotes.
+  escaped_url=$(echo "$f" | sed 's@\\@\\\\@g; s@"@\\"@g')
 
   if [ "$first" = "true" ]; then
     first=false
@@ -65,7 +68,7 @@ for f in $(ls "$ISSUES_DIR"/*.md 2>/dev/null | sort -t/ -k3 -n); do
     echo -n ","
   fi
 
-  echo -n "{\"id\":${id},\"title\":\"${escaped_title}\",\"state\":\"open\",\"labels\":${labels_json},\"assignees\":${assignees_json},\"url\":\"${f}\"}"
+  echo -n "{\"id\":${id},\"title\":\"${escaped_title}\",\"state\":\"open\",\"labels\":${labels_json},\"assignees\":${assignees_json},\"url\":\"${escaped_url}\"}"
 done
 
 echo "]"
