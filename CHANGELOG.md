@@ -185,9 +185,9 @@ Every `todo.md` and tracker consumer is now mode-aware:
 
 - 341 tests, all passing (up from 133 in v2). New tests cover local backend conformance, hook behavior (todo-render-trigger, tracker-sync), mode derivation, gitignore idempotency, and update crossing.
 
----
+### Also in this release
 
-## [Unreleased]
+The entries below were written up as `[Unreleased]` during the 2.x line and were never given their own version heading when 3.0.0 was cut. They shipped to users as part of 3.0.0 — there was no release between 2.0.0 and 3.0.0 — so they are recorded here rather than under an invented version number.
 
 ### New agents (1 added, 17 total)
 
