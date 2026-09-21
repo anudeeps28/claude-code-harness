@@ -161,6 +161,12 @@ Two agents run with `permissionMode: bypassPermissions`: `story-executor-agent` 
 
 ---
 
+## Cutting a release
+
+Maintainers only. See [RELEASING.md](RELEASING.md) for which number to bump and the four-step procedure. Short version: releases get their own branch and PR, `VERSION`, `package.json`, and the git tag must all agree, and the changelog's `[Unreleased]` section is frozen into the new version heading before the bump. A pre-commit hook enforces the first two.
+
+---
+
 ## Code of conduct
 
 Be kind, be constructive, be specific in your feedback. We're all here to build better tools.
