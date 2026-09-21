@@ -12,6 +12,9 @@
 //   3. VERSION being changed while CHANGELOG [Unreleased] has no entries —
 //      the release gate. This is the answer to "when do I update the
 //      changelog?": not every PR, but it MUST be filled before a version bump.
+//   4. VERSION and package.json disagreeing on a commit that bumps VERSION.
+//      Both are compared as STAGED, so staging one and forgetting the other is
+//      caught. See RELEASING.md for the full bump procedure.
 //
 //  WARN (soft reminder, does not block — subjective / judgment calls):
 //   - CHANGELOG [Unreleased] has no line for a new skill/agent.
@@ -67,6 +70,27 @@ function landingCount(html, word) {
   const re = new RegExp('class="num">\\s*(\\d+)\\s*</div>\\s*<div class="what">\\s*' + word, 'i');
   const m = html.match(re);
   return m ? parseInt(m[1], 10) : null;
+}
+
+// Reads a path's STAGED (index) content — what this commit will actually contain.
+// Deliberately not the working tree: a bump staged in VERSION but left unstaged in
+// package.json is exactly the drift the release gate exists to catch.
+function stagedContent(relPath) {
+  return git(['show', ':' + relPath]);
+}
+
+// The version string in the staged package.json, or null when it is absent,
+// unparseable, or has no usable version field. Null always means "cannot tell",
+// never "mismatch" — the hook fails open rather than blocking on an unreadable file.
+function stagedPackageVersion() {
+  const raw = stagedContent('package.json');
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw).version;
+    return typeof v === 'string' && v.trim() ? v.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 // True when the [Unreleased] section has no bullet entries (release gate).
@@ -176,9 +200,23 @@ runHook('inventory-check', async () => {
   for (const f of newRules) warnings.push(`New rule \`${path.basename(f)}\` — consider a CHANGELOG [Unreleased] entry`);
   for (const f of removedRules) warnings.push(`Rule \`${path.basename(f)}\` removed — consider a CHANGELOG [Unreleased] entry`);
 
-  // ── HARD: release gate — VERSION bumped but [Unreleased] empty ──────────
-  if (versionBumped && unreleasedIsEmpty(changelog)) {
-    hardProblems.push('VERSION is being changed but CHANGELOG [Unreleased] has no entries — fill it before cutting a release');
+  // ── HARD: release gate — only fires on a commit that stages VERSION ─────
+  if (versionBumped) {
+    if (unreleasedIsEmpty(changelog)) {
+      hardProblems.push('VERSION is being changed but CHANGELOG [Unreleased] has no entries — fill it before cutting a release');
+    }
+
+    // VERSION and package.json must move together. They drifted once already
+    // (VERSION 3.1.0, package.json 2.0.0, tag v2.0.0) with nothing noticing,
+    // because nothing compared them. This is that comparison.
+    const newVersion = stagedContent('VERSION');
+    const pkgVersion = stagedPackageVersion();
+    if (newVersion && pkgVersion && pkgVersion !== newVersion) {
+      hardProblems.push(
+        `VERSION is being set to ${newVersion} but package.json says ${pkgVersion} — ` +
+        'align them in this same commit (see RELEASING.md)'
+      );
+    }
   }
 
   if (hardProblems.length) {
