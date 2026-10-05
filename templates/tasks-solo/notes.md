@@ -73,6 +73,32 @@ Options:
 
 ---
 
+## Observe
+
+> How the harness may see the running app, so every item's Demo can be watched happen. `/implement`
+> checks this section against the item's Demo at startup: a missing tool (a screenshot script, the
+> e2e command) becomes a "Build the probe" task in the plan; missing access stops the run and names
+> what is missing.
+>
+> - **Environment is local or test only.** Prod is refused unless you add `Prod allowed: yes`.
+> - **Credentials are named, never their value.** Each credential line holds the name of an
+>   environment variable (or `none`); the value lives in that variable or the OS secret store.
+> - **Read-only is enforced by the credential** (a read-only database user, a read-only API key),
+>   never only by an instruction to the agent.
+
+- Environment: `<!-- local or test -->`
+- Prod allowed: `<!-- leave unset; "yes" only if you really mean to observe prod -->`
+- Start the app: `<!-- e.g., npm run dev -->`
+- App URL: `<!-- e.g., http://localhost:3000 -->`
+- Screenshot: `<!-- e.g., node scripts/screenshot.js <route> <out.png> (a Playwright script) -->`
+- API base URL: `<!-- e.g., http://localhost:3000/api -->`
+- API credential variable: `<!-- the NAME of the variable holding a read-only token, or none -->`
+- Database credential variable: `<!-- the NAME of the variable holding a read-only connection string -->`
+- Read-only queries: `<!-- the SELECT statements the harness may run -->`
+- E2E command: `<!-- the end-to-end gate /local-test e2e runs, e.g. npm run test:e2e -->`
+
+---
+
 ## Known Fixes
 
 <!-- Add entries when you discover something non-obvious that fixes a recurring problem. -->

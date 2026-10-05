@@ -1,6 +1,6 @@
 ---
 name: to-issues
-description: Decompose planning artifacts into tracker tasks with proper hierarchy and real dependency links — a parent feature, its stories as children, and blocked-by edges between the stories that genuinely block one another, so an agent scheduler can run the independent ones in parallel and hold the rest. Backend-aware: creates GitHub issues, ADO work items, Todoist tasks, or local task files depending on your tracker mode, using each backend's native features where they exist (Todoist p1-p4 priority and uncompletable feature headers, ADO work item types and area/iteration paths). Reads from grill-summary, research, architecture, decision-brief, or PRD — no single artifact required. Usage: /to-issues [--parent "<id>"] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run]
+description: Decompose planning artifacts into tracker tasks with proper hierarchy and real dependency links — a parent feature, its stories as children, and blocked-by edges between the stories that genuinely block one another, so an agent scheduler can run the independent ones in parallel and hold the rest. Backend-aware: creates GitHub issues, ADO work items, Todoist tasks, or local task files depending on your tracker mode, using each backend's native features where they exist (Todoist p1-p4 priority and uncompletable feature headers, ADO work item types and area/iteration paths). Reads from grill-summary, research, architecture, decision-brief, or PRD — no single artifact required. Every Feature and every standalone item gets a required Demo — what visibly changes and where you see it. Usage: /to-issues [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run]
 triggers: /to-issues
 ---
 
@@ -19,10 +19,11 @@ Reads from ALL available planning artifacts in the decide/define phases. No sing
 ## Input
 
 ```
-/to-issues [--parent "<id>"] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--with-tasks] [--dry-run]
+/to-issues [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--with-tasks] [--dry-run]
 ```
 
 - `--parent "<id>"` — attach the stories to an existing parent feature instead of creating one. Without it, the skill creates the parent itself (see Phase 6a).
+- `--standalone` — create **exactly one** story or bug with no parent Feature, still with a Demo. See **Standalone items** in Phase 3. Cannot be combined with `--parent` or `--with-tasks`.
 - `--milestone "<name>"` — group all stories under this milestone (creates it if it doesn't exist). If not provided, infers a name from the grill-summary or architecture title. GitHub only.
 - `--project "<name>"` — **the meaning depends on the backend, and they are unrelated values.** On GitHub it is a Projects v2 board to add every issue to (optional, for kanban/roadmap views). On Todoist it is the destination *project* the items are filed into (see Phase 3.6) — not a board view but the bucket itself. Ignored on ADO and local.
 - `--section "<name>"` — the section within the destination Todoist project to file items under (creates it if it doesn't exist). Todoist only.
@@ -141,7 +142,7 @@ From the artifacts, extract:
 - No horizontal-only slices — "add the schema column" alone is not a story; it belongs inside a story that delivers a visible behavior
 - Each story includes schema + API + UI + tests end-to-end as applicable
 
-Identify 3–12 stories. For each story, prepare:
+Identify 3–8 stories (8 is a soft limit; Phase 4 suggests a split above it). For each story, prepare:
 
 | Field | Content |
 |---|---|
@@ -189,7 +190,82 @@ the page shipped with the wrong layout while every gate passed. Hard rules:
 
 **Create the stories in the order you want them run.** On a board that sorts unranked items by id, creation order *is* run order — so the sequence you settle on here decides which of several ready stories a scheduler starts first. This skill deliberately does not set an explicit rank field.
 
-Also decide the **parent feature**: a title and a one-paragraph description covering the whole initiative. Skip this if `--parent` was passed.
+Also decide the **parent feature**: a title, a one-paragraph description covering the whole initiative, and its **Demo** (next subsection). Skip this if `--parent` was passed.
+
+### The Demo section
+
+Every Feature, and every standalone item, carries a required `## Demo`: what visibly changes when the
+work is done, and where you see it. It is written now, before anything is built, so a Feature cut too
+thin to show anyone is caught here rather than after the code. `/implement` reads it at startup, checks
+it against the project's Observe section, and plans a proof for it; the plan may make it more precise,
+never weaker.
+
+```markdown
+## Demo
+Seen through: <one or more of: screenshot, api, database, test, log, person>
+1. <where you look, and what you see there>
+2. ...
+```
+
+`Seen through:` says how the change is observed, and is what `/implement`'s startup check compares
+against Observe:
+
+| Kind | Means | Step names |
+|---|---|---|
+| `screenshot` | the running UI | the screen or route, and what it looks like (placement included) |
+| `api` | a read-only API call | the call, and the fields or status it returns |
+| `database` | a read-only query | the query, and the rows it shows |
+| `test` | an automated test run | the test, and what it asserts |
+| `log` | the running app's log | the line that appears |
+| `person` | a person's judgement | who looks at what, and what they sign off |
+
+**UI form** — the screen or route and what it looks like:
+
+```markdown
+## Demo
+Seen through: screenshot
+1. Open /settings: a "Dark mode" switch sits at the top right of the header.
+2. Turn it on: the page background turns near-black and the text turns light.
+```
+
+**Backend form** — the read-only API call, and the rows it shows:
+
+```markdown
+## Demo
+Seen through: api, database
+1. GET /api/orders/42 returns status "shipped" and a tracking number.
+2. SELECT id, status FROM orders WHERE id = 42 shows one row, status shipped.
+```
+
+**Bug form** — the behaviour that was wrong and is now right. Bug fixes are always test-first, so the
+Demo is also the failing test:
+
+```markdown
+## Demo
+Seen through: test, api
+1. OrderService_Cancel_WhenShipped_ReturnsConflict fails before the fix and passes after it.
+2. POST /api/orders/42/cancel on a shipped order returns 409, where it used to return 200.
+```
+
+Write steps in words, never as a link (see the rule above). A step that only says "it works" is not a
+Demo.
+
+### Standalone items
+
+`--standalone` creates **exactly one** item: a story, or a bug when the artifacts describe a defect,
+with **no parent** Feature and no blocked-by edges. It still gets a `## Demo`. Skip Phase 3.5 (there is
+no graph) and Phase 6a (there is no parent). Create it with the 3-arg form (Todoist adds section and
+project):
+
+```bash
+TRACKER_ITEM_TYPE=Story TRACKER_PRIORITY=<p1-p4> \
+  bash trackers/active/create-issue.sh "<title>" "<body with ## Demo>" "<labels>"
+# a defect: TRACKER_ITEM_TYPE=Bug
+```
+
+Without it, even a single story gets a parent Feature: one path through the build skill, which builds a
+Feature, or a standalone item only when the tracker says it has no parent. This skill never decides on
+its own to create a standalone item.
 
 ## Phase 3.5 — Build the dependency graph
 
@@ -248,12 +324,38 @@ Default the offer to the `ado_area_path` / `ado_iteration_path` values in `tasks
 from any of them, ask outright — do **not** let the adapter fall through to its own config default, which
 is the silent mis-filing this phase exists to prevent.
 
+## Phase 3.7 — Demo gate
+
+Before anything is shown for approval, check the Demo (the Feature's, or the standalone item's) with
+the implement skill's `bin/demo.js` — in `.claude/skills/implement/` or `~/.claude/skills/implement/`.
+Write the body to a scratch file and run:
+
+```bash
+node "<implement-skill-dir>/bin/demo.js" check <scratch-file>
+```
+
+It exits 1 with the problem when the Demo is missing, has no `Seen through:` line, names an unknown
+kind, or has no numbered step.
+
+**If you cannot write a Demo with a visible result, do not create anything.** That means the stories,
+together, change nothing anyone can see: usually they are horizontal layers ("add the table", "add the
+service") with the visible part left for later. Stop and say:
+
+> *"Nothing has been created. This decomposition has no visible result, so I can't write its Demo:
+> <one line on why — e.g. the stories add a table and a service, but nothing calls them>. Re-cut the
+> stories so the Feature ends in something you can see: <a concrete suggestion — e.g. fold the
+> read-only endpoint from story 4 into this Feature, so the Demo is a call to it>. Then re-run."*
+
+Then re-cut the stories with the user and run this gate again. Never pad a Demo to get past it ("the
+build passes", "the code exists") — a Demo nobody can see is the failure this gate exists to catch.
+
 ## Phase 4 — Review with user
 
 Present the proposed decomposition — stories, destination, edges, and both graph views. Nothing has been created yet.
 
 > **Initiative:** [project name — one-line summary]
 > **Parent feature:** [title — or "existing #N" if `--parent` was passed]
+> **Demo:** [the `## Demo` section, in full — or the standalone item's]
 > **Destination:** [iteration] / [area] — from Phase 3.6
 > **Dependency links:** [native predecessor links | `Blocked by:` body lines, readable via `get-blockers.sh` | prose only — this adapter has no link script]
 >
@@ -302,6 +404,11 @@ Present the proposed decomposition — stories, destination, edges, and both gra
 - The **tree** shows hierarchy only (feature → stories) with blockers annotated in parentheses. It must read correctly as plain text in a terminal.
 - The **mermaid graph** shows the blocking edges, arrow pointing *from blocker to blocked* (reading direction = execution order). Draw `overlap` edges dotted and labelled so they are distinguishable from `prerequisite` edges. Use `flowchart LR`.
 - If there are **no edges at all**, say so explicitly — "every story is independent; all N can run in parallel" — and skip the mermaid block rather than drawing a graph with no arrows.
+
+**More than 8 stories:** a Feature that large is hard to review as one change and turns plan approval
+into a rubber stamp (`ARCHITECTURE.md` §5). Above 8, suggest splitting it into **two Features, each with
+its own Demo**, naming which stories go where and what each Demo would show. Proceed with one Feature
+only if the user keeps it as one; say so in the summary.
 
 If `--dry-run` was passed, stop here and print: *"Dry run complete. Nothing was created. Re-run without `--dry-run` to create these items."*
 
@@ -399,8 +506,23 @@ TRACKER_ITEM_TYPE=Feature TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
   bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium" "<section>" "<project>"
 ```
 
-A standalone item (a bug or story made without a parent Feature) is created the same way with
-`TRACKER_ITEM_TYPE=Bug` or `TRACKER_ITEM_TYPE=Story` and no `TRACKER_UNCOMPLETABLE`.
+Feature body format — the Demo is required:
+
+```markdown
+## What this delivers
+<one paragraph covering the whole initiative>
+
+## Demo
+Seen through: <kinds>
+1. <where you look, and what you see>
+
+## Source
+- <§ references to the source artifacts>
+```
+
+A standalone item (`--standalone`, see Phase 3) is created the same way with
+`TRACKER_ITEM_TYPE=Bug` or `TRACKER_ITEM_TYPE=Story` and no `TRACKER_UNCOMPLETABLE`, and its body uses
+the story format below plus the `## Demo` section.
 
 Parse the printed ID and hold it as `PARENT_ID`. If the parent fails to create, **halt** — do not create orphan stories.
 
@@ -584,7 +706,9 @@ If `--with-tasks` was honored, note how many child items were created per story;
 ## Constraints
 
 - Additive only — creates issues and links, never modifies or deletes existing ones (except adding to milestone/project, and setting the parent/blocked-by links on items it created itself)
-- Max 12 stories per run — if more are needed, suggest splitting into multiple features
+- About 8 stories per Feature is a soft limit — above it, Phase 4 suggests two Features, each with its own Demo, and proceeds only if the user keeps one
+- Every Feature and every standalone item has a `## Demo`; no Demo with a visible result means nothing is created (Phase 3.7)
+- `--standalone` creates exactly one parentless item; without it, even a single story gets a parent Feature
 - **Dependency order is a real graph, not story numbering.** Numbering (creation order) decides which of several *ready* stories runs first; the blocked-by links decide what is ready at all. Both are needed.
 - **Never write a cycle.** The cycle check in Phase 3.5 is a hard gate — a downstream scheduler is likely to fail open and silently ignore the ordering instead of complaining.
 - **Never use a "related"-style link as a blocker**, and never write cross-project edges.

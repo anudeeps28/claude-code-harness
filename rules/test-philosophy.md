@@ -78,14 +78,18 @@ Verify what the user actually sees and experiences. These are derived from the a
 
 Every plan must include a test strategy. This is not optional. The test strategy defines:
 
-1. **Acceptance criteria** — What proves the feature works, written as testable scenarios. These ARE the e2e gate (one unified list — see Level 3).
+1. **Acceptance criteria and their proofs** — What proves the feature works, written as testable scenarios. These ARE the e2e gate (one unified list — see Level 3). Each criterion carries three lines, decided before any code:
+   - **Proof** — how it is proven: unit, integration, e2e, UI automation, graded evaluation, or a person's sign-off, plus the exact test or check.
+   - **Seen by** — how the real result is seen (API response, log, screenshot, read-only query); if it can't be seen, a task to build a probe. This is the observability plan, per criterion.
+   - **Would lie if** — what would let the proof pass while the criterion is unmet: a named mutation or a missing assertion. A proof nobody can say how to fool has not been thought through.
 2. **Chosen e2e modality + concrete gate** — Which modality from the open menu verifies the goal end-to-end, and the exact gate that must go green.
-3. **Observability plan** — How the actual state behind each criterion will be seen (API response, log, trace, screenshot); if it can't be seen, a task to build a probe.
-4. **Integration test scenarios** — How the feature interacts with other components
-5. **Regression guardrails** — What existing behavior must NOT change
-6. **Test tasks** — Explicit tasks in the plan for writing tests
+3. **Integration test scenarios** — How the feature interacts with other components
+4. **Regression guardrails** — What existing behavior must NOT change
+5. **Test tasks** — Explicit tasks in the plan for writing tests
 
-The test strategy — including the goal (acceptance criteria + e2e modality/gate + observability) — is produced during planning and verified end-to-end before PR. "Done" is goal-met (see Core Principle).
+The plan also restates the item's **Demo** — what visibly changes and where you see it — unchanged or more precise, never weaker. A criterion proven by a sign-off keeps its story open (`needs-person`) until a person gives it.
+
+The test strategy — including the goal (acceptance criteria + their proofs + e2e modality/gate) — is produced during planning and verified end-to-end before PR. "Done" is goal-met (see Core Principle).
 
 ---
 
