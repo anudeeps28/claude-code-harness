@@ -26,7 +26,7 @@ _Anything Claude should know at the start of every session._
 
 ## Todoist
 
-_Used by `/to-todoist` to set default project and section. Delete this section if not using Todoist._
+_Used by `/to-issues` to set the default Todoist project and section. Delete this section if not using Todoist._
 
 ```
 project: YOUR_TODOIST_PROJECT

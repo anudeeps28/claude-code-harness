@@ -155,6 +155,88 @@ test('inventory-check_VersionBumpWithUnreleasedEntries_Allows', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// ── Release gate: VERSION and package.json must agree ──────────────────────
+//
+// These pin the drift that motivated the gate: VERSION said 3.1.0, package.json
+// said 2.0.0, and the git tag said v2.0.0, with nothing noticing. The comparison
+// reads the INDEX (what is actually being committed), not the working tree, so a
+// bump staged in one file and left unstaged in the other is still caught.
+
+test('inventory-check_VersionBumpPackageJsonMismatch_Denies', () => {
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n### Added\n\n- new thing\n\n## [3.0.0]\n- old',
+    'VERSION': '3.0.0',
+    'package.json': '{"name":"x","version":"3.0.0"}',
+  });
+  fs.writeFileSync(path.join(dir, 'VERSION'), '3.1.0');
+  execFileSync('git', ['add', 'VERSION'], { cwd: dir });
+  const r = runHook({ command: 'git commit -m "bump version"' }, dir);
+  assert.strictEqual(r.exitCode, 2);
+  assert.match(r.json.reason, /package\.json/);
+  assert.match(r.json.reason, /3\.1\.0/);
+  assert.match(r.json.reason, /3\.0\.0/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_VersionBumpPackageJsonAligned_Allows', () => {
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n### Added\n\n- new thing\n\n## [3.0.0]\n- old',
+    'VERSION': '3.0.0',
+    'package.json': '{"name":"x","version":"3.0.0"}',
+  });
+  fs.writeFileSync(path.join(dir, 'VERSION'), '3.1.0');
+  fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"x","version":"3.1.0"}');
+  execFileSync('git', ['add', 'VERSION', 'package.json'], { cwd: dir });
+  const r = runHook({ command: 'git commit -m "bump version"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_VersionBumpNoPackageJson_Allows', () => {
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n### Added\n\n- new thing\n\n## [3.0.0]\n- old',
+    'VERSION': '3.0.0',
+  });
+  fs.writeFileSync(path.join(dir, 'VERSION'), '3.1.0');
+  execFileSync('git', ['add', 'VERSION'], { cwd: dir });
+  const r = runHook({ command: 'git commit -m "bump version"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_VersionBumpUnparseablePackageJson_Allows', () => {
+  // Fail-open: the hook must never block a commit because it could not read a file.
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n### Added\n\n- new thing\n\n## [3.0.0]\n- old',
+    'VERSION': '3.0.0',
+    'package.json': 'not json at all',
+  });
+  fs.writeFileSync(path.join(dir, 'VERSION'), '3.1.0');
+  execFileSync('git', ['add', 'VERSION'], { cwd: dir });
+  const r = runHook({ command: 'git commit -m "bump version"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('inventory-check_NoVersionBumpMismatchedPackageJson_Allows', () => {
+  // The gate fires only on a release. Day-to-day commits are not the place to
+  // nag about a version field nobody touched.
+  const dir = makeRepo({
+    'README.md': '1 skills',
+    'CHANGELOG.md': '## [Unreleased]\n\n- something',
+    'VERSION': '3.0.0',
+    'package.json': '{"name":"x","version":"2.0.0"}',
+  });
+  stageNewFile(dir, 'src/app.js', 'console.log("hi")');
+  const r = runHook({ command: 'git commit -m "add app"' }, dir);
+  assert.strictEqual(r.exitCode, 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('inventory-check_NewHook_Warns', () => {
   const dir = makeRepo({
     'README.md': '1 skills',

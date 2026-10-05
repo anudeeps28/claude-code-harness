@@ -83,7 +83,14 @@ check_auth_todoist() {
   local exit_code=$?
 
   if [ $exit_code -ne 0 ]; then
-    echo '{"error": "Todoist CLI auth failed. Check your API token configuration."}' >&2
+    # Distinguish rate limiting from a genuinely bad token — a 429 is temporary
+    # and retrying is the fix; "auth failed" here sends people debugging a token
+    # that is fine.
+    if echo "$check_output" | grep -qi "RATE_LIMITED\|429\|Too Many Requests"; then
+      echo '{"error": "Todoist API rate limited (HTTP 429). Your token is fine — wait a few minutes and retry."}' >&2
+    else
+      echo '{"error": "Todoist CLI auth failed. Check your API token configuration."}' >&2
+    fi
     exit 1
   fi
 }

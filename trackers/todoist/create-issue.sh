@@ -66,6 +66,25 @@ if [ -n "$PROJECT" ]; then
   CREATE_ARGS+=(--project "$PROJECT")
 fi
 
+# Optional create-time overrides (see trackers/README.md "Create-time env overrides").
+# These map to native Todoist features that the flat adapter args cannot express:
+# p1-p4 priority actually sorts the list, unlike a text label, and an uncompletable
+# task has no checkbox so a milestone header can't be ticked off by accident.
+# Backends without these concepts ignore the vars, so a caller may always set them.
+if [ -n "$TRACKER_PRIORITY" ]; then
+  case "$TRACKER_PRIORITY" in
+    p1|p2|p3|p4) CREATE_ARGS+=(--priority "$TRACKER_PRIORITY") ;;
+    *)
+      echo "{\"error\": \"TRACKER_PRIORITY must be one of p1, p2, p3, p4 (got '$TRACKER_PRIORITY')\"}" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+if [ -n "$TRACKER_UNCOMPLETABLE" ]; then
+  CREATE_ARGS+=(--uncompletable)
+fi
+
 CREATE_ARGS+=(--json)
 
 RESULT=$(with_retry "$TD" "${CREATE_ARGS[@]}")

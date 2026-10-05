@@ -29,7 +29,7 @@ if [ -f "tasks/tracker-config.md" ]; then
   [ -n "$_proj" ] && [ "$_proj" != "YOUR_TODOIST_PROJECT" ] && TODOIST_PROJECT="$_proj"
 fi
 
-# Fallback: tasks/notes.md ## Todoist section (used by /to-todoist skill)
+# Fallback: tasks/notes.md ## Todoist section (used by /to-issues)
 if [ -z "$TODOIST_PROJECT" ] && [ -f "tasks/notes.md" ]; then
   _proj=$(sed -n '/^## Todoist/,/^## /{ /project\s*:/{ s/.*project\s*:\s*//; s/[[:space:]]*$//; p; q; } }' tasks/notes.md)
   [ -n "$_proj" ] && TODOIST_PROJECT="$_proj"
