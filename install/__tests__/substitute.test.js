@@ -223,6 +223,26 @@ test('buildSettings_SerializesToValidJson', () => {
     'node "C:\\Users\\a\\hooks/safety-check.js"');
 });
 
+test('buildSettings_RegistersPlanLintCheckHook', () => {
+  const s = buildSettings({
+    hooksUnix: '/h',
+    sessionStartMsg: 'hi',
+    workRoot: '',
+    isGlobal: false,
+  });
+  const postToolHooks = s.hooks.PostToolUse[0].hooks;
+  assert.equal(s.hooks.PostToolUse[0].matcher, 'Write|Edit');
+  assert.ok(postToolHooks.some(h => h.command.includes('/h/plan-lint-check.js')),
+    'plan-lint-check.js hook registered');
+  const catalogIdx = postToolHooks.findIndex(h => h.command.includes('/h/catalog-trigger.js'));
+  const driftIdx = postToolHooks.findIndex(h => h.command.includes('/h/drift-check.js'));
+  const planLintIdx = postToolHooks.findIndex(h => h.command.includes('/h/plan-lint-check.js'));
+  assert.ok(catalogIdx >= 0, 'catalog-trigger.js still present');
+  assert.ok(driftIdx >= 0, 'drift-check.js still present');
+  assert.ok(catalogIdx < planLintIdx, 'catalog-trigger.js must remain before plan-lint-check.js');
+  assert.ok(driftIdx < planLintIdx, 'drift-check.js must remain before plan-lint-check.js');
+});
+
 // ── buildManifest ────────────────────────────────────────────────────────────
 
 test('buildManifest_ContainsAllRequiredFields', () => {

@@ -99,6 +99,105 @@ Every plan must include explicit test-writing tasks (`type="test"`). These are r
 
 Test tasks should be in the same or next wave after the code they test — never deferred to "we'll write tests later."
 
+**In test-first mode this ordering is reversed** — see below.
+
+---
+
+## Test-First Mode (`--tdd`, and always for bug fixes)
+
+Ordinarily the test task comes in the same wave as the code it tests, or the wave after. Under
+`--tdd` on `/story` or `/implement`, and for **every bug fix whether or not the flag was passed**, the
+failing test comes **before** the code.
+
+`--tdd` is **off by default**. A plan carrying no `must_fail` attribute behaves exactly as it always
+has, and everything above this section is unchanged for it. Bug fixes are the single exception: they
+are test-first with or without the flag, because the code already exists, so the cost is near zero and
+the failing test is the proof the bug was genuinely reproduced.
+
+### The shape of a slice
+
+| | Feature slice under `--tdd` | Bug fix |
+|---|---|---|
+| 1 | empty shell — class and method exist, do nothing | *(not needed, the code exists)* |
+| 2 | the test, marked `must_fail="true"` | the test, marked `must_fail="true"` |
+| 3 | the real code — the test now passes | the fix — the test now passes |
+
+Three steps for a feature, two for a bug fix.
+
+The shell step exists because a compiled language will not build a test against a class that does not
+exist. Without it the test cannot fail for the right reason — it never runs at all.
+
+**Each step is its own task, so each gets a fresh agent.** They must never be merged. An agent that
+writes both the shell and the test chooses the shell's return value *and* the expected value, and can
+satisfy its own test by accident — shell returns an empty string, test expects an empty string, test
+passes, and the slice looks already built when nothing was built.
+
+The agent that writes the real code may **read** the test — it needs to know what it must satisfy —
+but may never edit it. Keep the test file in that task's `<read_first>`, never in its `<files>`.
+
+### What counts as a real failing test
+
+Inverting pass and fail is not enough. **A green result can lie**, and so can a red one. The point of
+the failing test is not the failure — it is the proof that the test actually exercises the thing about
+to be built. A test that cannot fail before the code exists will not fail after the code breaks either.
+
+- **A real failure** is one caused by **the behaviour being absent**, in code the test actually
+  reached. Two shapes count: an **assertion failure** (expected X, got Y), or an uncaught
+  **`NotImplementedException` from the method under test** — the empty shell was reached and has no
+  behaviour yet. The second is the *normal* first red on a feature slice, and the runner reports it as
+  an exception with no assertion text at all, so a contract demanding "an assertion failure" would
+  reject the textbook correct red every time.
+- **A fake failure** says nothing about the feature: a compile break, a crash in setup or fixture
+  construction, an exception thrown from somewhere other than the method under test, or a
+  dependency/config failure. The line is **where the failure came from**, not whether it was an
+  assertion. Broken test — fix and retry.
+
+A test that *passes* by asserting `Assert.Throws<NotImplementedException>(…)` is the opposite case: it
+asserts the shell rather than the behaviour, and is a false green.
+
+The full contract for a `must_fail` task, including every way a green result can mislead and the
+response to each, lives in `agents/story-executor-agent.md`.
+
+### Fixes found after the build are test-first too
+
+A review finding, a failed acceptance criterion, a red e2e gate — any real defect surfaced *after* the
+waves — is fixed **test-first when the mode is on**, exactly like a bug fix: write the failing test
+that reproduces the defect, watch it fail, then fix it. Two steps, no shell; the code already exists.
+
+This is the point where the discipline is most easily lost and matters most. The whole run has been
+test-first, and then at the one moment a genuine defect appears, the temptation is to patch the code
+and move on — which produces a fix with no test proving it was ever broken, inside a run that will
+report full test-first compliance. If a defect was worth fixing, it was worth a test that fails
+without the fix.
+
+The only exception is a defect with nothing to assert against — a doc correction, a comment, a
+rename. Same rule as below: state the reason.
+
+### Preserve the evidence that the test was red
+
+Nothing is committed between waves, so once the implementation lands there is no trace left that the
+test ever failed — an honest run and a run that wrote both test and code together are indistinguishable
+afterwards. The proof of test-first is the one thing test-first does not persist.
+
+So when a `must_fail` task passes, the orchestrator records, in the story's `executor-state.md`:
+
+- the test's full name
+- the runner's **verbatim failure line** from the executor's report
+- which failure shape it was (assertion, or a `NotImplementedException` from the method under test)
+
+Three lines. It costs nothing and it is the only surviving evidence that the red window was real.
+
+### Which tasks go test-first
+
+Only tasks that change **what the system does**. Renames, config values, doc updates and package bumps
+have nothing to write a failing test against, and forcing the cycle on them produces empty ceremony
+and meaningless tests.
+
+The planner makes that call and **must write the reason into the plan** whenever it skips a task.
+Not a bare "exempt" — a stated why, visible at plan approval. Without that, the cheapest way to satisfy
+the mode is to declare everything a non-behaviour change, which turns test-first off while appearing
+to comply.
+
 ---
 
 ## Verify Commands Include Tests

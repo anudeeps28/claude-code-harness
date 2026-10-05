@@ -34,6 +34,10 @@ parent=""
 body=""
 
 while IFS= read -r line || [ -n "$line" ]; do
+  # Issue files written on Windows carry CRLF. Without this the "---" delimiter never matches,
+  # frontmatter is never entered, and the adapter silently returns an issue with no title, state
+  # or labels — exit 0 and all fields blank, which is far worse than an error.
+  line="${line%$'\r'}"
   if [ "$frontmatter_done" = "true" ]; then
     if [ -z "$body" ]; then
       body="$line"
@@ -60,6 +64,7 @@ $line"
       title) title="$val" ;;
       state) state="$val" ;;
       labels) labels="$val" ;;
+      type) type="$val" ;;
       parent) parent="$val" ;;
     esac
   fi
@@ -76,6 +81,15 @@ display_labels=$(echo "$display_labels" | sed 's/^ *//;s/ *$//')
 # Format state for display
 display_state=$(echo "$state" | tr '[:lower:]' '[:upper:]')
 
+# Type: explicit frontmatter field wins; otherwise infer Bug from a "bug" label.
+display_type="$type"
+if [ -z "$display_type" ]; then
+  case ",$(echo "$display_labels" | tr "[:upper:]" "[:lower:]" | tr -d " ")," in
+    *,bug,*) display_type="Bug" ;;
+    *) display_type="Unknown" ;;
+  esac
+fi
+
 # Format parent
 display_parent="None"
 [ -n "$parent" ] && [ "$parent" != "null" ] && display_parent="#$parent"
@@ -83,6 +97,7 @@ display_parent="None"
 cat <<EOF
 # Task #${ISSUE_ID}: ${title}
 
+**Type:** ${display_type}
 **State:** ${display_state}
 **Labels:** ${display_labels}
 **Parent:** ${display_parent}

@@ -105,6 +105,8 @@ rules/git-worktrees.md. Recommended: build this story in its own worktree.
 
 This is **not** self-answerable under an inherited autonomous run — proceeding could destroy another run's uncommitted work, which fails the reversibility test. An autonomous run **pauses** here.
 
+**Test-first check:** the mode travels on the tasks themselves — any `<task>` in the plan carrying `must_fail="true"` is test-first regardless of how this skill was invoked, so a resumed story never silently loses it. `executor-state.md` records the run mode alongside `run-mode:`; the plan is the authority.
+
 **Autonomous check:** read `tasks/stories/$ARGUMENTS/executor-state.md` — if it contains `run-mode:
 autonomous`, this is an inherited autonomous run (see "Autonomous mode" above); otherwise run
 interactively.
@@ -201,7 +203,13 @@ For **each task** in the wave:
   - The single `<task>` XML block
   - Story ID: $ARGUMENTS
 
-  A `type="test"` task is mechanically identical to `auto` — the executor writes the test/eval and runs its `<verify>`. No special handling.
+  A `type="test"` task **without** a `must_fail` attribute is mechanically identical to `auto` — the executor writes the test/eval and runs its `<verify>`, and needs nothing special.
+
+  A `type="test" must_fail="true"` task is the opposite: it is a test written **before** the code exists, and it passes only when the test **fails for the right reason** — either an assertion failure, or an uncaught `NotImplementedException` thrown from the method under test. The second is the *normal* case when the previous wave wrote an empty shell, and the runner reports it as an exception with no assertion text at all. Do not narrow this to "fails on an assertion": that would reject the textbook-correct red on every feature slice. The executor handles the inverted verdict itself (Step 3.5 of `agents/story-executor-agent.md`) — but this skill still owns three things:
+
+  - **Run it alone in its wave.** Never batch it with siblings — an agent in the same wave can create the behaviour the test is proving absent (`rules/wave-execution.md`).
+  - **Never restore its files after a failure.** The standing restore-before-retry rule is exempt here: a failure usually means the test passed when it should not have, and the test file is the evidence needed to work out why.
+  - **A BLOCKED result never goes to `/debug`.** Nothing is broken. Surface the executor's evidence and stop for YOUR_NAME; under an inherited autonomous run this is a pause-anyway trigger, except the checkable "the behaviour already exists" case, which self-answers and is logged.
 
   **Never pass `isolation: "worktree"` here.** An isolated worktree forks from the default branch and sees only *committed* state, while nothing is committed until the story's PR phase — so a dependent wave gets a copy without the files the earlier waves just wrote, and its `<verify>` fails on missing modules. See `rules/wave-execution.md`. Agents edit in parallel and serialize only on `<verify>`, via the lock in `agents/story-executor-agent.md` Step 3.
 
@@ -253,6 +261,7 @@ For each task that returned PASS: mark it done in `tasks/stories/$ARGUMENTS/plan
 [If any FAIL]: Task [id] failed — "[error summary]". Try a different approach? (Say "retry" to re-run that task, or "debug" to invoke /debug.)
 [If any BLOCKED]: Task [id] blocked — "[what is needed from whom]". Resolve this externally, then say "continue".
 [If all passed]: All [k] tasks in Wave [n] passed.
+[If this wave held a `must_fail` task that passed]: ⚠️ The test suite is **deliberately red** right now — `[test name]` fails on purpose, and Wave [n+1] is what makes it pass. If you run the tests at this checkpoint you will see a failure; that is the expected state, not a broken build.
 
 *Continue to Wave [n+1]: "[wave n+1 task names]"? (Say "yes" to continue, or "stop" to pause.)*
 
@@ -335,10 +344,10 @@ Say:
 - Never commit anything — that is Phase 4's job
 - **Never spawn a wave agent with `isolation: "worktree"`** — a worktree forks from the default branch and sees only committed state, and nothing is committed until the story's PR phase, so a dependent wave cannot see the files the earlier waves just wrote (`rules/wave-execution.md`)
 - Check the branch hasn't drifted before AND after every wave — a branch changing mid-run means another session is sharing this directory, and it is a contradiction pause-anyway trigger, never self-answered
-- Restore a failed task's declared `<files>` before each retry — never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight work
+- Restore a failed task's declared `<files>` before each retry — never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight work. **Exception: a `must_fail="true"` task is never restored** — its failure usually means the test wrongly passed, and the test file is the evidence needed to diagnose that
 - In mode A, never skip a STOP checkpoint between waves. In mode B, always stop on failure/blocked — never auto-continue past errors
 - Never start Wave N+1 while Wave N has an unresolved FAIL or BLOCKED
 - If YOUR_NAME says "stop" at any point — stop immediately, show which tasks are ✅ done and which are pending, and which wave you were on
 - 3 failures on any single task → invoke `/debug`, never attempt a 4th time
 - Manual tasks are never spawned as agents — always displayed as human instructions
-- A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests
+- A task is only ✅ when its `<verify>` command passes — verify commands MUST include running relevant tests. **Exception: a `must_fail="true"` task is ✅ when its verify FAILS for the right reason** — its polarity is inverted, so its correct outcome is a non-zero exit. Read literally without this carve-out, the rule forbids ever marking a `must_fail` task done

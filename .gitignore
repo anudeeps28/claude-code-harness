@@ -77,6 +77,8 @@ tasks/stories/
 tasks/sessions*.jsonl*
 tasks/metrics*.jsonl*
 _prototype/
+grill-summary.md
+operator-state.md
 # <<< claude-code-harness managed <<<
 
 # Dogfood install: harness installed onto itself for local use.

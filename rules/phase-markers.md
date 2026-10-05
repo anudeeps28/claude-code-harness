@@ -82,6 +82,22 @@ run ends — so **a consumer must not infer "in flight" from the presence of the
 from `updated`: a marker whose `updated` is older than the consumer's own liveness signal (e.g. no
 active session for that project) describes a finished or abandoned run, not a running one.
 
+**"Fresh" means `updated` within the last 30 minutes.** State a number, because the foreign-work
+pre-flight check in `/story` and `/implement` turns on this word and is **not self-answerable under
+`--autonomous`** — an undefined threshold on a non-self-answerable gate means the run must either halt
+or invent a number, and a real run had to invent one. Thirty minutes is comfortably longer than any
+single wave and comfortably shorter than a working session, so a marker older than that belongs to a
+run that is over.
+
+Two qualifications, both learned the hard way:
+
+- **A marker written by an earlier run in this same directory is not foreign work.** Sequential runs
+  against one repo — exactly what a dogfooding exercise is — leave markers behind by design. Compare
+  the story id: a marker for a *different* story that is fresh is the signal; your own previous
+  stories are not.
+- **Age is evidence, not proof.** A fresh marker plus a dirty tree plus a different branch is a strong
+  signal; a fresh marker alone is not. Show what you found and let the human rule.
+
 ---
 
 ## Writing `detail` safely

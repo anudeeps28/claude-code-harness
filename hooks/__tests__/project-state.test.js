@@ -148,14 +148,27 @@ test('detectProjectState_GhReturnsNonJson_FailsOpen', () => {
   } finally { cleanup(root); }
 });
 
-// 8. Latency: detectProjectState with injected ghRunner completes in < 500ms
-test('detectProjectState_WithInjectedRunner_CompletesUnder500ms', () => {
+// 8. Latency: detectProjectState with an injected ghRunner must not shell out or hit the network.
+//
+// The budget is deliberately loose. What this guards against is a real regression — someone
+// reintroducing an actual `gh` subprocess, a network call, or a recursive filesystem walk despite the
+// injected runner — and any of those costs seconds, not milliseconds. The old 500ms budget was tight
+// enough to measure machine contention instead: `node --test` runs files concurrently, and under that
+// load this was observed at 1053ms while passing in ~30ms when run on its own. A wall-clock assertion
+// that fails on a busy machine teaches everyone to ignore red suites, which costs more than the
+// precision buys.
+const LATENCY_BUDGET_MS = 3000;
+
+test('detectProjectState_WithInjectedRunner_CompletesUnderLatencyBudget', () => {
   const root = makeProjectRoot();
   try {
     const start = performance.now();
     detectProjectState(root, { ghRunner: ghReturns([]) });
     const elapsed = performance.now() - start;
-    assert.ok(elapsed < 500, `expected < 500ms, took ${elapsed.toFixed(2)}ms`);
+    assert.ok(
+      elapsed < LATENCY_BUDGET_MS,
+      `expected < ${LATENCY_BUDGET_MS}ms, took ${elapsed.toFixed(2)}ms — at this scale the injected runner is not being used, or something is shelling out`
+    );
   } finally { cleanup(root); }
 });
 

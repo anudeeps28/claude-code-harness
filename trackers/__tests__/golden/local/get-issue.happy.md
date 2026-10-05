@@ -1,5 +1,6 @@
 # Task #1234: Implement login flow
 
+**Type:** Unknown
 **State:** OPEN
 **Labels:** feature, priority-high
 **Parent:** None

@@ -114,7 +114,7 @@ Your agent instructions here...
 - End with a structured output format so the orchestrating skill can parse results
 - Include a `## Hard rules` section at the bottom
 - Don't hardcode stack-specific conventions — reference `tasks/lessons.md`
-- **Planning agents** (agents that produce execution plans): must output a test strategy with acceptance criteria, integration scenarios, and regression guardrails. Must include `type="test"` tasks. Verify commands must include running tests.
+- **Planning agents** (agents that produce execution plans): must output a test strategy with acceptance criteria, integration scenarios, and regression guardrails. Must include `type="test"` tasks. Verify commands must include running tests. Under `--tdd` — and always for bug fixes — the test task carries `must_fail="true"` and is planned in the wave **before** the code it tests; see `rules/test-philosophy.md`.
 - **Executor agents** (agents that write code): must run `<verify>` which includes tests, not just builds
 
 ---
@@ -125,6 +125,26 @@ Your agent instructions here...
 2. Implement the **13-script contract** (same interface as `ado/`, `github/`, `todoist/`, and `local/`) — see the "Script interface" table in `trackers/README.md` for signatures and output formats. PR-review-thread scripts live in `code-platform/`, not here.
 3. Prove conformance: add your adapter to the loops in `trackers/__tests__/conformance.test.js` (CLI stub + fixtures + golden file, per `trackers/__tests__/README.md`) and get `npm run test:trackers` green
 4. Update the installer (`install/install.sh`) to offer your tracker as an option
+5. Emit a `**Type:**` line from `get-issue.sh` carrying the tracker's own word for the item (`Bug`, `Story`, …), or `Unknown` where the tracker has nothing to report — `--tdd` and the always-test-first rule for bug fixes read it. See `trackers/README.md`.
+
+---
+
+## Changing test-first (`--tdd`) behaviour
+
+Nothing in this repo parses the task XML, so `--tdd` lives entirely in instruction prose spread over
+twelve files. Two files disagreeing does not throw — it makes Claude pick one, and the mode works on
+some runs and not others. So:
+
+1. **Change the probe first.** `skills/implement/__tests__/tdd-mode.probe.test.js` encodes the
+   decisions in `tasks/tdd/findings.md` section 10. Edit it, watch it fail, then change the files.
+2. **Keep every file in step.** The probe lists which ones. Qualify the default-path rules rather
+   than deleting them — runs without `--tdd` still need them.
+3. **Re-run the rig if you touched the executor contract.** `node scripts/tdd-rig.js <dir>` outside
+   this repo, then `node traps/run-traps.js` inside it. That proves the signals the executor is told
+   to look for genuinely appear in real `dotnet test` output. Free — no agents.
+4. **Layer B before shipping.** Install the harness into the rig and actually run
+   `/implement --tdd 1` and `/implement 2`. This costs real agent time, so it is a pre-ship step, not
+   a per-commit one — but nothing else proves an agent reads the prose the way it was meant.
 
 ---
 

@@ -52,7 +52,11 @@ function makeRunner(ws) {
       RETRY_BACKOFF_2: '0',
     };
     const r = spawnSync('bash', [path.join(ws.adapterDir, script), ...args], {
-      encoding: 'utf8', env, cwd: ws.root, timeout: 15000,
+      // See conformance.test.js: `node --test` runs files concurrently and every call here spawns
+      // bash. Under that contention process startup alone can exceed 15s on Windows, which made
+      // this suite flaky in a way that looked like a real adapter failure. Only a genuine hang
+      // should trip this.
+      encoding: 'utf8', env, cwd: ws.root, timeout: 90000,
     });
     if (!expectFail) {
       assert.equal(r.status, 0, `${script} ${args.join(' ')} failed: ${r.stderr}`);

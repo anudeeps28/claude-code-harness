@@ -21,8 +21,12 @@ Run these phases in order — **Understand (1)** → **Goal Definition (1.5)** �
 Read `YOUR_PROJECT_ROOT/tasks/notes.md` if it exists — it contains conventions, known fixes, and decisions.
 
 ```bash
-cd YOUR_PROJECT_ROOT && git status && git branch --show-current
+cd YOUR_PROJECT_ROOT && git status --porcelain > "tasks/stories/<id>/.tree-baseline" 2>/dev/null; git status && git branch --show-current
 ```
+
+**That baseline file is not optional.** Every post-wave stray-file check compares against it rather
+than against a clean tree, and every review agent needs the path handed to it explicitly — it lives
+under a gitignored directory, so nothing finds it by looking. See `rules/wave-execution.md` §1.
 
 **Act on that output — do not just print it.** Per `rules/wave-execution.md`, treat it as possible foreign work when the tree is dirty **and** any of these hold:
 
@@ -57,11 +61,18 @@ Parse `$ARGUMENTS`:
    - `--discuss` → run a pre-plan clarification step (Phase 1a)
    - `--research` → run a codebase-scan step before the planner (Phase 1b)
    - `--quick` → skip Phase 3 (evaluation + acceptance testing)
+   - `--tdd` → **test-first mode**: the planner orders each behaviour slice as empty shell → failing test → real code. Off by default. Bug fixes are test-first even without it. `--quick` does not skip test-first. See **Test-first mode** below.
+   - `--no-ship` → run everything up to but **not including** the git phase: no `git add`, `commit`, `push`, branch or worktree operation, and no PR. Stop after the reviews and the e2e gate, and report what *would* be committed. This is the terminal state an audit, a dry run, or a dogfooding exercise actually wants — without it the only way to end a run without touching git is to abandon it mid-flow, which leaves the story workspace claiming work is still in progress. Orthogonal to every other flag.
+
+     **Where it stops, exactly** — three things a run needs told, because "stop before the git phase" left all three ambiguous in practice:
+     - **Skip the branch creation** in "Before you start". It runs earlier in this file than the flag's own prohibition.
+     - **Do not spawn `story-pr-agent`.** It performs *tracker* mutations (closing the item, updating the status table) rather than git ones, so "the git phase" does not obviously exclude it — but closing a tracker item for work that was never shipped is exactly the false record this flag exists to avoid. Draft the PR body yourself in the report if it is useful; change nothing outside the story workspace.
+     - **Write the terminal phase marker yourself:** the six keys per `rules/phase-markers.md` with `detail: run complete — terminal state under --no-ship, no git operation performed`. Without it the workspace still claims work is in progress, which is the very problem the flag was added to solve.
    - `--auto` → auto-run all waves without pausing between them (still stops on failure)
    - `--full` → sugar for `--discuss` + `--research` (does NOT imply `--quick` or `--auto`)
    - `--autonomous` → run the entire flow with **no human STOP checkpoints** — self-answer reversible questions, pause only when genuinely blocked, auto-push and open a PR as the single human gate (see **Autonomous mode** below). Implies `--auto`.
 
-   `--full`, `--quick`, `--auto`, and `--autonomous` are orthogonal and may be combined. Before proceeding, expand `--full` into its underlying two flags, and expand `--autonomous` to also set `--auto`. `--autonomous` does NOT imply `--quick` — evaluation, acceptance testing, and the e2e goal gate still run.
+   `--full`, `--quick`, `--auto`, `--tdd`, `--no-ship` and `--autonomous` are orthogonal and may be combined. Before proceeding, expand `--full` into its underlying two flags, and expand `--autonomous` to also set `--auto`. `--autonomous` does NOT imply `--quick` — evaluation, acceptance testing, and the e2e goal gate still run.
 
 2. **Classify the remaining arguments:**
    - **Detect the active tracker:** Read `.claude/.harness-manifest.json` → `tracker` field. If not set, fall back to `tasks/tracker-config.md` `**Type:**` field. If neither exists, default to `local`.
@@ -85,7 +96,11 @@ Parse `$ARGUMENTS`:
    - For local tasks: `bash trackers/active/get-issue.sh <ID>` (reads `tasks/issues/<ID>.md`)
    - Use the fetched title, description, and acceptance criteria to enrich the planner's input.
 
-Create a branch for this work:
+Create a branch for this work — **unless `--no-ship` was passed**, in which case skip this step
+entirely and stay on the current branch. `--no-ship` forbids every git state change, and a branch
+creation *is* one; this step runs before the flag's own prohibition is stated, so without the carve-out
+here a literal reading creates a branch and then promises not to.
+
 ```bash
 git checkout -b implement/<issue-id-or-slugified-title>
 ```
@@ -109,6 +124,10 @@ gate. This mode changes *only* whether the flow pauses; it changes nothing about
 - an **irreversible action** — anything destructive or hard to undo (deleting data, force-push, etc.);
 - a **scope change** — the work turns out materially larger or different than the approved brief/goal;
 - the **3-failed-attempts** rule fires (route to `/debug` as usual).
+
+**One carve-out, and only one:** a `must_fail="true"` task reporting BLOCKED because **the behaviour
+already exists** is self-answered, not halted — see **Test-first mode** below. Every other BLOCKED
+cause halts as described here.
 
 A task **FAIL or BLOCKED** result also halts the run — that is a genuine block, not a checkpoint, and
 `--auto`'s "pause on failure" behavior is unchanged.
@@ -480,13 +499,19 @@ On any overlap, auto-split: move the higher-id task into a new wave immediately 
 
 **C1. Post-wave integrity checks (both, every wave):**
 
-*Stray-file check* — compare what actually changed against what the wave declared:
+*Stray-file check* — compare what changed **since this run started** against what the wave declared:
 
 ```bash
-git status --porcelain
+git status --porcelain | grep -Fxv -f "tasks/stories/<id>/.tree-baseline"
 ```
 
-Every changed path must appear in some task's `<files>` (this wave or an earlier completed one). A path declared by **no** task means an agent edited outside its scope — the failure the overlap check cannot prevent, since it trusts the plan's file lists. Name the file and **STOP**; do not roll into the next wave. It may be a sibling agent's work being silently overwritten, and it will otherwise ship inside the story diff unnoticed. Ignore gitignored paths, the story workspace (`tasks/stories/<id>/`), and `tasks/.verify.lock` (a leftover lock means an agent died mid-verify — `rmdir` it and carry on; its own BLOCKED report already covers that).
+Compare against the run's own baseline, never a bare `git status`. The pre-flight check above
+deliberately allows a dirty tree, so a run legitimately proceeds with dozens of pre-existing modified
+files; measured against a clean tree, every one of them is flagged and the rule orders a stop after
+**every wave of every run in a dirty tree**. Full reasoning, plus the known per-path limit, in
+`rules/wave-execution.md` §1. Hand this path to every review agent — none of them can find it alone.
+
+Every **newly** changed path must appear in some task's `<files>` (this wave or an earlier completed one). A path declared by **no** task means an agent edited outside its scope — the failure the overlap check cannot prevent, since it trusts the plan's file lists. Name the file and **STOP**; do not roll into the next wave. It may be a sibling agent's work being silently overwritten, and it will otherwise ship inside the story diff unnoticed. Ignore gitignored paths, the story workspace (`tasks/stories/<id>/`), and `tasks/.verify.lock` (a leftover lock means an agent died mid-verify — `rmdir` it and carry on; its own BLOCKED report already covers that).
 
 *Branch-drift check* — re-run A0a. Checking both sides of a wave catches a hijack within one wave instead of at the end of the run.
 
@@ -498,6 +523,8 @@ Every changed path must appear in some task's `<files>` (this wave or an earlier
 
 ---
 **Wave [n] complete: [passed] PASS, [failed] FAIL. Continue?**
+
+[If this wave held a `must_fail` task that passed]: ⚠️ The test suite is **deliberately red** right now — `[test name]` fails on purpose, and Wave [n+1] is what makes it pass. If you run the tests at this checkpoint you will see a failure; that is the expected state, not a broken build.
 
 ---
 
@@ -586,7 +613,13 @@ blocker, not a deferral: fix it in-run, regardless of the agent's `ADVISORY` lab
 proper redesign is the deferral — split them and test each separately). A green test suite is not
 evidence of a No; tests can encode the defect.
 
-**Every finding that survives the ship test is registered before the PR is opened** —
+To be exact about the two outcomes, because the phrasing below has been misread in a real run:
+a finding that **fails** the ship test (a No — the shipped change behaves correctly without it) may be
+deferred. A finding that **passes** the ship test (a Yes — the change behaves incorrectly for its real
+configured inputs) is a **blocker: fix it in-run**, never a deferral. "Survives the ship test" in the
+sentence below means *survived the fix-or-defer decision as a deferral* — i.e. a No.
+
+**Every deferred finding is registered before the PR is opened** —
 `bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "deferred"` — and the PR's
 "Deferred / follow-ups" section references it **by its tracker id**. A deferral bullet with no id is a
 defect in the run, not a record.
@@ -622,6 +655,71 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 
 ---
 
+## Test-first mode (`--tdd`)
+
+`--tdd` is **off by default**. Without it, and for anything that is not a bug fix, this skill behaves
+exactly as it always has — the planner emits no `must_fail` attribute, and every rule below is inert.
+
+**The one exception: bug fixes are test-first whether or not `--tdd` was passed.** For a bug the code
+already exists, so there is no shell step and the cost is near zero, and the failing test is the proof
+the bug was genuinely reproduced. Whether an item is a bug comes from the tracker's `Type:` line, never
+from the wording of the description — see `agents/story-plan-agent.md` / `agents/implement-planner-agent.md`.
+
+When the mode is on, the planner orders each behaviour slice as **empty shell → failing test → real
+code**, three separate tasks in three consecutive waves (two for a bug fix, which needs no shell). The
+full planning contract lives in the planner agent; the full execution contract lives in Step 3.5 of
+`agents/story-executor-agent.md`. What this skill owns is below.
+
+### Waves
+
+A task carrying `must_fail="true"` **runs alone in its wave** (`rules/wave-execution.md`). Do not batch
+it with siblings — another agent in the same wave can create the very behaviour the test is proving
+absent, and the failing test goes green for a reason that has nothing to do with the test.
+
+### A failed `must_fail` task is never restored
+
+The standing rule — restore a failed task's declared `<files>` before retrying — is **exempt** for
+`must_fail` tasks. For an ordinary task a failure means wreckage. Here it usually means the test passed
+when it should not have, and the test file is intact and is the exact evidence needed to work out why.
+Restoring deletes it and retries from nothing.
+
+### When a `must_fail` task reports BLOCKED
+
+The executor checks every machine-checkable cause first (zero tests ran, test skipped, file never
+written, stale build, the test asserts nothing, the shell's default satisfied it, a "not implemented"
+error treated as success, leftover state from another test). If it reports BLOCKED, the remaining
+causes need a person:
+
+- the behaviour **already exists** and nothing needs building
+- the test is subtly wrong
+- it exercises a mock rather than the real code
+- it hit a different class with the same name
+- the feature is switched on in test settings only
+
+Show the executor's evidence and ask. **This never goes to `/debug`** — nothing is broken. `/debug`
+diagnoses build and runtime failures; a test passing before its code exists means the plan rested on a
+wrong assumption about the codebase, which is a planning decision. The 3-attempt rule must not route it
+there either.
+
+### Under `--autonomous`
+
+One case is self-answerable, the rest are not:
+
+- **The behaviour already exists** — checkable from the run: open the method and see whether it holds
+  real code or an empty shell. If it holds real code, skip that slice, log the decision, and surface it
+  in the PR under "Decisions made on your behalf". **Skipping the slice means dropping the
+  implementation task, not the test.** The test that wrongly went green is a legitimate passing
+  regression test for behaviour that genuinely exists — keep it. It also stays on disk anyway, because
+  a `must_fail` task's files are never restored. Deleting it would throw away real coverage and hide
+  that the plan was wrong about the codebase.
+- **Every other BLOCKED cause** is a **pause-anyway trigger** per `rules/autonomous-mode.md` — a wrong
+  assumption about the codebase is a scope problem, and scope problems are already on that list.
+
+Because nobody is watching at the moment it happens, a run pausing here must report **what it left
+behind** in the working directory.
+
+---
+
 ## Hard rules
 
 - Never chain phases — always wait for confirmation at each STOP — **unless `--autonomous`**, which auto-resolves every STOP via the self-answer rule (see **Autonomous mode**) and pauses only on a contradiction, an irreversible action, a scope change, or the 3-attempt rule
@@ -630,6 +728,12 @@ gh pr create --title "<title>" --body "<body from PR agent>"
 - Never commit during Phase 2 — all commits happen in Phase 3
 - **Never spawn a wave agent with `isolation: "worktree"`** — a worktree forks from the default branch and sees only committed state, and this skill commits nothing until Phase 3, so a dependent wave cannot see the files the earlier waves just wrote (`rules/wave-execution.md`)
 - Check the branch hasn't drifted before AND after every wave — a branch changing mid-run means another session is sharing this directory, and it is a contradiction pause-anyway trigger, never self-answered
+- `--tdd` is off by default and orthogonal to every other flag; it never skips a phase, a gate or a STOP. **Bug fixes are test-first even without it** — the single exception to "no flag, no change"
+- **Whenever test-first mode is on** — `--tdd`, *or* a bug fix with no flag at all — a defect found *after* the waves (a review finding, a failed acceptance criterion, a red e2e gate) is fixed **test-first too**: the failing test that reproduces it comes first. Say "test-first mode is on", never "under `--tdd`": scoping this to the flag exempts precisely the bug-fix run, the one case where test-first is not optional. This is where the discipline is most easily lost and matters most; a patch with no failing test behind it, inside a run reporting test-first compliance, is exactly the outcome the mode exists to prevent
+- `--no-ship` stops the run cleanly before any git operation — everything up to and including the reviews and the e2e gate runs, nothing is committed, pushed or opened as a PR
+- **`--autonomous --no-ship` is the audit / dogfooding combination.** `--autonomous` on its own ends by pushing and opening a PR, which is exactly what a dry run must not do; the two flags are orthogonal, and pairing them is how you get an unattended full-flow run that touches no git state. Say so explicitly rather than relying on the operator to notice they compose
+- **`--quick` does not skip test-first** — `--quick` only skips checks that run *after* the build (review agents, e2e gate), and test-first happens *during* it. `--tdd --quick` is a valid combination
+- A `must_fail="true"` task runs **alone in its wave**, is **never restored** after a failure, and a test that passes when it should have failed **never goes to `/debug`** — nothing is broken
 - Restore a failed task's declared `<files>` before each retry — never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight work
 - If something fails 3 times → invoke `/debug`, do not keep trying
 - If YOUR_NAME says "stop" at any point → stop immediately

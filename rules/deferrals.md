@@ -36,6 +36,21 @@ Ask exactly one question:
   third option and no severity label that converts a Yes into a No.
 - **No → it is a genuine deferral.** Register it (next section). Never leave it as prose alone.
 
+**When the change introduces a NEW input, ask the question of its intended use, not of today's
+config.** A brand-new option, flag or environment variable is by definition declared nowhere yet, so
+every finding about it answers "No" vacuously — the code is unreachable, therefore it cannot misbehave
+— and the rule certifies the defect as safe *because the feature has not shipped yet*. That is
+backwards, and it is the one case where the ship test reliably gives the wrong answer.
+
+Observed in a real run: a security review found that a new environment variable could forge extra
+frontmatter fields in a created issue, correctly reached "No" because nothing declares that variable
+yet, and then wrote "if anything here is taken in-run, take those two" — the rule fighting the
+reviewer's own judgement. The fix was one line and was taken in-run.
+
+So: for a new input, the question is whether the change behaves incorrectly **for the inputs it is
+being built to accept**. A defect that becomes live the first time anyone uses the feature is a
+blocker, not a deferral.
+
 Three clarifications settle most real cases:
 
 - **"The tests pass" is not evidence of a No.** Tests can encode the defect — a fixture that uses a

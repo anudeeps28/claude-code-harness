@@ -12,7 +12,7 @@
     "test:install": "node --test install/__tests__/*.test.js",
     "test:skills": "node --test skills/*/__tests__/*.test.js",
     "test:coverage": "c8 --reporter=text --reporter=lcov node --test hooks/__tests__/*.test.js trackers/__tests__/*.test.js code-platform/__tests__/*.test.js install/__tests__/*.test.js skills/*/__tests__/*.test.js",
-    "lint": "eslint hooks/ trackers/__tests__/ code-platform/__tests__/ install/ skills/*/__tests__/",
+    "lint": "eslint hooks/ trackers/__tests__/ code-platform/__tests__/ install/ \"skills/**/__tests__/**/*.js\"",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

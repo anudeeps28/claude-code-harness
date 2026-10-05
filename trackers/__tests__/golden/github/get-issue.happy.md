@@ -1,5 +1,6 @@
 # Issue #1234: Implement login flow
 
+**Type:** Unknown
 **State:** OPEN
 **Assignees:** testuser
 **Labels:** feature, priority-high

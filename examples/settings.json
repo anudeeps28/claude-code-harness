@@ -30,6 +30,10 @@
           {
             "type": "command",
             "command": "node \"/home/username/.claude/hooks/todo-render-trigger.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"/home/username/.claude/hooks/plan-lint-check.js\""
           }
         ]
       }
