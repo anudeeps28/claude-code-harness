@@ -484,12 +484,15 @@ branch, and pushes so the PR updates in place.
 | `debug-agent` | opus | `/debug` | Root cause diagnosis |
 | `troubleshoot-investigator` | opus | `/troubleshoot` | Behavioral bug investigation |
 | `chief-operator` | opus | standalone (`--agent`) | Main-session project operator — researches, decides, delegates via handoff files + tracker tasks. Never implements. |
-| `builder` | opus (1M) | role session (`--agent`) | The build session of the two-session pipeline — understand → plan → code → test → fix, then commit/push and draft the PR body |
-| `reviewer` | opus (1M) | role session (`--agent`) | The fresh adversarial review session — report-only, BLOCK vs ADVISORY verdict to the story files, never edits code |
+| `build-session` | opus (1M) | role session (`--agent`) | The build session of the two-session pipeline — understand → plan → code → test → fix, then commit/push and draft the PR body |
+| `review-session` | opus (1M) | role session (`--agent`) | The fresh adversarial review session — report-only, BLOCK vs ADVISORY verdict to the story files, never edits code |
 
 **Model routing:** Opus for thinking/judging, Sonnet for writing code, Haiku for simple data gathering.
-The two **role identities** (`builder`, `reviewer`) are not sub-agents — they are whole sessions an
-external orchestrator spawns, declared in the role roster below.
+The two **role identities** (role ids `builder` and `reviewer`, run by the `build-session` and
+`review-session` agents) are not sub-agents — they are whole sessions an external orchestrator
+spawns, declared in the role roster below. The agent files were renamed from `builder.md` and
+`reviewer.md` so the names cannot be mistaken for a generic helper; the role ids, which external
+consumers read, did not change.
 
 ### Role roster
 
@@ -534,7 +537,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 
 ## Rules
 
-`rules/` holds 10 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
+`rules/` holds 13 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
 
 | Rule | Applies to | Content |
 |---|---|---|
@@ -544,15 +547,17 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `security.md` | `**/*.{cs,ts,js,py}` | No hardcoded secrets, parameterized queries |
 | `documentation.md` | `docs/**`, `*.md` | Don't modify architecture docs |
 
-The other 6 are always-referenced convention docs, not path-scoped:
+The other 8 are always-referenced convention docs, not path-scoped:
 
 | Rule | Content |
 |---|---|
 | `autonomous-mode.md` | `--autonomous` self-answer rule, pause-anyway triggers, decisions log |
+| `background-work.md` | Never end a turn, summarise or STOP while background agents or commands are still running |
+| `deferrals.md` | The ship test, and why every deferral is a tracker item, not a sentence |
 | `git-worktrees.md` | Worktree naming, lifecycle, and cleanup conventions |
 | `next-task.md` | Live-check procedure for "what's next" questions across tracker + local sources |
 | `phase-markers.md` | The `phase.md` marker contract written at every subagent boundary |
-| `progress-tracking.md` | `TodoWrite` as the in-session mirror of the durable story plan |
+| `progress-tracking.md` | `TodoWrite` as the in-session mirror of the durable story plan; a task is ticked only once its review passes |
 | `wave-execution.md` | Wave agents share the working directory — pre/post-wave checks, verify lock, restore-on-failure |
 
 ---

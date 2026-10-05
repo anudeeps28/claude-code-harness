@@ -219,7 +219,7 @@ Launch ALL auto/test tasks in the wave simultaneously (one Agent call per task, 
 
 ### C. Wait for all background agents to complete
 
-Do not output anything while waiting. The platform will notify you as each agent finishes. Collect all results before proceeding.
+Do not output anything while waiting. The platform will notify you as each agent finishes. Collect all results before proceeding. Never end the turn, summarise or STOP while one is still running — see `rules/background-work.md`.
 
 ### C1. Post-wave integrity checks (both, every wave)
 

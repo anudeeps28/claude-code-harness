@@ -504,12 +504,16 @@ test('Run1_TestsDeriveFromAcceptanceCriteriaNotTheAction', () => {
   }
 });
 
-test('Run1_TodoWriteHasAFallback', () => {
-  mustMatch(
-    read('rules', 'progress-tracking.md'),
-    /not available|skip it/i,
-    'rules/progress-tracking.md must give a fallback when TodoWrite is unavailable — a hard instruction with no fallback made a real run stop to decide whether a missing tool was a blocker'
-  );
+// Originally this demanded a skip-it fallback. #22 (F1) changed the decision on purpose: a run with
+// no checklist tool now stops at startup. What this test still protects is the original lesson — a
+// run must never have to work out for itself what a missing tool means — so the rule must say
+// plainly what happens and how to fix it.
+test('Run1_MissingChecklistToolHasAClearAnswer', () => {
+  const rule = read('rules', 'progress-tracking.md');
+  mustMatch(rule, /has neither, the build skill stops at startup/i,
+    'rules/progress-tracking.md must say plainly what a run does when the checklist tool is missing');
+  mustMatch(rule, /CLAUDE_CODE_ENABLE_TODO_TOOLS=1/,
+    'rules/progress-tracking.md must say how to switch the checklist tool on');
 });
 
 test('Run1_ThereIsACleanStopBeforeShipping', () => {

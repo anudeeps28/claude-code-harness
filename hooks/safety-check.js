@@ -8,7 +8,9 @@
 //
 // Two rule sets, applied based on tool name:
 //   - BASH_RULES: applied to Bash command strings
-//   - WRITE_RULES: applied to Write file content + path (skipped for docs)
+//   - WRITE_RULES: applied to Write file content + path (skipped for docs). These look for
+//     committed secrets only, so a file that names a blocked command (a test, a doc, a
+//     script comment) can still be written (#23).
 
 const { readStdinJson, deny, ask, ok, runHook } = require('./lib/hook-io');
 
@@ -110,6 +112,13 @@ function looksLikeHardcodedSecret(content) {
   return hasLongToken && hasSecretWord;
 }
 
+// SAFETY_ALLOW_GIT_COMMIT_PUSH=1 (set in the "env" block of ~/.claude/settings.json) lets
+// Claude commit and push without a prompt. It lifts the ask rules only: every deny rule
+// still runs first, so "git commit && rm -rf ..." is blocked either way.
+function asksDisabled() {
+  return process.env.SAFETY_ALLOW_GIT_COMMIT_PUSH === '1';
+}
+
 function checkRules(rules, text) {
   // Destructive denials take precedence: a command that both matches an ask rule
   // and a deny rule (e.g. "git commit && rm -rf") must be hard-blocked, not merely
@@ -118,6 +127,7 @@ function checkRules(rules, text) {
     if (rule.action === 'ask') continue;
     if (rule.re.test(text)) deny(rule.reason, rule.id);
   }
+  if (asksDisabled()) return;
   for (const rule of rules) {
     if (rule.action !== 'ask') continue;
     if (rule.re.test(text)) ask(rule.reason, rule.id);

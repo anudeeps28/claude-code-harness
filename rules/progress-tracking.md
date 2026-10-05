@@ -5,10 +5,14 @@ live, in-session visibility into multi-step work — the auto-updating checklist
 ticks off item by item, and shows what the harness is about to do *before* it changes any code.
 
 **Location:** `.claude/rules/progress-tracking.md` (installed alongside `.claude/skills/`).
-**If `TodoWrite` is not available in the environment, skip it and say so once.** It is a live progress
-mirror, not a source of truth — the story plan and the phase marker are. A hard instruction with no
-fallback made a real run stop to decide whether a missing tool was a blocker; it is not. Note its
-absence in the run report and carry on.
+**The checklist tool is `TodoWrite`, or `TaskCreate` / `TaskUpdate` / `TaskList` in sessions that
+have the newer task tools.** Either one counts; "TodoWrite" in this file means whichever the session
+has. **If a session has neither, the build skill stops at startup** and says how to fix it: Claude
+Code leaves these tools out on newer models unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set (in the
+`env` block of `~/.claude/settings.json`), and the setting takes effect only after a restart
+(code.claude.com/docs/en/tools, "Task tool availability"). It is checked once, at the start, so it is
+never discovered halfway through a run. The checklist is still a live mirror, not the source of
+truth: the story plan, the saved state and the phase marker are.
 
 **Referenced by:** the multi-step execution skills (`/story`, `/run-tasks`, `/implement`, `/tdd`,
 `/troubleshoot`, `/babysit-pr`, `/deploy`). Each one points here for the convention below.
@@ -47,11 +51,19 @@ of execution). Seeding it after work has begun defeats the purpose.
 ## How to maintain it
 
 - **One TodoWrite item per task/step** in the plan — same names the plan uses, so the user can map them.
-- **Exactly one item `in_progress` at a time.** Mark the next item `in_progress` when you start it.
-- **Mark `completed` the moment its `<verify>` passes** (or the step genuinely finishes) — in the same
-  pass where you write `✅` to the `<task>` line in the story plan. Don't batch completions to the end.
+- **Exactly one item `in_progress` at a time** for sequential steps. Mark the next item `in_progress`
+  when you start it.
+- **A plan task is `completed` only when it is done, not when its `<verify>` passes.** Done means its
+  tests **and the review** have passed. When its verify passes, append "(verified)" to its name and
+  leave it `in_progress`; mark it `completed` in the same pass that writes `✅` to its `<task>` line in
+  the story plan, after the review. A review finding on one of its files puts it back to plain
+  `in_progress`. `/implement` defines the statuses (`verified`, `done`, `reopened`) in its "State and
+  progress" section. `/story` and `/run-tasks` still tick on verify until F7 retires them into
+  `/implement`.
+- A fixed-step skill (`/deploy`, `/tdd`) has no review step: mark a step `completed` when it genuinely
+  finishes.
 - A failed/blocked task stays `in_progress` (not `completed`) until it's resolved or escalated.
-- For parallel waves, the wave's tasks may all be `in_progress` together; complete each as it returns.
+- For parallel waves, the wave's tasks may all be `in_progress` together.
 
 ## When NOT to use it
 
@@ -66,5 +78,6 @@ of execution). Seeding it after work has begun defeats the purpose.
 ## One-line pattern for skills
 
 > Seed a `TodoWrite` list mirroring the plan before the first change; keep one item `in_progress`;
-> mark `completed` alongside the `✅` in the story plan (`tasks/stories/<id>/plan.md`). The story plan
-> stays the source of truth; never hand-write the generated `todo.md`.
+> mark a task `completed` only once it is done (tests and review passed), alongside the `✅` in the
+> story plan (`tasks/stories/<id>/plan.md`). The story plan stays the source of truth; never
+> hand-write the generated `todo.md`.

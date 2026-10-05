@@ -1,7 +1,7 @@
 ---
 name: implement
-description: Build a feature from a tracker task (local task, GitHub issue, or Todoist task) or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow, or loop back on a rejected PR with `--rework <PR#>`. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id, task-title, or description> [--discuss] [--research] [--quick] [--auto] [--full] [--autonomous] [--rework <PR#>]
-argument-hint: "#42, 'Build login flow', 'add dark mode to settings page', or --rework 58 'also rename the flag'"
+description: Build a feature from a tracker task (local task, GitHub issue, or Todoist task) or plain description — understand, plan, execute, evaluate, and PR in a streamlined flow, or loop back on a rejected PR with `--rework <PR#>`, or carry on a stopped run with `--resume <id>`. Lighter than /story — designed for solo devs and small teams. Usage: /implement <issue-id, task-title, or description> [--discuss] [--research] [--quick] [--auto] [--full] [--autonomous] [--rework <PR#>] [--resume <id>]
+argument-hint: "#42, 'Build login flow', 'add dark mode to settings page', --rework 58 'also rename the flag', or --resume 42"
 ---
 
 **Core Philosophy:** Understand it, plan it, build it, check it, ship it — with a human gate at each step. Like `/story` but without the sprint ceremony.
@@ -14,11 +14,55 @@ You are the implementation orchestrator for YOUR_PROJECT_NAME. You will build: *
 
 Run these phases in order — **Understand (1)** → **Goal Definition (1.5)** → Plan → Execute → Local Verify → Evaluate → PR. Each phase ends with a STOP checkpoint. **Do not advance without YOUR_NAME's confirmation.**
 
+**After a compaction, re-read the state before anything else.** If this conversation starts with a
+summary of earlier work, the run was compacted mid-flight and the summary is not the state. Your first
+action is to read `tasks/stories/<id>/executor-state.md`, then print the current phase's progress line
+again (`event=run-resumed`, see **State and progress**) and carry on from its `next:` step. Never
+rebuild where you were from the summary alone — it drops exactly the detail resume needs.
+
+**Never end your turn while background work you started is still running** — see
+`rules/background-work.md`. A wave's executors, a review panel, a long test run: wait for every one
+to report before writing a summary or a STOP.
+
 ---
 
 ## Before you start
 
 Read `YOUR_PROJECT_ROOT/tasks/notes.md` if it exists — it contains conventions, known fixes, and decisions.
+
+**Startup check — run it before anything else touches the story.** The helper scripts this skill
+uses live in its own folder: `<skill-dir>` below is the base directory Claude Code shows when this
+skill loads (`.claude/skills/implement` in a project install, `~/.claude/skills/implement` in a
+global one).
+
+```bash
+node "<skill-dir>/bin/startup-check.js"                 # a build, or --resume
+node "<skill-dir>/bin/startup-check.js" --with rework   # a --rework run
+```
+
+It reads the **Required tools** list below and looks in `./.claude` then `~/.claude`. If it
+exits non-zero, **stop**: print its `missing <kind>: <name> (needed by <phase>)` lines and do nothing else.
+Under `--autonomous` it still stops — a missing agent, skill or script is the "missing dependency"
+pause-anyway trigger in `rules/autonomous-mode.md`, and substituting a general-purpose agent for a
+named one silently changes what work is done.
+
+**The checklist tool** is built in, not a file, so the script cannot see it. Check your own tool
+list for **TodoWrite**, or for the newer **TaskCreate / TaskUpdate / TaskList** tools that replace it
+in most sessions; either one is the live checklist, and "TodoWrite" below means whichever you have.
+If you have neither, **stop** before Phase 1 and say:
+
+```
+missing built-in: the checklist tool (TodoWrite or TaskCreate), needed by every phase.
+Claude Code leaves it out on newer models. Add "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1" to the
+"env" block of ~/.claude/settings.json, restart Claude Code, then run this command again.
+```
+
+That line sets `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` for every session. Offer to add it yourself; it is the person's settings file, so add it only on their yes. It
+takes effect only after a restart, so the run still stops here either way. Under `--autonomous` it
+still stops. (Source: code.claude.com/docs/en/tools, "Task tool availability".)
+
+When the check passes, print the first progress line (`event=run-started`) and say nothing more about
+it.
 
 ```bash
 cd YOUR_PROJECT_ROOT && git status --porcelain > "tasks/stories/<id>/.tree-baseline" 2>/dev/null; git status && git branch --show-current
@@ -57,6 +101,12 @@ Parse `$ARGUMENTS`:
 
 0. **Detect `--rework <PR#>` first — this is a MODE SELECTOR, not an additive flag.** If `$ARGUMENTS` starts with (or contains) `--rework <PR#>`, where `<PR#>` is the numeric PR number, extract it and treat any remaining free text after it as optional typed feedback. **Validate that `<PR#>` matches `^[0-9]+$` before using it anywhere** — if it is missing or non-numeric, stop and ask; never pass an unvalidated `<PR#>` into a `gh` command or a script argument. Unlike `--discuss`/`--research`/`--quick`/`--auto`/`--full`/`--autonomous` (which combine with the normal build flow), `--rework` **short-circuits** the entire Understand → Plan → Build → PR flow below and jumps straight to the Rework mode section further down this file. `--rework` is itself an **explicit autonomous entry point** — invoking the flag *is* the signal (the same role `--autonomous` plays for the forward flow), so it runs under the self-answer rule of `rules/autonomous-mode.md` without needing a separate `--autonomous`. If `--rework` is detected, skip steps 1-4 below and the branch-creation step, and go directly to that section.
 
+   **`--resume <id>` is the other mode selector.** It carries on a run that stopped — a closed
+   terminal, a crash, a usage limit, a compaction you could not recover from in-session. Validate
+   `<id>` against `^[A-Za-z0-9][A-Za-z0-9._-]*$` before using it in any path or command. Skip steps
+   1-4 and the branch-creation step, and go directly to the **Resume mode** section. Other flags on a
+   `--resume` call are ignored: the saved run's own flags and `run-mode:` are what it resumes with.
+
 1. **Extract flags** into a set (strip them out before interpreting the rest):
    - `--discuss` → run a pre-plan clarification step (Phase 1a)
    - `--research` → run a codebase-scan step before the planner (Phase 1b)
@@ -70,6 +120,7 @@ Parse `$ARGUMENTS`:
      - **Write the terminal phase marker yourself:** the six keys per `rules/phase-markers.md` with `detail: run complete — terminal state under --no-ship, no git operation performed`. Without it the workspace still claims work is in progress, which is the very problem the flag was added to solve.
    - `--auto` → auto-run all waves without pausing between them (still stops on failure)
    - `--full` → sugar for `--discuss` + `--research` (does NOT imply `--quick` or `--auto`)
+   - `--resume <id>` → carry on a stopped run from its saved state; finished tasks are never redone (mode selector — see step 0 and **Resume mode**)
    - `--autonomous` → run the entire flow with **no human STOP checkpoints** — self-answer reversible questions, pause only when genuinely blocked, auto-push and open a PR as the single human gate (see **Autonomous mode** below). Implies `--auto`.
 
    `--full`, `--quick`, `--auto`, `--tdd`, `--no-ship` and `--autonomous` are orthogonal and may be combined. Before proceeding, expand `--full` into its underlying two flags, and expand `--autonomous` to also set `--auto`. `--autonomous` does NOT imply `--quick` — evaluation, acceptance testing, and the e2e goal gate still run.
@@ -81,7 +132,7 @@ Parse `$ARGUMENTS`:
      - Plain text description → **no ID given.** Offer to register it first so the work lands in the local task registry:
        > "No task ID given. Create a local task for this so it's tracked? (I'll run `create-issue.sh` and use the new ID — say "yes", or "skip" to build it ad-hoc without a registry entry.)"
 
-       If YOUR_NAME says **yes**: `bash trackers/active/create-issue.sh "<description>" "" ""` → capture the new numeric ID from the output and treat it as the task ID from here on (the render hook regenerates `todo.md`). If YOUR_NAME says **skip**: proceed with the plain description and no registry entry — the zero-tracker escape hatch, still fully supported.
+       If YOUR_NAME says **yes**: `bash trackers/active/create-issue.sh "<description>" "" ""` → capture the new numeric ID from the output and treat it as the task ID from here on. If YOUR_NAME says **skip**: proceed with the plain description and no registry entry — the zero-tracker escape hatch, still fully supported.
    - If the active tracker is `todoist`:
      - Quoted strings or task titles → it's a **Todoist task title** — search for it using `trackers/active/get-sprint-issues.sh` and match by title
      - Numeric IDs without `#` → it's a **Todoist task ID** — fetch via `trackers/active/get-issue.sh <ID>`
@@ -104,6 +155,140 @@ here a literal reading creates a branch and then promises not to.
 ```bash
 git checkout -b implement/<issue-id-or-slugified-title>
 ```
+
+---
+
+## Required tools
+
+Everything this skill hands work to, by name. `bin/startup-check.js` reads this list, so it is the
+single place to add one; a probe test (`__tests__/trustworthy-builds.probe.test.js`) fails if this file
+names an agent or adapter script that is not listed here. Format: `- <kind> \`<name>\` — <needed by> ·
+<build | rework | both>`.
+
+- agent `story-understand-agent` — Phase 1 · build
+- agent `implement-planner-agent` — Phase 1c · build
+- agent `story-executor-agent` — Phase 2 · build
+- agent `evaluator-agent` — Phase 3 review · build
+- agent `acceptance-test-agent` — Phase 3 review · build
+- agent `architect-reviewer-agent` — Phase 3 review · build
+- agent `security-reviewer-agent` — Phase 3 review · build
+- agent `story-pr-agent` — Phase 3 PR · build
+- skill `local-test` — Phase 2.5 · build
+- skill `debug` — the 3-attempt rule · both
+- skill `troubleshoot` — Phase 3 e2e gate · build
+- tracker-script `get-issue.sh` — fetching the task · build
+- tracker-script `get-sprint-issues.sh` — finding a Todoist task by title · build
+- tracker-script `create-issue.sh` — registering a task or a deferral · build
+- code-platform-script `get-pr-review-threads.sh` — Rework mode · rework
+- code-platform-script `reply-pr-thread.sh` — Rework mode · rework
+- code-platform-script `resolve-pr-thread.sh` — Rework mode · rework
+
+The `--research` step uses Claude Code's **built-in `Explore` agent**, which is not a file and is not
+checked here.
+
+---
+
+## State and progress
+
+Every step boundary leaves two things behind, **before the next step starts**: the saved state and one
+progress line. Together they are the **step record**. A run that stops at any point — a crash, a
+closed terminal, a compaction — loses at most the step in flight, because the record of every earlier
+step is already on disk.
+
+**The steps**, in order: `understand`, `goal`, `plan`, `wave-<n>` (one per wave), `local-test`,
+`review`, `e2e-gate`, `pr`. `/implement --resume` re-enters at the saved `next:` step.
+
+**1. Saved state — `tasks/stories/<id>/executor-state.md`.** Overwrite the header lines and the
+Progress table at every boundary (the wave log below them is appended):
+
+```
+# Executor state — story <id>
+
+run-mode: interactive | autonomous
+skill: implement
+flags: <the flags this run was started with>
+branch: <the branch this run created>
+step: <the step that just finished>
+next: <the step to run next>
+updated: <ISO-8601 UTC now>
+
+## Progress
+
+| Task | Name | Wave | Attempts | Status | Summary |
+|---|---|---|---|---|---|
+| 1 | "..." | 1 | 1 | verified | [one line] |
+```
+
+`Status` is exactly one of:
+
+| Status | Meaning |
+|---|---|
+| `pending` | not started |
+| `running` | its executor is out; set when the wave launches |
+| `verified` | its `<verify>` passed; **not done yet** |
+| `done` | verified **and** the review and e2e gate passed (Phase 3, **Marking tasks done**) — only now is it ✅ in `plan.md` and `completed` in TodoWrite |
+| `failed` | its last attempt failed or was blocked; restored before any retry |
+| `reopened` | a review finding names one of its files; not done until the fix and the re-review pass |
+
+**2. One progress line**, printed in the terminal and appended to
+`tasks/stories/<id>/progress.log`:
+
+```bash
+node "<skill-dir>/bin/progress.js" <id> <event> <phase> "<detail>"
+```
+
+which prints, for example:
+
+```
+[harness] ts=2026-10-05T14:02:11Z story=42 event=step phase=coding detail="wave 1/3 — tasks 1, 2 verified"
+```
+
+Events: `run-started`, `run-resumed`, `run-paused`, `run-finished`, `phase` (entering a phase), `step`
+(a step finished), `task-verified`, `task-done`, `task-reopened`, `review-done`, `pr-opened`. Phases:
+the five ids in `rules/phase-markers.md`. Always go through the script — it strips newlines and
+control characters, replaces `"` and cuts the detail to 200 characters, the same rules as `phase.md`'s
+`detail` — never `echo` a line by hand. The detail never carries secrets or PHI.
+
+`phase.md` stays a separate contract (`rules/phase-markers.md`): it says what phase the run is in
+*now*; the step record says what is *finished*.
+
+---
+
+## Resume mode (only if `--resume <id>` is set)
+
+`--resume <id>` carries on a stopped run. It never starts a fresh one and never redoes a finished task.
+
+**a. Run the startup check** (Before you start) as for any build.
+
+**b. Read where the run stopped:**
+
+```bash
+node "<skill-dir>/bin/resume-point.js" <id>
+```
+
+It reads `executor-state.md` and the task XML in `plan.md` and prints `run-mode`, `branch`, `next`,
+`finished`, `to-run`, `restore`, and — when they apply — `keep-as-is` and `reopened`. If it exits
+non-zero there is **no saved state** (or no plan) for that id: say so and **stop**. Never start a fresh
+run in its place — the person asked to continue something, and a new run would quietly redo work.
+
+**c. Check the branch.** `git branch --show-current` must equal the saved `branch:`. If it does not,
+stop and say which branch the run was on and which one is checked out; switching is the person's call
+(the working tree may hold their own work). This is never self-answered.
+
+**d. Restore half-done tasks.** For every task on the `restore:` line, put its declared files back
+before it is retried — the same rule as a failed task in Phase 2 (`rules/wave-execution.md`, "restore
+before retrying"): `git checkout -- <its tracked files>`, and delete any untracked files it created.
+Tasks on the `keep-as-is:` line carry `must_fail="true"` and are **never** restored: their test file
+is the evidence of why they stopped. Set every restored task back to `pending`.
+
+**e. Re-enter.** Print `event=run-resumed` with the `next:` step as the detail, then carry on there:
+`wave-<n>` → Phase 2 at that wave, launching only the `to-run:` tasks; `local-test` → Phase 2.5;
+`review` or `e2e-gate` → Phase 3; `pr` → the PR step. Tasks on `finished:` are skipped, not re-verified.
+Tasks on `reopened:` are fixed in the review step, as Phase 3 describes.
+
+**f. Keep the mode.** If `run-mode: autonomous` was saved, the resumed run is autonomous: self-answer
+per `rules/autonomous-mode.md` and keep appending to the same `decisions-log.md`. Otherwise it is
+interactive, with every STOP as normal.
 
 ---
 
@@ -146,8 +331,8 @@ flag of their own**. When `--autonomous` is set, `/implement` propagates the mod
    and review agents) is told, in its invocation, that this is an autonomous run and to self-answer
    its checkpoints per `rules/autonomous-mode.md`, appending to the shared decisions-log.
 2. **Durable marker** — write `run-mode: autonomous` into `tasks/stories/<id>/executor-state.md` (the
-   file this flow already updates every wave), so a standalone resume (e.g. `/run-tasks <id>` after an
-   interruption) inherits the mode without a live orchestrator.
+   file this flow updates at every step), so a resume (`/implement --resume <id>`, or `/run-tasks <id>`,
+   after an interruption) inherits the mode without a live orchestrator.
 
 `/local-test` and the review agents (evaluator / acceptance / architect / security) have no human
 checkpoints, so the mode is a **no-op** for them — they always report back and never pause; their
@@ -273,7 +458,9 @@ per the 3-failed-attempts pause-anyway trigger — the same rule the rest of thi
 
 **Write the phase marker** (per `rules/phase-markers.md`) before spawning: `schemaVersion: 1`,
 `phase: planning` (the planning phase, displayed as Navigator), `role: builder`, `updated: <ISO-8601
-UTC now>`, `skill: implement`, `detail: Phase 1 — story-understand-agent`.
+UTC now>`, `skill: implement`, `detail: Phase 1 — story-understand-agent`. Print the progress line
+`event=phase phase=planning`. Once the brief is saved below, write the **step record** (see **State and
+progress**): `step: understand`, `next: goal`.
 
 Spawn a **`story-understand-agent`** (foreground) with this prompt:
 
@@ -361,9 +548,12 @@ Then say **exactly:**
 
 Do NOT proceed until YOUR_NAME responds (unless `--autonomous`). The confirmed goal is the input to the planner — it turns the goal into the test strategy + test/eval tasks.
 
+Once the goal is confirmed, write the step record: `step: goal`, `next: plan`, with the goal saved in
+`tasks/stories/<id>/brief.md` under a "Goal" heading so a resumed run does not have to define it again.
+
 ### Phase 1b — Research (only if `--research` is set)
 
-Launch a single **Explore sub-agent** (foreground) with this scope:
+Launch a single sub-agent of Claude Code's **built-in `Explore` agent** type (foreground; not a harness agent) with this scope:
 
 > Scan the codebase for existing functions, utilities, classes, patterns, or modules that the following task could reuse instead of writing new code:
 >
@@ -381,7 +571,8 @@ Capture the inventory verbatim. It will be passed to the planner.
 
 **Write the phase marker** before spawning: `schemaVersion: 1`, `phase: planning` (the planning phase,
 displayed as Navigator), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: implement`,
-`detail: Phase 1c — implement-planner-agent`.
+`detail: Phase 1c — implement-planner-agent`. When the plan is approved at STOP 1 below, write the
+**step record**: `step: plan`, `next: wave-1`, and one Progress row per task with Status `pending`.
 
 Spawn an **`implement-planner-agent`** (foreground) with the Phase 1 brief as input:
 
@@ -446,7 +637,8 @@ Do NOT proceed until YOUR_NAME responds (unless `--autonomous`).
 phase, displayed as Shipwright), `role: builder`, `updated: <ISO-8601 UTC now>`, `skill: implement`,
 `detail: Phase 2 Wave 1 — story-executor-agent`. Update `detail` and `updated` (keeping `phase:
 coding`) as execution moves between waves — write the full six-key marker per
-`rules/phase-markers.md` on every wave transition.
+`rules/phase-markers.md` on every wave transition. Print `event=phase phase=coding` once, and write the
+**step record** after every wave (C2 below).
 
 Once YOUR_NAME approves, note the **execution mode**: if `--auto` flag was set, use mode B. Otherwise use what they chose at STOP 1 (A = wave-by-wave, B = auto-run; default A if not specified). `--autonomous` implies `--auto`, so an autonomous run is always mode B — the wave pauses never fire, but a FAIL/BLOCKED still halts the run exactly as mode B's "pause on failure" does.
 
@@ -463,7 +655,7 @@ If there are multiple tasks, show the wave summary:
 **Seed the live progress checklist first.** Before launching Wave 1, create a `TodoWrite` list with one
 item per pending task (across all waves), using the plan's task names — for live visibility and to lock
 in the work order before any code changes. (Skip for the single-task case — a one-item list is noise.)
-`todo.md` stays the source of truth; this is its in-session mirror. See `rules/progress-tracking.md`.
+The story plan (`tasks/stories/<id>/plan.md`) and `executor-state.md` stay the source of truth; this is their in-session mirror. See `rules/progress-tracking.md`.
 
 For **each wave:**
 
@@ -491,7 +683,11 @@ On any overlap, auto-split: move the higher-id task into a new wave immediately 
   **Never pass `isolation: "worktree"` here.** An isolated worktree forks from the default branch and sees only *committed* state, while this skill commits nothing until Phase 3 — so a dependent wave gets a copy without the files the earlier waves just wrote, and its `<verify>` fails on missing modules. See `rules/wave-execution.md` for the full rationale. Agents edit in parallel and serialize only on `<verify>`, via the lock in `agents/story-executor-agent.md` Step 3.
 - `type="manual"`: display instructions for YOUR_NAME.
 
-**C. Wait for all to complete.** Show results:
+Before the spawn, set each launched task's Status to `running` in `executor-state.md` — so a run that
+dies mid-wave knows which tasks' files to restore on `--resume`.
+
+**C. Wait for all to complete** — every background executor must report before you write anything
+else (`rules/background-work.md`). Show results:
 
 | Task | Name | Result | Summary |
 |---|---|---|---|
@@ -515,7 +711,9 @@ Every **newly** changed path must appear in some task's `<files>` (this wave or 
 
 *Branch-drift check* — re-run A0a. Checking both sides of a wave catches a hijack within one wave instead of at the end of the run.
 
-**C2. Update the executor state:** Write/update `tasks/stories/<id>/executor-state.md` with the current progress table and wave log. Update after EVERY wave, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection. **In the same pass, mark each PASSed task `completed` in the `TodoWrite` list and mark the next wave's task(s) `in_progress`.** FAILed/BLOCKED tasks stay `in_progress` until resolved. **If `--autonomous` is set, include a `run-mode: autonomous` line in this file** so a standalone resume (`/run-tasks <id>`) inherits the mode (see the propagation contract in "Autonomous mode" above).
+**C2. Write the step record:** update `tasks/stories/<id>/executor-state.md` — header (`step: wave-<n>`, `next: wave-<n+1>`, or `next: local-test` after the last wave), the Progress table and the wave log — and print one `event=step phase=coding` line naming the verified tasks. Do this after EVERY wave, before the next one launches, not just at the end. This file is the resume state if the session is interrupted, and is read by `/improve-harness` for pattern detection.
+
+**A PASS is `verified`, not done.** Record each PASSed task with Status `verified` and print an `event=task-verified` line for it. Do **not** tick it ✅ in `plan.md` and do **not** mark it `completed` in TodoWrite yet — a task is done only once its tests **and the review** have passed (Phase 3). Leave its TodoWrite item `in_progress`, with "(verified)" appended to its name, and mark the next wave's task(s) `in_progress`. FAILed/BLOCKED tasks get Status `failed` and stay `in_progress` until resolved. **If `--autonomous` is set, include a `run-mode: autonomous` line in this file** so a resume (`/implement --resume <id>`, or `/run-tasks <id>`) inherits the mode (see the propagation contract in "Autonomous mode" above).
 
 **D. STOP after each wave (behavior depends on execution mode):**
 
@@ -554,23 +752,26 @@ and delete any untracked files it created. The overlap check guarantees waves ar
 
 **Write the phase marker** before running `/local-test`: `schemaVersion: 1`, `phase: testing` (the
 testing phase, displayed as Lookout), `role: builder`, `updated: <ISO-8601 UTC now>`,
-`skill: implement`, `detail: Phase 2.5 — local-test`.
+`skill: implement`, `detail: Phase 2.5 — local-test`. Print `event=phase phase=testing`.
 
 After all tasks pass, run `/local-test 2` (or `/local-test 1` if Docker is not available — note that integration testing was skipped).
 
 If tests fail → fix first, do NOT proceed.
-If tests pass → proceed to Phase 3.
+If tests pass → write the **step record** (`step: local-test`, `next: review`, or `next: pr` under `--quick`) and proceed to Phase 3.
 
 ---
 
 ## Phase 3 — Evaluate + PR
 
 **If `--quick` was passed:** Skip evaluation and acceptance testing, go straight to PR preparation
-(write the `shipping` phase marker below before that step).
+(write the `shipping` phase marker below before that step). With no review to wait for, **Marking tasks
+done** below happens straight after local tests pass.
 
 **Otherwise:** **Write the phase marker** before spawning the review agents: `schemaVersion: 1`,
 `phase: reviewing` (the reviewing phase, displayed as Warden), `role: builder`, `updated: <ISO-8601 UTC
-now>`, `skill: implement`, `detail: Phase 3 — evaluator/acceptance/architect/security review`.
+now>`, `skill: implement`, `detail: Phase 3 — evaluator/acceptance/architect/security review`. Print
+`event=phase phase=reviewing`, and one `event=review-done` line per report as it returns, with its
+finding count; the **step record** for this step is written once the review has passed (below).
 Spawn **all four review agents in parallel** (foreground):
 
 **Agent 1 — Evaluator:** Spawn an **`evaluator-agent`** with:
@@ -593,7 +794,15 @@ Spawn **all four review agents in parallel** (foreground):
 
 > Story ID: [issue ID or "implement/<branch-name>"]
 
-Wait for **all four** to return. Show all reports.
+Wait for **all four** to return — never write the summary while one is still out
+(`rules/background-work.md`). Show all reports.
+
+**Reopen the tasks the findings land on.** For every finding you are going to fix — a hard gate, a
+NOT ACCEPTED criterion, a BLOCK, or anything YOUR_NAME (or the self-answer rule) says to fix — find the
+tasks whose `<files>` contain the file the finding names, set their Status to `reopened`, and print an
+`event=task-reopened` line for each. A reopened task is not done until its fix **and** the re-review
+pass; then it goes back to `verified`. A finding that names no task's file (a missing test file, a
+doc) reopens nothing — fix it and say which finding it was.
 
 **Write the handoff contracts:** Save each report under `tasks/stories/<id>/` — `evaluation.md`, `acceptance.md`, `architecture-review.md`, and `security-review.md`. `evaluation.md` is required, not optional: `/improve-harness` scans `tasks/stories/*/evaluation.md` for pattern detection and skips any story that lacks it, so without this the story is invisible to the learning loop.
 
@@ -624,13 +833,25 @@ sentence below means *survived the fix-or-defer decision as a deferral* — i.e.
 "Deferred / follow-ups" section references it **by its tracker id**. A deferral bullet with no id is a
 defect in the run, not a record.
 
+When the review has passed — no task left `reopened` — write the **step record**: `step: review`,
+`next: e2e-gate`.
+
 **e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1a / the test strategy. Run `/local-test e2e` for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) for YOUR_NAME to sign off. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs implemented vs observed → root-cause (route behavioral gaps to `/troubleshoot`, the 3-attempt trigger to `/debug`) → fix → re-run. Three evidence-based re-approaches without a green gate → STOP and invoke `/debug`; do not attempt a 4th (a blind repeat doesn't count as a re-approach). The gate blocks PR until green or human-accepted.
+
+**Marking tasks done.** Once the review has passed — every finding you chose to fix is fixed and
+re-reviewed, and no task is left `reopened` — and the e2e gate is green (both skipped under `--quick`),
+turn every `verified` task into `done` **in one pass**: Status `done` in `executor-state.md`, ✅ on its
+`<task>` line in `plan.md`, `completed` in TodoWrite, and one `event=task-done` line each. Then write
+the **step record**: `step: e2e-gate`, `next: pr`. This is the only place a task becomes done; nothing
+earlier ticks it.
 
 **After evaluation + acceptance + the e2e gate pass (or were skipped with `--quick`):**
 
 **Write the phase marker** before spawning `story-pr-agent`: `schemaVersion: 1`, `phase: shipping`
 (the shipping phase, displayed as Harbormaster), `role: builder`, `updated: <ISO-8601 UTC now>`,
-`skill: implement`, `detail: Phase 3 — story-pr-agent`.
+`skill: implement`, `detail: Phase 3 — story-pr-agent`. Print `event=phase phase=shipping`. Once the
+PR is open, print `event=pr-opened` with its number, write the **step record** (`step: pr`,
+`next: none`) and finish with `event=run-finished`.
 
 Spawn a **`story-pr-agent`** (foreground) with:
 - Story ID: [issue ID or branch name]
@@ -722,6 +943,11 @@ behind** in the working directory.
 
 ## Hard rules
 
+- Run `bin/startup-check.js` before Phase 1; a missing agent, skill or adapter script is a stop, under `--autonomous` too — never substitute a general-purpose agent for a named one
+- Write the step record — `executor-state.md` and one `[harness]` progress line through `bin/progress.js` — at every step boundary, before the next step starts. After a compaction, re-read `executor-state.md` before doing anything else
+- `--resume <id>` continues from the saved state and never redoes a `verified` or `done` task; with no saved state it stops and never starts fresh
+- A task is `verified` when its `<verify>` passes and `done` only after the review and the e2e gate pass; a finding on one of its files reopens it
+- Never end a turn, write a summary, or STOP while a background agent or command this run started is still running (`rules/background-work.md`)
 - Never chain phases — always wait for confirmation at each STOP — **unless `--autonomous`**, which auto-resolves every STOP via the self-answer rule (see **Autonomous mode**) and pauses only on a contradiction, an irreversible action, a scope change, or the 3-attempt rule
 - Never skip Phase 1 (understand) — the brief grounds planning in what the codebase actually looks like
 - Never skip Phase 1.5 (goal definition) — the goal is the input to planning and the terminal condition; the only way past the gate is the explicit "skip gate — no runtime impact" escape hatch

@@ -19,7 +19,7 @@ If your threat model includes hostile prompt injection, untrusted user input, or
 - **SQL destruction**: `DROP TABLE`, `TRUNCATE TABLE`, `DELETE FROM` invoked through Bash (e.g. `sqlcmd`, `psql`). Note: only Bash invocations, not when these strings appear inside a Write to a `.md` file.
 - **Process kills**: `taskkill /f`, `kill -9`, `Stop-Process -Force`.
 - **Package publishing**: `npm publish`, `dotnet nuget push` — irreversible operations.
-- **Git operations needing approval**: `git commit`, `git push` — by policy these need human sign-off.
+- **Git operations needing approval**: `git commit`, `git push` — by policy these need human sign-off. To let Claude commit and push without a prompt, set `SAFETY_ALLOW_GIT_COMMIT_PUSH=1` in the `env` block of `~/.claude/settings.json`. That lifts only these two prompts; every destructive rule above still applies.
 - **Plain-text supply chain risks**: `curl … | bash`, `wget … | sh`, `iex … web…`.
 - **Plain-text credential leaks**: `curl …password=…`, `echo $API_KEY`, `printenv`.
 - **Hardcoded secrets in Write content**: PEM private-key headers, or the heuristic "long token + secret-keyword" combo. Skipped for `.md`/`.mdx`/`.rst`/`.txt` and any `docs/` path so docs can quote the patterns.

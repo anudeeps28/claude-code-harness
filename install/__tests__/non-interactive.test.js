@@ -271,8 +271,10 @@ test('every roster role agent is installed and the old role agents are gone', ()
         const agentFile = `${roster.roles[roleName].agent}.md`;
         assert.ok(agents.includes(agentFile), `${pack}: ${agentFile} (roster role ${roleName}) must be installed`);
       }
-      assert.ok(agents.includes('builder.md'), `${pack}: builder.md must be installed`);
-      assert.ok(agents.includes('reviewer.md'), `${pack}: reviewer.md must be installed`);
+      assert.ok(agents.includes('build-session.md'), `${pack}: build-session.md must be installed`);
+      assert.ok(agents.includes('review-session.md'), `${pack}: review-session.md must be installed`);
+      assert.ok(!agents.includes('builder.md'), `${pack}: the old builder.md must not be installed (#28)`);
+      assert.ok(!agents.includes('reviewer.md'), `${pack}: the old reviewer.md must not be installed (#28)`);
       for (const removed of REMOVED_ROLE_AGENTS) {
         assert.ok(!agents.includes(removed), `${pack}: ${removed} must not be installed`);
       }
@@ -487,6 +489,36 @@ test('update migrates a pre-roster-v2 solo install: v1 5-role roster becomes v2 
   }
 });
 
+test('update renames the role agents: old builder.md and reviewer.md are pruned, build-session.md and review-session.md installed (#28)', () => {
+  const dir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', dir, ...LOCAL]);
+    const claudeDir = path.join(dir, '.claude');
+
+    // Regress to the pre-rename install: the two old agent files, tracked by the manifest.
+    for (const name of ['builder', 'reviewer']) {
+      fs.writeFileSync(path.join(claudeDir, 'agents', `${name}.md`), `---\nname: ${name}\n---\n`, 'utf8');
+    }
+    const manifestPath = path.join(claudeDir, '.harness-manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.installedFiles = [...manifest.installedFiles, 'agents/builder.md', 'agents/reviewer.md'];
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf8');
+
+    runInstallJs(['--update', '--project', dir, ...LOCAL]);
+
+    const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
+    assert.ok(!agents.includes('builder.md'), 'update should prune the old builder.md');
+    assert.ok(!agents.includes('reviewer.md'), 'update should prune the old reviewer.md');
+    assert.ok(agents.includes('build-session.md'), 'update should install build-session.md');
+    assert.ok(agents.includes('review-session.md'), 'update should install review-session.md');
+    const roster = JSON.parse(fs.readFileSync(path.join(claudeDir, 'harness-roles.json'), 'utf8'));
+    assert.strictEqual(roster.roles.builder.agent, 'build-session');
+    assert.strictEqual(roster.roles.reviewer.agent, 'review-session');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('verifyInstall is a real gate: passes on a good install, fails on each corruption', () => {
   const goodDir = makeTempProject();
   try {
@@ -505,10 +537,10 @@ test('verifyInstall is a real gate: passes on a good install, fails on each corr
   try {
     runInstallJs(['--yes', '--project', truncDir, ...LOCAL]);
     const claudeDir = path.join(truncDir, '.claude');
-    fs.writeFileSync(path.join(claudeDir, 'agents', 'builder.md'), '', 'utf8');
+    fs.writeFileSync(path.join(claudeDir, 'agents', 'build-session.md'), '', 'utf8');
     assert.ok(
       verifyInstall(claudeDir, sedDirsFor(claudeDir), 'solo') > 0,
-      'a zero-byte required agent file (agents/builder.md) must fail verifyInstall',
+      'a zero-byte required agent file (agents/build-session.md) must fail verifyInstall',
     );
   } finally {
     fs.rmSync(truncDir, { recursive: true, force: true });
