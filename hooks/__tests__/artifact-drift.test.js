@@ -197,6 +197,58 @@ test('invariant 8: warns when architecture component not in work items', () => {
   } finally { cleanup(root); }
 });
 
+// #66: the work items come from tasks/issues/ (the local tracker itself) when it exists, so the
+// check no longer depends on tasks/todo.md being rebuilt. todo.md is only the fallback.
+function writeIssue(tasks, id, title, state, body = '') {
+  const dir = path.join(tasks, 'issues');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.md`),
+    `---\nid: ${id}\ntitle: ${title}\nstate: ${state}\nlabels: []\nparent: null\n---\n\n${body}\n`);
+}
+
+test('invariant 8: reads work items from tasks/issues when present', () => {
+  const { root, tasks } = makeFixture();
+  try {
+    fs.writeFileSync(path.join(root, 'docs', 'ARCHITECTURE.md'),
+      '# Arch\n```mermaid\ngraph TB\n    SVC1[Payment Service]\n    SVC2[Notification Service]\n    SVC3[Billing Service]\n```\n');
+    writeIssue(tasks, 1, 'Build payments', 'open', 'Wire the Payment Service and the Notification Service.');
+    const result = runDriftCheck(path.join(root, 'docs', 'ARCHITECTURE.md'));
+    assert.equal(result.exitCode, 0);
+    const ctx = result.json?.hookSpecificOutput?.additionalContext || '';
+    // The Billing warning proves the check actually ran (with no todo.md it used to be skipped,
+    // which made "no warning" pass for the wrong reason).
+    assert.ok(ctx.includes('"Billing Service"'), `Billing Service is in no item and must warn; got: ${ctx}`);
+    assert.ok(!ctx.includes('"Payment Service"'), 'Payment Service is in an open item body');
+    assert.ok(!ctx.includes('"Notification Service"'), 'Notification Service is in an open item body');
+  } finally { cleanup(root); }
+});
+
+test('invariant 8: closed tasks/issues items do not count as work items', () => {
+  const { root, tasks } = makeFixture();
+  try {
+    fs.writeFileSync(path.join(root, 'docs', 'ARCHITECTURE.md'),
+      '# Arch\n```mermaid\ngraph TB\n    SVC1[Payment Service]\n```\n');
+    writeIssue(tasks, 1, 'Old payments work', 'closed', 'Payment Service done.');
+    writeIssue(tasks, 2, 'Something else', 'open', 'Unrelated.');
+    const result = runDriftCheck(path.join(root, 'docs', 'ARCHITECTURE.md'));
+    const ctx = result.json?.hookSpecificOutput?.additionalContext || '';
+    assert.ok(ctx.includes('Payment Service'), 'a component only in a closed item should still warn');
+  } finally { cleanup(root); }
+});
+
+test('invariant 8: tasks/issues wins over a stale todo.md', () => {
+  const { root, tasks } = makeFixture();
+  try {
+    fs.writeFileSync(path.join(root, 'docs', 'ARCHITECTURE.md'),
+      '# Arch\n```mermaid\ngraph TB\n    SVC1[Payment Service]\n```\n');
+    fs.writeFileSync(path.join(tasks, 'todo.md'), '# Todo\n- Payment Service (stale)\n');
+    writeIssue(tasks, 1, 'Something else', 'open', 'Unrelated.');
+    const result = runDriftCheck(path.join(root, 'docs', 'ARCHITECTURE.md'));
+    const ctx = result.json?.hookSpecificOutput?.additionalContext || '';
+    assert.ok(ctx.includes('Payment Service'), 'the stale board must not hide a real gap');
+  } finally { cleanup(root); }
+});
+
 test('invariant 9: warns when todo references non-existent PRD section', () => {
   const { root, tasks } = makeFixture();
   try {

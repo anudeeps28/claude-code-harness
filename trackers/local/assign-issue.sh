@@ -44,9 +44,9 @@ fi
 
 mv "$TMP_FILE" "$TASK_FILE"
 
-# Regenerate todo.md
+# Regenerate todo.md only on request (LOCAL_RENDER_TODO=1) — a rebuild costs ~30s on Windows (#66)
 RENDER_SCRIPT="$(dirname "$0")/../lib/render-todo.sh"
-if [ -x "$RENDER_SCRIPT" ] || [ -f "$RENDER_SCRIPT" ]; then
+if [ "${LOCAL_RENDER_TODO:-0}" = "1" ] && [ -f "$RENDER_SCRIPT" ]; then
   bash "$RENDER_SCRIPT" "$ISSUES_DIR" 2>/dev/null || true
 fi
 

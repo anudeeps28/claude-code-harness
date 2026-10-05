@@ -28,14 +28,13 @@
 // Invariant 10 produces a soft warning.
 // Invariant 11 produces a HARD BLOCK (contradiction).
 //
-// Tracker-mode note (WS5): invariants 8-10 read tasks/todo.md, which exists
-// only in local and both modes (a generated dashboard / mirror) and is ABSENT
-// in tracker mode. There findTodoPath() returns null and 8-10 skip cleanly —
-// intentional, not a bug. They stay advisory-only: the rich content some once
-// matched (PRD "Section N" refs, <acceptance> blocks) now lives in the story
-// folders (tasks/stories/<id>/plan.md), so against the generated board 9-10
-// find nothing and 8 matches architecture components against work-item titles.
-// /sync-tasks runs the same checks against the tracker registry via
+// Tracker-mode note (WS5, #66): invariants 8-10 read the open work items via
+// readWorkItemsText(): in local mode straight from tasks/issues/ (full title +
+// body, never stale), otherwise from the tasks/todo.md mirror if one exists.
+// In tracker mode there is neither, so 8-10 skip cleanly — intentional, not a bug.
+// They stay advisory-only. Against the titles-only mirror, 9-10 find nothing
+// (PRD "Section N" refs and <acceptance> blocks live in item bodies and story
+// plans). /sync-tasks runs the same checks against the tracker registry via
 // list-issues.sh / get-issue.sh and is the mode-complete path.
 //
 // Hard block uses `decision: "block"` per PostToolUse protocol; it cannot

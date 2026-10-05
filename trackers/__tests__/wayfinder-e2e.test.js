@@ -149,9 +149,17 @@ t('wayfinder_FullLifecycle_LocalTracker', () => {
 
     run('close-issue.sh', [String(mapId), 'way is clear']);
 
-    // ── Mirror hygiene: todo.md self-healed to "everything done" ─────
+    // ── Board: rebuilt on request, it shows "everything done" ─────
+    // Writes no longer rebuild todo.md (#66), so build it explicitly from the final registry.
     // (render-todo.sh keeps a recently-closed section by design — the
     // signal is the open/closed tally, not absence of closed titles)
+    const render = spawnSync('bash', [path.join(ws.root, 'lib', 'render-todo.sh'), ws.issuesDir], {
+      encoding: 'utf8',
+      env: { ...process.env, TODO_OUTPUT: path.join(ws.root, 'tasks', 'todo.md') },
+      cwd: ws.root,
+      timeout: 90000,
+    });
+    assert.equal(render.status, 0, render.stderr);
     const todo = fs.readFileSync(path.join(ws.root, 'tasks', 'todo.md'), 'utf8');
     assert.match(todo, /_0 open, 5 closed_/);
   } finally {

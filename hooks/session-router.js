@@ -44,7 +44,7 @@ runHook('session-router', async () => {
         if (!match && detectedTracker) {
           trackerInfo = `\n\n## Tracker mismatch\nManifest says "${manifestTracker}" but adapter scripts look like "${detectedTracker}". Run \`/update-harness\` to fix.`;
         } else if (manifest.tracker === 'local') {
-          trackerInfo = '\n\n## Active tracker: local\nTasks live in `tasks/issues/` — that IS the tracker for this project. Query task state with the `trackers/active/` adapter scripts (`list-issues.sh`, `get-issue.sh`), not by grepping files. `tasks/todo.md` is a generated dashboard of the registry (glance only — never hand-edit it); `tasks/notes.md` is scratch.';
+          trackerInfo = '\n\n## Active tracker: local\nTasks live in `tasks/issues/` — that IS the tracker for this project. Query task state with the `trackers/active/` adapter scripts (`list-issues.sh`, `get-issue.sh`), not by grepping files. `tasks/todo.md` is a board rebuilt only on request (`bash .claude/trackers/lib/render-todo.sh`), so it may be stale — never read task state from it, never hand-edit it; `tasks/notes.md` is scratch.';
         } else {
           const names = { todoist: 'Todoist', github: 'GitHub Issues', ado: 'Azure DevOps' };
           const mirror = manifest.trackerMirror === true;

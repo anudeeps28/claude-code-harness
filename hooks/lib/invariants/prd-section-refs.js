@@ -4,11 +4,10 @@ const { read } = require('./shared');
 
 function checkPrdSectionRefs(projectRoot, warnings) {
   const prdPath = ap.findPrdPath(projectRoot);
-  const todoPath = ap.findTodoPath(projectRoot);
-  if (!prdPath || !todoPath) return;
+  if (!prdPath) return;
 
   const prdText = read(prdPath);
-  const todoText = read(todoPath);
+  const todoText = ap.readWorkItemsText(projectRoot);
   if (!prdText || !todoText) return;
 
   const refs = ap.extractPrdSectionRefs(todoText);
@@ -23,7 +22,7 @@ function checkPrdSectionRefs(projectRoot, warnings) {
       || headingTexts.some((t) => t.startsWith(ref));
     if (!exists) {
       warnings.push(
-        `Artifact drift: todo.md references "PRD Section ${ref}" but that section does not exist in PRD.md`
+        `Artifact drift: a work item references "PRD Section ${ref}" but that section does not exist in PRD.md`
       );
     }
   }

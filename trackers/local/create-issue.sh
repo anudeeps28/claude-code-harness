@@ -38,8 +38,10 @@ _mint_next_id() {
   local max_id=0
   for f in "$ISSUES_DIR"/*.md; do
     [ -f "$f" ] || continue
-    local basename
-    basename=$(basename "$f" .md)
+    # Parameter expansion, not $(basename): one process per file made this take ~4s for 68
+    # issues on Windows (#66).
+    local basename="${f##*/}"
+    basename="${basename%.md}"
     if [[ "$basename" =~ ^[0-9]+$ ]] && [ "$basename" -gt "$max_id" ]; then
       max_id="$basename"
     fi
@@ -96,9 +98,9 @@ ${BODY}"
 
   # Atomic write: noclobber prevents overwriting if file appeared between scan and write
   if (set -o noclobber; echo "$CONTENT" > "$TASK_FILE") 2>/dev/null; then
-    # Regenerate todo.md
+    # Regenerate todo.md only on request (LOCAL_RENDER_TODO=1) — a rebuild costs ~30s on Windows (#66)
     RENDER_SCRIPT="$(dirname "$0")/../lib/render-todo.sh"
-    if [ -x "$RENDER_SCRIPT" ] || [ -f "$RENDER_SCRIPT" ]; then
+    if [ "${LOCAL_RENDER_TODO:-0}" = "1" ] && [ -f "$RENDER_SCRIPT" ]; then
       bash "$RENDER_SCRIPT" "$ISSUES_DIR" 2>/dev/null || true
     fi
     echo "${NEXT_ID} ${TASK_FILE}"

@@ -735,9 +735,17 @@ describe('happy-path-stdout', () => {
   // ignores the vars rather than failing, so /to-issues can set them unconditionally.
   for (const adapter of ['github', 'local', 'ado']) {
     test(`${adapter}_CreateIssue_TodoistOnlyEnvVars_Ignored`, () => {
-      const r = runScript(adapter, 'create-issue.sh', ['A story', 'A body', 'priority:medium'], {
-        extraEnv: { TRACKER_PRIORITY: 'p1', TRACKER_UNCOMPLETABLE: '1' },
-      });
+      const env = { TRACKER_PRIORITY: 'p1', TRACKER_UNCOMPLETABLE: '1' };
+      // The local adapter must run in a temp issues dir. runScript sets no LOCAL_ISSUES_DIR and
+      // no cwd, so it wrote a real "A story" item into this repo's tasks/issues/ on every run.
+      if (adapter === 'local') {
+        const ctx = runLocalScriptKeep('create-issue.sh', ['A story', 'A body', 'priority:medium'], env);
+        try {
+          assert.equal(ctx.exitCode, 0, `non-zero exit: ${ctx.stderr}`);
+        } finally { cleanup(ctx.root); }
+        return;
+      }
+      const r = runScript(adapter, 'create-issue.sh', ['A story', 'A body', 'priority:medium'], { extraEnv: env });
       assert.equal(r.exitCode, 0, `non-zero exit: ${r.stderr}`);
     });
   }

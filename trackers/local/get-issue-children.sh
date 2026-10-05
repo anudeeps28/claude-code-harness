@@ -3,6 +3,9 @@
 # Usage: bash .claude/trackers/active/get-issue-children.sh <ID>
 # Scans tasks/issues/ for tasks whose parent field matches <ID>.
 # Output: markdown-formatted list of children.
+#
+# Performance (#66): all files are read in one awk pass. The previous version ran three
+# grep|sed pipelines per file, which took ~11s for 68 issues on Windows Git Bash.
 
 set -o pipefail
 
@@ -29,36 +32,30 @@ fi
 echo "# Child Tasks for Task #${ISSUE_ID}"
 echo ""
 
-children_found=0
-open_count=0
-closed_count=0
-
-for f in "$ISSUES_DIR"/*.md; do
-  [ -f "$f" ] || continue
-  parent_val=$(grep -m1 '^parent:' "$f" | sed 's/^parent: *//')
-  if [ "$parent_val" = "$ISSUE_ID" ]; then
-    child_id=$(basename "$f" .md)
-    child_title=$(grep -m1 '^title:' "$f" | sed 's/^title: *//')
-    child_state=$(grep -m1 '^state:' "$f" | sed 's/^state: *//')
-
-    if [ "$child_state" = "closed" ]; then
-      marker="x"
-      closed_count=$((closed_count + 1))
-    else
-      marker=" "
-      open_count=$((open_count + 1))
-    fi
-
-    display_state=$(echo "$child_state" | tr '[:lower:]' '[:upper:]')
-    echo "- [$marker] #${child_id} ${child_title} (${display_state})"
-    children_found=$((children_found + 1))
-  fi
-done
-
-if [ $children_found -eq 0 ]; then
-  echo "_No child tasks found for task #${ISSUE_ID}._"
-else
-  echo ""
-  total=$((open_count + closed_count))
-  echo "_Progress: ${closed_count}/${total} complete (${open_count} open)_"
-fi
+# Same rules as before: every *.md in glob order, the FIRST parent/title/state line of each,
+# and the child id is the file name. A trailing CR is stripped so CRLF files match too.
+set -- "$ISSUES_DIR"/*.md
+awk -v want="$ISSUE_ID" '
+  function flush(   id, marker, st) {
+    if (cur == "" || !("parent" in val) || val["parent"] != want) { split("", val); return }
+    id = cur; sub(/.*\//, "", id); sub(/\.md$/, "", id)
+    st = val["state"]
+    if (st == "closed") { marker = "x"; closed++ } else { marker = " "; open++ }
+    printf "- [%s] #%s %s (%s)\n", marker, id, val["title"], toupper(st)
+    found++
+    split("", val)
+  }
+  FNR == 1 { flush(); cur = FILENAME }
+  { sub(/\r$/, "") }
+  /^parent:/ && !("parent" in val) { v = $0; sub(/^parent: */, "", v); val["parent"] = v }
+  /^title:/  && !("title"  in val) { v = $0; sub(/^title: */, "", v);  val["title"]  = v }
+  /^state:/  && !("state"  in val) { v = $0; sub(/^state: */, "", v);  val["state"]  = v }
+  END {
+    flush()
+    if (found == 0) {
+      printf "_No child tasks found for task #%s._\n", want
+    } else {
+      printf "\n_Progress: %d/%d complete (%d open)_\n", closed, closed + open, open
+    }
+  }
+' "$@"

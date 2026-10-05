@@ -58,8 +58,13 @@ $line"
   fi
 
   if [ "$in_frontmatter" = "true" ]; then
-    key=$(echo "$line" | sed -n 's/^\([a-z_]*\):.*/\1/p')
-    val=$(echo "$line" | sed -n 's/^[a-z_]*: *//p')
+    # Bash's own regex, not `echo | sed`: two subprocesses per line made this take seconds on
+    # Windows, where starting a process is slow (#66). Same match as the old sed expressions.
+    key=""; val=""
+    if [[ "$line" =~ ^([a-z_]*):\ *(.*)$ ]]; then
+      key="${BASH_REMATCH[1]}"
+      val="${BASH_REMATCH[2]}"
+    fi
     case "$key" in
       title) title="$val" ;;
       state) state="$val" ;;
