@@ -20,6 +20,8 @@ fi
 # Source shared libraries
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+source "$(dirname "$0")/../lib/status.sh"
 check_auth_github
 
 # `issueType` is only known to newer gh releases. Asking an older gh for an unknown JSON field
@@ -31,11 +33,16 @@ if gh issue view --json 2>&1 | grep -qw "issueType"; then
 fi
 
 # Format as readable markdown (consistent with ADO adapter output)
-with_retry gh issue view "$ISSUE" --json "$JSON_FIELDS" | jq -r '
-  "# Issue #" + (.number|tostring) + ": " + .title,
+# Type (#32): the native issue type when it maps onto Feature|Story|Bug|Task, else a type:<x>
+# label, else a bug label, else Unknown. Status (#30): the status:<s> label set-status.sh writes.
+with_retry gh issue view "$ISSUE" --json "$JSON_FIELDS" | jq -r "${ITEM_TYPE_JQ}${STATUS_JQ}"'
+  ([.labels[].name]) as $labels
+  | ((.issueType // {}).name | harness_type) as $native
+  | "# Issue #" + (.number|tostring) + ": " + .title,
   "",
-  "**Type:** " + (if ((.issueType // {}).name // "") != "" then .issueType.name elif ([.labels[].name] | map(ascii_downcase) | index("bug")) then "Bug" else "Unknown" end),
+  "**Type:** " + (if $native != "Unknown" then $native else ($labels | type_from_labels) end),
   "**State:** " + .state,
+  "**Status:** " + ($labels | status_from_labels),
   "**Assignees:** " + (if (.assignees | length) > 0 then ([.assignees[].login] | join(", ")) else "Unassigned" end),
   "**Labels:** " + (if (.labels | length) > 0 then ([.labels[].name] | join(", ")) else "None" end),
   "**Milestone:** " + (if .milestone then .milestone.title else "None" end),

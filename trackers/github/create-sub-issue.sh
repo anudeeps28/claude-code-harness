@@ -23,21 +23,25 @@ fi
 
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+
+# The child's type is its own decision (#8): TRACKER_ITEM_TYPE for this call, else Task, as on ADO.
+require_item_type "${TRACKER_ITEM_TYPE:-Task}" "TRACKER_ITEM_TYPE" || exit 1
+TYPE_LABEL="type:$(printf '%s' "$ITEM_TYPE" | tr '[:upper:]' '[:lower:]')"
+
 check_auth_github
 
 REPO_INFO=$(gh repo view --json owner,name --jq '.owner.login + " " + .name')
 OWNER=$(echo "$REPO_INFO" | cut -d' ' -f1)
 REPO=$(echo "$REPO_INFO" | cut -d' ' -f2)
 
-LABEL_FLAG=""
+CREATE_ARGS=(--title "$TITLE" --body "$BODY")
 if [ -n "$LABEL" ]; then
-  LABEL_FLAG="--label $LABEL"
+  CREATE_ARGS+=(--label "$LABEL")
 fi
+CREATE_ARGS+=(--label "$TYPE_LABEL")
 
-CHILD_URL=$(with_retry gh issue create \
-  --title "$TITLE" \
-  --body "$BODY" \
-  $LABEL_FLAG 2>&1 | tail -1)
+CHILD_URL=$(with_retry gh issue create "${CREATE_ARGS[@]}" 2>&1 | tail -1)
 
 if [ -z "$CHILD_URL" ]; then
   echo '{"error": "Failed to create child issue"}' >&2

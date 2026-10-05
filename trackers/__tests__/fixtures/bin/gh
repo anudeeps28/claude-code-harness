@@ -6,6 +6,13 @@ set -e
 
 fixture_dir="$(dirname "$0")/../responses"
 
+# Argv recorder — set FIXTURE_ARGS_LOG to capture the exact command lines the
+# adapter builds, so tests can assert on flags (--add-label, --remove-label, ...).
+# Auth and repo-metadata calls are not recorded: they are plumbing, not the operation.
+if [ -n "$FIXTURE_ARGS_LOG" ] && [ "$1 $2" != "auth status" ] && [ "$1 $2" != "repo view" ]; then
+  printf '%s\n' "$*" >> "$FIXTURE_ARGS_LOG"
+fi
+
 # Auth check.
 if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
   if [ "$FIXTURE_AUTH" = "expired" ]; then
@@ -69,7 +76,16 @@ case "$1 $2" in
       cat "$fixture_dir/gh-issue-4321-blocked.json"
       exit 0
     fi
+    # 2468 carries type:story and status:in-progress labels.
+    if [ "$3" = "2468" ]; then
+      cat "$fixture_dir/gh-issue-2468.json"
+      exit 0
+    fi
     cat "$fixture_dir/gh-issue-1234.json"
+    exit 0
+    ;;
+  "issue create")
+    echo "https://github.com/testorg/testrepo/issues/5555"
     exit 0
     ;;
   "issue edit")

@@ -83,8 +83,32 @@ case "$1 $2" in
       cat "$fixture_dir/td-task-5678.json"
       exit 0
     fi
+    # 2468 carries type:story and status:in-progress labels.
+    if [ "$ref" = "2468" ]; then
+      cat "$fixture_dir/td-task-2468.json"
+      exit 0
+    fi
     cat "$fixture_dir/td-task-1234.json"
     exit 0
+    ;;
+  "comment list")
+    if [ -f "$fixture_dir/td-comments-$ref.json" ]; then
+      cat "$fixture_dir/td-comments-$ref.json"
+    else
+      echo '{"results": [], "nextCursor": null}'
+    fi
+    exit 0
+    ;;
+  "attachment view")
+    # $3 is the file URL; the last path segment picks the fixture.
+    name="${3##*/}"
+    name="${name%%.*}"
+    if [ -f "$fixture_dir/td-attachment-$name.json" ]; then
+      cat "$fixture_dir/td-attachment-$name.json"
+      exit 0
+    fi
+    echo "Error: FETCH_FAILED: no fixture for $3" >&2
+    exit 1
     ;;
   "comment add")
     if [ "$ref" = "9999" ]; then

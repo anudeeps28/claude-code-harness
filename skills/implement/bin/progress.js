@@ -13,6 +13,7 @@ const path = require('node:path');
 const EVENTS = new Set([
   'run-started', 'run-resumed', 'run-paused', 'run-finished',
   'phase', 'step', 'task-verified', 'task-done', 'task-reopened', 'review-done', 'pr-opened',
+  'tracker-error',
 ]);
 const PHASES = new Set(['planning', 'coding', 'testing', 'reviewing', 'shipping']);
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;

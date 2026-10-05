@@ -14,6 +14,7 @@ fi
 
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
 check_auth_local
 
 ISSUES_DIR="${LOCAL_ISSUES_DIR:-tasks/issues}"
@@ -30,6 +31,10 @@ frontmatter_done=false
 title=""
 state=""
 labels=""
+# Initialised like every other field: an exported `type` in the caller's environment used to leak
+# into an item with no type: line (#9).
+type=""
+status=""
 parent=""
 body=""
 
@@ -69,7 +74,8 @@ $line"
       title) title="$val" ;;
       state) state="$val" ;;
       labels) labels="$val" ;;
-      type) type="$val" ;;
+      type) [ -z "$type" ] && type="$val" ;;
+      status) [ -z "$status" ] && status="$val" ;;
       parent) parent="$val" ;;
     esac
   fi
@@ -86,14 +92,29 @@ display_labels=$(echo "$display_labels" | sed 's/^ *//;s/ *$//')
 # Format state for display
 display_state=$(echo "$state" | tr '[:lower:]' '[:upper:]')
 
-# Type: explicit frontmatter field wins; otherwise infer Bug from a "bug" label.
-display_type="$type"
-if [ -z "$display_type" ]; then
-  case ",$(echo "$display_labels" | tr "[:upper:]" "[:lower:]" | tr -d " ")," in
-    *,bug,*) display_type="Bug" ;;
-    *) display_type="Unknown" ;;
-  esac
+# Type (#32): the type: field, mapped onto Feature|Story|Bug|Task (lib/item-type.sh), so a
+# lower-case or crafted value never reaches the output verbatim. With no usable type: line, a
+# "type:<x>" label, then a "bug" label, else Unknown.
+normalize_item_type "$type"
+display_type="$ITEM_TYPE"
+if [ "$display_type" = "Unknown" ]; then
+  label_list=",${display_labels// /},"
+  shopt -s nocasematch
+  if [[ "$label_list" =~ ,type:([^,]*), ]]; then
+    normalize_item_type "${BASH_REMATCH[1]}"
+    display_type="$ITEM_TYPE"
+  fi
+  if [ "$display_type" = "Unknown" ] && [[ "$label_list" == *,bug,* ]]; then
+    display_type="Bug"
+  fi
+  shopt -u nocasematch
 fi
+
+# Status (#30): one of the four harness statuses written by set-status.sh, else None.
+case "$status" in
+  in-progress|in-review|needs-person|done) display_status="$status" ;;
+  *) display_status="None" ;;
+esac
 
 # Format parent
 display_parent="None"
@@ -104,6 +125,7 @@ cat <<EOF
 
 **Type:** ${display_type}
 **State:** ${display_state}
+**Status:** ${display_status}
 **Labels:** ${display_labels}
 **Parent:** ${display_parent}
 

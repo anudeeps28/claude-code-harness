@@ -1,0 +1,20 @@
+{
+  "number": 2468,
+  "title": "A typed story",
+  "body": "Story body.",
+  "labels": [
+    {
+      "name": "feature"
+    },
+    {
+      "name": "type:story"
+    },
+    {
+      "name": "status:in-progress"
+    }
+  ],
+  "assignees": [],
+  "state": "OPEN",
+  "milestone": null,
+  "comments": []
+}

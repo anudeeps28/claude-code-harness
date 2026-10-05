@@ -1,0 +1,19 @@
+{
+  "results": [
+    {
+      "id": "c2",
+      "content": "second comment \u001b[31mred\u001b[0m\u0007 here",
+      "postedAt": "2026-07-13T10:30:00.000Z",
+      "postedUid": "222",
+      "fileAttachment": null
+    },
+    {
+      "id": "c1",
+      "content": "first comment on the login flow",
+      "postedAt": "2026-07-12T09:00:00.000Z",
+      "postedUid": "111",
+      "fileAttachment": null
+    }
+  ],
+  "nextCursor": null
+}

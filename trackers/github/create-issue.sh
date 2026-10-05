@@ -24,12 +24,26 @@ fi
 
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+
+# Type (#32): TRACKER_ITEM_TYPE becomes a type:<x> label (setup-labels.sh creates them). Checked
+# before anything is sent, so a refused type creates nothing.
+TYPE_LABEL=""
+if [ -n "${TRACKER_ITEM_TYPE:-}" ]; then
+  require_item_type "$TRACKER_ITEM_TYPE" "TRACKER_ITEM_TYPE" || exit 1
+  TYPE_LABEL="type:$(printf '%s' "$ITEM_TYPE" | tr '[:upper:]' '[:lower:]')"
+fi
+
 check_auth_github
 
 CREATE_ARGS=(--title "$TITLE" --body "$BODY")
 
 if [ -n "$LABEL" ]; then
   CREATE_ARGS+=(--label "$LABEL")
+fi
+
+if [ -n "$TYPE_LABEL" ]; then
+  CREATE_ARGS+=(--label "$TYPE_LABEL")
 fi
 
 if [ -n "$MILESTONE" ]; then

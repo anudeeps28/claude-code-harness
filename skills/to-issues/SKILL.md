@@ -376,26 +376,31 @@ it is a fair trade because ordering is now carried by real blocked-by edges rath
 which milestone bucket a story sat in — edges a scheduler can actually read, which bucket membership
 never was.
 
-On ADO the work item type is set via the `ADO_WORK_ITEM_TYPE` env var — an env var rather than a positional arg because arg4 is the milestone slot in the GitHub adapter and the section slot in Todoist.
+**Every item gets a type, on every backend:** `TRACKER_ITEM_TYPE` is one of `Feature`, `Story`, `Bug`,
+`Task`, and each adapter stores it its own way (a `type:` field, a `type:<x>` label, or ADO's work item
+type). It is how `/implement` tells a Feature from a story or a bug, so never leave it off. It is an env
+var rather than a positional arg because arg4 is the milestone slot in the GitHub adapter and the
+section slot in Todoist. On ADO, `Story` becomes `ADO_STORY_WORK_ITEM_TYPE` (set it from
+`ado_story_work_item_type` in `tasks/tracker-config.md`: `User Story` on Agile, `Product Backlog Item`
+on Scrum); `ADO_WORK_ITEM_TYPE` still overrides with a native type if you need one.
 
 The parent feature is also the one item created **uncompletable** (Phase 0): it is a header for the
 stories beneath it, and completing it would mean claiming the whole feature is done. Backends without
 the concept ignore the variable, so it is set unconditionally.
 
 ```bash
-# ado
-ADO_WORK_ITEM_TYPE="Feature" TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
-  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium"
-
-# github / local
-TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
+# ado / github / local
+TRACKER_ITEM_TYPE=Feature TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
   bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium"
 
 # todoist — arg4 is the SECTION and arg5 the PROJECT, both from Phase 3.6, so the
 # feature lands where the user confirmed and not wherever the adapter's config points
-TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
+TRACKER_ITEM_TYPE=Feature TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
   bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium" "<section>" "<project>"
 ```
+
+A standalone item (a bug or story made without a parent Feature) is created the same way with
+`TRACKER_ITEM_TYPE=Bug` or `TRACKER_ITEM_TYPE=Story` and no `TRACKER_UNCOMPLETABLE`.
 
 Parse the printed ID and hold it as `PARENT_ID`. If the parent fails to create, **halt** — do not create orphan stories.
 
@@ -405,17 +410,16 @@ For an adapter with no hierarchy capability (Phase 0 probe), skip this step and 
 
 Create the stories **in the approved order** — on a board that sorts unranked items by id, that order is the run order, and creating them out of sequence silently changes which one a scheduler starts first.
 
-Where the hierarchy capability exists, create each story as a child of the parent. On ADO the adapter's child type defaults to `Task`, which is the wrong level for a story — set it explicitly to the story-level type for your process (`User Story` on Agile, `Product Backlog Item` on Scrum):
+Where the hierarchy capability exists, create each story as a child of the parent. Every adapter's child type defaults to `Task`, which is the wrong level for a story — set `TRACKER_ITEM_TYPE=Story` on **each** call (on ADO it becomes your process's story type, see above):
 
 ```bash
-# ado
-ADO_WORK_ITEM_TYPE="User Story" TRACKER_PRIORITY=<p1-p4> \
-  bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>"
-
-# github / local / todoist
-TRACKER_PRIORITY=<p1-p4> \
+# every backend
+TRACKER_ITEM_TYPE=Story TRACKER_PRIORITY=<p1-p4> \
   bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>"
 ```
+
+Set it per call, never `export` it once for the run: the parent was a `Feature`, and a type left in the
+environment would follow the wrong item.
 
 `TRACKER_PRIORITY` carries **that story's** value from the Phase 3 mapping — it changes per call. A
 subtask inherits its parent's project and section on Todoist, so no destination args are needed here.
@@ -426,15 +430,17 @@ Without the hierarchy capability, call `create-issue.sh` in the form that matche
 
 - **github** — keep the 5-arg form (arg4 = milestone, arg5 = project):
 ```bash
-bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>" "<milestone-name>" "<project_num>"
+TRACKER_ITEM_TYPE=Story \
+  bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>" "<milestone-name>" "<project_num>"
 ```
 - **local / ado** — 3-arg form only (arg4/arg5 are ignored, but do not rely on that):
 ```bash
-bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>"
+TRACKER_ITEM_TYPE=Story \
+  bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>"
 ```
 - **todoist** — 5-arg form, where **arg4 is the SECTION and arg5 is the PROJECT** (not milestone/project as on GitHub). Pass the Phase 3.6 values; never forward a milestone name into arg4, which would silently mis-file the task into a section that does not exist:
 ```bash
-TRACKER_PRIORITY=<p1-p4> \
+TRACKER_ITEM_TYPE=Story TRACKER_PRIORITY=<p1-p4> \
   bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>" "<section>" "<project>"
 ```
 

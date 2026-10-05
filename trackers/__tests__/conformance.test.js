@@ -400,9 +400,10 @@ describe('happy-path-stdout', () => {
     try {
       assert.equal(ctx2.exitCode, 0, `non-zero exit: ${ctx2.stderr}`);
       const content2 = fs.readFileSync(path.join(ctx2.issuesDir, '1237.md'), 'utf8');
-      assert.match(content2, /^type: User Story$/m);
+      // #32: a native alias is accepted and written as the harness type it maps to.
+      assert.match(content2, /^type: Story$/m);
       const getResult2 = runLocalScriptInRoot(ctx2, 'get-issue.sh', ['1237']);
-      assert.match(getResult2.stdout, /\*\*Type:\*\* User Story/);
+      assert.match(getResult2.stdout, /\*\*Type:\*\* Story/);
     } finally { cleanup(ctx2.root); }
   });
 
@@ -437,17 +438,15 @@ describe('happy-path-stdout', () => {
     } finally { cleanup(ctxC.root); }
   });
 
-  test('local_CreateIssue_TypeEnvWithNewline_CannotForgeFrontmatterFields', () => {
+  // Before #32 the newline was stripped and the rest written verbatim. Now the type must be one of
+  // Feature, Story, Bug, Task, so a value carrying extra fields is refused outright: no file at all
+  // is a stronger guarantee than a file whose frontmatter happens not to be forged.
+  test('local_CreateIssue_TypeEnvWithNewline_IsRefusedAndCannotForgeFrontmatterFields', () => {
     const ctx = runLocalScriptKeep('create-issue.sh', ['Forged', 'A body', 'deferred'], { LOCAL_ISSUE_TYPE: 'Bug\nstate: closed\nparent: 99' });
     try {
-      assert.equal(ctx.exitCode, 0, `non-zero exit: ${ctx.stderr}`);
-      const content = fs.readFileSync(path.join(ctx.issuesDir, '1237.md'), 'utf8');
-      const stateLines = content.split('\n').filter((l) => /^state:/.test(l));
-      assert.deepEqual(stateLines, ['state: open'], 'LOCAL_ISSUE_TYPE forged a second state: field');
-      const parentLines = content.split('\n').filter((l) => /^parent:/.test(l));
-      assert.deepEqual(parentLines, ['parent: null'], 'LOCAL_ISSUE_TYPE forged a second parent: field');
-      const getResult = runLocalScriptInRoot(ctx, 'get-issue.sh', ['1237']);
-      assert.match(getResult.stdout, /\*\*State:\*\* OPEN/);
+      assert.notEqual(ctx.exitCode, 0, 'a type carrying forged fields must be refused');
+      assert.match(ctx.stderr, /Feature, Story, Bug, Task/);
+      assert.equal(fs.existsSync(path.join(ctx.issuesDir, '1237.md')), false, 'a refused type must create nothing');
     } finally { cleanup(ctx.root); }
   });
 
@@ -1015,6 +1014,10 @@ describe('contract-presence', () => {
         'add-blocker.sh',
         'get-blockers.sh',
         'create-sub-issue.sh',
+        // The whole ticket (F2 #29)
+        'set-status.sh',
+        'get-comments.sh',
+        'get-attachments.sh',
       ];
       for (const f of required) {
         assert.ok(

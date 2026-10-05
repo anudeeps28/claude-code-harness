@@ -26,6 +26,11 @@ fi
 
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+if [ -n "${TRACKER_ITEM_TYPE:-}" ]; then
+  require_item_type "$TRACKER_ITEM_TYPE" "TRACKER_ITEM_TYPE" || exit 1
+fi
+
 check_auth_todoist
 
 # Auto-read project from config when not passed as argument
@@ -54,6 +59,12 @@ if [ -n "$BODY" ]; then
   CREATE_ARGS+=(--description "$BODY")
 fi
 
+# Type (#32): TRACKER_ITEM_TYPE travels as a type:<x> label next to the caller's labels. (td's
+# --labels takes the whole comma-separated list, so they are joined, not passed twice.)
+if [ -n "${TRACKER_ITEM_TYPE:-}" ]; then
+  TYPE_LABEL="type:$(printf '%s' "$ITEM_TYPE" | tr '[:upper:]' '[:lower:]')"
+  LABEL="${LABEL:+$LABEL,}$TYPE_LABEL"
+fi
 if [ -n "$LABEL" ]; then
   CREATE_ARGS+=(--labels "$LABEL")
 fi

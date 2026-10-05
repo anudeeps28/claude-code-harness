@@ -22,7 +22,10 @@ Claude Code Kit uses a **tracker adapter layer** so that skills and agents never
         ├── comment-issue.sh
         ├── add-blocker.sh
         ├── get-blockers.sh
-        └── create-sub-issue.sh
+        ├── create-sub-issue.sh
+        ├── set-status.sh
+        ├── get-comments.sh
+        └── get-attachments.sh
 ```
 
 Skills and agents always call `trackers/active/<script>`. The installer copies the right adapter folder there at setup time. Switching trackers means re-running the installer (or copying a different adapter folder manually).
@@ -44,26 +47,11 @@ Skills and agents always call `trackers/active/<script>`. The installer copies t
 
 ## Script interface
 
-Every adapter implements the same **13 scripts** with identical signatures:
+Every adapter implements the same **16 scripts** with identical signatures:
 
 | Script | Args | What it returns |
 |---|---|---|
-| `get-issue.sh` | `<ID>` | Full issue/work item details (title, body, **type**, state, labels) |
-
-**Every adapter's `get-issue.sh` must emit a `**Type:**` line**, carrying the tracker's own word for
-the item — `Bug`, `Story`, `Feature`, `Task` — or `Unknown` where the tracker has nothing to report.
-Do not translate it into a category of our own invention.
-
-Only the value `Bug` changes any behaviour downstream: a bug fix is planned test-first whether or not
-`--tdd` was passed (`rules/test-philosophy.md`). Every other value, including `Unknown`, behaves as it
-always has — so a tracker that cannot report a type is safe by construction and never blocks planning.
-
-| Tracker | Source |
-|---|---|
-| ADO | `System.WorkItemType` |
-| GitHub | native issue type if enabled, else a `bug` label |
-| Local | `type:` in the issue file's frontmatter, else a `bug` label |
-| Todoist | a `bug` label — nothing else is available |
+| `get-issue.sh` | `<ID>` | Full issue/work item details (title, body, **type**, state, **status**, labels) |
 | `get-issue-children.sh` | `<ID>` | Child tasks or sub-issues for the given ID |
 | `get-sprint-issues.sh` | `<SPRINT_NUMBER>` | All issues in the given sprint |
 | `create-issue.sh` | `"<title>" "<body>" "<label>"` | Creates a new issue/work item; prints the URL |
@@ -76,6 +64,70 @@ always has — so a tracker that cannot report a type is safe by construction an
 | `add-blocker.sh` | `<ID> <BLOCKER_ID>` | Records that `<ID>` is blocked by `<BLOCKER_ID>` |
 | `get-blockers.sh` | `<ID>` | IDs of items blocking `<ID>` as a JSON array, e.g. `[12, 14]` |
 | `create-sub-issue.sh` | `<PARENT_ID> "<title>" "<body>" "<label>"` | Creates an item as a child of the parent; prints `{"parent", "child", "url"}` JSON |
+| `set-status.sh` | `<ID> <status>` | Moves the item to one of the four harness statuses (below) |
+| `get-comments.sh` | `<ID>` | The item's comments as JSON, oldest first: `[{"author", "date", "text"}]` |
+| `get-attachments.sh` | `<ID> [<dest>]` | Downloads attached files into `<dest>` (default `tasks/stories/<ID>/attachments/`); prints `[{"name", "size", "saved_to", "skipped"}]` |
+
+### Item types
+
+**Every item has one of four types: `Feature`, `Story`, `Bug`, `Task`.** `get-issue.sh` reports it on
+a `**Type:**` line in that exact form on every adapter, or `Unknown` when nothing maps. A tracker's own
+word is mapped onto the four (ADO `User Story`, `Product Backlog Item` and `Requirement` are `Story`;
+`Epic` is `Feature`; `Defect` is `Bug`), never passed through, so a crafted value cannot reach an
+agent's brief. ADO also prints the native word on a `**Native type:**` line. The mapping lives in one
+place, `lib/item-type.sh`, in a bash half (local) and a jq half (the rest).
+
+`/implement` uses the type to tell a Feature from a story or a bug, and a `Bug` is always planned
+test-first (`rules/test-philosophy.md`). `Unknown` is safe: it behaves like a story.
+
+**Setting it.** `create-issue.sh` and `create-sub-issue.sh` read the portable **`TRACKER_ITEM_TYPE`**
+on every adapter. A value outside the four (case and the native aliases above are accepted) is
+refused with the list, and nothing is created. `create-sub-issue.sh` defaults to `Task` and ignores
+an exported parent type, so a child never inherits its parent's type by accident; set it per call.
+
+| Tracker | Stored as | Read from |
+|---|---|---|
+| ADO | the work item type (`Story` → `ADO_STORY_WORK_ITEM_TYPE`, default `User Story`; `ADO_WORK_ITEM_TYPE` still overrides with any native type) | `System.WorkItemType` |
+| GitHub | a `type:<x>` label (created by `setup-labels.sh`) | native issue type, else `type:<x>` label, else `bug` label |
+| Local | `type:` in the frontmatter (`LOCAL_ISSUE_TYPE` also works) | `type:`, else `type:<x>` label, else `bug` label |
+| Todoist | a `type:<x>` label | `type:<x>` label, else `bug` label |
+
+### Statuses
+
+`set-status.sh <ID> <status>` moves an item through four harness statuses. `get-issue.sh` reports the
+current one on a `**Status:**` line (`None` until one is set). Any other value exits non-zero and
+changes nothing.
+
+| Status | Meaning |
+|---|---|
+| `in-progress` | a build is working on the item |
+| `in-review` | the build is done and its review has started |
+| `needs-person` | the run stopped on something only a person can decide |
+| `done` | the build finished and its PR is open |
+
+| Tracker | How |
+|---|---|
+| Local | a `status:` frontmatter field. `done` does not close the item; `close-issue.sh` does that |
+| GitHub | a `status:<s>` label, with every other status label removed in the same edit. `done` also closes the issue |
+| Todoist | a `status:<s>` label, replacing any other. `done` does not complete the task |
+| ADO | a board **state and column**, from the `ado_status.<status> = <state> \| <column>` lines and `ado_board_column_field` in `tasks/tracker-config.md`. Both go out in one update and are read back; a mismatch, a missing mapping or an ADO rule error exits non-zero |
+
+### Comments and attachments
+
+Both come from people and go straight into an agent's brief, so they are treated as data:
+
+- `get-comments.sh` strips control characters and terminal escape sequences (and HTML tags on ADO).
+- `get-attachments.sh` reduces every file name to a single safe name before writing, so no name can
+  place a file outside the destination; files over `TRACKER_ATTACHMENT_MAX_BYTES` (default 20 MB) are
+  listed with a `skipped` reason and not downloaded. The default destination is under
+  `tasks/stories/`, which is gitignored. On KBA projects an attachment may hold PHI: it stays local.
+
+| Tracker | Comments | Attachments |
+|---|---|---|
+| ADO | the work item Comments API (`az devops invoke`) | `AttachedFile` relations, downloaded through the attachments API |
+| GitHub | issue comments | none: files dragged into an issue are links in its body. Prints `[]` and a note |
+| Local | the blocks `comment-issue.sh` appends; author `local` | none. Prints `[]` and a note |
+| Todoist | task comments (`td comment list`); author is the poster's user id | files attached to comments (`td attachment view`; td refuses files over 10 MB) |
 
 ### Wayfinding operations
 
@@ -239,19 +291,18 @@ Hand-editing the body is fine — it's where task notes live.
 
 ### Environment overrides on item creation
 
-`create-issue.sh` reads one optional env var. It is an env var rather than a positional arg for the same reason as the ADO adapter: arg4 is already the milestone slot in the GitHub adapter and the section slot in Todoist.
-
-| Env var | Applies to | Default | Why you would set it |
-|---|---|---|---|
-| `LOCAL_ISSUE_TYPE` | `create-issue.sh`, and `create-sub-issue.sh` by environment inheritance (it shells out to `create-issue.sh`) | unset -> no `type:` line, so `get-issue.sh` falls back to inferring `Bug` from a `bug` label | Only the value `Bug` changes behaviour downstream: a bug fix is planned test-first whether or not `--tdd` was passed (`rules/test-philosophy.md`). Without this, every issue the harness files for itself reads `**Type:** Unknown`. |
+The type is set with the portable `TRACKER_ITEM_TYPE` (see **Item types** above). `create-issue.sh`
+also still reads this adapter's own `LOCAL_ISSUE_TYPE`, which wins when both are set:
 
 ```bash
-LOCAL_ISSUE_TYPE="Bug" bash trackers/active/create-issue.sh "Sanitize path input" "Found during review" "deferred"
+TRACKER_ITEM_TYPE=Bug bash trackers/active/create-issue.sh "Sanitize path input" "Found during review" "deferred"
 ```
 
-Set but empty behaves exactly as unset. CR and LF are stripped from the value before it is written, so it can never forge a sibling frontmatter field. The value is otherwise written verbatim, including spaces (`User Story` round-trips intact).
-
-> `create-sub-issue.sh` has no default of its own, unlike ADO, where the parent defaults to `User Story` and the child to `Task`. A child created while `LOCAL_ISSUE_TYPE` is exported inherits the parent value.
+Set but empty behaves exactly as unset. The value must be one of the four types (or an alias of one);
+it is written in its canonical form (`User Story` is stored as `Story`), and anything else, including a
+value carrying a newline that could forge a sibling frontmatter field, is refused and nothing is
+created. `create-sub-issue.sh` ignores `LOCAL_ISSUE_TYPE` and defaults the child to `Task`, so a type
+exported for a parent never stamps its children.
 
 ### Task IDs
 
@@ -261,9 +312,7 @@ Task files are **never deleted** when closed — the `state` changes to `closed`
 
 ### Generated dashboard (`todo.md`)
 
-In local mode, `tasks/todo.md` is generated by `trackers/lib/render-todo.sh` from the task files. The dashboard shows open tasks grouped by label, plus a "Recently Closed" section (max 20). It regenerates automatically:
-- When any task script runs (create, close, label, list)
-- When a `tasks/issues/*.md` file is edited directly (via the `todo-render-trigger.js` hook)
+In local mode, `tasks/todo.md` is generated by `trackers/lib/render-todo.sh` from the task files. The dashboard shows open tasks grouped by label, plus a "Recently Closed" section (max 20). It is rebuilt **only on request** (#66): run `bash trackers/lib/render-todo.sh`, or set `LOCAL_RENDER_TODO=1` on a task script. A rebuild on every write cost about 30 seconds each on Windows, so the board may be stale; read task state through the scripts, never from `todo.md`.
 
 The same renderer is used in "both" mode to produce the mirror from `list-issues.sh` output. Local mode and both mode produce identical dashboard formats from different sources.
 
@@ -297,6 +346,10 @@ All tracker scripts source shared utilities from `trackers/lib/`:
 | `lib/retry.sh` | Exponential backoff wrapper. 3 attempts (1s, 3s delays). Wraps any command: `with_retry az boards ...` |
 | `lib/auth-check.sh` | Token staleness check. Verifies CLI auth is valid before making API calls. The local adapter uses `check_auth_local` (verifies `tasks/issues/` exists). |
 | `lib/render-todo.sh` | Shared dashboard renderer. Reads task data, writes `tasks/todo.md`. Used by local mode (reads files directly) and both mode (reads `list-issues.sh` JSON). Output is deterministic. |
+| `lib/item-type.sh` | The four item types and the mapping from each tracker's words, in bash and jq. |
+| `lib/status.sh` | The four harness statuses and their validation, in bash and jq. |
+| `lib/ado-status-map.sh` | Reads the ADO board mapping (`ado_status.*`, `ado_board_column_field`) from `tasks/tracker-config.md`. |
+| `lib/ticket-content.sh` | Cleaning comment text, safe attachment file names, the attachment size limit. |
 
 To customize retry behaviour, set environment variables before sourcing:
 ```bash
@@ -307,7 +360,7 @@ RETRY_MAX_ATTEMPTS=5 RETRY_BACKOFF_1=2 RETRY_BACKOFF_2=5 bash get-issue.sh 12345
 
 ## Adding a new adapter
 
-Create a folder under `trackers/` with all 8 scripts implementing the same interface. Each script must:
+Create a folder under `trackers/` with all 16 scripts implementing the same interface. Each script must:
 - Accept the same arguments as the interface above
 - Exit with code 0 on success, non-zero on failure
 - Print errors as `{"error": "..."}` to stderr

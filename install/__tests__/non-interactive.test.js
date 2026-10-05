@@ -847,7 +847,7 @@ test('install.sh --yes --project installs without enterprise agents', () => {
 
 // ── WS3: Mode, gitignore, local tracker ─────────────────────────────────────
 
-test('install.js --yes defaults to tracker=local with all 13 local scripts in active/', () => {
+test('install.js --yes defaults to tracker=local with all 16 local scripts in active/', () => {
   const dir = makeTempProject();
   try {
     runInstallJs(['--yes', '--project', dir, ...LOCAL]);
@@ -855,16 +855,16 @@ test('install.js --yes defaults to tracker=local with all 13 local scripts in ac
     assert.equal(manifest.tracker, 'local', 'D2: --yes defaults to local');
     assert.strictEqual(manifest.trackerMirror, undefined, 'no mirror in local mode');
 
-    // All 13 contract scripts present (8 core + 5 wayfinding, contract v3.1)
+    // All 16 contract scripts present (8 core + 5 wayfinding, contract v3.1, + 3 whole-ticket, F2)
     const activeDir = path.join(dir, '.claude', 'trackers', 'active');
     const scripts = fs.readdirSync(activeDir).filter(f => f.endsWith('.sh')).sort();
     const expected = [
       'add-blocker.sh', 'add-label.sh', 'assign-issue.sh', 'close-issue.sh',
-      'comment-issue.sh', 'create-issue.sh', 'create-sub-issue.sh', 'get-blockers.sh',
-      'get-issue-children.sh', 'get-issue.sh', 'get-sprint-issues.sh',
-      'list-issues.sh', 'remove-label.sh',
+      'comment-issue.sh', 'create-issue.sh', 'create-sub-issue.sh', 'get-attachments.sh',
+      'get-blockers.sh', 'get-comments.sh', 'get-issue-children.sh', 'get-issue.sh',
+      'get-sprint-issues.sh', 'list-issues.sh', 'remove-label.sh', 'set-status.sh',
     ];
-    assert.deepStrictEqual(scripts, expected, 'all 13 local scripts must be in active/');
+    assert.deepStrictEqual(scripts, expected, 'all 16 local scripts must be in active/');
 
     // tasks/issues/ directory created
     assert.ok(fs.existsSync(path.join(dir, 'tasks', 'issues')), 'tasks/issues/ must exist');

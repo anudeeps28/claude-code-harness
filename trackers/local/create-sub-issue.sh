@@ -30,7 +30,12 @@ fi
 
 # Create the child via the sibling create script, then set its parent field
 # Rebuild is suppressed here and done once below, after the parent link is written (#66).
-CREATE_OUTPUT=$(LOCAL_RENDER_TODO=0 bash "$(dirname "$0")/create-issue.sh" "$TITLE" "$BODY" "$LABEL")
+# The child's type is its own decision (#8): TRACKER_ITEM_TYPE if the caller set it for this call,
+# else Task, as on ADO. LOCAL_ISSUE_TYPE is deliberately cleared: a caller that exported it for the
+# parent would otherwise stamp every child with the parent's type.
+CHILD_TYPE="${TRACKER_ITEM_TYPE:-Task}"
+CREATE_OUTPUT=$(LOCAL_RENDER_TODO=0 LOCAL_ISSUE_TYPE="" TRACKER_ITEM_TYPE="$CHILD_TYPE" \
+  bash "$(dirname "$0")/create-issue.sh" "$TITLE" "$BODY" "$LABEL")
 if [ $? -ne 0 ] || [ -z "$CREATE_OUTPUT" ]; then
   echo '{"error": "Failed to create child task"}' >&2
   exit 1

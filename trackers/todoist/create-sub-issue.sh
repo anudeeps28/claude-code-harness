@@ -30,6 +30,12 @@ fi
 
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+# The child's type is its own decision (#8): TRACKER_ITEM_TYPE for this call, else Task, as on ADO.
+require_item_type "${TRACKER_ITEM_TYPE:-Task}" "TRACKER_ITEM_TYPE" || exit 1
+TYPE_LABEL="type:$(printf '%s' "$ITEM_TYPE" | tr '[:upper:]' '[:lower:]')"
+LABEL="${LABEL:+$LABEL,}$TYPE_LABEL"
+
 check_auth_todoist
 
 CREATE_ARGS=(task add "$TITLE" --parent "id:${PARENT_ID}")

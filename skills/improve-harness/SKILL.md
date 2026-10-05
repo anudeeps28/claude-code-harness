@@ -237,7 +237,7 @@ If any pattern qualifies and the user wants to track it in the issue tracker, of
 For each approved proposal, create an issue via the tracker adapter:
 
 ```bash
-bash trackers/active/create-issue.sh "<title>" "<body>" "agent-feedback"
+TRACKER_ITEM_TYPE=Task bash trackers/active/create-issue.sh "<title>" "<body>" "agent-feedback"
 ```
 
 **Ticket structure:**

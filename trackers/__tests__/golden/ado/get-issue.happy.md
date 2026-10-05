@@ -1,7 +1,9 @@
 # User Story #1234: Implement login flow
 
-**Type:** User Story
+**Type:** Story
+**Native type:** User Story
 **State:** Active
+**Status:** None
 **Priority:** 2
 **Story Points:** 5
 **Assigned To:** Test User

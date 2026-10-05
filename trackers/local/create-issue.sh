@@ -3,6 +3,7 @@
 # Usage: bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "<label>"
 # Creates a new task file in tasks/issues/ with the next sequential ID.
 # Prints the task id and path on success.
+# The type comes from LOCAL_ISSUE_TYPE or the portable TRACKER_ITEM_TYPE (see trackers/README.md).
 # LOCAL_ISSUE_TYPE is read from the environment rather than a positional argument, because
 # the fourth positional slot is already the milestone in the GitHub adapter and the section
 # slot in the Todoist adapter (same rationale as ADO_WORK_ITEM_TYPE in trackers/ado/create-issue.sh).
@@ -27,6 +28,19 @@ fi
 
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+
+# Type (#32): LOCAL_ISSUE_TYPE (this adapter's own variable) or the portable TRACKER_ITEM_TYPE.
+# Either must name one of Feature, Story, Bug, Task (case and native aliases such as "User Story"
+# are accepted and written in their canonical form); anything else is refused and nothing is created.
+issue_type=""
+if [ -n "${LOCAL_ISSUE_TYPE:-}" ]; then
+  require_item_type "$LOCAL_ISSUE_TYPE" "LOCAL_ISSUE_TYPE" || exit 1
+  issue_type="$ITEM_TYPE"
+elif [ -n "${TRACKER_ITEM_TYPE:-}" ]; then
+  require_item_type "$TRACKER_ITEM_TYPE" "TRACKER_ITEM_TYPE" || exit 1
+  issue_type="$ITEM_TYPE"
+fi
 
 ISSUES_DIR="${LOCAL_ISSUES_DIR:-tasks/issues}"
 
@@ -63,15 +77,9 @@ while [ $attempt -lt $MAX_RETRIES ]; do
     labels_yaml="[]"
   fi
 
-  # The value is stripped of CR/LF before use. An unstripped newline would forge sibling
-  # frontmatter fields -- e.g. a second "state: closed" line, which get-issue.sh (last-wins)
-  # would honour while every grep -m1 reader still saw the real one.
-  if [ -n "${LOCAL_ISSUE_TYPE:-}" ]; then
-    issue_type=$(printf '%s' "$LOCAL_ISSUE_TYPE" | tr -d '\r\n')
-  else
-    issue_type=""
-  fi
-
+  # Only one of the four harness types is ever written (#10, #32). Anything else -- including a
+  # value carrying a newline, which could otherwise forge a sibling frontmatter field such as a
+  # second "state: closed" -- was refused before the loop.
   if [ -n "$issue_type" ]; then
     type_line="type: ${issue_type}
 "

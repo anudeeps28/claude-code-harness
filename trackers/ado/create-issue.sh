@@ -43,12 +43,24 @@ fi
 
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+
+# Type (#32): ADO_WORK_ITEM_TYPE (a native ADO type, passed through) wins; else the portable
+# TRACKER_ITEM_TYPE mapped to ADO's word (Story -> ADO_STORY_WORK_ITEM_TYPE, default User Story);
+# else User Story.
+WORK_ITEM_TYPE="${ADO_WORK_ITEM_TYPE:-}"
+if [ -z "$WORK_ITEM_TYPE" ] && [ -n "${TRACKER_ITEM_TYPE:-}" ]; then
+  require_item_type "$TRACKER_ITEM_TYPE" "TRACKER_ITEM_TYPE" || exit 1
+  WORK_ITEM_TYPE="$ITEM_TYPE"
+  [ "$ITEM_TYPE" = "Story" ] && WORK_ITEM_TYPE="${ADO_STORY_WORK_ITEM_TYPE:-User Story}"
+fi
+
 check_auth_ado
 
 CREATE_ARGS=(az boards work-item create
   --title "$TITLE"
   --description "$BODY"
-  --type "${ADO_WORK_ITEM_TYPE:-User Story}"
+  --type "${WORK_ITEM_TYPE:-User Story}"
   --project "$ADO_PROJECT"
   --output json)
 
