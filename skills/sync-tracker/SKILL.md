@@ -156,7 +156,7 @@ blocker would otherwise get laundered into a low-priority task.
 **Never register silently.** Ask the user which survivors to create, then for each approved one:
 
 ```bash
-bash .claude/trackers/active/create-issue.sh "<title>" "<what's undone / cost / ship-test answer / source PR>" "deferred"
+TRACKER_ITEM_TYPE=<Bug|Task> bash .claude/trackers/active/create-issue.sh "<title>" "<what's undone / cost / ship-test answer / source PR>" "deferred"
 ```
 
 If `--dry-run` was passed, report the table and stop — create nothing.

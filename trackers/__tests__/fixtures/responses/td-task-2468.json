@@ -1,0 +1,16 @@
+{
+  "id": "2468",
+  "content": "A typed story",
+  "description": "Story body.",
+  "labels": [
+    "feature",
+    "type:story",
+    "status:in-progress"
+  ],
+  "priority": 1,
+  "sectionId": null,
+  "projectId": "111",
+  "url": "https://todoist.com/showTask?id=2468",
+  "checked": false,
+  "completedAt": null
+}

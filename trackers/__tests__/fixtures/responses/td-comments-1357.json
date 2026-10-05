@@ -1,0 +1,48 @@
+{
+  "results": [
+    {
+      "id": "a1",
+      "content": "spec attached",
+      "postedAt": "2026-07-12T09:00:00.000Z",
+      "postedUid": "111",
+      "fileAttachment": {
+        "resourceType": "file",
+        "fileName": "spec.txt",
+        "fileSize": null,
+        "fileUrl": "https://files.todoist.com/a/spec.txt"
+      }
+    },
+    {
+      "id": "a2",
+      "content": "sneaky",
+      "postedAt": "2026-07-12T09:05:00.000Z",
+      "postedUid": "111",
+      "fileAttachment": {
+        "resourceType": "file",
+        "fileName": "../../etc/passwd",
+        "fileSize": 11,
+        "fileUrl": "https://files.todoist.com/a/passwd"
+      }
+    },
+    {
+      "id": "a3",
+      "content": "big one",
+      "postedAt": "2026-07-12T09:10:00.000Z",
+      "postedUid": "111",
+      "fileAttachment": {
+        "resourceType": "file",
+        "fileName": "huge.bin",
+        "fileSize": 50000000,
+        "fileUrl": "https://files.todoist.com/a/huge.bin"
+      }
+    },
+    {
+      "id": "a4",
+      "content": "no file here",
+      "postedAt": "2026-07-12T09:15:00.000Z",
+      "postedUid": "111",
+      "fileAttachment": null
+    }
+  ],
+  "nextCursor": null
+}

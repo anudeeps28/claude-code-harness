@@ -1,0 +1,22 @@
+{
+  "totalCount": 2,
+  "count": 2,
+  "comments": [
+    {
+      "id": 2,
+      "text": "<div>second comment \u001b[31mred\u001b[0m\u0007 here</div>",
+      "createdBy": {
+        "displayName": "Bob"
+      },
+      "createdDate": "2026-07-13T10:30:00Z"
+    },
+    {
+      "id": 1,
+      "text": "<div>first comment on the login flow</div>",
+      "createdBy": {
+        "displayName": "Alice"
+      },
+      "createdDate": "2026-07-12T09:00:00Z"
+    }
+  ]
+}

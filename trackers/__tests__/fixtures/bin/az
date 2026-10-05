@@ -58,6 +58,77 @@ case "$FIXTURE_MODE" in
     ;;
 esac
 
+# ── Stateful work items (set-status read-back, #31) ───────────────────
+# With FIXTURE_STATE_DIR set, `work-item update --id N --fields K=V ...` records each field in
+# $FIXTURE_STATE_DIR/N.fields and a later `work-item show --id N` returns the fixture with those
+# fields applied. FIXTURE_ADO_IGNORE_FIELD names a field the "board" silently drops, and
+# FIXTURE_ADO_UPDATE_ERROR makes the update fail with that message, as ADO does on a rule error.
+item_id=""
+prev=""
+for arg in "$@"; do
+  [ "$prev" = "--id" ] && item_id="$arg"
+  prev="$arg"
+done
+
+if [[ "$all" == *"boards work-item update"* ]] && [ -n "$FIXTURE_ADO_UPDATE_ERROR" ]; then
+  echo "ERROR: $FIXTURE_ADO_UPDATE_ERROR" >&2
+  exit 1
+fi
+
+if [[ "$all" == *"boards work-item update"*"--fields"* ]] && [ -n "$FIXTURE_STATE_DIR" ]; then
+  in_fields=false
+  for arg in "$@"; do
+    if [ "$arg" = "--fields" ]; then in_fields=true; continue; fi
+    case "$arg" in --*) in_fields=false ;; esac
+    if [ "$in_fields" = "true" ] && [[ "$arg" == *=* ]]; then
+      [ "${arg%%=*}" = "$FIXTURE_ADO_IGNORE_FIELD" ] && continue
+      printf '%s\n' "$arg" >> "$FIXTURE_STATE_DIR/$item_id.fields"
+    fi
+  done
+  echo "{\"id\": $item_id}"
+  exit 0
+fi
+
+if [[ "$all" == *"boards work-item show"* ]]; then
+  base="$fixture_dir/az-workitem-1234.json"
+  [ "$item_id" = "1357" ] && base="$fixture_dir/az-workitem-1357-attachments.json"
+  if [ -n "$FIXTURE_STATE_DIR" ] && [ -f "$FIXTURE_STATE_DIR/$item_id.fields" ]; then
+    jq --rawfile f "$FIXTURE_STATE_DIR/$item_id.fields" '
+      reduce ($f | split("\n")[] | select(length > 0)) as $kv (.;
+        .fields[($kv | split("=")[0])] = ($kv | split("=")[1:] | join("=")))' "$base"
+    exit 0
+  fi
+  if [ "$item_id" = "1357" ]; then
+    cat "$base"
+    exit 0
+  fi
+fi
+
+# ── Comments and attachments (#33, #34) ───────────────────────────────
+if [[ "$all" == *"devops invoke"*"--resource comments"* ]]; then
+  if [[ "$all" == *"workItemId=1234"* ]]; then
+    cat "$fixture_dir/az-comments-1234.json"
+  else
+    echo '{"totalCount": 0, "count": 0, "comments": []}'
+  fi
+  exit 0
+fi
+
+if [[ "$all" == *"devops invoke"*"--resource attachments"* ]]; then
+  out_file=""
+  prev=""
+  for arg in "$@"; do
+    [ "$prev" = "--out-file" ] && out_file="$arg"
+    prev="$arg"
+  done
+  case "$all" in
+    *"id=11111111-1111-1111-1111-111111111111"*) printf 'attached spec\n' > "$out_file" ;;
+    *"id=22222222-2222-2222-2222-222222222222"*) printf 'root:x:0:0\n' > "$out_file" ;;
+    *) echo '{"error": "stub az: no attachment fixture"}' >&2; exit 1 ;;
+  esac
+  exit 0
+fi
+
 # ── Known calls ───────────────────────────────────────────────────────
 case "$all" in
   *"boards work-item show --id 1234"*)

@@ -36,8 +36,21 @@ create_label "priority:high"     "D93F0B" "Must do this sprint"
 create_label "priority:medium"   "FBCA04" "Should do soon"
 create_label "priority:low"      "0E8A16" "Nice to have"
 
+# Item types (#32) — written by create-issue.sh / create-sub-issue.sh from TRACKER_ITEM_TYPE.
+# They must exist: gh issue create fails on a label the repo does not have.
+create_label "type:feature" "5319E7" "Item type: Feature"
+create_label "type:story"   "1D76DB" "Item type: Story"
+create_label "type:bug"     "D73A49" "Item type: Bug"
+create_label "type:task"    "C5DEF5" "Item type: Task"
+
 # Status labels
 create_label "needs-triage" "D876E3" "Awaiting prioritization"
+
+# Harness statuses (#30) — written by set-status.sh, one at a time.
+create_label "status:in-progress"  "FBCA04" "Harness: a build is working on it"
+create_label "status:in-review"    "0E8A16" "Harness: built, review started"
+create_label "status:needs-person" "B60205" "Harness: stopped, needs a person"
+create_label "status:done"         "6F42C1" "Harness: built, PR open"
 
 # Risk flags
 create_label "risk:security"    "B60205" "Security-sensitive change"

@@ -30,6 +30,8 @@ fi
 # Source shared libraries
 source "$(dirname "$0")/../lib/retry.sh"
 source "$(dirname "$0")/../lib/auth-check.sh"
+source "$(dirname "$0")/../lib/item-type.sh"
+source "$(dirname "$0")/../lib/ado-status-map.sh"
 check_auth_ado
 
 RAW_JSON=$(with_retry az boards work-item show --id "$ID" --project "$ADO_PROJECT" --output json)
@@ -39,12 +41,23 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-# Format as readable markdown
-echo "$RAW_JSON" | jq -r '
+# Status (#31): the harness status whose board mapping (tasks/tracker-config.md) matches this
+# item's state and column, or None.
+ado_column_field
+ITEM_STATE=$(echo "$RAW_JSON" | jq -r '.fields["System.State"] // ""')
+ITEM_COLUMN=""
+[ -n "$ADO_COLUMN_FIELD" ] && ITEM_COLUMN=$(echo "$RAW_JSON" | jq -r --arg f "$ADO_COLUMN_FIELD" '.fields[$f] // ""')
+ado_status_for "$ITEM_STATE" "$ITEM_COLUMN"
+
+# Format as readable markdown. Type (#32) is mapped onto Feature|Story|Bug|Task; the native type
+# is still shown on its own line, because ADO's word (User Story vs PBI) matters when creating items.
+echo "$RAW_JSON" | jq -r --arg status "$ADO_STATUS" "${ITEM_TYPE_JQ}"'
   "# " + (.fields["System.WorkItemType"] // "Item") + " #" + (.id|tostring) + ": " + (.fields["System.Title"] // "Untitled"),
   "",
-  "**Type:** " + (.fields["System.WorkItemType"] // "Unknown"),
+  "**Type:** " + (.fields["System.WorkItemType"] | harness_type),
+  "**Native type:** " + (.fields["System.WorkItemType"] // "Unknown"),
   "**State:** " + (.fields["System.State"] // "Unknown"),
+  "**Status:** " + $status,
   "**Priority:** " + ((.fields["Microsoft.VSTS.Common.Priority"] // 0)|tostring),
   "**Story Points:** " + ((.fields["Microsoft.VSTS.Scheduling.StoryPoints"] // 0)|tostring),
   "**Assigned To:** " + (.fields["System.AssignedTo"].displayName // "Unassigned"),

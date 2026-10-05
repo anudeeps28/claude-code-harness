@@ -74,8 +74,12 @@ Record the answer, not just the conclusion — see *What a deferral record must 
 **At the moment of deferring**, before the PR is opened, create the tracker item:
 
 ```bash
-bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "deferred"
+TRACKER_ITEM_TYPE=<Bug|Task> bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "deferred"
 ```
+
+`TRACKER_ITEM_TYPE` is `Bug` when the undone item is a defect (the code does something wrong) and
+`Task` otherwise. Without it the item reads `**Type:** Unknown`, and a deferred bug loses the
+test-first treatment every bug fix gets (`rules/test-philosophy.md`).
 
 The adapter is mode-agnostic — this is the same call in local, tracker, and both mode, so a deferral
 lands in a place `/plan` and the `rules/next-task.md` live check already query. That is the whole

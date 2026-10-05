@@ -39,7 +39,26 @@ ado_story_work_item_type = User Story
 
 The story-level work item type for this project's process — `User Story` on Agile, `Product Backlog
 Item` on Scrum. Scrum projects reject `User Story` server-side with VS402323. Passed to the adapters
-as `ADO_WORK_ITEM_TYPE`.
+as `ADO_STORY_WORK_ITEM_TYPE`, which `TRACKER_ITEM_TYPE=Story` maps to.
+
+```
+ado_board_column_field =
+ado_status.in-progress  = Active   | Doing
+ado_status.in-review    = Resolved | Review
+ado_status.needs-person = Active   | Blocked
+ado_status.done         = Closed   | Done
+```
+
+How `/implement` moves the card. Each harness status maps to a board **state** and **column**, written
+in one update by `set-status.sh` and read back to confirm. A column is not a state (`Not Started` and
+`Queued` can both be state `New`), so both are needed. Replace the examples with this board's real
+states and column names. A status with no line here makes `set-status.sh` stop and name it; the
+column part is optional (`= Active` alone moves the state only).
+
+`ado_board_column_field` is the board's column field, a reference name like
+`WEF_<32 hex digits>_Kanban.Column`, different for every board. To find it, open a work item that is on
+the board and run `az boards work-item show --id <id> --output json`: it is the field ending in
+`_Kanban.Column` whose value is the card's current column.
 
 ### GitHub sprint settings *(GitHub only — delete if using ADO or Todoist)*
 
