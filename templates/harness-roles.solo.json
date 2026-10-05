@@ -6,7 +6,7 @@
     "builder": {
       "displayName": "Builder",
       "skills": ["implement", "run-tasks"],
-      "agent": "builder",
+      "agent": "build-session",
       "phases": [
         {"id": "planning", "displayName": "Navigator"},
         {"id": "coding", "displayName": "Shipwright"},
@@ -21,7 +21,7 @@
     "reviewer": {
       "displayName": "Reviewer",
       "skills": ["evaluate"],
-      "agent": "reviewer",
+      "agent": "review-session",
       "phases": [
         {"id": "reviewing", "displayName": "Warden"}
       ],

@@ -319,13 +319,13 @@ Not applicable beyond the progress lines. Each line carries `feature=` and `stor
 | Story isolation through sibling git worktrees, created by the orchestrator from the Feature branch | parallel stories without shared files; the built-in agent worktree option can't start from a named branch | [ADR-0002](docs/adr/0002-story-worktrees.md) |
 | Orchestrator is the only merger; merges tested before commit (`--no-commit`, then abort or commit) | no merge races; the Feature branch only holds merges that passed; avoids reverting a merge in git | [ADR-0003](docs/adr/0003-orchestrator-only-merger.md) |
 | Work folder and state folder split for every agent | the only way agents can work in a worktree; changes the prompts every build uses | [ADR-0004](docs/adr/0004-work-folder-state-folder.md) |
-
-## Appendix: Known issues found while writing this
-
-- **`safety-check.js` checks the text of every file written, not just commands.** A document or test that merely *names* a blocked git command (a hard reset, a forced branch delete) is refused. A story agent writing docs or tests about those commands will hit this. Decide whether the content check should apply to Write at all, or only to Bash.
-- **`drift-check.js` reads Mermaid diagram labels as component names** and reports them as drift against `todo.md`. Harmless, but noisy on every architecture edit.
 | One writer per state file; decisions log per story, combined at PR time | parallel stories without locking or lost lines | in this document |
 | Per-worktree verify lock, with a global setting | parallel builds where safe | in this document |
 | `max-parallel-stories` 5, lowered by the 20-agent limit; soft limit of 8 stories per Feature | machine load and reviewer depth are the real limits | in this document |
 | Prove it records the shape of evidence only; Observe test environment only | PHI/PII on KBA projects | in this document |
 | Allowlist checked before the run instead of auto or bypass-permissions mode | background-agent prompts would stall the run; runs read PHI | in this document |
+
+## Appendix: Known issues found while writing this
+
+- ~~**`safety-check.js` checks the text of every file written, not just commands.**~~ Fixed in #23: the destructive-command rules apply to Bash only, and the installed global copy now matches the repo. A Write is still checked for hardcoded secrets.
+- **`drift-check.js` reads Mermaid diagram labels as component names** and reports them as drift against `todo.md`. Harmless, but noisy on every architecture edit.

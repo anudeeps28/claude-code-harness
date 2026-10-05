@@ -332,7 +332,8 @@ Say: **"Wave [n]/[total] — launching [k] task(s) in parallel: [task names]"**
 - `type="manual"` tasks: display the `<action>` as instructions for YOUR_NAME. Do not spawn an agent. Treat as BLOCKED pending human confirmation.
 
 **C. Wait for all background agents to complete.**
-Collect all results before proceeding.
+Collect all results before proceeding. Never end the turn, summarise or STOP while one is still
+running — see `rules/background-work.md`.
 
 **C1. Post-wave integrity checks (both, every wave):**
 
@@ -451,7 +452,7 @@ _(This agent finds its own architecture artifacts via Glob. No path needed.)_
 
 _(This agent reads security rules and architecture security section on its own.)_
 
-Wait for **all four** to return.
+Wait for **all four** to return (`rules/background-work.md`).
 
 **Write the handoff contracts:**
 - Save the evaluation report to `YOUR_PROJECT_ROOT/tasks/stories/$ARGUMENTS/evaluation.md`
