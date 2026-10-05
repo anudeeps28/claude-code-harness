@@ -2,13 +2,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const ap = require('../artifact-parsers');
-const { read } = require('./shared');
 
 function checkAcTestCoverage(projectRoot, warnings) {
-  const todoPath = ap.findTodoPath(projectRoot);
-  if (!todoPath) return;
-
-  const todoText = read(todoPath);
+  const todoText = ap.readWorkItemsText(projectRoot);
   if (!todoText) return;
 
   const acMatches = todoText.match(/<acceptance[^>]*>([\s\S]*?)<\/acceptance>/gi);
@@ -28,7 +24,7 @@ function checkAcTestCoverage(projectRoot, warnings) {
 
   if (!hasTests) {
     warnings.push(
-      'Artifact drift: todo.md has acceptance criteria but no test directory found — consider adding tests'
+      'Artifact drift: work items have acceptance criteria but no test directory found — consider adding tests'
     );
   }
 }

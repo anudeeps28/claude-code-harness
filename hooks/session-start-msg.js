@@ -37,8 +37,9 @@ runHook('session-start-msg', async () => {
 
   // Derive the mode: local (tasks/issues/ is the registry) | both (external
   // tracker + generated todo.md mirror) | tracker (external, no local board).
-  // A generated todo.md dashboard exists only in local and both modes.
-  const hasBoard = tracker === 'local' || (!!tracker && mirror);
+  // A generated todo.md mirror is read for context only in both mode. In local mode it is rebuilt
+  // only on request (#66) and may be stale, so context comes from the tracker scripts instead.
+  const hasBoard = !!tracker && tracker !== 'local' && mirror;
   const names = { todoist: 'Todoist', github: 'GitHub Issues', ado: 'Azure DevOps' };
   const trackerName = names[tracker] || tracker;
 
@@ -46,7 +47,7 @@ runHook('session-start-msg', async () => {
   const parts = ['SESSION START:'];
 
   if (tracker === 'local') {
-    parts.push('This project tracks tasks locally in tasks/issues/ — that is your task registry. tasks/todo.md is a generated dashboard of it (glance only — never hand-edit it). For exact task state, use the trackers/active/ scripts (list-issues.sh, get-issue.sh). tasks/notes.md is your scratch/notes.');
+    parts.push('This project tracks tasks locally in tasks/issues/ — that is your task registry. For task state, always use the trackers/active/ scripts (list-issues.sh, get-issue.sh). tasks/todo.md is a board rebuilt only on request (bash .claude/trackers/lib/render-todo.sh), so it may be stale — never read task state from it, never hand-edit it. tasks/notes.md is your scratch/notes.');
   } else if (tracker && mirror) {
     parts.push(`This project tracks tasks in ${trackerName} — the source of truth. tasks/todo.md is a generated mirror of it. When asked about tasks, status, or what to work on, query ${trackerName} first (via trackers/active/ scripts); todo.md is a local glance only, never hand-edited.`);
   } else if (tracker) {

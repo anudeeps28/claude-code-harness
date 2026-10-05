@@ -170,8 +170,8 @@ Process drifts in this order: hard drifts first, then soft drifts. For each one:
    - For invariant 5 bad branch name: ask whether to rename in `pr-queue.md` or whether the branch is really a one-off (and the entry should be removed).
    - For invariant 6 missing brief: offer (a) create a stub `brief.md` from the template, (b) update the sprint status to `New` if the story hasn't actually started.
    - For invariant 7 (NFR gap): offer (a) add a section to ARCHITECTURE.md addressing the NFR, (b) note it as intentionally out of scope with a comment in the architecture doc.
-   - For invariant 8 (component gap): offer (a) create the work item via `bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "<labels>"` — NEVER hand-write todo.md; the renderer (trackers/lib/render-todo.sh) regenerates the dashboard, (b) remove the component from the architecture diagram if it's no longer needed.
-   - For invariant 9 (section mismatch): offer (a) update the section reference in the work item itself — local mode: edit the task body `tasks/issues/<id>.md` (then the renderer regenerates todo.md); tracker/both mode: update the tracker item body. Never edit generated todo.md, (b) add the missing section to PRD.md.
+   - For invariant 8 (component gap): offer (a) create the work item via `bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "<labels>"` — NEVER hand-write todo.md; it is rebuilt only on request by `trackers/lib/render-todo.sh` (#66), (b) remove the component from the architecture diagram if it's no longer needed.
+   - For invariant 9 (section mismatch): offer (a) update the section reference in the work item itself — local mode: edit the task body `tasks/issues/<id>.md`; tracker/both mode: update the tracker item body. Never edit generated todo.md, (b) add the missing section to PRD.md.
    - For invariant 11 (ADR contradiction): offer (a) update ARCHITECTURE.md to use the ADR's chosen technology, (b) supersede the ADR with a new decision record if the architecture change was intentional.
 3. **Show the exact change** — the before/after diff snippet for the file you'd Edit.
 4. **Wait for user confirmation** — `apply`, `skip`, `edit` (modify the proposal), or `stop` (abort the rest).
@@ -185,7 +185,7 @@ After all drifts are processed (or skipped), summarize: how many fixed, how many
 
 ## What not to do
 
-- Do not edit any file outside the enterprise task files (excluding `tasks/todo.md`, which is generated-only per D9 and must never be edited directly) and the artifact files (PRD.md, ARCHITECTURE.md, docs/adr/*.md). Creating or closing work items via `.claude/trackers/active/create-issue.sh` / `close-issue.sh` is the sanctioned write path — the renderer regenerates todo.md.
+- Do not edit any file outside the enterprise task files (excluding `tasks/todo.md`, which is generated-only per D9 and must never be edited directly) and the artifact files (PRD.md, ARCHITECTURE.md, docs/adr/*.md). Creating or closing work items via `.claude/trackers/active/create-issue.sh` / `close-issue.sh` is the sanctioned write path; todo.md is rebuilt only on request.
 - Do not batch fixes — each one needs explicit user confirmation.
 - Do not treat placeholder template values (`[Item description]`, `(none)`, `—`, `<!-- Add rows here -->`) as drift.
 - Do not silently re-run the drift hook to check your fix worked — leave that to the next PostToolUse hook fire, or tell the user to invoke `/sync-tasks --report-only` again.

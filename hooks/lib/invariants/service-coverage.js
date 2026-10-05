@@ -4,11 +4,10 @@ const { read } = require('./shared');
 
 function checkServiceCoverage(projectRoot, warnings) {
   const archPath = ap.findArchPath(projectRoot);
-  const todoPath = ap.findTodoPath(projectRoot);
-  if (!archPath || !todoPath) return;
+  if (!archPath) return;
 
   const archText = read(archPath);
-  const todoText = read(todoPath);
+  const todoText = ap.readWorkItemsText(projectRoot);
   if (!archText || !todoText) return;
 
   const components = ap.extractMermaidComponents(archText);
@@ -19,7 +18,7 @@ function checkServiceCoverage(projectRoot, warnings) {
     if (name.length < 3) continue;
     if (!todoLower.includes(name.toLowerCase())) {
       warnings.push(
-        `Artifact drift: ARCHITECTURE.md component "${name}" not referenced in todo.md work items`
+        `Artifact drift: ARCHITECTURE.md component "${name}" not referenced in any open work item`
       );
     }
   }

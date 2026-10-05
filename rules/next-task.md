@@ -19,7 +19,7 @@ Check which sources exist for this project (in parallel where possible):
 | Live tracker | Read manifest `tracker` field + does `trackers/active/get-sprint-issues.sh` exist? | **Highest — always query first if configured** |
 | Sprint file | Does `tasks/sprint*.md` exist? (use the highest-numbered one) | Medium |
 | Plan file | Does `tasks/plan.md` exist? | Medium |
-| Todo file | Does `tasks/todo.md` exist? | Low (implementation scratch) |
+| Todo file | Does `tasks/todo.md` exist? | Lowest: a generated board, rebuilt only on request in local mode, so it may be stale. Never prefer it over the tracker |
 
 ---
 

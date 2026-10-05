@@ -210,6 +210,34 @@ function findTodoPath(projectRoot) {
   return fs.existsSync(p) ? p : null;
 }
 
+// The text of the project's open work items, for the work-item drift checks.
+// Local tracker: read tasks/issues/<id>.md directly (open items only, full title + body), so the
+// checks never depend on tasks/todo.md having been rebuilt — it is a convenience mirror that is no
+// longer regenerated on every write (#66). Elsewhere: fall back to todo.md if a mirror exists.
+// Returns null when there is nothing to check against.
+function readWorkItemsText(projectRoot) {
+  const issuesDir = pathMod.join(projectRoot, 'tasks', 'issues');
+  let files = [];
+  try {
+    files = fs.readdirSync(issuesDir).filter((f) => /^\d+\.md$/.test(f));
+  } catch { /* no local tracker */ }
+
+  if (files.length) {
+    const open = [];
+    for (const f of files) {
+      let text;
+      try { text = fs.readFileSync(pathMod.join(issuesDir, f), 'utf8'); } catch { continue; }
+      const state = /^state:\s*(\S+)/m.exec(text);
+      if (state && state[1] === 'open') open.push(text);
+    }
+    return open.length ? open.join('\n') : null;
+  }
+
+  const todoPath = findTodoPath(projectRoot);
+  if (!todoPath) return null;
+  try { return fs.readFileSync(todoPath, 'utf8') || null; } catch { return null; }
+}
+
 module.exports = {
   NFR_KEYWORDS,
   extractSection,
@@ -226,4 +254,5 @@ module.exports = {
   findArchPath,
   findAdrPaths,
   findTodoPath,
+  readWorkItemsText,
 };
