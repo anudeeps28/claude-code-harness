@@ -25,12 +25,12 @@ echo -n "["
 for f in $(ls "$ISSUES_DIR"/*.md 2>/dev/null | sort -t/ -k3 -n); do
   [ -f "$f" ] || continue
 
-  state=$(grep -m1 '^state:' "$f" | sed 's/^state: *//' | tr -d '')
+  state=$(grep -m1 '^state:' "$f" | sed 's/^state: *//' | tr -d '\r')
   [ "$state" = "open" ] || continue
 
   id=$(basename "$f" .md)
-  title=$(grep -m1 '^title:' "$f" | sed 's/^title: *//' | tr -d '')
-  labels_raw=$(grep -m1 '^labels:' "$f" | sed 's/^labels: *//;s/\[//;s/\]//' | tr -d '')
+  title=$(grep -m1 '^title:' "$f" | sed 's/^title: *//' | tr -d '\r')
+  labels_raw=$(grep -m1 '^labels:' "$f" | sed 's/^labels: *//;s/\[//;s/\]//' | tr -d '\r')
 
   # Build labels JSON array
   labels_json="[]"
@@ -52,7 +52,7 @@ for f in $(ls "$ISSUES_DIR"/*.md 2>/dev/null | sort -t/ -k3 -n); do
   escaped_title=$(echo "$title" | sed 's@\\@\\\\@g; s@"@\\"@g')
 
   # Assignee frontmatter (absent or "null" means unassigned)
-  assignee=$(grep -m1 '^assignee:' "$f" | sed 's/^assignee: *//' | tr -d '')
+  assignee=$(grep -m1 '^assignee:' "$f" | sed 's/^assignee: *//' | tr -d '\r')
   assignees_json="[]"
   if [ -n "$assignee" ] && [ "$assignee" != "null" ]; then
     escaped_assignee=$(echo "$assignee" | sed 's@\\@\\\\@g; s@"@\\"@g')

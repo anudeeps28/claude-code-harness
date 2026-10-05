@@ -1,0 +1,2 @@
+# Shell scripts always use LF: CI runs them on Linux, where a CR breaks bash and ShellCheck (SC1017).
+*.sh text eol=lf
