@@ -5,14 +5,16 @@ const { spawnSync } = require('node:child_process');
 
 const HOOK = path.join(__dirname, '..', 'safety-check.js');
 
-function runHook(toolName, toolInput) {
+function runHook(toolName, toolInput, extraEnv = {}) {
+  const env = { ...process.env, CLAUDE_HARNESS_WORK_ROOT: '' }; // suppress metric writes
+  delete env.SAFETY_ALLOW_GIT_COMMIT_PUSH; // the developer's own setting must not leak into tests
   const result = spawnSync(
     process.execPath,
     [HOOK],
     {
       input: JSON.stringify({ tool_name: toolName, tool_input: toolInput }),
       encoding: 'utf8',
-      env: { ...process.env, CLAUDE_HARNESS_WORK_ROOT: '' }, // suppress metric writes
+      env: { ...env, ...extraEnv },
     }
   );
   let parsed = null;
@@ -116,6 +118,22 @@ test('Bash_GitCommitAndRmRf_DeniedNotAsked', () => {
   const r = bash('git commit -m x && rm -rf /tmp/foo');
   assert.equal(r.exitCode, 2, `expected exit 2 (deny), got ${r.exitCode}: ${r.stdout}`);
   assert.equal(r.json.decision, 'deny');
+  assert.match(r.json.reason, /rm -rf/);
+});
+
+// SAFETY_ALLOW_GIT_COMMIT_PUSH=1 is the opt-out for a person who wants Claude to commit and
+// push without a prompt. It lifts only the two ask rules, never a destructive deny.
+for (const { name, cmd } of BASH_ASK_CASES) {
+  test(`Bash_${name.replace(/\s+/g, '_')}_OptOutSet_AllowedWithoutPrompt`, () => {
+    const r = runHook('Bash', { command: cmd }, { SAFETY_ALLOW_GIT_COMMIT_PUSH: '1' });
+    assert.equal(r.exitCode, 0, `expected exit 0, got ${r.exitCode}: ${r.stdout}`);
+    assert.equal(r.stdout, '', `expected a plain allow with no prompt, got ${r.stdout}`);
+  });
+}
+
+test('Bash_GitCommitAndRmRf_OptOutSet_StillDenied', () => {
+  const r = runHook('Bash', { command: 'git commit -m x && rm -rf /tmp/foo' }, { SAFETY_ALLOW_GIT_COMMIT_PUSH: '1' });
+  assert.equal(r.exitCode, 2, `expected exit 2 (deny), got ${r.exitCode}: ${r.stdout}`);
   assert.match(r.json.reason, /rm -rf/);
 });
 
@@ -238,6 +256,24 @@ test('Write_PlainHtmlOutsideDocs_StillChecked', () => {
     '<pre>-----BEGIN RSA PRIVATE KEY-----\nleaked\n-----END RSA PRIVATE KEY-----</pre>'
   );
   assert.equal(r.exitCode, 2);
+});
+
+// Destructive-command rules guard what Bash runs, not what a file says (#23). A test or a
+// script that names a blocked command must still be writable.
+test('Write_TestFileNamingHardReset_Allowed', () => {
+  const r = write(
+    'C:/work/hooks/__tests__/example.test.js',
+    "test('denies', () => { assert.equal(bash('git reset --hard HEAD~1').exitCode, 2); });\n"
+  );
+  assert.equal(r.exitCode, 0, `expected exit 0, got ${r.exitCode}: ${r.stdout}`);
+});
+
+test('Write_ScriptNamingForcedBranchDelete_Allowed', () => {
+  const r = write(
+    'C:/work/scripts/cleanup.sh',
+    '#!/bin/bash\n# Never run: git branch -D main\ngit branch --merged | xargs -n1 git branch -d\n'
+  );
+  assert.equal(r.exitCode, 0, `expected exit 0, got ${r.exitCode}: ${r.stdout}`);
 });
 
 test('Write_NormalCode_Allowed', () => {
