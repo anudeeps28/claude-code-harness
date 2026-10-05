@@ -1,2 +1,5 @@
 # Shell scripts always use LF: CI runs them on Linux, where a CR breaks bash and ShellCheck (SC1017).
 *.sh text eol=lf
+# Golden files are compared byte-for-byte with script output, which is always LF; a CRLF checkout
+# (core.autocrlf=true on Windows) would make every golden test fail on a fresh clone.
+trackers/__tests__/golden/** text eol=lf
