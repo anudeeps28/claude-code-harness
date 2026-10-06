@@ -191,3 +191,41 @@ test('CheckBranch_ReportsAMovedBranch', () => {
   const c = run('check-branch', '--path', r.swt('201'), '--expect', 'story/201-a');
   assert.equal(c.code, 5, c.out);
 });
+
+// ── Prove it's scratch copy (F6 #60) ─────────────────────────────────
+
+test('Scratch_DetachedCopyAtTheFeatureBranch_NoBranchCreated', () => {
+  const r = repo();
+  run('feature', '--home', r.home, '--path', r.fwt, '--branch', 'feature/1-x');
+  const branches = git(r.home, 'branch', '--list');
+  const p = path.join(r.root, 'shop-f1-prove');
+  const s = run('scratch', '--home', r.home, '--path', p, '--from', 'feature/1-x');
+  assert.equal(s.code, 0, s.out);
+  assert.equal(git(p, 'branch', '--show-current'), '', 'detached');
+  assert.equal(git(r.home, 'branch', '--list'), branches, 'no branch was added');
+  assert.equal(run('scratch', '--home', r.home, '--path', p, '--from', 'feature/1-x').code, 1, 'an existing path is refused');
+});
+
+test('RemoveScratch_ABrokenLineNotPutBack_IsRefused', () => {
+  const r = repo();
+  const p = path.join(r.root, 'shop-prove');
+  run('scratch', '--home', r.home, '--path', p, '--from', 'main');
+  fs.writeFileSync(path.join(p, 'app.txt'), 'line 1 broken\n');
+  const refused = run('remove-scratch', '--home', r.home, '--path', p);
+  assert.equal(refused.code, 1, refused.out);
+  assert.match(refused.out, /not-clean: [\s\S]*app\.txt/);
+  assert.ok(fs.existsSync(p), 'never forced');
+  fs.writeFileSync(path.join(p, 'app.txt'), 'line 1\n');
+  const ok = run('remove-scratch', '--home', r.home, '--path', p);
+  assert.equal(ok.code, 0, ok.out);
+  assert.ok(!fs.existsSync(p));
+});
+
+test('RemoveScratch_AWorktreeOnABranch_IsNeverRemoved', () => {
+  const r = repo();
+  run('feature', '--home', r.home, '--path', r.fwt, '--branch', 'feature/1-x');
+  const c = run('remove-scratch', '--home', r.home, '--path', r.fwt);
+  assert.equal(c.code, 1, c.out);
+  assert.match(c.out, /not a scratch copy/);
+  assert.ok(fs.existsSync(r.fwt));
+});

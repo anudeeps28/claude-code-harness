@@ -473,10 +473,11 @@ branch, and pushes so the PR updates in place.
 | `story-plan-agent` | opus | `/story` Phase 2 | Produces XML task plan |
 | `story-executor-agent` | sonnet | `/story`, `/implement` | Writes code for one task |
 | `story-pr-agent` | sonnet | `/story` Phase 4 | Commit messages + PR description |
-| `evaluator-agent` | opus | `/evaluate`, `/story` 3.6 | Adversarial quality check + test coverage (no security/arch overlap) |
-| `acceptance-test-agent` | opus | `/story` 3.6, `/implement` 3 | Verifies acceptance criteria, integration, regression |
-| `architect-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 | Architecture drift, NFR compliance, data-flow integrity |
-| `security-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns |
+| `evaluator-agent` | opus (Feature panel: sonnet for the list part) | `/evaluate`, `/story` 3.6, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
+| `acceptance-test-agent` | opus | `/story` 3.6, `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
+| `architect-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 and Feature panel | Architecture drift, NFR compliance, data-flow integrity, migrations on a database that already exists |
+| `security-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
+| `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
 | `babysit-pr-analyst` | sonnet | `/babysit-pr` | Categorizes threads as fix/reply |
 | `babysit-pr-fixer` | sonnet | `/babysit-pr` | Applies code fixes |
 | `sprint-plan-tracker-reader` | haiku | `/sprint-plan` | Calls tracker CLI |

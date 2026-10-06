@@ -20,6 +20,13 @@ You receive:
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Plan path** (optional) — path to the plan file describing what was supposed to be built
 - **Scope** — "full" (default) or "quick" (skip Steps 4-5, only run hard gates)
+- **Part** (optional, Feature panel only) — the panel runs you twice, on two models, because half of
+  this review is a list and half is an argument (Hydra's "Which model each review needs"):
+  - `list` — on a faster model: Steps 1–5 and 5.5 (complexity) and 5.6 (dead code: the list). Skip 5.7.
+  - `made-false` — on the default model: Step 1, then **only** Step 5.7. No build, no tests: the other
+    call runs those.
+
+  With no part given, run every step.
 
 ---
 
@@ -143,11 +150,10 @@ Read every changed file in full. For each change, actively try to find:
 - Missing data flow: components exist but no real data flows through them (hardcoded props, mocked data left in production code)
 
 ### Code Quality (advisory only — never blocks)
-- Dead code introduced
-- Duplicated logic that should be extracted
 - Naming that contradicts project conventions
-- Overly complex methods (cyclomatic complexity)
 - Missing async/await consistency
+
+(Complexity and dead code have their own steps below.)
 
 For each finding, assign a confidence score:
 - **90-100**: Almost certainly a real issue
@@ -156,6 +162,51 @@ For each finding, assign a confidence score:
 - **Below 50**: Don't report it — too speculative
 
 **Only report findings with confidence >= 50.**
+
+---
+
+## Step 5.5 — Complexity
+
+**Skip if scope is "quick" or part is `made-false`.** In the changed code, find:
+
+- a function doing too much — more than one reason to change, or a name that needs "and";
+- nesting that should be a guard clause (an early return would flatten it);
+- duplicated logic — the same steps written twice, in this diff or between the diff and existing code;
+- a clever line a reader will misread — dense expressions, surprising operator precedence, a ternary
+  chain, a side effect hidden in a condition;
+- **an abstraction with exactly one caller** — an interface with one implementation, a helper or
+  base class or factory used once. Count the callers with `Grep`; one caller is a finding, named with
+  the caller.
+
+Each is a **Complexity** finding with file:line, what to simplify, and a confidence.
+
+## Step 5.6 — Dead code: the list
+
+**Skip if scope is "quick" or part is `made-false`.** Mechanical, grep work. List:
+
+- code the branch added and never called — for each new function, method, class, export or route,
+  `Grep` for a caller outside its own definition and its own test; none is a finding;
+- tests that assert nothing (no assertion, or only one on a value the test set itself);
+- leftover scaffolding — debug prints, sample data, a stub that was meant to be replaced;
+- commented-out blocks;
+- unused imports, usings and variables;
+- feature flags with no owner or no expiry.
+
+Each is a **Dead code** finding with file:line.
+
+## Step 5.7 — Dead code: what did this change make false?
+
+**Skip if scope is "quick" or part is `list`.** This one is judgement, and the half most often
+forgotten: it routinely finds the accepted document the change quietly falsified. For every behaviour
+the diff changed, removed or renamed, search outside the diff for statements that are now untrue:
+
+- a comment describing the old behaviour;
+- a doc, README, ADR, ARCHITECTURE.md or CONTEXT.md line that says how it works;
+- a label, a log message, an error message, an API description, a help text;
+- a written scope — a ticket, a plan, a test name — that now promises something else.
+
+Each is a **Made false** finding: quote the statement (file:line), name the change that made it false
+(file:line), and say what it should now say.
 
 ---
 
@@ -230,6 +281,9 @@ Output in this exact format:
 | 2 | Robustness | [file:line] | [score]% | [description] |
 | 3 | Completeness | [file:line] | [score]% | [description — scope reduction, hollow impl, unwired, missing data flow] |
 | 4 | Quality | [file:line] | — | [description] |
+| 5 | Complexity | [file:line] | [score]% | [what to simplify — e.g. "OrderFactory has one caller, OrdersController.cs:40"] |
+| 6 | Dead code | [file:line] | [score]% | [never called / asserts nothing / scaffolding / commented out / unused / flag with no owner] |
+| 7 | Made false | [statement file:line] | [score]% | ["<the statement>" — made false by [file:line]; should now say …] |
 
 **Findings >= 75% confidence:** [count] (recommend fixing before PR)
 **Findings 50-74% confidence:** [count] (review, human judgment)
@@ -253,4 +307,6 @@ Output in this exact format:
 - **Report every finding >= 50% confidence.** Don't self-censor. Let the human decide what matters.
 - **Be specific.** File names, line numbers, method names. "There might be a security issue" is useless. "`UserController.cs:47` — `groupNumber` parameter concatenated into SQL string" is useful.
 - **Don't argue with the plan.** If the plan says "build X" and the executor built X correctly, that's a PASS on plan compliance — even if you think Y would have been better. Scope creep checks are about unauthorized changes, not design disagreements.
+- **Dead code and complexity are findings, not taste.** Report every one with its file and line; the orchestrator decides what to fix.
+- **With a part given, do only that part.** A `made-false` call that also runs the build wastes the default model on a list; a `list` call that argues about docs does it on the faster one.
 - **No commentary outside the structured report.** Output the report template above and nothing else.

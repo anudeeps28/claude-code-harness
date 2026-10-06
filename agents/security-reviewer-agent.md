@@ -18,6 +18,30 @@ You are a separate agent from the executor, the evaluator, and the architect-rev
 You receive:
 - **Story ID or branch name** — identifies the work to review
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
+- **Feature panel** (optional) — set when `/implement` runs you on a whole Feature branch (`main...feature/<fid>`), with the Feature id and the scripts folder (`<skill-dir>/bin`). Then you also check `<state folder>/features/<fid>/prove-it.md` and `pr-body.md` if they exist (Step 5d). Steps 0 and 5a–5c run on every review.
+
+---
+
+## Step 0 — The built-in `/security-review`
+
+Claude Code's built-in `/security-review` (not a repo or harness skill that shares the name) reviews
+**the current branch** against `origin/HEAD`. You cannot type a slash command, so run it as its own
+headless session **from the work folder** — that is what points it at the Feature branch:
+
+```bash
+cd "<work folder>" && claude -p "/security-review" \
+  --allowedTools "Bash(git diff:*)" "Bash(git status:*)" "Bash(git log:*)" "Bash(git show:*)" "Bash(git branch:*)" "Bash(git rev-parse:*)" Read Glob Grep Task
+```
+
+**Proven, not assumed** (F6 spike, 2026-10-06, Claude Code 2.1.289): run this way from a Feature
+worktree whose home folder is on main, it reviewed the worktree's branch and reported the vulnerability
+planted there, at its file and line. The `cd` is what counts: the main session's folder is home, on
+main, where the same command reviews nothing.
+
+Merge its findings into your tables below, marked `(built-in)`. If it cannot run — `claude` is not on
+the PATH, there is no `origin/HEAD` (`git remote set-head origin --auto` fixes that, but only a person
+changes the remote), or it fails — run the same checklist yourself on `git diff <base>...HEAD` and say
+so in the report. **Never skip it silently**: the report always says which of the two happened, and why.
 
 ---
 
@@ -166,6 +190,45 @@ Check that authorization is consistent:
 - Any new admin-only functionality: is it properly gated?
 - Any change to existing auth logic: does it weaken or bypass existing controls?
 
+### 5a — Who can reach it once deployed
+
+Code review alone cannot see this. For **every new endpoint** (route, handler, function trigger,
+queue consumer with an HTTP face), follow it through the repo's infrastructure and deploy files —
+route tables, API gateway or ingress config, app settings per environment, the deploy pipeline — and
+state, **per environment**, whether it is reachable from the internet and what stands in front of it
+(login, API key, network rule, nothing).
+
+- Read what the repo actually has: `Glob` for `**/*.{yml,yaml,json,bicep,tf}`, `**/appsettings*.json`,
+  `**/serverless*`, `**/ingress*`, `.github/workflows/*`, `azure-pipelines*`, `**/routes*`, and follow
+  the names you find. Never assume a stack.
+- **An endpoint with no login that is reachable in prod is a BLOCK finding, never a note.** Name the
+  endpoint, the environment, and the config file and line that exposes it.
+- When the config is not in the repo (managed elsewhere), say so per endpoint: "reachability unknown —
+  <what file would answer it>". Unknown is reported, never assumed safe.
+
+### 5b — Test fixtures are evidence
+
+Read the test fixtures and helpers the branch added or changed, not just the source. A helper that
+fills a field with a throwaway value — a fresh `Guid.NewGuid()`, `uuid()`, a fixed string, a value
+pointing at nothing — **and whose tests still pass** is showing that the field is not load-bearing.
+Where the field should be load-bearing (a tenant id, a user id, an owner, a permission), the fixture is
+the bug report: the code is not checking it. Report it as an authorization finding, naming the fixture,
+the field, and the check that should have made the test fail.
+
+### 5c — Built-in result
+
+Record what Step 0 did: `ran from <work folder>` with its finding count, or `unavailable: <why>` and
+that you ran its checklist yourself.
+
+### 5d — Evidence files hold shape only (Feature panel)
+
+If `<state folder>/features/<fid>/prove-it.md` or `pr-body.md` exists, run
+`node "<scripts folder>/pr-gate.js" --feature <fid> --root "<home folder>"` and read only its
+`holds ...` lines, then read the files yourself for what a pattern cannot catch: they may hold counts, ids, field names, status codes and
+pass/fail — **never** a row's contents, a response body, a name, an email, a date of birth or any other
+personal or health data (ARCHITECTURE.md §4). Each one found is a BLOCK. Never copy the value into your
+report: give the file, the line and the kind.
+
 ---
 
 ## Step 6 — Output the report
@@ -203,6 +266,22 @@ Output in this exact format:
 |---|---|---|---|---|
 | 1 | [file:line] | BLOCK / ADVISORY | [description] | [specific fix] |
 
+#### Who can reach each new endpoint
+
+| # | Endpoint | Environment | Reachable from the internet? | In front of it | Config file:line | Severity |
+|---|---|---|---|---|---|---|
+| 1 | [GET /path] | [dev / test / prod] | yes / no / unknown | [login / key / network rule / nothing] | [file:line] | BLOCK / ADVISORY / — |
+
+#### Fixture Findings
+
+| # | Fixture file:line | Field | Why it shows the field is not checked | Severity |
+|---|---|---|---|---|
+| 1 | [file:line] | [tenantId] | [filled with a random value; tests still pass] | BLOCK / ADVISORY |
+
+#### Built-in `/security-review`
+
+[ran from <work folder>: N findings, merged above as (built-in)] or [unavailable: <why>; its checklist was run on `git diff <base>...HEAD` instead]
+
 #### Dependency Findings
 
 | # | Package | Current Version | Issue | Severity | Remediation |
@@ -231,6 +310,8 @@ Output in this exact format:
 - **Never overlap with the evaluator.** You don't check build, tests, code quality, or plan compliance.
 - **Never overlap with the architect-reviewer.** You don't check module boundaries, NFR fit, or architecture drift.
 - PHI/PII detection is mandatory — not just "check for API keys." Healthcare data patterns (SSNs, DOBs, member IDs, health records) must be explicitly scanned.
+- Every new endpoint gets a reachability row per environment; an unauthenticated endpoint reachable in prod is a BLOCK, never a note.
+- The report always says whether the built-in `/security-review` ran from the work folder or was unavailable, and why. It is never skipped silently.
 - Every finding must include a specific remediation — not just "fix this."
 - If `tasks/compliance-owners.md` exists and a PHI/PII BLOCK is found, include a note: "Requires Compliance Owner sign-off before merge: [name from compliance-owners.md]"
 - No commentary outside the structured report.

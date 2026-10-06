@@ -18,6 +18,12 @@ You receive:
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Test strategy path** — path to the test strategy (from the plan) defining acceptance criteria, integration scenarios, and regression guardrails
 - **Plan path** (optional) — path to the full plan for additional context
+- **Feature panel** (optional) — set when `/implement` runs you on a whole Feature branch: the Feature
+  id, every story's test strategy (`<state folder>/stories/<sid>/test-strategy.md`), the Feature's own
+  (`<state folder>/features/<fid>/test-strategy.md`, which holds the Feature-level criteria **and the
+  criteria carried over from other or closed stories**), and the scripts folder (`<skill-dir>/bin`).
+  Every criterion in all of them is verified, each under its reference: `<sid>.<n>` for a story's,
+  `F.<n>` for the Feature's.
 
 ---
 
@@ -112,6 +118,52 @@ Rate each criterion:
 - **AWAITING SIGN-OFF** — No machine oracle (structured-human-acceptance modality): actual behavior surfaced via the observability plan, ready for a human ruling — show the evidence and state exactly what to judge
 - **UNTESTABLE** — Cannot be verified automatically or by inspection (requires manual testing) — describe what to test manually
 
+In a Feature panel the same statuses are read as **met** (PASS), **partly met** (PARTIAL) and **not
+met** (FAIL); Prove it and the PR gate use those words.
+
+---
+
+## Step 4.5 — Could the test pass with the criterion unmet?
+
+A green test is evidence only if it could have gone red. For **every** criterion you marked PASS or
+PARTIAL, ask that question of the test you named, and answer it from the test's code:
+
+1. **Read the plan's "Would lie if" line** for the criterion (its test strategy's
+   **Acceptance criteria and their proofs** list). It names a mutation or a missing assertion that
+   would let the proof pass anyway. Check the actual test against it: does the test assert on exactly
+   the thing that mutation would change? If the named mutation would leave the test green, the proof
+   lies.
+2. **Look for a test that passes whatever it is sent:** no assertion, or one on a value the test set
+   itself; a status-code check on a handler that returns 200 for anything; a check that "something was
+   returned" where the criterion is about what; a mock standing where the real code should run; a
+   catch-all that swallows the failure; expected values computed by the code under test.
+3. If the test could pass with the criterion unmet, the criterion is **FAIL (not met)**, whatever the
+   test run says, with the reason: "the proof can lie: <how>". Prove it will try to break it for real;
+   your job is to say where to look.
+
+## Step 4.6 — Every criterion, wherever it came from
+
+In a Feature panel, verify the criteria **carried over from other or closed stories** and the
+**Feature-level** ones exactly like a story's own, each on its own row with its own status. A criterion
+carried over from a closed story is the one most easily lost: it has no open story left to remind
+anyone of it.
+
+Also report, each in its own list:
+
+- **Only a person can meet it** — a criterion proven by `sign-off`: AWAITING SIGN-OFF, with the
+  evidence the person needs; its story stays `needs-person`.
+- **Outside the Feature's scope** — changes in the diff that no criterion asks for.
+- **Claims with nothing behind them** — every claim the branch adds in code or docs ("checked by X",
+  "covered by Y", "matches Z") whose X, Y or Z does not exist, or does not do what is claimed. Run:
+
+  ```bash
+  node "<scripts folder>/claims-check.js" --base <base> --path "<work folder>"
+  ```
+
+  (With no scripts folder, find the claims in the diff by hand.) Each `claim:` line is a finding.
+  Then read the claims it could not catch (a named thing that exists
+  but checks something else) and add them.
+
 ---
 
 ## Step 5 — Check integration points
@@ -162,10 +214,13 @@ Output in this exact format:
 
 #### Acceptance Criteria
 
-| # | Criterion | Status | Evidence |
-|---|-----------|--------|----------|
-| 1 | [criterion from test strategy] | PASS / FAIL / PARTIAL / AWAITING SIGN-OFF / UNTESTABLE | [which test covers it, or the observed evidence, or what's missing] |
-| 2 | ... | ... | ... |
+| # | Ref | Criterion | Status | Evidence | Could it pass unmet? |
+|---|-----|-----------|--------|----------|----------------------|
+| 1 | [201.1 / F.2] | [criterion from test strategy] | PASS / FAIL / PARTIAL / AWAITING SIGN-OFF / UNTESTABLE | [which test covers it, or the observed evidence, or what's missing] | no: [why the named mutation turns it red] / yes: [how it can lie] |
+| 2 | ... | ... | ... | ... | ... |
+
+(Ref is the criterion's reference in a Feature panel — `<sid>.<n>` or `F.<n>` — and the row number
+otherwise. A carried-over criterion keeps the reference of the strategy it is listed in.)
 
 **Passed:** [count] | **Failed:** [count] | **Partial:** [count] | **Awaiting sign-off:** [count] | **Untestable:** [count]
 
@@ -184,6 +239,14 @@ Output in this exact format:
 | # | Existing Behavior | Status | Evidence |
 |---|-------------------|--------|----------|
 | 1 | [behavior that must not change] | SAFE / BROKEN / UNGUARDED | [which test confirms it] |
+
+---
+
+#### Only a person can meet / Outside the scope / Claims with nothing behind them
+
+- [criterion ref]: [what the person must judge, and the evidence for it]
+- [file:line]: [change no criterion asks for]
+- [file:line]: ["checked by X": X does not exist / does not check this]
 
 ---
 
@@ -214,6 +277,7 @@ The e2e gate is met by **machine-green OR human-accepted** — never bypassed.
 - **Never skip a criterion.** Every acceptance criterion in the test strategy must be verified. If you can't verify it automatically, mark it UNTESTABLE and describe the manual test.
 - **Never assume.** If you can't find a test that exercises a criterion, it's not covered — even if the code "looks like it would work."
 - **Be specific.** Name the test file, the test method, the line number. "There's probably a test for this" is not evidence.
+- **A test that could pass with its criterion unmet proves nothing.** Ask it of every PASS; a yes makes the criterion FAIL (not met), never PASS with a note.
 - **Tests must exist.** Reading code and saying "this looks correct" is NOT acceptance testing. A criterion is only PASS if a test exercises it and the test passes. Code that "looks right" but has no test is PARTIAL at best.
 - **No commentary outside the structured report.** Output the report template above and nothing else.
 - **Writing your own report file is allowed, and expected.** The orchestrating skills require

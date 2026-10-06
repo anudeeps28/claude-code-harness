@@ -129,6 +129,8 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/implement-planner-agent.md',
     // Spawned by /implement's Feature mode (F4 #44).
     'agents/story-runner-agent.md',
+    // The Feature panel's fifth reviewer (F6 #58).
+    'agents/loosened-reviewer-agent.md',
     'harness-roles.json',
     'hooks/safety-check.js',
     'rules/code-style.md',

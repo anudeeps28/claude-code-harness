@@ -81,7 +81,7 @@ claude-code-harness-f123-s202\  Story 202 worktree, branch story/202-slug
 | 6 | Verify lock | **One per worktree**, at `tasks/stories/<sid>/.verify.lock`. Setting `verify-lock: global` in lessons/notes for stacks whose worktrees share a port, database or global cache | Worktrees don't share build scratch, so stories build in parallel and waves inside a story still queue. Rejected: *today's one lock per repo*, which queues every story behind every other |
 | 7 | State format | **Plain `key: value` markdown files, plus single-line progress lines** | Same format as `executor-state.md` and `phase.md` today. Rejected: *JSON*, which would be inconsistent with every existing state file |
 | 8 | Tracker access | **Bash adapters, plus the new `set-status.sh` in all four** (ADO, GitHub, Todoist, local) | Existing pattern, works on every tracker |
-| 9 | Built-in `/security-review` | **Run from the security reviewer agent, working inside the Feature worktree** | It reviews "the current branch", and the main session's folder is home, on main. **Not yet proven:** whether the built-in respects the agent's `cd`. The first Feature checks this. If it doesn't, the agent runs the same checklist on `git diff main...feature/<fid>` and reports the built-in as unavailable, never quietly skipped |
+| 9 | Built-in `/security-review` | **Run from the security reviewer agent, working inside the Feature worktree** | It reviews "the current branch", and the main session's folder is home, on main. **Proven (F6 spike, 2026-10-06, Claude Code 2.1.289):** a subagent cannot type a slash command, so it runs `claude -p "/security-review"` as its own headless session with the Feature worktree as the current folder; that reviewed the worktree's branch against `origin/HEAD` and reported the vulnerability planted there. It needs `claude` on the PATH and an `origin/HEAD`. When either is missing, the agent runs the same checklist on `git diff main...feature/<fid>` and reports the built-in as unavailable, never quietly skipped |
 
 **Cloud platform:** none (local only).
 
@@ -164,7 +164,7 @@ Prove it reads the real system through the read-only APIs and database, which on
 1. **The Observe section declares an environment**, local or test only. Prod is refused unless the project's rules explicitly allow it.
 2. **Prove it records the shape of evidence only**: row counts, ids, field names, status codes, pass/fail. Never raw row contents or response bodies.
 3. **Screenshots stay local** in `tasks/features/<fid>/review/`. The PR says what was seen and where the screenshot is, and never attaches it.
-4. The security reviewer's "no sensitive data in logs" check covers `progress.log`, `prove-it.md` and `pr-body.md`.
+4. The security reviewer's "no sensitive data in logs" check covers `progress.log`, `prove-it.md` and `pr-body.md`, and `bin/pr-gate.js` refuses a PR while either of the last two holds a raw value (it names the line and the kind, never the value).
 
 ### Partitioning
 
