@@ -40,7 +40,7 @@ A project declares this in `tasks/tracker-config.md`:
 feeds_agent_scheduler = true
 ```
 
-When that is `true`, stop at feature → story. The breakdown still travels — it goes into the story body's `## Breakdown` section (see 6b), and `/story` or `/implement` produces the real task plan per story at build time. If `--with-tasks` is passed anyway, print:
+When that is `true`, stop at feature → story. The breakdown still travels — it goes into the story body's `## Breakdown` section (see 6b), and `/implement` produces the real task plan per story at build time. If `--with-tasks` is passed anyway, print:
 
 > *"`--with-tasks` is not supported when `feeds_agent_scheduler = true`: child items land on the agent scheduler's board as launchable work. The task breakdown will be written into each story body instead. Continuing without it."*
 

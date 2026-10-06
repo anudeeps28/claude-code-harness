@@ -19,11 +19,13 @@ tasks/stories/<story-id>/
 
 ## Lifecycle
 
-1. `/story <id>` Phase 1 creates `brief.md`
-2. Phase 2 reads `brief.md`, creates `plan.md`
-3. Phase 3 reads `plan.md`, creates and updates `executor-state.md` after each wave
-4. Phase 3.6 reads `plan.md` + `executor-state.md`, creates `evaluation.md`
-5. Phase 4 reads all files to draft PR description
+1. `/implement <id>` Phase 1 creates `brief.md`
+2. Phase 1c reads `brief.md`, creates `plan.md` and `test-strategy.md`
+3. Phase 2 reads `plan.md`, creates and updates `executor-state.md` after each wave
+4. Phase 3 reads `plan.md` + `executor-state.md`, creates `evaluation.md` and the other review reports
+5. The PR step reads all files to draft the PR description
+
+`/implement --resume <id>` reads `executor-state.md` and `plan.md` to carry on a stopped run.
 6. After PR merges: archive the directory or delete it
 
 ## Notes

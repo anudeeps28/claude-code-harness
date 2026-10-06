@@ -1,5 +1,7 @@
-// Doc-consistency probe for `--tdd` mode across /story, /implement, /run-tasks, the planner and
-// executor agents, the wave and testing rules, and the four tracker adapters.
+// Doc-consistency probe for `--tdd` mode across /implement, the planner and executor agents, the
+// wave and testing rules, and the four tracker adapters. (It also covered /story, /run-tasks and
+// story-plan-agent until F7 #64 retired them; /implement --resume replaces /run-tasks, and its
+// must_fail handling on resume is tested in resume-point.test.js.)
 //
 // This is not a code test. Nothing in this repo parses the task XML — `type="test"`, `must_fail`,
 // `parallel_group` are instructions Claude reads at runtime. So the only thing that can go wrong is
@@ -39,26 +41,21 @@ function read(...parts) {
   return fs.readFileSync(path.join(REPO_ROOT, ...parts), 'utf8');
 }
 
-const STORY = read('skills', 'story', 'SKILL.md');
 const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
-const RUN_TASKS = read('skills', 'run-tasks', 'SKILL.md');
 const TDD_SKILL = read('skills', 'tdd', 'SKILL.md');
-const STORY_PLANNER = read('agents', 'story-plan-agent.md');
 const IMPLEMENT_PLANNER = read('agents', 'implement-planner-agent.md');
 const EXECUTOR = read('agents', 'story-executor-agent.md');
 const WAVE_RULES = read('rules', 'wave-execution.md');
 const TEST_PHILOSOPHY = read('rules', 'test-philosophy.md');
 
-const BOTH_SKILLS = { 'skills/story/SKILL.md': STORY, 'skills/implement/SKILL.md': IMPLEMENT };
-const BOTH_PLANNERS = {
-  'agents/story-plan-agent.md': STORY_PLANNER,
-  'agents/implement-planner-agent.md': IMPLEMENT_PLANNER,
-};
+// One build skill and one planner since F7 (ADR-0001). The maps keep their names so each check below
+// reads the same as before; they now hold one file each.
+const BOTH_SKILLS = { 'skills/implement/SKILL.md': IMPLEMENT };
+const BOTH_PLANNERS = { 'agents/implement-planner-agent.md': IMPLEMENT_PLANNER };
 // Every file that has to know the mode exists at all.
 const MODE_AWARE = {
   ...BOTH_SKILLS,
   ...BOTH_PLANNERS,
-  'skills/run-tasks/SKILL.md': RUN_TASKS,
   'agents/story-executor-agent.md': EXECUTOR,
   'rules/wave-execution.md': WAVE_RULES,
   'rules/test-philosophy.md': TEST_PHILOSOPHY,
@@ -349,33 +346,6 @@ test('D7_SkippedSliceKeepsTheTest', () => {
   }
 });
 
-// run-tasks paraphrased the contract as "fails on an assertion" — narrower than the executor spec,
-// and wrong for the shell-throw case, which is the normal red on a feature slice.
-test('D3_RunTasksDoesNotNarrowTheContractToAssertions', () => {
-  mustMatch(
-    RUN_TASKS,
-    /NotImplementedException|right reason/i,
-    'skills/run-tasks/SKILL.md must not paraphrase the must_fail contract as "fails on an assertion" — that rejects the shell-throw red, which is the normal first red on a feature slice'
-  );
-});
-
-// Two run-tasks hard rules, read literally, forbid a must_fail task from ever being marked done.
-test('D6_RunTasksHardRulesCarveOutMustFail', () => {
-  const idx = RUN_TASKS.indexOf('## Hard rules');
-  assert.ok(idx !== -1, 'skills/run-tasks/SKILL.md must keep its Hard rules section');
-  const hard = RUN_TASKS.slice(idx);
-  mustMatch(
-    hard,
-    /must_fail[^\n]{0,120}never restored|never restored[^\n]{0,120}must_fail/i,
-    'run-tasks hard rule "restore before each retry" must carve out must_fail tasks'
-  );
-  mustMatch(
-    hard,
-    /must_fail[^\n]{0,160}(?:FAILS|fails)/,
-    'run-tasks hard rule "a task is only done when its verify passes" must carve out must_fail tasks — its correct outcome is a non-zero exit, so read literally the rule forbids ever completing one'
-  );
-});
-
 // "Runs alone in its wave" was stated but nothing enforced it: the auto-split check fires only on
 // FILE OVERLAP and only on waves with 2+ tasks, so a file-disjoint sibling passes silently.
 test('D3_AloneInWaveIsEnforcedNotJustAsserted', () => {
@@ -389,7 +359,7 @@ test('D3_AloneInWaveIsEnforcedNotJustAsserted', () => {
 // A wave-by-wave run legitimately stops with a red suite between the failing test and its fix. Nothing
 // told the human that, so running the tests at that checkpoint looks like a broken build.
 test('D3_WaveStopWarnsTheTreeIsDeliberatelyRed', () => {
-  for (const [name, content] of Object.entries({ ...BOTH_SKILLS, 'skills/run-tasks/SKILL.md': RUN_TASKS })) {
+  for (const [name, content] of Object.entries(BOTH_SKILLS)) {
     mustMatch(
       content,
       /deliberately red/i,
@@ -703,7 +673,7 @@ test('D3_FourPreventionRulesArePresent', () => {
     { re: /\|\|\s*true/, what: 'the verify must not hide failure with || true' },
     { re: /one test|single (?:named )?test|names? (?:exactly )?one/i, what: 'the verify must name one test' },
   ];
-  const combined = WAVE_RULES + STORY_PLANNER + IMPLEMENT_PLANNER + EXECUTOR;
+  const combined = WAVE_RULES + IMPLEMENT_PLANNER + EXECUTOR;
   for (const { re, what } of rules) {
     mustMatch(combined, re, `Prevention rule missing across wave rules / planners / executor: ${what}`);
   }
@@ -771,10 +741,9 @@ test('D5_TestFileGoesInReadFirstNotFiles', () => {
 // D6 — must_fail tasks are exempt from the restore rule
 // ---------------------------------------------------------------------------
 
-test('D6_RestoreRuleCarveOutInAllThreePlaces', () => {
+test('D6_RestoreRuleCarveOutInBothPlaces', () => {
   const places = {
     'rules/wave-execution.md': WAVE_RULES,
-    'skills/story/SKILL.md': STORY,
     'skills/implement/SKILL.md': IMPLEMENT,
   };
   for (const [name, content] of Object.entries(places)) {
@@ -927,27 +896,20 @@ test('D12_TddSkillStillStopsWhenATestPassesTooEarly', () => {
 });
 
 // ---------------------------------------------------------------------------
-// run-tasks must carry the mode across a resume
+// --resume must carry the mode across a resume (it replaced /run-tasks in F7)
 // ---------------------------------------------------------------------------
 
-test('RunTasks_InheritsTheModeAcrossAResume', () => {
+test('Resume_KeepsMustFailTasksAndTheRunMode', () => {
+  const resume = IMPLEMENT.slice(IMPLEMENT.indexOf('## Resume mode'), IMPLEMENT.indexOf('## Autonomous mode'));
   mustMatch(
-    RUN_TASKS,
-    /must_fail/,
-    'skills/run-tasks/SKILL.md must honour must_fail — it replays waves, and a resumed story would otherwise silently drop test-first'
+    resume,
+    /must_fail[\s\S]{0,200}never\*\* restored|never\*\* restored[\s\S]{0,200}must_fail/,
+    '--resume must never restore a half-done must_fail task — it replays waves, and a resumed story would otherwise silently drop test-first'
   );
   mustMatch(
-    RUN_TASKS,
-    /executor-state\.md/,
-    'skills/run-tasks/SKILL.md must read the mode from executor-state.md on a standalone resume, the same way it reads run-mode: autonomous'
-  );
-});
-
-test('RunTasks_NoLongerClaimsTestTasksNeedNoSpecialHandling', () => {
-  mustNotMatch(
-    RUN_TASKS,
-    /No special handling\./,
-    'skills/run-tasks/SKILL.md still says a test task needs "No special handling." — a must_fail task needs the opposite verify verdict'
+    resume,
+    /run-mode: autonomous/,
+    '--resume must keep the saved run mode from executor-state.md'
   );
 });
 
@@ -962,9 +924,6 @@ test('Regression_ExistingFlagsAndStopTokensSurvive', () => {
   ];
   for (const token of implementTokens) {
     assert.ok(IMPLEMENT.includes(token), `skills/implement/SKILL.md must still contain "${token}"`);
-  }
-  for (const token of ['--auto', '--autonomous']) {
-    assert.ok(STORY.includes(token), `skills/story/SKILL.md must still contain "${token}"`);
   }
 });
 

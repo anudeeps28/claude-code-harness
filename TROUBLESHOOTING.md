@@ -272,9 +272,9 @@ GitHub uses milestones instead of sprints. Ensure:
 
 ## Skills
 
-### /story fails at Phase 1 (can't read task files)
+### /implement fails at the start (can't read task files)
 
-The skill expects `tasks/lessons.md`, `tasks/todo.md`, etc. to exist. For project installs, the installer creates these. For global installs, you need to create them manually in your project:
+The skill expects `tasks/lessons.md` (or `tasks/notes.md` on the solo pack) to exist. For project installs, the installer creates these. For global installs, you need to create them manually in your project:
 
 ```bash
 mkdir -p tasks
@@ -303,7 +303,7 @@ cp path/to/claude-code-harness/templates/tasks/sprint-template.md tasks/
 
 ```bash
 # Check critical files exist
-ls .claude/skills/story/SKILL.md
+ls .claude/skills/implement/SKILL.md
 ls .claude/hooks/safety-check.js
 ls .claude/trackers/active/get-issue.sh
 
@@ -314,9 +314,13 @@ grep -rn "YOUR_" .claude/ --include="*.sh" --include="*.md" | grep -v CONFIGURE.
 bash .claude/trackers/active/get-issue.sh 12345
 ```
 
-### Claude Code says "no matching skill" when I type /story
+### Claude Code says "no matching skill" when I type a command
 
-Skills are only visible if they're in the correct directory structure:
+`/story` and `/run-tasks` were retired: use `/implement <id>` and `/implement --resume <id>`. An
+upgrade removes them from the install it updates. If they still appear, an older user-level install in
+`~/.claude/skills/` has them; update it too.
+
+Otherwise, skills are only visible if they're in the correct directory structure:
 - Global: `~/.claude/skills/<skill-name>/SKILL.md`
 - Project: `<project>/.claude/skills/<skill-name>/SKILL.md`
 

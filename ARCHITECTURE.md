@@ -288,26 +288,27 @@ Not applicable beyond the progress lines. Each line carries `feature=` and `stor
 
 | Metric | Target | Current | Gap |
 |---|---|---|---|
-| **Point lost (RPO)** | at most the wave in flight; state saved after every step | state saved only after each wave; nothing re-read after compaction | save after every step; re-read after compaction |
-| **Time to recover (RTO)** | minutes: `/implement --resume <fid>`, merged stories never redone | no `--resume`; recovery goes through `/run-tasks` for a single story | `--resume` for a Feature |
+| **Point lost (RPO)** | at most the wave in flight; state saved after every step | met (F1): a step record after every step, re-read first after a compaction | none |
+| **Time to recover (RTO)** | minutes: `/implement --resume <fid>`, merged stories never redone | met (F1, F4): `--resume` for a story and for a Feature; `/run-tasks` retired (F7) | none |
 
 ### Failure scenarios and recovery
 
 | Scenario | Detection | Recovery | Tested? |
 |---|---|---|---|
-| Main session compacts | the conversation starts with a summary | re-read `feature-state.md` before anything else, print the current phase again, carry on | no: probe 1 |
-| Terminal closed, laptop asleep, session crash (background agents stop with it) | the developer runs `/implement --resume <fid>` | merged stories: skipped. Running stories: worktree checked, runner restarted from its last saved wave. Half-done merge: `git merge --abort`, then redone | no: probe 2 |
-| Story runner crashes or hangs | an error result, or no progress for 30 minutes | worktree kept; one automatic restart from saved state; a second failure means stuck | no |
-| Merge conflict that can't be resolved cleanly | the merge fails | `git merge --abort`, Feature branch untouched, story stuck, worktree kept | no: probe 3 |
-| Tests fail after a merge | red tests on the uncommitted merge | `git merge --abort`, story stuck with the test output | no: probe 4 |
+| Main session compacts | the conversation starts with a summary | re-read `feature-state.md` before anything else, print the current phase again, carry on | yes: `feature-mode.probe.test.js`, and lived through in every Feature's build |
+| Terminal closed, laptop asleep, session crash (background agents stop with it) | the developer runs `/implement --resume <fid>` | merged stories: skipped. Running stories: worktree checked, runner restarted from its last saved wave. Half-done merge: `git merge --abort`, then redone | yes: `feature-state.test.js` (resume), `worktree.test.js` (half-done merge) |
+| Story runner crashes or hangs | an error result, or no progress for 30 minutes | worktree kept; one automatic restart from saved state; a second failure means stuck | yes: `feature-state.test.js` (hung, stuck), F5 Demo |
+| Merge conflict that can't be resolved cleanly | the merge fails | `git merge --abort`, Feature branch untouched, story stuck, worktree kept | yes: `worktree.test.js` |
+| Tests fail after a merge | red tests on the uncommitted merge | `git merge --abort`, story stuck with the test output | yes: `worktree.test.js` |
 | Usage limit reached | agents return limit errors | `run-paused reason="usage limit"`, resume once the limit resets | no |
-| Tracker unreachable | an adapter error | at startup: stop. During the run: log it and carry on | no |
-| Not enough disk | startup check: free space vs. stories × estimated size | stop at startup with the number needed | no |
-| Branch moves in a worktree | branch check before and after every wave and every merge, in each worktree | stop; never decided automatically | partly (today's single-folder check) |
+| Tracker unreachable | an adapter error | at startup: stop. During the run: log it and carry on | partly: a failed status write is a `tracker-error` line (F2) |
+| Not enough disk | startup check: free space vs. stories × estimated size | stop at startup with the number needed | yes: `disk-check.test.js` |
+| Branch moves in a worktree | branch check before and after every wave and every merge, in each worktree | stop; never decided automatically | yes: `worktree.test.js` (check-branch, merge) |
 
 **Stuck-story rule (from the grill, Q11):** a stuck story and its dependents are held at `needs-person`. Independent stories finish and merge. The run pauses before the Feature-level phases, and there is no PR while a story is stuck.
 
-**Probes to add** (in the existing rig, `skills/implement/__tests__/*.probe.test.js`): (1) resume after compaction; (2) resume after a crash, with one story merged and one running; (3) a merge conflict; (4) a failing test after a merge leaves the Feature branch unchanged.
+The four probes this section once asked for (resume after compaction, resume after a crash, a merge
+conflict, a failing test after a merge) were built in F4; the table above names where each lives.
 
 ---
 
@@ -329,3 +330,27 @@ Not applicable beyond the progress lines. Each line carries `feature=` and `stor
 
 - ~~**`safety-check.js` checks the text of every file written, not just commands.**~~ Fixed in #23: the destructive-command rules apply to Bash only, and the installed global copy now matches the repo. A Write is still checked for hardcoded secrets.
 - **`drift-check.js` reads Mermaid diagram labels as component names** and reports them as drift against `todo.md`. Harmless, but noisy on every architecture edit.
+
+## Appendix: What building it taught us
+
+Each Feature (F1–F7) was built and then demoed on a throwaway project with real agents. What those
+runs showed that the design did not foresee, and what changed because of it:
+
+- **A subagent cannot wait for agents it starts in the background.** A story runner started its
+  reviewers with `run_in_background`, ended its turn "waiting", and reported nothing; their results
+  went to the main session. Runners now start every agent in the foreground, several in one message
+  when they should run side by side (F5).
+- **Paths relative to the current folder break inside a worktree.** `observe-check.js`'s default path
+  pointed at a `tasks/` only the home folder has; runners pass the state folder's file explicitly (F5).
+- **The built-in `/security-review` can review a Feature branch** when run as `claude -p` from the
+  Feature worktree (§2 #9, F6). A subagent cannot type a slash command, so this is the only way in.
+- **Agent definitions load when a session starts.** An agent added mid-session is "not found" until a
+  restart, and a startup check that only looks for the file cannot see that. It only bites while the
+  harness itself is being changed; an install is always followed by a new session (F6).
+- **Removal must go through git.** The safety hook blocks recursive deletes, so Prove it's scratch
+  copy is a detached `git worktree`, removed by `git worktree remove` only once clean — which doubles
+  as the check that every broken line was put back (F6).
+- **Nothing was lost retiring `/story` and `/run-tasks`** — but three small things had drifted into
+  `/story` only (reading `lessons.md`, the default-branch push guard, the no-PII line for the decisions
+  log). The inventory caught them; they now apply in both packs (F7,
+  [docs/story-retirement-inventory.md](docs/story-retirement-inventory.md)).

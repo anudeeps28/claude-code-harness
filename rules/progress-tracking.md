@@ -14,7 +14,7 @@ Code leaves these tools out on newer models unless `CLAUDE_CODE_ENABLE_TODO_TOOL
 never discovered halfway through a run. The checklist is still a live mirror, not the source of
 truth: the story plan, the saved state and the phase marker are.
 
-**Referenced by:** the multi-step execution skills (`/story`, `/run-tasks`, `/implement`, `/tdd`,
+**Referenced by:** the multi-step execution skills (`/implement`, `/tdd`,
 `/troubleshoot`, `/babysit-pr`, `/deploy`). Each one points here for the convention below.
 
 ---
@@ -24,7 +24,7 @@ truth: the story plan, the saved state and the phase marker are.
 The harness already has a **durable** record of work:
 
 - The `<tasks story="…">` XML plan in `tasks/stories/<id>/plan.md` — survives context loss, drives
-  `/run-tasks`. It lives in the always-local story workspace, in every tracker mode.
+  `/implement --resume`. It lives in the always-local story workspace, in every tracker mode.
 - A skill's own fixed step list (e.g. `/deploy`'s steps, `/tdd`'s cycles).
 
 `TodoWrite` is the **ephemeral, in-session mirror** of that durable record — nothing more.
@@ -58,8 +58,8 @@ of execution). Seeding it after work has begun defeats the purpose.
   leave it `in_progress`; mark it `completed` in the same pass that writes `✅` to its `<task>` line in
   the story plan, after the review. A review finding on one of its files puts it back to plain
   `in_progress`. `/implement` defines the statuses (`verified`, `done`, `reopened`) in its "State and
-  progress" section. `/story` and `/run-tasks` still tick on verify until F7 retires them into
-  `/implement`.
+  progress" section. In a Feature, each story runner keeps its own story's statuses the same way, and
+  the orchestrator's checklist holds one item per story.
 - A fixed-step skill (`/deploy`, `/tdd`) has no review step: mark a step `completed` when it genuinely
   finishes.
 - A failed/blocked task stays `in_progress` (not `completed`) until it's resolved or escalated.

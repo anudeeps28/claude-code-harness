@@ -19,7 +19,7 @@ const {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck: runCheckImpl, runUpdate: runUpdateImpl,
   runSwitchTracker: runSwitchTrackerImpl, backfillManifest: backfillManifestImpl,
-  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS,
+  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS, removeRetired, warnRetiredElsewhere,
 } = require('./lib/updater.js');
 const { DEFAULT_REPO_URL } = require('./lib/source.js');
 
@@ -365,7 +365,7 @@ async function main() {
     console.log(`  Workflow pack: ${workflowPack}\n`);
   } else {
     console.log('  Workflow pack:\n');
-    console.log('    1) Enterprise — sprints, stories, team coordination (/story, /sprint-plan)');
+    console.log('    1) Enterprise — sprints, stories, team coordination (/implement with the sprint file, /sprint-plan)');
     console.log('    2) Solo       — issues, simple priorities (/implement, /plan)\n');
     const packChoice = (await prompt('  Choice [1/2]: ', '2')).trim();
     console.log('');
@@ -553,6 +553,9 @@ async function main() {
   console.log('  Copying skills...');
   const skillSkip = workflowPack === 'solo' ? ENTERPRISE_ONLY_SKILLS : null;
   installedFiles.push(...copyDirsWithLog(path.join(REPO_DIR, 'skills'), path.join(target, 'skills'), 'skills', skillSkip));
+  // Installing over an older install: retired skills and agents go (F7 #64).
+  removeRetired(target);
+  warnRetiredElsewhere(target);
 
   console.log(`  Copying tracker adapter (${tracker})...`);
   installedFiles.push(...copyGlob(path.join(REPO_DIR, 'trackers', tracker), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
@@ -798,7 +801,7 @@ async function main() {
     console.log("  Get started: /implement #42  or  /implement 'add dark mode'");
     console.log('  Plan your work: /plan');
   } else {
-    console.log('  Get started: /story <story-id>');
+    console.log('  Get started: /implement <feature-or-story-id>');
     console.log('  Plan a sprint: /sprint-plan <N>');
   }
   console.log('');

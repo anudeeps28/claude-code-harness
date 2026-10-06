@@ -71,7 +71,7 @@ Do NOT recommend a next task until drift is resolved or the user acknowledges it
 
 Priority order for what to recommend:
 
-1. **Resume in-progress work** — if todo.md has a partially-complete `<tasks>` block, that's the most immediate thing. Say: "You have unfinished execution for #X — resume with `/run-tasks X`?"
+1. **Resume in-progress work** — if a story's `tasks/stories/<id>/executor-state.md` (or a Feature's `tasks/features/<fid>/feature-state.md`) shows an unfinished run, that's the most immediate thing. Say: "You have an unfinished run for #X — carry on with `/implement --resume X`?"
 
 2. **In-progress items** — anything marked in-progress in plan.md or sprint file that doesn't have a completed branch/PR yet.
 

@@ -15,8 +15,6 @@ const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8');
 const exists = (...p) => fs.existsSync(path.join(REPO_ROOT, ...p));
 
 const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
-const STORY = read('skills', 'story', 'SKILL.md');
-const RUN_TASKS = read('skills', 'run-tasks', 'SKILL.md');
 const PROGRESS_RULE = read('rules', 'progress-tracking.md');
 const { readRequired } = require('../bin/startup-check.js');
 
@@ -177,10 +175,8 @@ test('BackgroundWork_RuleExistsWithItsOneException', () => {
   mustMatch(rule, /exception/i, 'the rule must state its one exception');
 });
 
-test('BackgroundWork_TheThreeBuildSkillsReferenceTheRule', () => {
-  for (const [name, text] of [['implement', IMPLEMENT], ['story', STORY], ['run-tasks', RUN_TASKS]]) {
-    assert.ok(text.includes('rules/background-work.md'), `skills/${name}/SKILL.md must reference rules/background-work.md`);
-  }
+test('BackgroundWork_TheBuildSkillReferencesTheRule', () => {
+  assert.ok(IMPLEMENT.includes('rules/background-work.md'), 'skills/implement/SKILL.md must reference rules/background-work.md');
 });
 
 // ── #28 unambiguous names ─────────────────────────────────────────────

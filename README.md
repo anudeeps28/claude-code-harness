@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-34 skills, 19 agents, 7 cross-platform Node hooks, 11 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+32 skills, 20 agents, 7 cross-platform Node hooks, 13 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -29,9 +29,31 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 
 ## What it does
 
+### Build — one skill, both packs
+
+`/implement` is the one build skill (ADR-0001). What it builds depends on what you hand it:
+
+```
+/implement 40                     ← a Feature: one plan for all its stories, each story built in its own
+                                    git worktree (independent ones at the same time), one review panel
+                                    and Prove it on the whole Feature, then one PR
+/implement 42 --standalone        ← a single story or bug with no parent Feature
+```
+
+**Building a Feature.** `/to-issues` breaks the work into a Feature with stories and the links
+between them. `/implement 40` shows you one plan — the stories in dependency order, the Feature's
+Demo, and anything it needs from you — and that is the only stop. Then it builds every story, merges
+each into the Feature branch only after its tests pass, runs the five-reviewer panel and **Prove it**
+on the whole branch, and opens one PR — only when every acceptance criterion is met.
+
+**Building a standalone item.** `/implement 42 --standalone` builds one story or bug on its own
+branch: understand → goal → plan → build in waves → local tests → four reviewers → e2e gate → PR, with
+a stop for you at each step (or none, with `--autonomous`). A story that belongs to a Feature makes
+`/implement` ask whether you meant the Feature.
+
 ### Solo developers
 ```
-/implement #42                    ← reads issue, plans, builds, evaluates, PRs
+/implement #42 --standalone       ← reads the issue, plans, builds, evaluates, PRs
 /implement "add dark mode"        ← no issue needed, just a description
 /implement #42 --discuss          ← 3 clarifying questions before planning
 /implement #42 --research         ← scan codebase for reusable utilities first
@@ -40,6 +62,7 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 /implement #42 --full --quick     ← max understanding, skip post-build evaluation
 /implement #42 --autonomous       ← full pipeline, zero STOPs, opens a PR as the only gate
 /implement --rework 58 "also rename the flag"   ← re-enter a rejected PR, fix on the same branch, push
+/implement --resume 42            ← carry on a stopped run (a story or a whole Feature)
 /plan                             ← prioritize your open issues
 ```
 
@@ -51,12 +74,15 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 - `--full` — sugar for `--discuss --research`; orthogonal to `--quick` and `--auto`
 - `--autonomous` — run the entire flow with no human STOP checkpoints; self-answer reversible decisions, pause only when genuinely blocked, auto-push and open a non-draft PR as the single human gate. Implies `--auto` (NOT `--quick`).
 - `--rework <PR#>` — mode selector (not additive): re-enter an already-open, rejected PR, merge its review comments with optional typed feedback, fix on the same branch, and push so the PR updates. Its own explicit autonomous entry point.
+- `--resume <id>` — carry on a stopped run from its saved state; a finished task or a merged story is never redone.
+- `--standalone` — build a story or bug that has no parent Feature.
+- `--tdd` — test-first: each slice is planned as empty shell → failing test → real code (always on for bug fixes).
+- `--no-ship` — run everything up to the PR, then stop before any git step.
 
 ### Enterprise teams
 ```
-/story 9950                 ← 8-phase story lifecycle with human gates
-/story 9950 --auto          ← same, but auto-run waves (pause only on failure)
-/story 9950 --autonomous    ← same 8-phase flow, zero STOPs, PR is the only gate
+/implement 9950             ← the same build; also keeps the sprint file's Master Status Table in step
+/implement 9950 --autonomous ← zero STOPs, the PR is the only gate
 /sprint-plan 8              ← reads tracker, creates sprint file, surfaces gaps
 /babysit-pr 163             ← loops PR reviews until zero threads remain
 ```
@@ -79,7 +105,7 @@ The harness covers the full software development lifecycle. Both solo and enterp
 flowchart LR
     P0["Decide<br/>/grill-me · /wayfinder · /grill-with-docs<br/>/decision-brief"]
     P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues<br/>/sprint-plan ◆"]
-    P2["Build<br/>/implement ● · /story ◆<br/>/run-tasks ◆<br/>/evaluate · /debug"]
+    P2["Build<br/>/implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr ◆<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage · /improve-codebase-architecture"]
 
@@ -91,7 +117,7 @@ flowchart LR
 
 > **`/plan` ● is not a linear stage.** It reads your *existing* tracker backlog and prioritizes it — so it runs *after* `/to-issues` has created tasks, never before. Think of it as the recurring "what's next?" step at the top of each cycle, feeding straight into `/implement`.
 
-> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** creates the build tasks → **`/implement`** / **`/story`** builds them. (Already sitting on a backlog? **`/plan`** prioritizes your existing issues and picks the next one to **`/implement`** — it reads tasks that already exist, so it comes *after* decomposition, never before.)
+> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** creates the build tasks → **`/implement`** builds them. (Already sitting on a backlog? **`/plan`** prioritizes your existing issues and picks the next one to **`/implement`** — it reads tasks that already exist, so it comes *after* decomposition, never before.)
 
 #### Solo developer path
 
@@ -114,7 +140,7 @@ flowchart LR
 flowchart LR
     D["Decide<br/>/grill-me · /wayfinder<br/>/decision-brief"]
     Def["Define<br/>/sprint-plan<br/>/prd · /architect"]
-    B["Build<br/>/story 9950<br/>/evaluate · /debug"]
+    B["Build<br/>/implement 9950<br/>/evaluate · /debug"]
     S["Ship<br/>/babysit-pr<br/>/deploy"]
     L["Learn<br/>/zoom-out<br/>/improve-harness"]
 
@@ -139,8 +165,10 @@ flowchart LR
 | Generate the full spec stack (DB schema, API ref, diagrams) | `/design-artifacts` |
 | Break a PRD into executable vertical-slice tickets | `/to-issues` |
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
-| Build a whole story or issue test-first | `/story <ID> --tdd` or `/implement #42 --tdd` |
-| Build a feature from an issue | `/story` or `/implement` |
+| Build a whole Feature, every story, to one PR | `/implement <feature-id>` |
+| Build one story, bug or issue | `/implement #42 --standalone` |
+| Build a whole story or issue test-first | `/implement #42 --tdd` |
+| Carry on a run that stopped part-way | `/implement --resume <id>` |
 | Get a queue of small fixes shipped before a demo | `/hackathon` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
 | Debug a hard or recurring bug | `/debug` (or `/diagnose`) |
@@ -207,7 +235,7 @@ The installer asks:
 
 Then:
 - **Solo:** `/implement #42` or `/plan`
-- **Enterprise:** `/story 9950` or `/sprint-plan 8`
+- **Enterprise:** `/implement 9950` or `/sprint-plan 8`
 
 **Non-interactive / scripted installs** — pass answers as flags so `--yes` needs no follow-up edits:
 
@@ -283,25 +311,31 @@ backfill to create `.harness-manifest.json`.
 
 Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder under `skills/` with a `SKILL.md` file and optional supporting files (templates, scripts, reference docs).
 
-### Solo workflow (2 skills)
+### Build (both packs)
 | Skill | Usage | What it does |
 |---|---|---|
-| **implement** | `/implement #42` or `/implement "add dark mode"` | Build a feature from issue or description — plan, execute, evaluate, PR. `--tdd` for test-first |
+| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story in its own worktree, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run, `--tdd` builds test-first. On the enterprise pack it also keeps the sprint file in step |
+
+### Solo workflow
+| Skill | Usage | What it does |
+|---|---|---|
 | **plan** | `/plan` | Read open issues, prioritize, create a simple work plan |
 
-### Enterprise workflow (2 skills)
+### Enterprise workflow
 
-These are the only skills the solo pack does **not** install — they drive the sprint/story lifecycle and spawn enterprise-only agents.
+The one skill the solo pack does **not** install — it drives the sprint and spawns enterprise-only agents.
 
 | Skill | Usage | What it does |
 |---|---|---|
-| **story** | `/story <ID>` | 8-phase story lifecycle: understand → define goal → plan → execute → local verify → review → e2e gate → PR. `--tdd` for test-first |
 | **sprint-plan** | `/sprint-plan <N>` | Sprint planning — reads tracker, writes sprint file, surfaces gaps |
+
+`/story` and `/run-tasks` were retired in favour of `/implement` and `/implement --resume`; an upgrade
+removes them. [docs/story-retirement-inventory.md](docs/story-retirement-inventory.md) lists where
+each thing they did now lives.
 
 ### Shared skills (both packs)
 | Skill | Usage | What it does |
 |---|---|---|
-| **run-tasks** | `/run-tasks <ID>` | Resume task execution from a story plan — the resume path for both `/implement` and `/story` |
 | **babysit-pr** | `/babysit-pr <PR>` | Drive a PR to zero review threads |
 | **evaluate** | `/evaluate` | Adversarial quality check before PR |
 | **debug** | `/debug` (alias: `/diagnose`) | Feedback-loop-first diagnosis — builds a deterministic pass/fail signal, then tests ranked falsifiable hypotheses one at a time |
@@ -334,105 +368,82 @@ These are the only skills the solo pack does **not** install — they drive the 
 
 ---
 
-## How `/implement` works (Solo)
+## How `/implement` works
+
+### A Feature (`/implement <feature-id>`)
+
+```
+PLAN THE FEATURE
+  → Reads the whole Feature: its stories, the links between them, comments, attachments
+  → Orders the stories by dependency; checks the Demo against the Observe section
+  → The one stop: the plan plus "Before I finalize this plan I need" (missing material,
+    untestable criteria, decisions that are not ours, missing access, contradictions)
+
+BEFORE THE FIRST STORY
+  → Disk check for the worktrees; lists any command no allow rule covers
+
+RUN THE STORIES
+  → Each story in its own git worktree, branched from the Feature branch once its blockers merged
+  → Independent stories at the same time (max-parallel-stories, never over 20 agents)
+  → Each built by a story-runner-agent: plan, waves, light review (evaluator + acceptance), commit
+  → Merged one at a time: git merge --no-commit, the full tests, then commit or abort
+  → A story that fails twice is stuck: it and its dependents wait for a person, no PR
+
+THE FEATURE PANEL
+  → Five reviewers in one message on main...feature: security (with the built-in /security-review),
+    architect, acceptance, evaluator (two calls), loosened — each on its own model
+  → Fixes go through executors; only the reviewers whose areas changed run again
+
+PROVE IT, THE PR GATE, ONE PR
+  → Each criterion's proof on the real system; any tool the Feature makes run on a second case
+  → In a scratch copy, the line that makes each criterion true is broken once: its test must go red
+  → No PR while a criterion is not met, unless a person needs to sign it off or chose to defer it
+  → One PR from the Feature branch, with the run report and the decisions made on your behalf
+```
+
+### A story, bug or description (`/implement #42 --standalone`)
 
 ```
 Phase 1: UNDERSTAND
-  → Spawns story-understand-agent (same agent as /story)
-  → Reads issue from tracker + codebase + project docs
-  → Produces 8-point pre-planning brief
+  → Spawns story-understand-agent; reads the whole ticket + codebase + project docs
+    (on the enterprise pack, the sprint file's notes too)
   → Writes handoff contract: tasks/stories/<id>/brief.md
   → STOP 1: "Does this brief match your understanding?"
 
 Phase 1.5: GOAL DEFINITION
-  → Defines e2e modality, acceptance criteria, concrete gate
+  → Defines the e2e modality, acceptance criteria (each with a proof), concrete gate
   → STOP 1.5: "Approve this goal, or adjust it?"
 
 Phase 1c: PLAN
   → Spawns implement-planner-agent with brief + goal as input
-  → Produces XML task plan + test strategy
+  → Produces XML task plan + test strategy; mandatory type="test" tasks
+  → With --tdd (and always for bug fixes): each slice ordered
+    empty shell → failing test → real code, three separate agents
   → STOP: "Review the plan and test strategy. Say 'go' to start building."
 
 Phase 2: EXECUTE (wave by wave)
-  → Same executor agent and worktree isolation as /story
-  → Every <verify> runs build + relevant tests — task only ✅ when tests pass
-  → After each wave — "Continue?" (unlabeled checkpoint — the skill has no STOP 2)
-  → 3-attempt rule: 3 failures → auto-invokes /debug
+  → Executors in your working folder, no isolation; overlap and branch checks around every wave
+  → Every <verify> runs build + relevant tests; a task is done only after the review passes
+  → After each wave — "Continue?"; 3 failures → auto-invokes /debug
 
 Phase 2.5: LOCAL VERIFICATION
   → Runs /local-test to verify full build + tests pass (stack-agnostic)
 
-Phase 3: EVALUATE + ACCEPT + PR (combined)
-  → All four review agents run in parallel: evaluator, acceptance-test-agent, architect-reviewer-agent, security-reviewer-agent
-  → Evaluator checks code quality, test coverage, plan compliance
-  → Acceptance tester verifies the feature works as intended; architect reviewer checks architecture drift + NFRs; security reviewer checks OWASP Top 10, PHI/PII, auth, deps
-  → Drafts commit messages + PR description
+Phase 3: REVIEW + e2e GATE + PR
+  → Four review agents in parallel: evaluator, acceptance, architect, security
+  → The e2e goal gate — evidence-driven re-approach on a failure, never a blind retry
+  → Drafts commit messages + PR description (enterprise: updates the Master Status Table)
   → STOP 3: "Review and commit. Say 'push' when ready."
 ```
 
-**Key difference from `/story`:** Same understand phase and quality, but lighter ceremony — no sprint file dependency, no child task structure. Optional `--discuss` and `--research` flags for extra depth.
-
----
-
-## How `/story` works (Enterprise)
-
-```
-Phase 1: UNDERSTAND
-  → Reads issue from tracker + codebase
-  → Produces 8-point brief
-  → Writes handoff contract: tasks/stories/<id>/brief.md
-  → STOP 1: "Does this match your understanding?"
-
-Phase 1.5: GOAL DEFINITION
-  → Defines the e2e modality, machine-oracle check, acceptance-criteria-as-gate, and observability plan
-  → STOP 1.5: "Approve this goal, or adjust it?"
-
-Phase 2: PLAN
-  → Decomposes into XML task plan with parallel groups
-  → Produces test strategy — acceptance criteria, integration scenarios, regression guardrails
-  → Mandatory type="test" tasks in every plan
-  → With --tdd (and always for bug fixes): each slice ordered
-    empty shell → failing test → real code, three separate agents
-  → Writes handoff contracts: plan.md + test-strategy.md
-  → STOP 2: "Approve the plan and test strategy?"
-
-Phase 3: EXECUTE (wave by wave)
-  → Groups tasks into waves by parallel_group
-  → Launches each task in an isolated git worktree (auto-cleaned)
-  → Every <verify> runs build + relevant tests — task only ✅ when tests pass
-  → Updates handoff contract: tasks/stories/<id>/executor-state.md
-  → STOP 3: After every wave — "Continue?"
-  → 3-attempt rule: 3 failures → auto-invokes /debug
-
-Phase 3.5: LOCAL VERIFICATION
-  → Runs /local-test to verify full build + all tests pass (stack-agnostic, reads lessons.md)
-
-Phase 3.6: EVALUATION + ACCEPTANCE + ARCHITECTURE + SECURITY REVIEW (parallel)
-  → Spawns 4 agents in parallel, each with fresh adversarial context
-  → Evaluator: build, tests, plan compliance, test coverage, code quality
-  → Acceptance tester: verifies acceptance criteria, integration points, regression guardrails
-  → Architect reviewer: architecture drift, NFR compliance, data-flow integrity
-  → Security reviewer: OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns
-  → Writes handoff contracts: evaluation.md + acceptance.md + architecture-review.md + security-review.md
-  → STOP 3.6: Review findings from all four — "fix" or "skip" each
-
-Phase 3.7: e2e GOAL GATE (goal-seeking)
-  → Runs the Phase 1.5 e2e gate — the terminal check that the goal is actually met end-to-end
-  → Automated modality: /local-test e2e. No machine oracle: show actual behavior via the observability plan for human sign-off
-  → Failed gate → evidence-driven re-approach (observe → compare → root-cause → fix → re-run), never a blind retry; 3 failed re-approaches → invoke /debug
-  → Blocks PR until green (or human-accepted); skipped only via the Phase 1.5 "skip gate — no runtime impact" escape hatch
-
-Phase 4: COMMIT + PR
-  → Drafts atomic commit messages
-  → Writes PR description
-  → STOP 4: You run the git commands
-```
+Every step leaves a saved state behind, so `/implement --resume <id>` carries on from the last
+finished step after a crash, a closed terminal or a compaction.
 
 ---
 
 ### Autonomous mode (`--autonomous`)
 
-`--autonomous` is a per-run flag on both `/implement` and `/story` that runs the whole pipeline —
+`--autonomous` is a per-run flag on `/implement` that runs the whole pipeline —
 understand → plan → build → test → review → PR — with **no human STOP checkpoints**. It implies
 `--auto`, but it does NOT imply `--quick`: evaluation, acceptance testing, and the e2e goal gate
 still run. Autonomy is never a default — it only ever starts from an explicit per-run flag.
@@ -449,8 +460,8 @@ rule (routes to `/debug`). A task FAIL or BLOCKED also halts the run.
 you. There is no auto-merge: the PR always waits for your verdict — approve to merge, or request
 changes and then re-enter the PR yourself with `/implement --rework <PR#>` (see the reject loop below).
 
-**Two entry doors.** (1) A task already in the tracker → `/implement #42 --autonomous` (or
-`/story 9950 --autonomous`) runs autonomously end to end. (2) A loose idea → define it interactively
+**Two entry doors.** (1) A task already in the tracker → `/implement #42 --autonomous` runs
+autonomously end to end. (2) A loose idea → define it interactively
 first with `/wayfinder` or `/grill-me` (these stay a conversation, never autonomous), then hand the
 resulting task to an autonomous run.
 
@@ -469,14 +480,13 @@ branch, and pushes so the PR updates in place.
 |---|---|---|---|
 | `implement-planner-agent` | opus | `/implement` Phase 1c | Plans tasks from brief + goal — one pass |
 | `story-runner-agent` | opus | `/implement` Feature mode | Builds one story inside its own git worktree — plan, waves, light review, commit — and reports the commit sha; never merges or pushes |
-| `story-understand-agent` | opus | `/story` Phase 1, `/implement` Phase 1 | Reads issue + docs, produces 8-point brief |
-| `story-plan-agent` | opus | `/story` Phase 2 | Produces XML task plan |
-| `story-executor-agent` | sonnet | `/story`, `/implement` | Writes code for one task |
-| `story-pr-agent` | sonnet | `/story` Phase 4 | Commit messages + PR description |
-| `evaluator-agent` | opus (Feature panel: sonnet for the list part) | `/evaluate`, `/story` 3.6, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
-| `acceptance-test-agent` | opus | `/story` 3.6, `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
-| `architect-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 and Feature panel | Architecture drift, NFR compliance, data-flow integrity, migrations on a database that already exists |
-| `security-reviewer-agent` | opus | `/story` 3.6, `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
+| `story-understand-agent` | opus | `/implement` Phase 1 | Reads the whole ticket + docs (and the sprint file on enterprise), produces the brief |
+| `story-executor-agent` | sonnet | `/implement` waves, in a story runner too | Writes code for one task |
+| `story-pr-agent` | sonnet | `/implement` PR step | Commit messages + PR description; the Master Status Table on enterprise |
+| `evaluator-agent` | opus (Feature panel: sonnet for the list part) | `/evaluate`, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
+| `acceptance-test-agent` | opus | `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
+| `architect-reviewer-agent` | opus | `/implement` 3 and Feature panel | Architecture drift, NFR compliance, data-flow integrity, migrations on a database that already exists |
+| `security-reviewer-agent` | opus | `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
 | `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
 | `babysit-pr-analyst` | sonnet | `/babysit-pr` | Categorizes threads as fix/reply |
 | `babysit-pr-fixer` | sonnet | `/babysit-pr` | Applies code fixes |
@@ -502,7 +512,7 @@ consumers read, did not change.
 
 | Role | Runs | Model / effort | Produces |
 |---|---|---|---|
-| `builder` | `/implement` (solo) or `/story` (enterprise), `/run-tasks` | opus 1M / medium | plan, code + tests, pushed branch, drafted PR body |
+| `builder` | `/implement` (both packs) | opus 1M / medium | plan, code + tests, pushed branch, drafted PR body |
 | `reviewer` | `/evaluate` | opus 1M / high | evaluation, acceptance, architecture and security reports — never code |
 
 Each role also declares its model's `contextWindow` in tokens (both roles: 1,000,000 for opus 1M).
@@ -648,7 +658,7 @@ In **local mode**, task files also appear in `tasks/issues/` (one `.md` per task
 ## Customization
 
 ### Works out of the box
-`/implement`, `/plan`, `/story`, `/babysit-pr`, `/sprint-plan`, `/run-tasks`, `/debug`, `/troubleshoot`, `/evaluate`, `/prd`, `/prd-critique`, `/pa`
+`/implement`, `/plan`, `/babysit-pr`, `/sprint-plan`, `/debug`, `/troubleshoot`, `/evaluate`, `/prd`, `/prd-critique`, `/pa`
 
 ### Needs configuration
 - **`/deploy`** — Fill in cloud resource names in `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo).

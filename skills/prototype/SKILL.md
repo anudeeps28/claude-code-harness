@@ -189,5 +189,5 @@ Use the Edit tool — targeted appends, not rewrites.
 - Use real project patterns (from lessons.md, existing code) — not generic tutorial code.
 - Always write decision.md before asking the user to pick. The comparison is the value, not the code.
 - Clean up losers after the user picks. Don't leave dead candidates lying around.
-- If the user wants to promote the winner, point them to `/implement` or `/story` — don't do the promotion inside this skill.
+- If the user wants to promote the winner, point them to `/implement` — don't do the promotion inside this skill.
 - No emoji. Keep the format tight.

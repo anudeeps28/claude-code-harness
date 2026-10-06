@@ -24,7 +24,7 @@ Read triage label overrides from `tasks/tracker-config.md` (enterprise) or `task
 |---|---|---|
 | Needs triage | `needs-triage` | New issue, not yet categorized |
 | Needs info | `needs-info` | Missing details — can't route without more from the reporter |
-| Ready for agent | `ready-for-agent` | Well-defined, can be picked up by `/story` or `/implement` |
+| Ready for agent | `ready-for-agent` | Well-defined, can be picked up by `/implement` |
 | Ready for human | `ready-for-human` | Requires human judgment, domain expertise, or manual testing |
 | Won't fix | `wontfix` | Intentional behavior, duplicate, or out of scope |
 

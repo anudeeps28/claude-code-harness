@@ -5,7 +5,7 @@
   "roles": {
     "builder": {
       "displayName": "Builder",
-      "skills": ["story", "run-tasks"],
+      "skills": ["implement"],
       "agent": "build-session",
       "phases": [
         {"id": "planning", "displayName": "Navigator"},

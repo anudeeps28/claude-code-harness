@@ -255,12 +255,41 @@ tasks/
 
 ---
 
+## Building with `/implement`
+
+`/implement` is the one build skill in both packs. It reads the item's type from the tracker:
+
+| You run | It builds |
+|---|---|
+| `/implement 40` on a **Feature** | every story, each in its own sibling git worktree (`<repo>-f40-s<sid>`), then one review panel, Prove it, and one PR from `feature/40-<slug>` |
+| `/implement 42` on a story or bug **with** a parent Feature | asks whether you meant the Feature |
+| `/implement 42 --standalone` on a story or bug **without** one | that one item, on its own branch |
+| `/implement --resume <id>` | carries on a stopped run from its saved state — a story, a Feature, or a plan `/troubleshoot` wrote |
+
+Four sections of `tasks/lessons.md` (`tasks/notes.md` on the solo pack) drive it — fill them in once:
+
+- **Test Commands** — build, unit and integration tests, and `Migrate forward:` (a throwaway database
+  at main with this branch's migrations applied; the architect reviewer runs it).
+- **Observe** — how the Demo is seen: test environment only, the start and screenshot commands, the
+  read-only API and database, the *names* of their credential variables (never the values), and the
+  e2e command. `/implement` checks the item's Demo against it before planning.
+- **Feature runs** — `max-parallel-stories` (default 5), `worktree-size-gb` (default 3) and
+  `verify-lock` (`global` when worktrees share a port, database or cache).
+- **Worktree setup** — the gitignored files each new worktree needs, and its restore commands.
+
+On the **enterprise** pack (`workflowPack: enterprise` in `.claude/.harness-manifest.json`),
+`/implement` also passes the latest `tasks/sprint*.md` to its understand step, plans one task per
+tracker child task, and updates the sprint file's Master Status Table when it opens the PR.
+
+---
+
 ## Verification
 
 After setup, open a new Claude Code session and run:
 
 ```
-/story 1234
+/implement 1234
 ```
 
-If Claude reads your lessons.md and asks about the story — you're good.
+If Claude reads your lessons.md, reads the item, and stops with its plan (for a Feature) or its brief
+(for a story) — you're good.

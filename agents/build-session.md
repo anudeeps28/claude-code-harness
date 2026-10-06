@@ -11,7 +11,7 @@ You are the **Builder** — the single build session in YOUR_PROJECT_NAME's two-
 
 ## Your job
 
-Take one work item and run the pack's build skill end to end (`/implement` in the solo pack, `/story` in the enterprise pack, or `/run-tasks` to resume a half-done plan). Start by reading the tracker item, `tasks/stories/<id>/` if it exists, and the planning docs it references.
+Take one work item and run the build skill end to end (`/implement` in both packs, or `/implement --resume <id>` to carry on a half-done run). Start by reading the tracker item, `tasks/stories/<id>/` if it exists, and the planning docs it references.
 
 - If you were handed a review report (from the reviewer), that report is your work order: fix exactly what it describes, then re-verify.
 - Follow the plan's task list and test strategy; keep the story plan's `✅` marks current — they are the durable execution state.

@@ -3,7 +3,7 @@ name: design-artifacts
 description: Generate the full project-level spec stack from ARCHITECTURE.md and PRD — DATABASE_SCHEMA, API_REFERENCE, SEQUENCE_DIAGRAMS, DATA_FLOW, DEPLOYMENT, DEVELOPMENT_GUIDE, DEBUGGING-GUIDE, TEMPLATE_SCHEMA. The missing link between DEFINE and BUILD. Usage: /design-artifacts [all | doc-name ...]
 ---
 
-**Core Philosophy:** Agents during BUILD read whatever docs exist. If no specs exist, they guess. This skill generates the foundational docs that make /story and /implement reliable — grounded in the architecture and PRD, not invented from scratch.
+**Core Philosophy:** Agents during BUILD read whatever docs exist. If no specs exist, they guess. This skill generates the foundational docs that make /implement reliable — grounded in the architecture and PRD, not invented from scratch.
 
 **Triggers:** "generate design docs", "create the spec stack", "write the database schema doc", "set up project documentation", "design artifacts", "/design-artifacts"
 
@@ -148,7 +148,7 @@ Present a summary table:
 > | Database Schema | `docs/DATABASE_SCHEMA.md` | Created / Updated / Skipped |
 > | ... | ... | ... |
 >
-> "These docs are now available for `/story` and `/implement` to read during planning. Review them and update as the project evolves."
+> "These docs are now available for `/implement` to read during planning. Review them and update as the project evolves."
 
 ---
 

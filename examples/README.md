@@ -11,7 +11,7 @@ Real filled-in examples of what your project setup should look like after instal
 | [`settings.json`](settings.json) | What `.claude/settings.json` looks like after `install.sh` runs (global install) |
 | [`tasks/tracker-config.md`](tasks/tracker-config.md) | Fully filled-in tracker config — ADO variant and GitHub variant |
 | [`tasks/lessons.md`](tasks/lessons.md) | Filled-in lessons file with real git rules, Code Rabbit patterns, and project conventions |
-| [`tasks/todo.md`](tasks/todo.md) | Example XML task plan — the format `/story` and `/run-tasks` use |
+| [`tasks/todo.md`](tasks/todo.md) | Example XML task plan — the format `/implement` plans and `/implement --resume` carries on |
 | [`tasks/pr-queue.md`](tasks/pr-queue.md) | Example PR queue with real entries |
 
 ---
@@ -43,8 +43,8 @@ You'll see output like:
   [OK]      jq
   [OK]      gh
   Copying skills...
-    Installing: skills/story
     Installing: skills/implement
+    Installing: skills/local-test
     ...
   [OK] All critical files present
   claude-code-harness installed successfully.
@@ -60,41 +60,46 @@ Open `tasks/lessons.md` and fill in your project's conventions:
 
 See [`tasks/lessons.md`](tasks/lessons.md) in this folder for a filled-in example.
 
-### Step 3: Run /story 42
+### Step 3: Run /implement 42
 
 Open Claude Code in your project directory and type:
 
 ```
-/story 42
+/implement 42 --standalone
 ```
 
-**Phase 1 (Understand):** Claude reads GitHub issue #42, scans your codebase, reads `docs/`, and produces an 8-point brief. It writes `tasks/stories/42/brief.md` and stops:
+(`--standalone` because #42 is a story with no parent Feature; for a story inside a Feature,
+`/implement` asks whether you meant to build the whole Feature.)
 
-> "Does this match your understanding of the story? Say 'go' to proceed to planning."
+**Phase 1 (Understand):** Claude reads the whole of issue #42 (its comments and linked items too), scans your codebase, reads `docs/`, and produces a brief. It writes `tasks/stories/42/brief.md` and stops:
 
-Review the brief. Say **go**.
+> "Does this brief match your understanding of the task? Any corrections before I define the goal?"
 
-**Phase 2 (Plan):** Claude decomposes the story into an XML task plan with parallel groups. It writes `tasks/stories/42/plan.md` and stops:
+Review the brief. Say **yes**.
 
-> "Review the plan. Say 'go' to start execution."
+**Phase 1.5 (Goal):** Claude defines how "done" will be checked end to end — each acceptance criterion with its proof — and stops for you to approve it.
+
+**Phase 1c (Plan):** Claude decomposes the story into an XML task plan with parallel groups. It writes `tasks/stories/42/plan.md` and stops:
+
+> "Approve the plan to begin execution, or request changes."
 
 Review the tasks, parallel grouping, and verify commands. Say **go**.
 
-**Phase 3 (Execute):** Claude works through the task plan wave by wave. Each task runs in an isolated git worktree. After each wave:
+**Phase 2 (Execute):** Claude works through the task plan wave by wave, the tasks in a wave running side by side in your working folder. After each wave:
 
 > "Wave 1 complete (3/3 tasks passed). Continue to wave 2?"
 
-Say **go** to continue. If a task fails 3 times, `/debug` is invoked automatically.
+Say **yes** to continue. If a task fails 3 times, `/debug` is invoked automatically.
 
-**Phase 3.5 (Verify):** Claude runs `/local-test` to confirm the build passes and tests are green.
+**Phase 2.5 (Verify):** Claude runs `/local-test` to confirm the build passes and tests are green.
 
-**Phase 3.6 (Evaluate):** A separate evaluator agent reviews all changes against the plan. It writes `tasks/stories/42/evaluation.md` with findings. For each finding, you say **fix** or **skip**.
+**Phase 3 (Review, e2e gate, PR):** Four review agents (evaluator, acceptance, architect, security) check the change; for each finding you say **fix** or **skip**. Then the end-to-end gate runs, and Claude drafts the commit messages and PR description and stops:
 
-**Phase 4 (PR):** Claude drafts commit messages and a PR description. It stops:
+> "Review the commit messages and PR description above. Run the git commands shown, then say 'push' when ready."
 
-> "Review the commits and PR description. Run the git commands when ready."
+You run `git push` and create the PR. On the Enterprise pack, the sprint file's Master Status Table is updated too.
 
-You run `git push` and create the PR.
+If the session stops part-way, `/implement --resume 42` carries on from the last finished step.
 
 ### Step 4: Run /babysit-pr 7
 
@@ -116,23 +121,25 @@ When all threads are resolved and CI is green, merge the PR. The story is done.
 
 ---
 
-## Scenario walkthrough: Quick feature (Solo)
+## Scenario walkthrough: a whole Feature
 
-For solo developers who don't need sprint ceremony:
+When `/to-issues` has broken the work into a Feature with stories:
 
 ```
-/implement #42
+/implement 40
 ```
 
-Or without an issue:
+#40 is a Feature, so `/implement` builds all of it. It shows one plan — the stories in dependency
+order, the Feature's Demo, and anything it needs from you — and that is the only stop. Then each story
+is built in its own git worktree, stories that don't depend on each other at the same time, and merged
+into the Feature branch only after its tests pass. Once every story has merged, a full review panel and
+**Prove it** run on the whole Feature, and one PR opens — only when every acceptance criterion is met.
+
+## Scenario walkthrough: a quick change, no issue
 
 ```
 /implement "add dark mode toggle to the settings page"
 ```
 
-This runs a streamlined 3-phase flow:
-1. **Understand + Plan** — reads the issue (or your description), produces a brief and task plan in one pass
-2. **Execute** — same worktree-isolated executor as `/story`
-3. **Evaluate + PR** — quick eval for small changes, full eval for large ones, then commit/PR drafting
-
-Same quality gates, fewer stops.
+The same flow on a plain description. Add `--quick` to skip the review agents and the e2e gate for a
+small change.

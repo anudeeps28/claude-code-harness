@@ -39,13 +39,13 @@ runs, and vertical-slicing rules are never relaxed by the mode.
 
 ---
 
-## Relationship to `--tdd` mode on /story and /implement
+## Relationship to `--tdd` mode on /implement
 
 This skill and the `--tdd` flag are the same discipline at two different scales, and they are kept
 deliberately in step — they must never drift apart.
 
 - **`/tdd` (this skill)** — a human and one behaviour at a time, interactive, no task plan.
-- **`--tdd` on `/story` / `/implement`** — a whole story, planned into tasks and run by fresh agents,
+- **`--tdd` on `/implement`** — a whole story, planned into tasks and run by fresh agents,
   with each slice ordered empty shell → failing test → real code.
 
 The shared definition of what counts as a real failing test lives in `rules/test-philosophy.md` and,

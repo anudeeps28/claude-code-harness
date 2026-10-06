@@ -19,7 +19,7 @@ feeds_agent_scheduler = false
 Set to `true` if an agent scheduler picks work straight off this board. `/to-issues` then refuses
 `--with-tasks` and stops at feature → story, because a scheduler with no work-item-type filter would
 try to launch an agent session for every child task too. The breakdown goes into each story body's
-`## Breakdown` section instead, and `/story` / `/implement` produce the real task plan at build time.
+`## Breakdown` section instead, and `/implement` produces the real task plan at build time.
 
 ### ADO settings *(ADO only — delete if using GitHub or Todoist)*
 

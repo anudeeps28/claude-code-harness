@@ -6,7 +6,7 @@ its own.
 
 **Location:** `rules/deferrals.md` (installed alongside `.claude/skills/`; the `.claude/` copy is a
 symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md`, `skills/story/SKILL.md`, `skills/evaluate/SKILL.md`,
+**Referenced by:** `skills/implement/SKILL.md`, `skills/evaluate/SKILL.md`,
 `skills/sync-tracker/SKILL.md`, `rules/autonomous-mode.md`.
 
 ---

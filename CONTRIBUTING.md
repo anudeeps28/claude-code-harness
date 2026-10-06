@@ -58,7 +58,7 @@ Where PHASE is DECIDE, DEFINE, BUILD, SHIP, or LEARN.
 ```
 
 **Downstream integration:** if your skill produces artifacts that BUILD phase agents should read (e.g., decision briefs, research docs), document which agent reads them and where it looks. Currently:
-- `tasks/stories/<id>/decision-brief.md` → read by `story-understand-agent` (brief section 8) and `story-plan-agent` (dealbreaker coverage check)
+- `tasks/stories/<id>/decision-brief.md` → read by `story-understand-agent` (brief section 8) and `implement-planner-agent` (dealbreaker warning)
 - `decision-brief.md` (repo root) → read by `implement-planner-agent` (fallback location for solo pack)
 - `tasks/stories/<id>/research.md` → read by `story-understand-agent` (step 5) and `implement-planner-agent` (step 3b) for external API/integration context
 - `research.md` (repo root) → fallback location for solo pack, read by both agents
@@ -163,7 +163,7 @@ some runs and not others. So:
 
 Two agents run with `permissionMode: bypassPermissions`: `story-executor-agent` and `babysit-pr-fixer`. This means their tool calls execute without user approval prompts.
 
-**Why:** These agents run inside `/story` and `/babysit-pr` loops where the user has already approved the plan at a gate checkpoint. Prompting for every Edit/Write/Bash call would make execution painfully slow.
+**Why:** These agents run inside `/implement` and `/babysit-pr` loops where the user has already approved the plan at a gate checkpoint. Prompting for every Edit/Write/Bash call would make execution painfully slow.
 
 **Risk:** A poorly written `<action>` or fix description could cause the agent to modify files outside the intended scope. The safety hook (`safety-check.js`) blocks destructive Bash commands and Writes that look like hardcoded secrets, but direct `Edit` calls are not intercepted by hooks.
 

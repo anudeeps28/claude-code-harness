@@ -1,6 +1,6 @@
 ---
 name: story-executor-agent
-description: Phase 3 of /story. Takes one <task> XML block, reads the listed files, implements the action, runs the verify command, and reports the result and diff.
+description: The wave executor of /implement. Takes one <task> XML block, reads the listed files, implements the action, runs the verify command, and reports the result and diff.
 tools: Read, Edit, Write, Bash, Glob, Grep
 model: sonnet
 permissionMode: bypassPermissions
@@ -311,7 +311,7 @@ Do NOT retry automatically. Report:
 
 **Changes I made:** [List every change so the orchestrator can review]
 
-The orchestrator (the /story skill) will decide whether to retry or invoke /debug.
+The orchestrator (`/implement`, or a story runner in a Feature) will decide whether to retry or invoke /debug.
 
 ---
 

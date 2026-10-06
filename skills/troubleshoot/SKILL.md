@@ -1,6 +1,6 @@
 ---
 name: troubleshoot
-description: Deep behavioral bug investigation — system compiles but does the wrong thing. Traces data flow through 5 mandatory iterations, then produces an XML task plan for /run-tasks. Use when something is wrong with the output, logic, or answers — NOT for build failures (use /debug for those).
+description: Deep behavioral bug investigation — system compiles but does the wrong thing. Traces data flow through 5 mandatory iterations, then produces an XML task plan that `/implement --resume` builds, reviews and ships. Use when something is wrong with the output, logic, or answers — NOT for build failures (use /debug for those).
 context: fork
 model: opus
 ---
@@ -13,7 +13,7 @@ model: opus
 
 You are the troubleshoot orchestrator for the YOUR_PROJECT_NAME project.
 
-The user has identified a behavioral problem — the system compiles fine, tests may even pass, but **it does the wrong thing**. Your job is to drive this from "something is wrong" all the way to a verified XML task plan that `/run-tasks` can execute.
+The user has identified a behavioral problem — the system compiles fine, tests may even pass, but **it does the wrong thing**. Your job is to drive this from "something is wrong" all the way to a verified XML task plan that `/implement --resume` can build.
 
 **You do not fix the code yourself.** You investigate, verify, plan, and hand off.
 
@@ -244,7 +244,7 @@ Do NOT proceed until YOUR_NAME says "go".
 
 Once YOUR_NAME approves the plan at Gate 2:
 
-Write XML `<tasks>` blocks to the story-folder plan file `tasks/stories/troubleshoot-[short-name]/plan.md` (create the directory if needed) following the exact format that `/run-tasks` expects (same format as `story-plan-agent` produces). This always-local plan file is what `/run-tasks` reads to resume in every tracker mode — never write it to `tasks/todo.md` (a generated dashboard, D9). Order:
+Write XML `<tasks>` blocks to the story-folder plan file `tasks/stories/troubleshoot-[short-name]/plan.md` (create the directory if needed) following the exact format `implement-planner-agent` produces. This always-local plan file is what `/implement --resume` reads, in every tracker mode — never write it to `tasks/todo.md` (a generated dashboard, D9). Order:
 
 1. **Test tasks first** — create/modify test files, verify with `dotnet test --filter`
 2. **Implementation tasks** — create/modify source files, verify with `dotnet build`
@@ -257,13 +257,30 @@ Each task gets:
 - `<verify>` — exact dotnet command
 - `<done>` — measurable success criteria
 
-Use `parallel_group` attributes following the same rules as `story-plan-agent`:
+Use `parallel_group` attributes following the same rules as `implement-planner-agent`:
 - File overlap = sequential
 - Logical dependency = sequential
-- DependencyInjection.cs = always alone
 - When in doubt = sequential
 
 Write a `story="troubleshoot-[short-name]"` attribute on the `<tasks>` element (e.g., `story="troubleshoot-employer-filter"`).
+
+Then write the two files `/implement --resume` needs to pick the plan up, in the same folder:
+
+- `test-strategy.md` — the expected behaviour from Gate 2 as the acceptance criteria, in the
+  `**Acceptance criteria and their proofs:**` format (a `Proof:`, `Seen by:` and `Would lie if:` line
+  each; the proof is the failing test this plan writes first).
+- `executor-state.md` — the saved state of a run that has planned and not started:
+
+  ```
+  # Executor state — story troubleshoot-[short-name]
+
+  run-mode: interactive
+  skill: troubleshoot
+  branch: <the current branch; create fix/[short-name] from main first if you are on main>
+  step: plan
+  next: wave-1
+  updated: <ISO-8601 UTC now>
+  ```
 
 After writing, say **exactly:**
 
@@ -271,12 +288,11 @@ After writing, say **exactly:**
 **GATE 3 — XML task plan written to the story folder.**
 
 Next steps:
-1. Run **`/run-tasks troubleshoot-[short-name]`** to execute the tasks
-2. After tasks pass: run **`/local-test 2`** to verify build + all tests + end-to-end smoke test
-3. After local tests pass: commit and push
-4. Run **`/babysit-pr [PR_ID]`** to handle Code Rabbit review
+1. Run **`/implement --resume troubleshoot-[short-name]`**: it builds the tasks wave by wave, runs the
+   local tests, the review and the e2e gate, and opens the PR
+2. Run **`/babysit-pr [PR_ID]`** to handle Code Rabbit review
 
-**Say "run" when you're ready to start `/run-tasks`.**
+**Say "run" when you're ready to start `/implement --resume troubleshoot-[short-name]`.**
 
 ---
 
@@ -300,7 +316,7 @@ This preserves the investigation for future reference without cluttering the act
 ## Hard rules
 
 - **Never skip a GATE** — always wait for YOUR_NAME's explicit "go", "run", or "stop"
-- **Never write code yourself** — you investigate and plan, `/run-tasks` executes
+- **Never write code yourself** — you investigate and plan, `/implement --resume` builds
 - **Never proceed past Gate 1 without YOUR_NAME's approval** — even if 100% confident
 - **Maximum 5 investigation iterations** — if not confident after 5, present findings and stop
 - **Tests before implementation** — always design tests first in the plan

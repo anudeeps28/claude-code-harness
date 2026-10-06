@@ -64,11 +64,11 @@ test('detectShadowedSkills_SameNameSameContent_ReportsAsIdentical', () => {
 });
 
 test('detectShadowedSkills_MultipleOverlaps_ReturnsAllSortedByName', () => {
-  const project = makeSkillTree(['run-tasks', 'evaluate', 'implement'], { body: 'proj' });
-  const user = makeSkillTree(['implement', 'evaluate', 'run-tasks', 'other'], { body: 'user' });
+  const project = makeSkillTree(['local-test', 'evaluate', 'implement'], { body: 'proj' });
+  const user = makeSkillTree(['implement', 'evaluate', 'local-test', 'other'], { body: 'user' });
   try {
     const found = detectShadowedSkills(project, user);
-    assert.deepEqual(found.map((f) => f.name), ['evaluate', 'implement', 'run-tasks']);
+    assert.deepEqual(found.map((f) => f.name), ['evaluate', 'implement', 'local-test']);
   } finally { cleanup(project, user); }
 });
 

@@ -1,6 +1,6 @@
 # ADR-0002 — Stories run in sibling git worktrees, created by the orchestrator from the Feature branch
 
-- **Status:** proposed
+- **Status:** accepted (2026-10-06): built in F4 (`bin/worktree.js`), run in parallel in F5
 - **Date:** 2026-10-05
 - **Decided by:** Anudeep Sharma (grill Q8–Q9; ARCHITECTURE.md §1–§2)
 

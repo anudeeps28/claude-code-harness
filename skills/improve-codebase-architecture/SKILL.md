@@ -182,7 +182,7 @@ Use the Edit tool — targeted appends, not rewrites.
 - Apply the deletion test to every candidate. No proposals without it.
 - Present findings one at a time with specific file paths — not abstract principles.
 - Never propose a refactor that contradicts an accepted ADR without flagging the contradiction.
-- Never auto-apply refactors. This skill produces analysis, not code changes. Point the user to `/implement` or `/story` for execution.
+- Never auto-apply refactors. This skill produces analysis, not code changes. Point the user to `/implement` for execution.
 - Update CONTEXT.md only with user approval.
 - ADRs only for rejected ideas that meet all 3 criteria. Don't propose ADRs for accepted refactors — those go in the code.
 - No emoji. Keep the format tight.
