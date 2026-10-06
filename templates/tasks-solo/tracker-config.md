@@ -19,7 +19,7 @@ Optional. The default section within the project. Sections map to sprints — `g
 feeds_agent_scheduler = false
 ```
 
-Set to `true` if an agent scheduler picks work straight off this board. `/to-issues` then refuses
+Set to `true` if an agent scheduler picks work straight off this board. `/plan-features` then refuses
 `--with-tasks` and stops at feature → story, keeping child tasks off the scheduler's queue; the
 breakdown goes into each story body's `## Breakdown` section instead.
 

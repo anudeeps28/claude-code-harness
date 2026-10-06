@@ -104,7 +104,8 @@ test('Replacements_RosterAndInstallerKnowTheOneBuildSkill', () => {
     assert.deepStrictEqual(roster.roles.builder.skills, ['implement'], `${pack} roster: the builder runs /implement`);
   }
   const updater = read('install', 'lib', 'updater.js');
-  mustMatch(updater, /RETIRED_SKILLS = \['story', 'run-tasks'\]/, 'the updater lists the retired skills');
+  // Later retirements join the list (to-issues, 2026-10-06); story and run-tasks stay on it.
+  mustMatch(updater, /RETIRED_SKILLS = \['story', 'run-tasks'(, '[a-z-]+')*\]/, 'the updater lists the retired skills');
   mustMatch(updater, /removeRetired\(target\);/, 'an update removes them');
   mustMatch(read('install', 'install.js'), /removeRetired\(target\);/, 'an install over an old one removes them');
 });

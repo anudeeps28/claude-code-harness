@@ -168,7 +168,7 @@ ADO_ITERATION_PATH="Developer Playground\Sprint 3" \
   bash trackers/active/create-issue.sh "Ingest pipeline" "Parent feature" "priority:medium"
 ```
 
-Set project-wide defaults in `tasks/tracker-config.md` (`ado_area_path`, `ado_iteration_path`, `ado_story_work_item_type`); `/to-issues` reads them and still confirms the destination before writing.
+Set project-wide defaults in `tasks/tracker-config.md` (`ado_area_path`, `ado_iteration_path`, `ado_story_work_item_type`); `/plan-features` reads them and still confirms the destination before writing.
 
 > **Tags go through `--fields`, not `--tags`.** `az boards work-item create` has no `--tags` argument (verified against azure-devops extension 1.0.2 and 1.0.6) — passing it fails with "unrecognized arguments". Both create scripts pass tags as the semicolon-separated `System.Tags` field instead.
 
@@ -240,7 +240,7 @@ TRACKER_PRIORITY=p1 TRACKER_UNCOMPLETABLE=1 \
 ```
 
 These are named `TRACKER_*`, not `TODOIST_*`, on purpose: they are the **portable** create-time
-modifiers. A backend with no such concept simply never reads them, so `/to-issues` sets them on every
+modifiers. A backend with no such concept simply never reads them, so `/plan-features` sets them on every
 call without branching on the backend. Only add a new `TRACKER_*` var when at least one backend can
 express it natively and the rest can safely ignore it.
 

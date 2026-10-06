@@ -210,7 +210,7 @@ build changes. Feature mode passes each story's worktree as the work folder.
 
 ### Check the Demo against Observe
 
-Every item is built so that, when it is done, you can see the change: `/to-issues` gives it a
+Every item is built so that, when it is done, you can see the change: `/plan-features` gives it a
 `## Demo` saying what visibly changes and how it is seen (`Seen through:` screenshot, api, database,
 test, log or person). Before anything is planned, check this project can actually see it:
 

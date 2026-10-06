@@ -564,7 +564,7 @@ describe('happy-path-stdout', () => {
     assert.equal(out.child, 5678);
   });
 
-  // ── ADO create-time env overrides (/to-issues destination + work item type) ──
+  // ── ADO create-time env overrides (/plan-features destination + work item type) ──
   //
   // These pin the three defects that make an ADO board silently wrong: `--tags`
   // is not a valid arg on `az boards work-item create` (unrecognized-arguments
@@ -646,12 +646,12 @@ describe('happy-path-stdout', () => {
     assert.ok(!/--tags/.test(r.createLine), `--tags is not a valid create arg: ${r.createLine}`);
   });
 
-  // ── Todoist create-time env overrides (/to-issues native priority + milestone header) ──
+  // ── Todoist create-time env overrides (/plan-features native priority + milestone header) ──
   //
   // Todoist has two abilities the flat adapter args cannot express: native p1-p4
   // priority (which actually SORTS the list, unlike a `priority:high` text label)
   // and uncompletable tasks (a task with no checkbox — used as a milestone header
-  // so a whole milestone can't be ticked off by accident). /to-issues passes both
+  // so a whole milestone can't be ticked off by accident). /plan-features passes both
   // as optional env vars, the same passthrough shape ADO_WORK_ITEM_TYPE uses, so
   // the skill stays backend-agnostic and adapters that lack the concept ignore it.
 
@@ -731,7 +731,7 @@ describe('happy-path-stdout', () => {
   });
 
   // The passthrough must be inert everywhere else: a backend with no such concept
-  // ignores the vars rather than failing, so /to-issues can set them unconditionally.
+  // ignores the vars rather than failing, so /plan-features can set them unconditionally.
   for (const adapter of ['github', 'local', 'ado']) {
     test(`${adapter}_CreateIssue_TodoistOnlyEnvVars_Ignored`, () => {
       const env = { TRACKER_PRIORITY: 'p1', TRACKER_UNCOMPLETABLE: '1' };
