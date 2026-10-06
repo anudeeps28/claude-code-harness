@@ -134,6 +134,35 @@ Examples:
 
 ---
 
+## Observe
+
+> How the harness may see the running app, so every item's Demo can be watched happen. `/implement`
+> checks this section against the item's Demo at startup (`bin/observe-check.js`): a missing tool
+> (a screenshot script, the e2e command) becomes a "Build the probe" task in the plan; missing access
+> stops the run and names what is missing.
+>
+> - **Environment is local or test only.** Prod is refused unless you add `Prod allowed: yes`, and
+>   only if your project's rules allow it.
+> - **Credentials are named, never their value.** Each credential line holds the name of an
+>   environment variable (or `none`); the value lives in that variable or the OS secret store.
+> - **Read-only is enforced by the credential** — a read-only database user, a read-only API key —
+>   never only by an instruction to the agent.
+> - On projects with PHI/PII, only the shape of what is seen is recorded (row counts, ids, field
+>   names, status codes), never row contents or response bodies.
+
+- Environment: `<!-- local or test -->`
+- Prod allowed: `<!-- leave unset; "yes" only if the project's rules allow observing prod -->`
+- Start the app: `<!-- e.g., npm run dev, dotnet run --project src/Api -->`
+- App URL: `<!-- e.g., http://localhost:3000 -->`
+- Screenshot: `<!-- e.g., node scripts/screenshot.js <route> <out.png> (a Playwright script) -->`
+- API base URL: `<!-- e.g., http://localhost:5000 -->`
+- API credential variable: `<!-- the NAME of the variable holding a read-only token, e.g. OBSERVE_API_TOKEN, or none -->`
+- Database credential variable: `<!-- the NAME of the variable holding a read-only connection string, e.g. OBSERVE_DB_URL -->`
+- Read-only queries: `<!-- the SELECT statements the harness may run, e.g. SELECT id, status FROM orders WHERE id = $1 -->`
+- E2E command: `<!-- the end-to-end gate /local-test e2e runs, e.g. npm run test:e2e -->`
+
+---
+
 ## Dependency Injection Rules
 
 > Remove this section if your project doesn't use DI.

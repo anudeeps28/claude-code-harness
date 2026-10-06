@@ -53,15 +53,22 @@ Everything in Level 2, plus a running application for manual interaction.
 The end-to-end gate for the current feature — the terminal check `/story` Phase 3.7 runs. Unlike Levels 1-3 (which are fixed build/test stages), the e2e gate is **per-feature**: its modality and concrete command were chosen during planning and recorded in the story's `test-strategy.md` ("Goal" + "Concrete gate").
 
 1. **Read the gate.** Find the story's `tasks/stories/<id>/test-strategy.md` and read its **Goal** (chosen e2e modality) and **Concrete gate**. If a story ID wasn't passed, ask which story's gate to run.
-2. **Find the gate command.** The actual command comes from `tasks/lessons.md` / `tasks/notes.md` under an "E2E gate" (or modality-specific) entry — **never hardcode it here**. Different modalities run differently:
+2. **Find the gate command.** The actual command is the **`E2E command`** entry in the **Observe** section of `tasks/lessons.md` / `tasks/notes.md` (an older "E2E gate" entry elsewhere in the file still counts) — **never hardcode it here**. Different modalities run differently:
    - **Automated test / integration:** the e2e/acceptance test command from the lessons file.
    - **UI automation:** the UI e2e command (e.g. the project's browser-driver suite).
    - **Domain-specific graded eval:** the project's eval runner (defined in the project's own skills/docs, not here).
-   - **Structured human acceptance** (no machine oracle): there is no command to run — instead surface the ACTUAL behavior using the story's **observability plan** (API response, log, trace, screenshot; never a raw prod DB read) and report it for a human sign-off. Do NOT declare PASS yourself.
-3. **Run it and report** PASS/FAIL against each acceptance criterion (the criteria ARE the gate). For the human-acceptance case, report "AWAITING HUMAN SIGN-OFF" with the evidence shown.
-4. **Never fix on failure** — report the failure back to the caller (`/story` Phase 3.7 owns the diagnostic re-approach).
+   - **Structured human acceptance** (no machine oracle): there is no command to run — instead surface the ACTUAL behavior using each criterion's **Seen by** line (API response, log, screenshot, read-only query; never a raw prod DB read) and report it for a human sign-off. Show the **shape** of the evidence only — status codes, row counts, ids, field names — never row contents or response bodies, which on regulated projects can hold PHI/PII. Do NOT declare PASS yourself.
+3. **Run it and report** PASS/FAIL against each acceptance criterion (the criteria ARE the gate). For the human-acceptance case, report "AWAITING HUMAN SIGN-OFF" with the evidence shown, and wait: it never becomes PASS without the sign-off.
+4. **Never fix on failure** — report the failure back to the caller (`/implement` Phase 3 owns the diagnostic re-approach).
 
-If neither lessons file defines an e2e gate command and the modality isn't structured-human-acceptance, say so and report SKIPPED — do not invent a command.
+**No command, no Demo: NOT SET UP.** If no `E2E command` is declared and the modality is not structured human acceptance, report **NOT SET UP** — never anything that reads as a pass or a skip. It counts as a **fail**: nobody has seen the Demo happen, so the item is not done. Name what is needed:
+
+```
+e2e gate: NOT SET UP (fail) — Observe → E2E command is not set in tasks/lessons.md.
+Add it there (or plan a "Build the probe: E2E command" task), then run /local-test e2e again.
+```
+
+Do not invent a command. The one escape hatch is unchanged: a change with zero runtime behaviour (docs, comments, a pure rename) can have its gate waived with "skip gate — no runtime impact" at goal definition, and that is logged — the gate is then never run, so it never reaches this step.
 
 ---
 
@@ -103,6 +110,7 @@ Report results as a summary table:
 | Build | PASS/FAIL | [error count if failed] |
 | Unit Tests | PASS/FAIL | [N passed, M failed] |
 | Integration Tests | PASS/FAIL/SKIPPED | [N passed, M failed, or why skipped] |
+| e2e gate | PASS/FAIL/NOT SET UP/AWAITING HUMAN SIGN-OFF | [per criterion; NOT SET UP is a fail] |
 
 If any step fails:
 1. Show the exact error output to YOUR_NAME
@@ -128,7 +136,7 @@ this skill and there was nothing to change.
 - Always clean up dependencies on exit (even on failure) — don't leave Docker containers or background processes running
 - If Docker/emulators are not available at Level 2+, fall back to Level 1 and say why
 - All commands come from `tasks/lessons.md` (enterprise) or `tasks/notes.md` (solo) — never guess or hardcode test commands
-- If neither file defines a required command (e.g., no integration test command), skip that step and note it in the report
+- If neither file defines a required command (e.g., no integration test command), skip that step and note it in the report — **except the e2e gate**, which reports NOT SET UP and fails; a Demo is never skipped
 
 ---
 

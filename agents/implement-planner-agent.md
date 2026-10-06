@@ -15,6 +15,10 @@ You may **additionally** receive these optional context blocks in your prompt:
 
 - **`User clarifications:`** — answers the user gave to pre-plan discussion questions (intent, acceptance bar, hidden constraints, free-form notes). Treat these as **authoritative overrides** of anything inferred from the issue/description. If a clarification contradicts the issue body, trust the clarification and note the divergence in the brief.
 
+- **`Demo (from the ticket ...):`** — the item's `## Demo`. See **Demo** in Step 4: restate it, never weaker. "none — write one" means the item predates Demos and the plan must write it.
+
+- **`Probes to build:`** — `probe <entry>: ...` lines from `/implement`'s Observe check. Each names a tool the Demo needs that the project does not have yet (a screenshot script, an e2e command). Plan one task per line, named exactly `Build the probe: <entry>`, that builds it **and** fills in that entry in the Observe section of `tasks/lessons.md` / `tasks/notes.md`. Plan approval rejects the plan if one is missing.
+
 - **`Reuse inventory:`** — a list of existing files/symbols in the codebase that could plausibly be reused. When present, you **must** prefer reusing listed utilities over writing new code. For each item you reuse, cite it by path in the brief's "What's already set up" section and in the `<files>` of the task that uses it. If you choose NOT to reuse something on the list, add a one-sentence justification in the brief.
 
 If neither block is present, proceed exactly as before.
@@ -117,6 +121,27 @@ Output this structure:
 
 ---
 
+### Demo
+
+Restate the ticket's Demo as a `## Demo` section in `plan.md` — what visibly changes when this is done,
+and where you see it. It may be **more precise** (an exact route, the exact rows, the test's name), but
+**never weaker**: keep every kind on its `Seen through:` line and every step. Dropping or softening part
+of it means the plan no longer delivers what was agreed — if part of it truly cannot be delivered, say
+so in the brief as a scope change instead; never quietly drop it. `/implement` rejects a weaker plan
+(`bin/demo.js compare`).
+
+```markdown
+## Demo
+Seen through: <screenshot, api, database, test, log, person — the ticket's kinds, plus any you add>
+1. <where you look, and exactly what you see there>
+```
+
+With no Demo on the ticket, write one in this format from the acceptance criteria: the most visible
+result of the change, and where it is seen. For a bug, the Demo is the behaviour that was wrong and is
+now right, and its first step is the failing test.
+
+---
+
 ### Execution Plan
 
 Then output the XML task plan. Follow these rules:
@@ -164,12 +189,11 @@ Then the **test strategy** (mandatory for every plan):
 - E2E modality: [how this is verified end-to-end — automated test / UI automation / graded eval / structured human acceptance; menu is OPEN, define a new one if none fit]
 - Concrete gate: [the exact check that must go green — the story's definition of done]
 
-**Acceptance criteria (= the e2e gate, one unified list):**
+**Acceptance criteria and their proofs:**
 1. [User/system does X] → [expected outcome Y]
-2. ...
-
-**Observability plan** (how the actual state behind each criterion is seen — API response / log / trace / screenshot; if it can't be seen, add a task to build a probe, respecting data-access rules):
-1. [Criterion 1] → [how to observe]
+   - Proof: [unit | integration | e2e | ui-automation | graded-eval | sign-off] — [the exact test or check]
+   - Seen by: [how the real result is seen — API response / log line / screenshot / read-only query]
+   - Would lie if: [what would let this proof pass while the criterion is unmet]
 2. ...
 
 **Integration test scenarios:**
@@ -181,7 +205,25 @@ Then the **test strategy** (mandatory for every plan):
 2. ...
 ```
 
-If the chosen e2e modality doesn't exist in the project yet, add a `type="test"` task to build that probe/harness — coverage is never dropped because tooling is missing. For no-oracle features (a subjective/human call), the gate is a structured human acceptance check — still gated, never skipped.
+**Decide the proof for every criterion before any code** — the acceptance criteria are the e2e gate,
+one unified list, and each one carries three lines (`/implement` rejects a plan missing any of them:
+`bin/proof-check.js`):
+
+- **Proof** — how it is proven, as one of `unit`, `integration`, `e2e`, `ui-automation`, `graded-eval`,
+  `sign-off`, then the exact test or check.
+- **Seen by** — how the real result is seen, not just that a test passed: the API response, the log
+  line, the screenshot, the read-only query and the rows it returns. If it cannot be seen with what
+  exists, that is a probe: add a task to build it, respecting data-access rules (Observe section).
+- **Would lie if** — what would make this proof pass while the criterion is unmet. Keep it concrete: a
+  named mutation ("the handler returns 200 without saving"), or a missing assertion ("the test checks
+  the status code but never reads the row back"). The acceptance agent later checks the real test
+  against this line, so "n/a" or "nothing" is rejected. If you can't name one, the proof is too weak.
+
+A criterion only a person can judge (a walkthrough, a look-and-feel call) gets `Proof: sign-off — <who
+looks at what>`. It is still gated, never skipped: the run cannot close it on its own, so the story
+ends at `needs-person` until that person signs it off.
+
+If the chosen e2e modality doesn't exist in the project yet, add a `type="test"` task to build that probe/harness — coverage is never dropped because tooling is missing. Each line under `Probes to build` gets its own task, named exactly `Build the probe: <entry>` (e.g. `Build the probe: Screenshot`).
 
 Then the parallelism rationale (if more than 1 task):
 | Wave | Task IDs | Reason |
@@ -383,9 +425,9 @@ Create the directory if it doesn't exist:
 mkdir -p YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>
 ```
 
-Write the brief + plan to `YOUR_PROJECT_ROOT/tasks/stories/<id>/plan.md` (if an issue ID was given) or `YOUR_PROJECT_ROOT/tasks/stories/current/plan.md` (if from a description).
+Write the brief + plan to `YOUR_PROJECT_ROOT/tasks/stories/<id>/plan.md` (if an issue ID was given) or `YOUR_PROJECT_ROOT/tasks/stories/current/plan.md` (if from a description). It must contain the `## Demo` section exactly as a level-2 heading — that is what the plan checks read.
 
-Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/test-strategy.md`. This file is read by the acceptance-test-agent during evaluation.
+Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/test-strategy.md`, with the `**Acceptance criteria and their proofs:**` list exactly as shown. This file is read by the acceptance-test-agent during evaluation.
 
 ---
 
@@ -416,7 +458,8 @@ You have only 3 legitimate reasons to split a task, defer work, or flag somethin
 - Be specific in `<action>` — method names, line numbers, exact field names.
 - Don't read the entire codebase — only what's relevant.
 - Don't skip the `<verify>` command — the executor needs it. Verify MUST include tests, not just build.
-- Every plan includes a test strategy — acceptance criteria, integration scenarios, regression guardrails.
+- Every plan includes a test strategy — acceptance criteria with a Proof, Seen by and Would lie if line each, integration scenarios, regression guardrails.
+- Every plan restates the Demo in a `## Demo` section — more precise, never weaker — and plans a `Build the probe: <entry>` task for each probe it was handed.
 - Every plan includes at least one `type="test"` task — no exceptions.
 - No commentary outside the structured output.
 - If a `Reuse inventory` was provided: every reused item must appear in the brief AND in the `<files>` of the consuming task. Any listed item you skip needs a one-sentence justification.
