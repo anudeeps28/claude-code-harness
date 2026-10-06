@@ -119,7 +119,7 @@ If the user says continue, proceed to Step 7. If they want to revisit a branch, 
 
 ## Step 7 — Write grill-summary.md (MANDATORY)
 
-Always write a `grill-summary.md` file when shared understanding is reached. This artifact is consumed by downstream skills (`/research`, `/architect`, `/to-issues`) — without it, the decide phase has no handoff contract.
+Always write a `grill-summary.md` file when shared understanding is reached. This artifact is consumed by downstream skills (`/research`, `/architect`, `/plan-features`) — without it, the decide phase has no handoff contract.
 
 Write to the repo root (or `tasks/stories/<id>/grill-summary.md` if a story context exists). Overwrite any existing `grill-summary.md` — it is a transient handoff, not a permanent record. Do not create alternative filenames like `grill-summary-<topic>.md`.
 
@@ -168,14 +168,14 @@ Structure:
 
 - `/research <topic>` — if external APIs or unfamiliar tech need investigation
 - `/architect` — to design the system architecture from this shared understanding
-- `/to-issues` — to break this directly into implementable tracker tasks
+- `/plan-features` — to break this directly into implementable tracker tasks
 ```
 
 After writing, say:
 
-> "Shared understanding written to `grill-summary.md`. Downstream skills (`/research`, `/architect`, `/to-issues`) will read this file as input.
+> "Shared understanding written to `grill-summary.md`. Downstream skills (`/research`, `/architect`, `/plan-features`) will read this file as input.
 >
-> Suggested next step: [recommend based on what was discussed — research if tech is uncertain, architect if the system needs designing, to-issues to decompose into tracker tasks if it's straightforward enough to decompose now]"
+> Suggested next step: [recommend based on what was discussed — research if tech is uncertain, architect if the system needs designing, plan-features to decompose into tracker tasks if it's straightforward enough to decompose now]"
 
 ---
 

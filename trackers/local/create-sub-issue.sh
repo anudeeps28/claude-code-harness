@@ -58,7 +58,7 @@ fi
 
 # JSON-escape the path before interpolating it. On Windows LOCAL_ISSUES_DIR can be an absolute path
 # with backslashes, and a raw `\` makes the output invalid JSON — so every caller that parses .child
-# (e.g. /to-issues Phase 6b) fails on a task that was actually created fine.
+# (e.g. /plan-features Phase 6b) fails on a task that was actually created fine.
 CHILD_FILE_JSON=${CHILD_FILE//\\/\\\\}
 CHILD_FILE_JSON=${CHILD_FILE_JSON//\"/\\\"}
 

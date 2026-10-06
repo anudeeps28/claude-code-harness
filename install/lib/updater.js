@@ -48,8 +48,12 @@ const ENTERPRISE_ONLY_SKILLS = new Set([
 // Retired by F7 (ADR-0001): /implement is the one build skill, and /implement --resume
 // replaced /run-tasks. An upgrade removes them from an install that still has them, in
 // both packs, and says so (docs/story-retirement-inventory.md lists where each behaviour went).
-const RETIRED_SKILLS = ['story', 'run-tasks'];
+// /to-issues retired 2026-10-06: /plan-features replaced it (and ClaudeSkills' prd-to-stories).
+const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues'];
 const RETIRED_AGENTS = ['story-plan-agent.md'];
+
+// What took each retired skill's place, said when it is removed.
+const REPLACED_BY = { story: '/implement', 'run-tasks': '/implement --resume', 'to-issues': '/plan-features' };
 
 /**
  * Remove retired skills and agents from an install. Only paths inside the target are touched,
@@ -74,7 +78,8 @@ function removeRetired(target) {
   for (const skill of RETIRED_SKILLS) drop(path.join(target, 'skills', skill), `/${skill}`);
   for (const agent of RETIRED_AGENTS) drop(path.join(target, 'agents', agent), agent.replace(/\.md$/, ''));
   if (removed.length) {
-    console.log(`    Retired: removed ${removed.join(', ')} — /implement is the one build skill, and /implement --resume replaces /run-tasks`);
+    const replaced = RETIRED_SKILLS.filter((s) => removed.includes(`/${s}`)).map((s) => `/${s} → ${REPLACED_BY[s]}`);
+    console.log(`    Retired: removed ${removed.join(', ')} (${replaced.join(', ')})`);
   }
   return removed;
 }
@@ -251,7 +256,7 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
   }
   for (const skill of RETIRED_SKILLS) {
     if (fs.existsSync(path.join(target, 'skills', skill))) {
-      console.log(`  [RETIRED] skills/${skill} — retired; /implement replaces it`);
+      console.log(`  [RETIRED] skills/${skill} — retired; ${REPLACED_BY[skill]} replaces it`);
       fail++;
     }
   }

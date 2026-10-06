@@ -65,7 +65,7 @@ claude-code-harness-f123-s202\  Story 202 worktree, branch story/202-slug
 
 **Merges are a bottleneck on purpose.** Only the orchestrator writes the Feature branch, so there are no merge races, and the test after each merge always runs on a known state. Parallel stories queue at the merge, which takes seconds; the test-after-merge takes minutes.
 
-**Overlapping stories.** Stories with a `/to-issues` overlap link (same file or module) never run in parallel. The second one starts after the first has merged, from a branch that already has the first story's changes. A conflict that happens anyway is resolved at merge time. If it can't be resolved cleanly, the story is stuck (§8).
+**Overlapping stories.** Stories with a `/plan-features` overlap link (same file or module) never run in parallel. The second one starts after the first has merged, from a branch that already has the first story's changes. A conflict that happens anyway is resolved at merge time. If it can't be resolved cleanly, the story is stuck (§8).
 
 ---
 
@@ -199,7 +199,7 @@ Not applicable. There are no databases; state is per Feature and per story folde
 | Feature panel diff | fine | large | **too big to review properly** |
 | Plan approval | one screen | long | rubber stamp |
 
-**Soft limit: about 8 stories per Feature.** `/to-issues` suggests splitting above 8 into two Features, each with its own Demo. `/implement` warns at plan approval but doesn't refuse.
+**Limit: 8 stories per Feature, each 1, 2 or 3 points (5 only with a written reason).** `/plan-features` splits anything bigger into two Features, each with its own Demo, so a Feature fits in one sprint. `/implement` warns at plan approval but doesn't refuse.
 
 ---
 

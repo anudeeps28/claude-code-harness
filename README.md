@@ -72,7 +72,7 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 /implement 42 --standalone        ← a single story or bug with no parent Feature
 ```
 
-**Building a Feature.** `/to-issues` breaks the work into a Feature with stories and the links
+**Building a Feature.** `/plan-features` breaks the work into a Feature with stories and the links
 between them. `/implement 40` shows you one plan — the stories in dependency order, the Feature's
 Demo, and anything it needs from you — and that is the only stop. Then it builds every story, merges
 each into the Feature branch only after its tests pass, runs the five-reviewer panel and **Prove it**
@@ -136,7 +136,7 @@ The harness covers the full software development lifecycle. Both solo and enterp
 ```mermaid
 flowchart LR
     P0["Decide<br/>/grill-me · /wayfinder · /grill-with-docs<br/>/decision-brief"]
-    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /to-issues<br/>/sprint-plan ◆"]
+    P1["Define<br/>/research · /prototype<br/>/prd · /prd-critique<br/>/architect · /architect-critique<br/>/design-artifacts · /plan-features<br/>/sprint-plan ◆"]
     P2["Build<br/>/implement<br/>/evaluate · /debug"]
     P3["Ship<br/>/babysit-pr ◆<br/>/local-test · /deploy"]
     P4["Learn<br/>/improve-harness · /zoom-out<br/>/triage · /improve-codebase-architecture"]
@@ -147,9 +147,9 @@ flowchart LR
 
 > ● = solo only &nbsp;&nbsp; ◆ = enterprise only &nbsp;&nbsp; unmarked = both
 
-> **`/plan` ● is not a linear stage.** It reads your *existing* tracker backlog and prioritizes it — so it runs *after* `/to-issues` has created tasks, never before. Think of it as the recurring "what's next?" step at the top of each cycle, feeding straight into `/implement`.
+> **`/plan` ● is not a linear stage.** It reads your *existing* tracker backlog and prioritizes it — so it runs *after* `/plan-features` has created tasks, never before. Think of it as the recurring "what's next?" step at the top of each cycle, feeding straight into `/implement`.
 
-> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/to-issues`** creates the build tasks → **`/implement`** builds them. (Already sitting on a backlog? **`/plan`** prioritizes your existing issues and picks the next one to **`/implement`** — it reads tasks that already exist, so it comes *after* decomposition, never before.)
+> **Charting a big effort (`/wayfinder`) — grill-me on steroids.** When a direction is too big to settle in one `/grill-me` sitting — many open decisions, not one — start with **`/wayfinder`**. It charts a **map** on your tracker (one map item + child **decision tickets**: research / prototype / grilling / task) and resolves **one ticket per session** until every decision is made, ending in a **spec** (the destination artifact). It *plans, it never builds*. From there rejoin the normal flow: **`/architect`** formalizes the spec → **`/plan-features`** creates the build tasks → **`/implement`** builds them. (Already sitting on a backlog? **`/plan`** prioritizes your existing issues and picks the next one to **`/implement`** — it reads tasks that already exist, so it comes *after* decomposition, never before.)
 
 #### Solo developer path
 
@@ -195,7 +195,7 @@ flowchart LR
 | Design the system architecture | `/architect` |
 | Critique an architecture doc for gaps and risks | `/architect-critique` |
 | Generate the full spec stack (DB schema, API ref, diagrams) | `/design-artifacts` |
-| Break a PRD into executable vertical-slice tickets | `/to-issues` |
+| Turn any plan (a brainstorm, a PRD, a grill summary) into Features and stories on the board | `/plan-features` |
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
 | Build a whole Feature, every story, to one PR | `/implement <feature-id>` |
 | Build one story, bug or issue | `/implement #42 --standalone` |
@@ -382,7 +382,7 @@ each thing they did now lives.
 | **wayfinder** | `/wayfinder <loose idea>` or `/wayfinder <map ID>` | Plan an effort too big for one session as a map of decision tickets on the tracker — chart once, then resolve one ticket per session until the way is clear. Works on all four trackers |
 | **decision-brief** | `/decision-brief` | Pre-PRD assumption pass — 4 inline phases produce a Decision Brief with tiered evidence thresholds and a risk-ranked test plan |
 | **prd-critique** | `/prd-critique <path> [--brief <path>]` | Run 6 critique checks on a PRD — metric validity, NFR specificity, failure modes, assumption traceability, rollback plan, intent clarity. Read-only |
-| **to-issues** | `/to-issues [--parent "<id>"] [--standalone] [--milestone "<name>"] [--section "<name>"]` | Decompose planning artifacts into a parent feature + vertical-slice stories with real blocked-by edges — the Feature (or a `--standalone` item) carries a required **Demo** saying what visibly changes and where you see it, and nothing is created when no Demo can be written; each slice end-to-end demoable with Given/When/Then criteria, cycle-checked before anything is written, so a scheduler can run the independent stories in parallel. Uses each backend natively: GitHub milestones/projects, ADO work item types and area/iteration paths, Todoist p1–p4 priority, sections, and an uncompletable feature header |
+| **plan-features** | `/plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--section "<name>"] [--dry-run] [--settings]` | Turn any plan — a rough brainstorm, a PRD, a grill or wayfinder summary, architect output, a feature file — into a parent Feature + vertical-slice stories with real blocked-by edges, after reading the repo's docs, feature files and code. The Feature (or a `--standalone` item) carries a required **Demo** saying what visibly changes and where you see it, and nothing is created when no Demo can be written. At most 8 stories of 1, 2 or 3 points (5 only with a written reason); every item carries a CC/SD change ticket, asked for every run until it has one; stories carry acceptance criteria, technical requirements and QAble. Cycle-checked before anything is written. Creates the items itself after one approval, or writes `plan.md` for the Scrum Master (a per-repo setting). Uses each backend natively: GitHub milestones/projects, ADO work item types and area/iteration paths, Todoist p1–p4 priority, sections, and an uncompletable feature header. Replaced `/to-issues` |
 | **grill-with-docs** | `/grill-with-docs <plan or design>` | Like /grill-me but anchored in CONTEXT.md and ADRs — challenges vague terms against the glossary, surfaces plan-vs-decision contradictions, updates CONTEXT.md with resolved terms |
 | **research** | `/research <topic> [--urls ...]` | Research an external API, integration, or library — caches provenance-tagged findings in research.md for downstream agents to read |
 | **architect** | `/architect <path-to-PRD>` | Design system architecture from a PRD — interactive 8-section ARCHITECTURE.md with Mermaid diagrams, cost model, and compliance gates |

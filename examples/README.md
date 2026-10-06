@@ -123,7 +123,7 @@ When all threads are resolved and CI is green, merge the PR. The story is done.
 
 ## Scenario walkthrough: a whole Feature
 
-When `/to-issues` has broken the work into a Feature with stories:
+When `/plan-features` has broken the work into a Feature with stories:
 
 ```
 /implement 40

@@ -1,38 +1,76 @@
 ---
-name: to-issues
-description: Decompose planning artifacts into tracker tasks with proper hierarchy and real dependency links — a parent feature, its stories as children, and blocked-by edges between the stories that genuinely block one another, so an agent scheduler can run the independent ones in parallel and hold the rest. Backend-aware: creates GitHub issues, ADO work items, Todoist tasks, or local task files depending on your tracker mode, using each backend's native features where they exist (Todoist p1-p4 priority and uncompletable feature headers, ADO work item types and area/iteration paths). Reads from grill-summary, research, architecture, decision-brief, or PRD — no single artifact required. Every Feature and every standalone item gets a required Demo — what visibly changes and where you see it. Usage: /to-issues [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run]
-triggers: /to-issues
+name: plan-features
+description: Turn any plan into Features and stories on the board, the way the Software Delivery and Release Process wants them — a rough brainstorm, a PRD, a grill or wayfinder summary, architect output, a feature file, or a few lines in chat. Reads the repo's docs, feature files and code first. Each Feature has a Demo (what visibly changes and where you see it), at most 8 stories of 1, 2 or 3 points (5 only with a written reason), a CC/SD change ticket, and real blocked-by links between stories that genuinely block one another. Creates the items itself after one approval, or — where the repo's settings say so — writes a plan file for the Scrum Master and reads the ids back afterwards. Backend-aware: ADO, GitHub, Todoist or local task files. Usage: /plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run] [--settings]
+triggers: /plan-features
 ---
 
-# /to-issues
+# /plan-features
 
-Decompose planning artifacts into tracker tasks. Each task is an independently demoable story. Stories hang off a single parent feature, and stories that genuinely block one another are joined by a **blocked-by edge** written through `add-blocker.sh`. Creates items in your active tracker backend (GitHub issues, ADO work items, Todoist tasks, or local task files).
+Turn whatever plan exists into Features and stories. Each story is an independently testable slice;
+stories hang off one parent Feature, and stories that genuinely block one another are joined by a
+**blocked-by edge**. Creates the items in the active tracker (ADO work items, GitHub issues, Todoist
+tasks or local task files), or hands a plan to the Scrum Master (Phase 6S).
 
-**Why the links matter.** Anything that schedules work off this board — an external agent scheduler, or `/plan` picking what's next — reads those links to decide what it can start now and what has to wait. A decomposition with no links looks fully parallel, so a scheduler will launch everything at once, including work that is not yet buildable. The dependency graph is therefore a first-class output of this skill, not a note in a description.
+It is the one planning skill. It replaced `/to-issues` (claude-code-harness) and `prd-to-stories`
+(ClaudeSkills) on 2026-10-06: built on to-issues, with prd-to-stories' docs-first reading, story template
+and feature-file write-back, and the rules of the Software Delivery and Release Process (v0.9.6).
 
-**Designed for solo developers on personal GitHub plans.** No org features required — uses issues, sub-issues, labels, milestones, and optionally projects.
+**When it runs:**
 
-Reads from ALL available planning artifacts in the decide/define phases. No single artifact is required — uses whatever exists.
+- **By hand, any time** — including in the middle of other work, to spin something off as its own
+  Feature ("this should be a separate Feature"). Throw it a rough brainstorm; it reads the repo for the rest.
+- **At the end of the planning chain** — `/wayfinder` or `/grill-me` → `/architect` → **`/plan-features`**
+  → `/implement` (or `work-feature`). It reads whatever those left behind.
+- **From another run that found new work** (Hydra, or a build session): the proposal is shown and
+  **nothing is created until a person says yes** (Phase 4). The calling run carries on with its own
+  Feature meanwhile.
 
-**Triggers:** explicitly called with `/to-issues`
+**Why the links matter.** Anything that schedules work off this board — an agent scheduler, `/plan`
+picking what's next — reads those links to decide what it can start now and what has to wait. A
+decomposition with no links looks fully parallel, so a scheduler launches everything at once, including
+work that is not yet buildable. The dependency graph is a first-class output of this skill.
+
+**The size rules come from the delivery process** (a Feature fits in one sprint, two at most): **at most
+8 stories per Feature**, and each story is **1, 2 or 3 points** — **5 only in rare cases, with the
+reason written in the story**, never 8 or more (split it instead).
+
+**Every Feature and every story carries a CC or SD change ticket.** Without one it cannot be released.
+The skill asks for it every run, creates the items anyway when there is none yet, and keeps asking on
+every later run until it is filled in (Phase 0.6).
+
+**Triggers:** explicitly called with `/plan-features`
 
 ## Input
 
 ```
-/to-issues [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--with-tasks] [--dry-run]
+/plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--with-tasks] [--dry-run] [--settings]
 ```
 
-- `--parent "<id>"` — attach the stories to an existing parent feature instead of creating one. Without it, the skill creates the parent itself (see Phase 6a).
-- `--standalone` — create **exactly one** story or bug with no parent Feature, still with a Demo. See **Standalone items** in Phase 3. Cannot be combined with `--parent` or `--with-tasks`.
-- `--milestone "<name>"` — group all stories under this milestone (creates it if it doesn't exist). If not provided, infers a name from the grill-summary or architecture title. GitHub only.
-- `--project "<name>"` — **the meaning depends on the backend, and they are unrelated values.** On GitHub it is a Projects v2 board to add every issue to (optional, for kanban/roadmap views). On Todoist it is the destination *project* the items are filed into (see Phase 3.6) — not a board view but the bucket itself. Ignored on ADO and local.
-- `--section "<name>"` — the section within the destination Todoist project to file items under (creates it if it doesn't exist). Todoist only.
-- `--dry-run` — show the full decomposition and stop at Phase 4. Nothing is created.
-- `--with-tasks` — also create child items for each story's breakdown. **Refused when the board feeds an agent scheduler** — see below. Default off: the breakdown lives in the story body.
+- `<what to plan, or a path>` — optional. Free text (a rough brainstorm, a line from the middle of other
+  work), or a path to a PRD, a feature file (`features/FR-1.md`) or any planning document. Without it,
+  the skill uses the planning artifacts it finds (Phase 1) and asks if there are none.
+- `--parent "<id>"` — attach the stories to an existing parent Feature instead of creating one. Without
+  it, the skill creates the parent itself (see Phase 6a).
+- `--standalone` — create **exactly one** story or bug with no parent Feature, still with a Demo. See
+  **Standalone items** in Phase 3. Cannot be combined with `--parent` or `--with-tasks`.
+- `--milestone "<name>"` — group all stories under this milestone (creates it if it doesn't exist). If
+  not provided, infers a name from the grill-summary or architecture title. GitHub only.
+- `--project "<name>"` — **the meaning depends on the backend, and they are unrelated values.** On GitHub
+  it is a Projects v2 board to add every issue to (optional, for kanban/roadmap views). On Todoist it is
+  the destination *project* the items are filed into (see Phase 3.6) — not a board view but the bucket
+  itself. Ignored on ADO and local.
+- `--section "<name>"` — the section within the destination Todoist project to file items under (creates
+  it if it doesn't exist). Todoist only.
+- `--dry-run` — show the full decomposition and stop at Phase 4. Nothing is created or written.
+- `--with-tasks` — also create child items for each story's breakdown. **Refused when the board feeds an
+  agent scheduler** — see below. Default off: the breakdown lives in the story body.
+- `--settings` — re-ask this repo's settings (Phase 0.5) before planning.
 
 ### Why `--with-tasks` is refused on scheduler-backed boards
 
-An agent scheduler picks up whatever is on its board, and typically applies **no work-item-type filter** — a Task is as schedulable as a story, and adopting a parent pulls its whole child subtree. Child tasks created here would silently become things the scheduler tries to launch an agent session for.
+An agent scheduler picks up whatever is on its board, and typically applies **no work-item-type filter**
+— a Task is as schedulable as a story, and adopting a parent pulls its whole child subtree. Child tasks
+created here would silently become things the scheduler tries to launch an agent session for.
 
 A project declares this in `tasks/tracker-config.md`:
 
@@ -40,9 +78,13 @@ A project declares this in `tasks/tracker-config.md`:
 feeds_agent_scheduler = true
 ```
 
-When that is `true`, stop at feature → story. The breakdown still travels — it goes into the story body's `## Breakdown` section (see 6b), and `/implement` produces the real task plan per story at build time. If `--with-tasks` is passed anyway, print:
+When that is `true`, stop at feature → story. The breakdown still travels — it goes into the story
+body's `## Breakdown` section (see 6b), and the build skill produces the real task plan per story at
+build time. If `--with-tasks` is passed anyway, print:
 
-> *"`--with-tasks` is not supported when `feeds_agent_scheduler = true`: child items land on the agent scheduler's board as launchable work. The task breakdown will be written into each story body instead. Continuing without it."*
+> *"`--with-tasks` is not supported when `feeds_agent_scheduler = true`: child items land on the agent
+> scheduler's board as launchable work. The task breakdown will be written into each story body instead.
+> Continuing without it."*
 
 ...and continue without it. When the setting is absent or `false`, the flag behaves normally.
 
@@ -50,29 +92,45 @@ When that is `true`, stop at feature → story. The breakdown still travels — 
 
 Before doing anything else:
 
-1. Check that `trackers/active/create-issue.sh` exists. If not, halt: *"Tracker adapter not found. Run the harness installer or add `create-issue.sh` to `.claude/trackers/active/`."*
-2. Check that the active backend's CLI is actually callable — `gh` for GitHub, `az` for ADO, `td` (or `$TODOIST_CLI`) for Todoist; `local` needs none. If it is missing, halt: *"The <backend> adapter is installed but its CLI (`<cmd>`) is not on PATH. Install it, or re-run the harness installer and pick a different tracker."*
-3. Scan for at least ONE planning artifact (see Phase 1). If none exist, halt: *"No planning artifacts found. Run `/grill-me` to establish shared understanding first, then optionally `/research` and `/architect`."*
+1. **How items get to the board.** If `trackers/active/create-issue.sh` exists (a claude-code-harness
+   install), use the adapter scripts throughout. If it does not, the board is Azure DevOps reached
+   directly with `az`: read `references/ado-commands.md` now and use its commands wherever this file
+   names an adapter script. Neither — no adapter and no `az` on PATH — halt: *"No way to reach a board:
+   install the harness's tracker adapter, or the Azure CLI with the azure-devops extension (`az login`)."*
+2. Check that the active backend's CLI is actually callable — `gh` for GitHub, `az` for ADO, `td` (or
+   `$TODOIST_CLI`) for Todoist; `local` needs none. If it is missing, halt: *"The <backend> adapter is
+   installed but its CLI (`<cmd>`) is not on PATH. Install it, or re-run the harness installer and pick
+   a different tracker."*
+3. Something to plan: the argument, or at least one planning artifact (Phase 1). With neither, ask once:
+   *"What should I plan? A few lines are enough — I'll read the repo's docs and code for the rest."*
 
 ## Phase 0 — Detect active backend and probe capabilities
 
 Read `.claude/.harness-manifest.json`:
 - `tracker` field → the active tracker backend (`github`, `local`, `todoist`, `ado`).
 
-If no manifest or no tracker configured, fall back to `tasks/tracker-config.md` `**Type:**` field or adapter script detection in `.claude/trackers/active/`.
+If no manifest or no tracker configured, fall back to `tasks/tracker-config.md` `**Type:**` field or
+adapter script detection in `.claude/trackers/active/`. With no adapter at all (gate step 1), the backend
+is `ado` through `references/ado-commands.md`.
 
-Record the backend — subsequent phases branch on it. Item creation and linking (`create-issue.sh`, `create-sub-issue.sh`, `add-blocker.sh`) are portable across all four shipped backends; Phases 5a/5b/5c and 6d are GitHub-only and are gated below.
+Record the backend — subsequent phases branch on it. Item creation and linking (`create-issue.sh`,
+`create-sub-issue.sh`, `add-blocker.sh`) are portable across all four shipped backends; Phases 5a/5b/5c
+and 6d are GitHub-only and are gated below.
 
-Then probe two **capabilities** by checking whether the script exists in `trackers/active/`, and record each as yes/no:
+Then probe two **capabilities** by checking whether the script exists in `trackers/active/`, and record
+each as yes/no:
 
 | Capability | Script | If absent |
 |---|---|---|
 | Hierarchy — can a story be linked to a parent? | `create-sub-issue.sh` | Create stories flat via `create-issue.sh` and note it in the summary. |
 | Dependency — can a blocked-by edge be written? | `add-blocker.sh` | Fall back to prose edges (Phase 6c). |
 
-**All four shipped adapters implement both**, so both probes normally pass. Probe anyway rather than inferring from the backend name — a hand-rolled or trimmed adapter may be missing one, and a custom backend gains support the moment someone drops the script in, with no edit to this skill.
+**All four shipped adapters implement both**, and so does `references/ado-commands.md`, so both probes
+normally pass. Probe anyway rather than inferring from the backend name — a hand-rolled or trimmed
+adapter may be missing one, and a custom backend gains support the moment someone drops the script in.
 
-**What an edge actually is depends on the backend.** All four are readable back through `get-blockers.sh`, but only ADO writes a link the tracker itself understands:
+**What an edge actually is depends on the backend.** All four are readable back through
+`get-blockers.sh`, but only ADO writes a link the tracker itself understands:
 
 | Backend | `add-blocker.sh` writes | Visible to a scheduler reading the board natively? |
 |---|---|---|
@@ -81,7 +139,8 @@ Then probe two **capabilities** by checking whether the script exists in `tracke
 | `todoist` | `Blocked by: #N` line in the task description | no — only via `get-blockers.sh` |
 | `local` | `blocked_by:` frontmatter list | no — only via `get-blockers.sh` |
 
-Carry this into the Phase 4 and Phase 7 reports so nobody mistakes a convention line for a native tracker link.
+Carry this into the Phase 4 and Phase 7 reports so nobody mistakes a convention line for a native tracker
+link.
 
 ### Create-time env overrides — the capabilities that are not scripts
 
@@ -103,58 +162,142 @@ misses a capability it does in fact have.
 `TRACKER_PRIORITY` is validated by the adapter: anything outside `p1`–`p4` **fails the create loudly**
 rather than being dropped. Derive it from the story's priority label (Phase 3) — never invent a scale.
 
-## Phase 1 — Read all available artifacts
+## Phase 0.5 — This repo's settings
 
-Read every artifact that exists. Each adds context for decomposition:
+Some choices belong to the repo, not to one run. They are asked **once per repo** and kept in
+`plan-features.settings.md` at the repo root (committed, so the whole team gets the same answers).
+Read it if it exists; ask for whatever is missing (or everything, with `--settings`), one question at a
+time with a recommendation, then write it:
 
-| Priority | File | What it provides |
-|----------|------|-----------------|
-| 1 | `grill-summary.md` | Core concept, scope boundaries, resolved decisions |
-| 2 | `ARCHITECTURE.md` or `docs/ARCHITECTURE.md` | System design, components, data model |
-| 3 | `research.md` | External tech constraints, API shapes, gotchas |
-| 4 | `decision-brief.md` | Risk-ranked assumptions, dealbreaker flags |
-| 5 | `PRD.md` | Detailed user stories (if using Ralph workflow) |
+```markdown
+# plan-features settings
+- board_mode: create            # create = this skill creates the items; scrum-master = it writes plan-<feature>.md
+- project: <ADO project / GitHub repo / Todoist project>
+- area: <default area path>     # ADO; still confirmed every run (Phase 3.6)
+- iteration: <default sprint>   # ADO; still confirmed every run (Phase 3.6)
+- story_type: <User Story | Product Backlog Item>   # ADO process word for a story
+- points_field: <Microsoft.VSTS.Scheduling.StoryPoints | Microsoft.VSTS.Scheduling.Effort | label>
+- board_url: <the team board the items should show on>   # quoted in plan-<feature>.md
+```
 
-Also check `tasks/stories/<id>/` variants of each file.
+- **`board_mode`** — **`create`** (the default and the recommendation): after the one approval in Phase 4,
+  this skill creates the Feature, its stories and their links itself. **`scrum-master`**: for a team
+  whose developers do not create board items — the skill writes `plan-<feature>.md` for the Scrum Master instead
+  (Phase 6S), stops, and once told it was done reads the new ids back. Nothing is written to the board
+  in that mode, ever.
+- **`points_field`** — on ADO, look at one story of the project's story type
+  (`az boards work-item show`) and offer the points field it has: Agile and CMMI use `StoryPoints`,
+  Scrum uses `Effort`. Elsewhere it is `label` (a `points:<n>` label).
 
-**At least one must exist.** The more artifacts available, the better the decomposition. Typical paths:
+Values in `tasks/tracker-config.md` (`ado_area_path`, `ado_iteration_path`, `ado_story_work_item_type`)
+are the suggested answers when present.
 
-- **Minimal (just grill-me):** shared understanding → stories are higher-level
-- **Full (grill + research + architect):** rich context → stories are precise and well-scoped
-- **Ralph path (PRD):** user stories already defined → convert to proper tracker hierarchy
+## Phase 0.6 — Items still missing a CC/SD number
+
+The rule: every Feature and every story carries a CC or SD change ticket. An item this skill created
+without one is tagged **`no-CC/SD`** (Phase 6). Before planning anything new, list those items — the
+open ones in this project, from any earlier run:
+
+- ADO: the "Items still missing a CC/SD" query in `references/ado-commands.md`.
+- GitHub / Todoist / local: `list-issues.sh`, filtered to the `no-CC/SD` label.
+
+If there are any, ask once, listing them (id, type, title):
+
+> *"These still have no CC/SD number, so they can't be released: #13050 Feature "Export to CSV",
+> #13051 story "…". Do you have the numbers now? Give them as `#13050 CC-1234`, or say "not yet"."*
+
+For each number given, set it (Phase 6 says how) and remove `no-CC/SD`. "Not yet" carries on — this
+question comes back on the next run. Never drop an item from the list without a number.
+
+## Phase 1 — Read the input, then the repo
+
+**What to plan** — read all of it:
+
+| Priority | Source | What it provides |
+|----------|--------|-----------------|
+| 1 | The argument: free text, or the file it names | What the person asked for, in their words |
+| 2 | `grill-summary.md` | Core concept, scope boundaries, resolved decisions |
+| 3 | `ARCHITECTURE.md` or `docs/ARCHITECTURE.md` | System design, components, data model |
+| 4 | `research.md` | External tech constraints, API shapes, gotchas |
+| 5 | `decision-brief.md` | Risk-ranked assumptions, dealbreaker flags |
+| 6 | `PRD.md`, or the PRD the argument names | Detailed user stories and requirements |
+| 7 | `features/*.md` the argument names | A feature spec (see the feature-file shape in `references/story-template.md`) |
+
+Also check `tasks/stories/<id>/` variants of each file. When called from another run, the proposal it
+was given is the input.
+
+**The repo — always, whatever the input.** A rough brainstorm is enough because this part fills it in:
+
+1. **Docs**: every file under `docs/` (and `data-model/` if present), plus `README.md`, `CLAUDE.md` and
+   `CONTEXT.md` when they exist. Build a short **repo context**: what the system is for, its major
+   parts, the data model, conventions, constraints (security, compliance, integrations). If `docs/` is
+   large, a `general-purpose` agent may read and summarise it, but all of it is read — say so.
+2. **Feature files**: `features/*.md` — what is already specified, so nothing is planned twice.
+3. **Code**: Glob and Grep for the parts the plan touches — the screens, endpoints, classes, tables and
+   folders it names or implies. Confirm names exist rather than guessing them; note what each story
+   will touch (Phase 3.5 needs it).
+4. **The board**: open Features whose titles overlap the plan (`list-issues.sh`, or the ADO search in
+   `references/ado-commands.md`) — if the work is already there, say so in Phase 4 instead of making it
+   again.
+
+Report in two or three lines what was read and what the repo context is.
 
 ## Phase 2 — Synthesize requirements
 
-From the artifacts, extract:
+From the input and the repo, extract:
 
-1. **Project name** — from the grill-summary title or PRD title
-2. **Feature list** — what needs to be built (from resolved forks, user stories, or architecture components)
+1. **Project name** — from the input's title, or a short name for what was asked
+2. **Feature list** — what needs to be built (from resolved forks, user stories, architecture components)
 3. **Scope boundaries** — what's in and what's out
-4. **Technical constraints** — from research gotchas, architecture decisions
+4. **Technical constraints** — from research gotchas, architecture decisions and the code itself
 5. **Risk flags** — from decision-brief assumptions, architecture security section
-6. **Dependencies** — ordering constraints (schema before API before UI), and which components each piece of work touches. Note the touched files/modules per requirement as you read — Phase 3.5 needs them to spot overlap.
+6. **Dependencies** — ordering constraints (schema before API before UI), and which components each
+   piece of work touches. Note the touched files/modules per requirement — Phase 3.5 needs them.
+7. **PRD reference** — the PRD's path or link when the input came from one (it goes on the Feature).
 
 ## Phase 3 — Decompose into vertical slices (stories)
 
+Read `references/story-template.md` and `references/phase-classification.md` now.
+
 **Slicing rules:**
-- Each story is independently demoable — you could verify it works on its own
+- Each story is **independently testable** — a tester or reviewer can verify it on its own
 - Prefer many thin slices over few thick ones
-- No horizontal-only slices — "add the schema column" alone is not a story; it belongs inside a story that delivers a visible behavior
+- No horizontal-only slices — "add the schema column" alone is not a story; it belongs inside a story
+  that delivers a visible behavior
 - Each story includes schema + API + UI + tests end-to-end as applicable
 
-Identify 3–8 stories (8 is a soft limit; Phase 4 suggests a split above it). For each story, prepare:
+**At most 8 stories per Feature.** More than that is two Features (Phase 4).
+
+For each story, prepare:
 
 | Field | Content |
 |---|---|
 | **Title** | Imperative verb phrase, ≤ 60 characters |
-| **What it delivers** | 1–2 sentences describing the end-to-end behavior |
-| **Source artifact** | Which artifact(s) this derives from (e.g., "grill-summary § Resolved fork #3", "ARCHITECTURE.md § Data architecture") |
+| **What it delivers** | 1–2 sentences describing the end-to-end behavior (the story body, in the voice `references/story-template.md` gives) |
+| **Source** | Which input this derives from (e.g., "grill-summary § Resolved fork #3", "the brainstorm in chat") |
 | **Risk flags** | Any of: `security-sensitive`, `performance-sensitive`, `customer-data-touching`, `regulated-data` |
-| **Acceptance criteria** | 3–5 statements in Given/When/Then format |
+| **QAble** | `QAble` when QA can observe the change (a screen, an API, a file or report, a queryable result); else `Not QAble` — see the template |
+| **Acceptance criteria** | QAble stories: Given/When/Then, each business-testable, tagged `[UI]` / `[API]` / `[DB Query]`, numbered `AC1`, `AC2`… per story (template rules). Not QAble: none — the developer checks go in Technical Requirements |
+| **Technical requirements** | Files, classes, tables, endpoints it touches, confirmed in the code (Phase 1) — never a guessed name; an unknown is written as an open point |
+| **Points** | `1`, `2` or `3`. `5` only in rare cases, with a `Why 5:` line saying why it could not be split. Never `8` or more — split the story |
 | **Breakdown** | 2–5 implementation steps. These become child items only when `--with-tasks` is honored; otherwise they go in the story body's `## Breakdown` section |
 | **Labels** | priority label + any risk labels |
 | **Priority** | `p1`–`p4`, from the mapping below. Written as a text label everywhere, and additionally as native tracker priority where the backend has one (Phase 0) |
 | **Touches** | the files/modules/components this story will modify — used by Phase 3.5, not written to the tracker |
+
+### Points
+
+Points are Fibonacci and small on purpose — the delivery process wants a Feature done in one sprint:
+
+| Points | A story that… |
+|---|---|
+| `1` | is trivial and near risk-free (a setting, a wording change) |
+| `2` | is small and well understood, in one part of the system |
+| `3` | is small to medium, may touch two parts, little ambiguity — **the largest normal size** |
+| `5` | **rare**: several parts or real ambiguity that cannot be split out. Needs `Why 5: <reason>` in the story |
+
+Anything that would be `8` or more is split before it is estimated (never below the independently
+testable floor). Estimate after drafting, as a separate pass, so the slicing is not shaped by numbers.
 
 ### Priority mapping
 
@@ -188,17 +331,20 @@ the page shipped with the wrong layout while every gate passed. Hard rules:
 
 **Story ordering:** schema/data first → backend/API → frontend/UI → integration/polish.
 
-**Create the stories in the order you want them run.** On a board that sorts unranked items by id, creation order *is* run order — so the sequence you settle on here decides which of several ready stories a scheduler starts first. This skill deliberately does not set an explicit rank field.
+**Create the stories in the order you want them run.** On a board that sorts unranked items by id,
+creation order *is* run order — so the sequence you settle on here decides which of several ready
+stories a scheduler starts first. This skill deliberately does not set an explicit rank field.
 
-Also decide the **parent feature**: a title, a one-paragraph description covering the whole initiative, and its **Demo** (next subsection). Skip this if `--parent` was passed.
+Also decide the **parent feature**: a title, a one-paragraph description covering the whole initiative,
+and its **Demo** (next subsection). Skip this if `--parent` was passed.
 
 ### The Demo section
 
 Every Feature, and every standalone item, carries a required `## Demo`: what visibly changes when the
 work is done, and where you see it. It is written now, before anything is built, so a Feature cut too
-thin to show anyone is caught here rather than after the code. `/implement` reads it at startup, checks
-it against the project's Observe section, and plans a proof for it; the plan may make it more precise,
-never weaker.
+thin to show anyone is caught here rather than after the code. The build skill reads it at startup,
+checks it against the project's Observe section, and plans a proof for it; the plan may make it more
+precise, never weaker.
 
 ```markdown
 ## Demo
@@ -207,7 +353,7 @@ Seen through: <one or more of: screenshot, api, database, test, log, person>
 2. ...
 ```
 
-`Seen through:` says how the change is observed, and is what `/implement`'s startup check compares
+`Seen through:` says how the change is observed, and is what the build skill's startup check compares
 against Observe:
 
 | Kind | Means | Step names |
@@ -252,10 +398,10 @@ Demo.
 
 ### Standalone items
 
-`--standalone` creates **exactly one** item: a story, or a bug when the artifacts describe a defect,
-with **no parent** Feature and no blocked-by edges. It still gets a `## Demo`. Skip Phase 3.5 (there is
-no graph) and Phase 6a (there is no parent). Create it with the 3-arg form (Todoist adds section and
-project):
+`--standalone` creates **exactly one** item: a story, or a bug when the input describes a defect, with
+**no parent** Feature and no blocked-by edges. It still gets a `## Demo`, points and a CC/SD number. Skip
+Phase 3.5 (there is no graph) and Phase 6a (there is no parent). Create it with the 3-arg form (Todoist
+adds section and project):
 
 ```bash
 TRACKER_ITEM_TYPE=Story TRACKER_PRIORITY=<p1-p4> \
@@ -269,35 +415,56 @@ its own to create a standalone item.
 
 ## Phase 3.5 — Build the dependency graph
 
-Stories that block one another must be joined by a real edge. Derive the edges yourself from the artifacts; do not ask story-by-story.
+Stories that block one another must be joined by a real edge. Derive the edges yourself from the input
+and the code; do not ask story-by-story.
 
-**An edge means: this story cannot start until that one is done.** Write every edge as `blocked story ← blocker`, and tag each with one of two reasons:
+**An edge means: this story cannot start until that one is done.** Write every edge as
+`blocked story ← blocker`, and tag each with one of two reasons:
 
 | Reason | When | Example |
 |---|---|---|
 | `prerequisite` | The blocked story genuinely cannot be built or demoed until the blocker exists. | The API story needs the schema story's table. |
 | `overlap` | The two are conceptually independent but modify the **same file or module**, so running them in parallel means one silently clobbers the other on merge. | Two features that both rewrite the same service class. |
 
-`overlap` edges are real and must be written — parallel agents work in separate worktrees, and nothing downstream can detect the clobber. But tag them distinctly, because they are the ones worth dropping when you know both changes are purely additive.
+`overlap` edges are real and must be written — parallel agents work in separate worktrees, and nothing
+downstream can detect the clobber. But tag them distinctly, because they are the ones worth dropping
+when you know both changes are purely additive.
 
 **Rules for the graph:**
 
-- **Fewest edges that are actually true.** Every edge you add removes parallelism, which is the whole point of the exercise. Do not add an edge just because one story feels "later" than another — ordering is already carried by creation order.
-- **No transitive edges.** If C is blocked by B and B by A, do not also write C ← A. It adds nothing and clutters the board.
-- **Never use a "related" link as a blocker.** In ADO, `System.LinkTypes.Related` is informational; a scheduler reads only the predecessor link. A related link where a blocker was meant is an edge that silently does nothing. `add-blocker.sh` already writes the right relation on every backend — do not hand-roll one.
-- **No cross-project / cross-repo edges.** A scheduler that resolves blockers by id within one project cannot see them, and an unresolvable blocker typically fails *closed* — stalling its dependent until a human force-starts it. If the graph needs one, leave it out and record it under "Open items" in the Phase 4 review instead.
+- **Fewest edges that are actually true.** Every edge you add removes parallelism, which is the whole
+  point of the exercise. Do not add an edge just because one story feels "later" than another —
+  ordering is already carried by creation order.
+- **No transitive edges.** If C is blocked by B and B by A, do not also write C ← A. It adds nothing
+  and clutters the board.
+- **Never use a "related" link as a blocker.** In ADO, `System.LinkTypes.Related` is informational; a
+  scheduler reads only the predecessor link. A related link where a blocker was meant is an edge that
+  silently does nothing. `add-blocker.sh` already writes the right relation on every backend — do not
+  hand-roll one.
+- **No cross-project / cross-repo edges.** A scheduler that resolves blockers by id within one project
+  cannot see them, and an unresolvable blocker typically fails *closed* — stalling its dependent until a
+  human force-starts it. If the graph needs one, leave it out and record it under "Open items" in the
+  Phase 4 review instead.
 
 ### Cycle pre-flight — hard gate
 
-Before Phase 4, walk the edge list and check for cycles (including self-edges). **If you find one, do not continue.** Print the exact chain and stop:
+Before Phase 4, walk the edge list and check for cycles (including self-edges). **If you find one, do
+not continue.** Print the exact chain and stop:
 
-> *"Dependency cycle: story 3 → story 5 → story 7 → story 3. Nothing has been created. Break the cycle by removing an edge or merging two stories, and re-run."*
+> *"Dependency cycle: story 3 → story 5 → story 7 → story 3. Nothing has been created. Break the cycle
+> by removing an edge or merging two stories, and re-run."*
 
-This check lives here because a downstream scheduler is likely to **fail open** on a cycle — detecting it, leaving every member schedulable, and only posting a notification — so a cycle written to a shared board silently discards the ordering rather than announcing itself. Catching it before the first write is the only cheap moment.
+This check lives here because a downstream scheduler is likely to **fail open** on a cycle — detecting
+it, leaving every member schedulable, and only posting a notification — so a cycle written to a shared
+board silently discards the ordering rather than announcing itself. Catching it before the first write
+is the only cheap moment.
 
-## Phase 3.6 — Resolve the destination
+## Phase 3.6 — Destination and change ticket
 
-Items created in the wrong bucket are the quietest failure this skill has: they are created successfully, links and all, and never appear in the view the team or the scheduler actually reads. (A scheduler typically scopes its board by a query like `AreaPath UNDER <x> AND IterationPath = <the sprint the user picked>`.)
+Items created in the wrong bucket are the quietest failure this skill has: they are created
+successfully, links and all, and never appear in the view the team or the scheduler actually reads. (A
+scheduler typically scopes its board by a query like
+`AreaPath UNDER <x> AND IterationPath = <the sprint the user picked>`.)
 
 So: **discover the options, show them, and always ask. Never silently accept an adapter default.**
 
@@ -308,34 +475,45 @@ What "destination" means per backend:
 | `ado` | iteration path + area path | `az boards iteration project list`, `az boards area project list` |
 | `github` | milestone (and project board, if `--project`) | `gh api repos/:owner/:repo/milestones`, `gh project list` |
 | `todoist` | project + section | `td project list`, `td section list "<project>"` |
-| `local` | n/a — skip this phase | — |
+| `local` | n/a — no destination question | — |
 
-1. **Try to list the real options** from the active tracker, read-only. Use a `trackers/active/` script if one exists for it; otherwise the backend's own CLI, per the table.
-2. **If discovery fails, or returns nothing, or is ambiguous — ask outright.** Do not guess and do not fall back to the value hardcoded in the adapter script.
-3. Ask once, as a single question, and carry the answer into the Phase 4 approval block so it is visible before anything is written:
+1. **Try to list the real options** from the active tracker, read-only. Use a `trackers/active/` script
+   if one exists for it; otherwise the backend's own CLI, per the table.
+2. **If discovery fails, or returns nothing, or is ambiguous — ask outright.** Do not guess and do not
+   fall back to the value hardcoded in the adapter script.
+3. Ask **once, as a single question** — the destination and the change ticket together — and carry the
+   answers into the Phase 4 approval block so they are visible before anything is written:
 
-> *"Where should these go? Iterations found: Sprint 1, Sprint 2, Sprint 3 (current). Areas found: Developer Playground\SDLC Harness, Developer Playground\Platform. Which iteration and area?"*
+> *"Where should these go? Iterations found: Sprint 1, Sprint 2, Sprint 3 (current). Areas found:
+> Developer Playground\SDLC Harness, Developer Playground\Platform. Which iteration and area? And the
+> CC or SD number for this work (it goes on the Feature and every story) — or 'none yet'."*
 
-Default the offer to the `ado_area_path` / `ado_iteration_path` values in `tasks/tracker-config.md` if set, else to whatever the last `/to-issues` run used if that is recorded in `tasks/notes.md`.
+Default the destination offer to the settings (Phase 0.5), else the `ado_area_path` /
+`ado_iteration_path` values in `tasks/tracker-config.md`, else whatever the last run used if that is
+recorded in `tasks/notes.md`.
+
+**The change ticket** is one number for the whole Feature (`CC-1234` or `SD-14050`); a story may carry
+a different one only if the person says so. "None yet" is allowed: the items are still created, tagged
+`no-CC/SD`, and Phase 0.6 asks again on every later run.
 
 **On Todoist**, resolve project and section in this order, and still show the result for confirmation:
-`--project` / `--section` args → `todoist_project` / `todoist_default_section` in `tasks/tracker-config.md`
-→ a `## Todoist` section in `tasks/notes.md` with `project:` / `section:` fields. If no project resolves
-from any of them, ask outright — do **not** let the adapter fall through to its own config default, which
-is the silent mis-filing this phase exists to prevent.
+`--project` / `--section` args → `todoist_project` / `todoist_default_section` in
+`tasks/tracker-config.md` → a `## Todoist` section in `tasks/notes.md` with `project:` / `section:`
+fields. If no project resolves from any of them, ask outright — do **not** let the adapter fall through
+to its own config default, which is the silent mis-filing this phase exists to prevent.
 
 ## Phase 3.7 — Demo gate
 
-Before anything is shown for approval, check the Demo (the Feature's, or the standalone item's) with
-the implement skill's `bin/demo.js` — in `.claude/skills/implement/` or `~/.claude/skills/implement/`.
-Write the body to a scratch file and run:
+Before anything is shown for approval, check the Demo (the Feature's, or the standalone item's). Where
+the build skill is installed (`.claude/skills/implement/` or `~/.claude/skills/implement/`), write the
+body to a scratch file and run its checker:
 
 ```bash
 node "<implement-skill-dir>/bin/demo.js" check <scratch-file>
 ```
 
 It exits 1 with the problem when the Demo is missing, has no `Seen through:` line, names an unknown
-kind, or has no numbered step.
+kind, or has no numbered step. Without the build skill, check the same four things by reading it.
 
 **If you cannot write a Demo with a visible result, do not create anything.** That means the stories,
 together, change nothing anyone can see: usually they are horizontal layers ("add the table", "add the
@@ -351,22 +529,29 @@ build passes", "the code exists") — a Demo nobody can see is the failure this 
 
 ## Phase 4 — Review with user
 
-Present the proposed decomposition — stories, destination, edges, and both graph views. Nothing has been created yet.
+Present the proposed decomposition — stories, destination, change ticket, edges, and both graph views.
+Nothing has been created yet. **This is the one approval** — also when another run (Hydra, a build
+session) called this skill: its proposal waits here for a person, and the calling run carries on with
+its own work meanwhile.
 
 > **Initiative:** [project name — one-line summary]
 > **Parent feature:** [title — or "existing #N" if `--parent` was passed]
 > **Demo:** [the `## Demo` section, in full — or the standalone item's]
 > **Destination:** [iteration] / [area] — from Phase 3.6
+> **Change ticket:** [CC-1234 — or "none yet: every item is tagged no-CC/SD and you'll be asked again"]
+> **Board:** [created by this skill now | written to plan-<feature>.md for the Scrum Master] — from the settings
 > **Dependency links:** [native predecessor links | `Blocked by:` body lines, readable via `get-blockers.sh` | prose only — this adapter has no link script]
 >
 > **Stories** — listed in creation order, which is also run order:
 >
-> | # | Title | Delivers | Risk | Blocked by |
-> |---|-------|----------|------|------------|
-> | 1 | ... | ... | ... | — |
-> | 2 | ... | ... | ... | 1 |
-> | 3 | ... | ... | ... | 1 |
-> | 4 | ... | ... | ... | 2, 3 |
+> | # | Title | Delivers | Points | QAble | Risk | Blocked by |
+> |---|-------|----------|--------|-------|------|------------|
+> | 1 | ... | ... | 2 | QAble | ... | — |
+> | 2 | ... | ... | 3 | QAble | ... | 1 |
+> | 3 | ... | ... | 1 | Not QAble | ... | 1 |
+> | 4 | ... | ... | 5 (why: …) | QAble | ... | 2, 3 |
+>
+> **Total:** <N> points across <n> stories.
 >
 > **Edges** — each one removes parallelism, so each needs a reason:
 >
@@ -398,25 +583,43 @@ Present the proposed decomposition — stories, destination, edges, and both gra
 >
 > **What runs in parallel:** stories 2 and 3 can start together once 1 is done. Story 4 waits for both.
 >
-> "Does this look right? You can merge, split, or reorder stories, and add or drop any edge — dropping an `overlap` edge is the usual one if you know both changes are additive. Say 'go' to create everything."
+> **Already on the board:** [overlapping Features found in Phase 1, or "nothing overlapping"]
+>
+> "Does this look right? You can merge, split, or reorder stories, change points, and add or drop any
+> edge — dropping an `overlap` edge is the usual one if you know both changes are additive. Say 'go' to
+> create everything."
 
 **Rendering rules for the two views:**
-- The **tree** shows hierarchy only (feature → stories) with blockers annotated in parentheses. It must read correctly as plain text in a terminal.
-- The **mermaid graph** shows the blocking edges, arrow pointing *from blocker to blocked* (reading direction = execution order). Draw `overlap` edges dotted and labelled so they are distinguishable from `prerequisite` edges. Use `flowchart LR`.
-- If there are **no edges at all**, say so explicitly — "every story is independent; all N can run in parallel" — and skip the mermaid block rather than drawing a graph with no arrows.
+- The **tree** shows hierarchy only (feature → stories) with blockers annotated in parentheses. It must
+  read correctly as plain text in a terminal.
+- The **mermaid graph** shows the blocking edges, arrow pointing *from blocker to blocked* (reading
+  direction = execution order). Draw `overlap` edges dotted and labelled so they are distinguishable
+  from `prerequisite` edges. Use `flowchart LR`.
+- If there are **no edges at all**, say so explicitly — "every story is independent; all N can run in
+  parallel" — and skip the mermaid block rather than drawing a graph with no arrows.
 
-**More than 8 stories:** a Feature that large is hard to review as one change and turns plan approval
-into a rubber stamp (`ARCHITECTURE.md` §5). Above 8, suggest splitting it into **two Features, each with
-its own Demo**, naming which stories go where and what each Demo would show. Proceed with one Feature
-only if the user keeps it as one; say so in the summary.
+**More than 8 stories** is more than one sprint's Feature (delivery process; `ARCHITECTURE.md` §5), and
+it turns plan approval into a rubber stamp. Do not offer it as one Feature: split it into **two Features,
+each with its own Demo**, naming which stories go where and what each Demo shows, and present both.
+They are created one after the other (one parent per pass, Phase 6a), with any edge between them recorded
+under "Open items".
 
-If `--dry-run` was passed, stop here and print: *"Dry run complete. Nothing was created. Re-run without `--dry-run` to create these items."*
+**A story over 3 points** is shown with its `Why 5:` reason; one with none is sent back to Phase 3.
 
-Otherwise, do not proceed to Phase 5 without explicit user approval. If the user changes any edge, re-run the Phase 3.5 cycle check before continuing.
+If `--dry-run` was passed, stop here and print: *"Dry run complete. Nothing was created. Re-run without
+`--dry-run` to create these items."*
+
+Otherwise, do not proceed to Phase 5 without explicit user approval. If the user changes any edge,
+re-run the Phase 3.5 cycle check before continuing.
 
 ## Phase 5 — Setup infrastructure
 
-`setup-labels.sh`, `create-milestone.sh`, `create-project.sh` (and `add-to-project.sh` in Phase 6) exist ONLY under `trackers/github/`, so **5a–5c are GitHub-only** — run them only when `backend === 'github'` (equivalently: only run each call if the script exists in `trackers/active/`). **5d is Todoist-only.** For `local`/`ado`, skip this phase entirely and print: *"Backend <X> has no label/milestone/project infrastructure in the standard adapter interface — skipping Phase 5; work items are created directly."*
+`setup-labels.sh`, `create-milestone.sh`, `create-project.sh` (and `add-to-project.sh` in Phase 6)
+exist ONLY under `trackers/github/`, so **5a–5c are GitHub-only** — run them only when
+`backend === 'github'` (equivalently: only run each call if the script exists in `trackers/active/`).
+**5d is Todoist-only.** For `local`/`ado`, and in `scrum-master` mode, skip this phase entirely and
+print: *"Backend <X> has no label/milestone/project infrastructure in the standard adapter interface —
+skipping Phase 5; work items are created directly."*
 
 Before creating issues, set up the supporting infrastructure:
 
@@ -451,7 +654,9 @@ Confirm the project resolved in Phase 3.6 exists:
 ```bash
 td project list --json
 ```
-If it is absent, **halt**: *"Project '<name>' not found in Todoist. Create it first, or re-run with `--project \"<existing>\"`."* Do not create the project — a mistyped name would silently spawn a second board.
+If it is absent, **halt**: *"Project '<name>' not found in Todoist. Create it first, or re-run with
+`--project \"<existing>\"`."* Do not create the project — a mistyped name would silently spawn a second
+board.
 
 Then, only if a section was resolved, create it if it is missing (creating a *section* inside a
 confirmed project is safe and additive):
@@ -462,34 +667,42 @@ td section create --project "<project>" --name "<section>"
 
 ## Phase 6 — Create issues
 
-Order of operations is fixed: **parent first, then stories in the approved order, then the edges.** Edges last, because they need the real IDs of both ends.
+**In `scrum-master` mode, skip to Phase 6S** — this skill writes nothing to the board.
 
-On ADO, export the destination from Phase 3.6 before the first call so every item lands in the right bucket — the adapter scripts read it from the environment, and a child does **not** inherit its parent's area path:
+Order of operations is fixed: **parent first, then stories in the approved order, then the edges, then
+the points.** Edges last, because they need the real IDs of both ends.
+
+On ADO, export the destination from Phase 3.6 before the first call so every item lands in the right
+bucket — the adapter scripts read it from the environment, and a child does **not** inherit its parent's
+area path:
 
 ```bash
 export ADO_AREA_PATH="<area from Phase 3.6>"
 export ADO_ITERATION_PATH="<iteration from Phase 3.6>"
 ```
 
+**The change ticket on every item.** Add the CC/SD number as a label/tag on the Feature and on every
+story (`CC-1234`); with none yet, the tag is `no-CC/SD` instead. On ADO, when the work item type has a
+`Change Ticket` field (Appendix B of the delivery process), set it too. Tags are what the release train
+and `work-feature` read, so the tag is never skipped.
+
 ### 6a — Create the parent feature
 
 Skip if `--parent <id>` was passed; use that ID as the parent instead.
 
-**One run creates exactly one parent.** If the work needs several parent headers, that is several runs
-— decompose the first, then re-run for the next group. Do not try to emit two parents from one run:
-the dependency graph in Phase 3.5 is built across the whole story set and assumes one root. This is a
-deliberate narrowing from the milestone-grouped decomposition Todoist users had before the merge, and
-it is a fair trade because ordering is now carried by real blocked-by edges rather than implied by
-which milestone bucket a story sat in — edges a scheduler can actually read, which bucket membership
-never was.
+**One pass creates exactly one parent.** If the work needs several parent headers (two Features from the
+8-story rule), create the first with its stories and edges, then the second — two passes of 6a–6c
+within the run, never one pass with two roots: the dependency graph in Phase 3.5 is built per Feature
+and assumes one root.
 
 **Every item gets a type, on every backend:** `TRACKER_ITEM_TYPE` is one of `Feature`, `Story`, `Bug`,
 `Task`, and each adapter stores it its own way (a `type:` field, a `type:<x>` label, or ADO's work item
-type). It is how `/implement` tells a Feature from a story or a bug, so never leave it off. It is an env
-var rather than a positional arg because arg4 is the milestone slot in the GitHub adapter and the
-section slot in Todoist. On ADO, `Story` becomes `ADO_STORY_WORK_ITEM_TYPE` (set it from
-`ado_story_work_item_type` in `tasks/tracker-config.md`: `User Story` on Agile, `Product Backlog Item`
-on Scrum); `ADO_WORK_ITEM_TYPE` still overrides with a native type if you need one.
+type). It is how the build skill tells a Feature from a story or a bug, so never leave it off. It is an
+env var rather than a positional arg because arg4 is the milestone slot in the GitHub adapter and the
+section slot in Todoist. On ADO, `Story` becomes `ADO_STORY_WORK_ITEM_TYPE` (set it from `story_type`
+in the settings, else `ado_story_work_item_type` in `tasks/tracker-config.md`: `User Story` on Agile,
+`Product Backlog Item` on Scrum); `ADO_WORK_ITEM_TYPE` still overrides with a native type if you need
+one.
 
 The parent feature is also the one item created **uncompletable** (Phase 0): it is a header for the
 stories beneath it, and completing it would mean claiming the whole feature is done. Backends without
@@ -498,12 +711,12 @@ the concept ignore the variable, so it is set unconditionally.
 ```bash
 # ado / github / local
 TRACKER_ITEM_TYPE=Feature TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
-  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium"
+  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium,<CC-1234 | no-CC/SD>"
 
 # todoist — arg4 is the SECTION and arg5 the PROJECT, both from Phase 3.6, so the
 # feature lands where the user confirmed and not wherever the adapter's config points
 TRACKER_ITEM_TYPE=Feature TRACKER_UNCOMPLETABLE=1 TRACKER_PRIORITY=p1 \
-  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium" "<section>" "<project>"
+  bash trackers/active/create-issue.sh "<feature title>" "<feature description>" "priority:medium,<CC-1234 | no-CC/SD>" "<section>" "<project>"
 ```
 
 Feature body format — the Demo is required:
@@ -516,28 +729,38 @@ Feature body format — the Demo is required:
 Seen through: <kinds>
 1. <where you look, and what you see>
 
+## Change ticket
+<CC-1234 — or: None yet. This can't be released until one is added.>
+
+## PRD
+<path or link of the PRD this came from — omit the section when there was none>
+
 ## Source
-- <§ references to the source artifacts>
+- <§ references to the input>
 ```
 
-A standalone item (`--standalone`, see Phase 3) is created the same way with
-`TRACKER_ITEM_TYPE=Bug` or `TRACKER_ITEM_TYPE=Story` and no `TRACKER_UNCOMPLETABLE`, and its body uses
-the story format below plus the `## Demo` section.
+A standalone item (`--standalone`, see Phase 3) is created the same way with `TRACKER_ITEM_TYPE=Bug`
+or `TRACKER_ITEM_TYPE=Story` and no `TRACKER_UNCOMPLETABLE`, and its body uses the story format below
+plus the `## Demo` section.
 
-Parse the printed ID and hold it as `PARENT_ID`. If the parent fails to create, **halt** — do not create orphan stories.
+Parse the printed ID and hold it as `PARENT_ID`. If the parent fails to create, **halt** — do not create
+orphan stories.
 
 For an adapter with no hierarchy capability (Phase 0 probe), skip this step and create stories flat.
 
 ### 6b — Create story issues
 
-Create the stories **in the approved order** — on a board that sorts unranked items by id, that order is the run order, and creating them out of sequence silently changes which one a scheduler starts first.
+Create the stories **in the approved order** — on a board that sorts unranked items by id, that order is
+the run order, and creating them out of sequence silently changes which one a scheduler starts first.
 
-Where the hierarchy capability exists, create each story as a child of the parent. Every adapter's child type defaults to `Task`, which is the wrong level for a story — set `TRACKER_ITEM_TYPE=Story` on **each** call (on ADO it becomes your process's story type, see above):
+Where the hierarchy capability exists, create each story as a child of the parent. Every adapter's child
+type defaults to `Task`, which is the wrong level for a story — set `TRACKER_ITEM_TYPE=Story` on **each**
+call (on ADO it becomes your process's story type, see above):
 
 ```bash
 # every backend
 TRACKER_ITEM_TYPE=Story TRACKER_PRIORITY=<p1-p4> \
-  bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>"
+  bash trackers/active/create-sub-issue.sh "$PARENT_ID" "<title>" "<body>" "priority:medium,<risk-labels>,<CC-1234 | no-CC/SD>,<QAble | Not QAble>"
 ```
 
 Set it per call, never `export` it once for the run: the parent was a `Feature`, and a type left in the
@@ -546,7 +769,8 @@ environment would follow the wrong item.
 `TRACKER_PRIORITY` carries **that story's** value from the Phase 3 mapping — it changes per call. A
 subtask inherits its parent's project and section on Todoist, so no destination args are needed here.
 
-Every adapter prints `{"parent": N, "child": N, "url": "..."}` — parse `.child` and record it against the story's number from the Phase 4 table. You need that map for 6c.
+Every adapter prints `{"parent": N, "child": N, "url": "..."}` — parse `.child` and record it against
+the story's number from the Phase 4 table. You need that map for 6c.
 
 Without the hierarchy capability, call `create-issue.sh` in the form that matches the backend:
 
@@ -560,7 +784,9 @@ TRACKER_ITEM_TYPE=Story \
 TRACKER_ITEM_TYPE=Story \
   bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>"
 ```
-- **todoist** — 5-arg form, where **arg4 is the SECTION and arg5 is the PROJECT** (not milestone/project as on GitHub). Pass the Phase 3.6 values; never forward a milestone name into arg4, which would silently mis-file the task into a section that does not exist:
+- **todoist** — 5-arg form, where **arg4 is the SECTION and arg5 is the PROJECT** (not milestone/project
+  as on GitHub). Pass the Phase 3.6 values; never forward a milestone name into arg4, which would
+  silently mis-file the task into a section that does not exist:
 ```bash
 TRACKER_ITEM_TYPE=Story TRACKER_PRIORITY=<p1-p4> \
   bash trackers/active/create-issue.sh "<title>" "<body>" "priority:medium,<risk-labels>" "<section>" "<project>"
@@ -569,18 +795,27 @@ TRACKER_ITEM_TYPE=Story TRACKER_PRIORITY=<p1-p4> \
 Story body format:
 ```markdown
 ## What this delivers
-<1–2 sentence description>
+<the story body: user-story sentence or capability statement>
+
+## Acceptance criteria
+<QAble stories only — the template's numbered, tagged criteria:>
+- [UI] **AC1:** Given <context>, when <action>, then <outcome>
+- [API] **AC2:** Given ...
+
+## Technical requirements
+<files, classes, tables, endpoints, type of change — confirmed in the code; open points named>
+
+## Points
+<1 | 2 | 3 | 5 — with "Why 5: <reason>" when it is 5>
+
+## Change ticket
+<CC-1234 — or: None yet.>
 
 ## Source
-- Artifact: <§ reference to source artifact and section>
+- <§ reference to the input>
 
 ## Risk flags
 <comma-separated flags, or "none">
-
-## Acceptance criteria
-- Given <context>, when <action>, then <outcome>
-- Given ...
-- Given ...
 
 ## Breakdown
 <the 2–5 implementation steps — included here instead of as child items whenever --with-tasks
@@ -589,16 +824,18 @@ was not honored; omit this section if --with-tasks ran and real child items were
 ## Blocked by
 <"nothing" — or the blocker list; see 6c. Where the adapter writes a native link this section is a
 human-readable mirror of the real link, so keep both in step.>
-
-## Technical notes
-<any relevant constraints from research.md or ARCHITECTURE.md>
 ```
+
+On ADO, a story's acceptance criteria also go into the work item's own Acceptance Criteria field when
+the type has one (`references/ado-commands.md`) — the build skills read them there.
 
 Report where each task landed by parsing the adapter's stdout, per backend:
 - **github / todoist / ado** — the adapter prints a URL; print the number/id + URL.
-- **local** — `create-issue.sh` prints `<id> <path>` (e.g. `7 tasks/issues/7.md`); print `task #<id> -> tasks/issues/<id>.md`.
+- **local** — `create-issue.sh` prints `<id> <path>` (e.g. `7 tasks/issues/7.md`); print
+  `task #<id> -> tasks/issues/<id>.md`.
 
-If creation fails, print the error and continue — but record which story numbers are missing, because their edges cannot be written in 6c.
+If creation fails, print the error and continue — but record which story numbers are missing, because
+their edges cannot be written in 6c.
 
 ### 6c — Write the dependency edges
 
@@ -610,17 +847,34 @@ Now that every story has a real ID, translate the approved edge list.
 bash trackers/active/add-blocker.sh <BLOCKED_ID> <BLOCKER_ID>
 ```
 
-Argument order is load-bearing and easy to get backwards: the **first** ID is the story that is blocked, the **second** is what it is waiting on. On ADO this writes the predecessor link on the blocked item, which is the direction a scheduler reads; reversed, it produces a valid link that means the opposite thing. Sanity-check against the Phase 4 "Blocked / Blocker" columns before running any of them.
+Argument order is load-bearing and easy to get backwards: the **first** ID is the story that is
+blocked, the **second** is what it is waiting on. On ADO this writes the predecessor link on the blocked
+item, which is the direction a scheduler reads; reversed, it produces a valid link that means the
+opposite thing. Sanity-check against the Phase 4 "Blocked / Blocker" columns before running any of them.
 
-The call is idempotent — re-running an existing edge exits 0 and reports "already blocked by". Verify the written graph with `get-blockers.sh <ID>` (returns a JSON array of blocker ids) on any story you want to double-check.
+The call is idempotent — re-running an existing edge exits 0 and reports "already blocked by". Verify
+the written graph with `get-blockers.sh <ID>` (returns a JSON array of blocker ids) on any story you
+want to double-check.
 
-Skip any edge whose either end failed to create, and report it as unwritten rather than silently dropping it.
+Skip any edge whose either end failed to create, and report it as unwritten rather than silently
+dropping it.
 
-**Where it does not exist**, do not discard the graph — write it as prose. Update each blocked story's body so its `## Blocked by` section names its blockers by their real IDs, and label it clearly in the Phase 7 summary as notes rather than machine-readable links. If a link script is added for that backend later, this skill starts writing real edges with no further change.
+**Where it does not exist**, do not discard the graph — write it as prose. Update each blocked story's
+body so its `## Blocked by` section names its blockers by their real IDs, and label it clearly in the
+Phase 7 summary as notes rather than machine-readable links. If a link script is added for that backend
+later, this skill starts writing real edges with no further change.
+
+### 6c2 — Points
+
+Set each story's points where the board keeps them: on ADO the `points_field` from the settings
+(`references/ado-commands.md`); elsewhere a `points:<n>` label (`add-label.sh`). The `## Points` section
+of the body carries the same number either way.
 
 ### 6d — Create child items for the breakdown (only if --with-tasks)
 
-Only runs when `--with-tasks` was passed **and** `feeds_agent_scheduler` is not `true` (see the Input section). Otherwise the breakdown went into each story's `## Breakdown` section and this phase is skipped.
+Only runs when `--with-tasks` was passed **and** `feeds_agent_scheduler` is not `true` (see the Input
+section). Otherwise the breakdown went into each story's `## Breakdown` section and this phase is
+skipped.
 
 For each story's breakdown steps:
 
@@ -648,21 +902,49 @@ bash trackers/active/add-to-project.sh <PROJECT_NUM> "<TASK_URL>"
 ```
 Do NOT call `add-to-project.sh` on any other backend — it exists only under `trackers/github/`.
 
+### 6e — Write the stories back into the feature file
+
+Only when the input was a feature file (`features/<id>.md`). Insert or replace its `## User Stories`
+section with the stories in the canonical block format of `references/story-template.md`, each with its
+`- **ADO:** #<id>` line, and the Feature's id as `ado-feature: <id>` in the file's frontmatter — the
+format `work-feature` parses. Keep every original section; a re-run replaces the section in place. The
+file is in git, so the change is reviewed like any other.
+
+## Phase 6S — Scrum Master mode: plan-<feature>.md instead of the board
+
+Only in `board_mode: scrum-master`. **This skill writes nothing to the board in this mode — not here,
+not anywhere.** Read `references/scrum-master-plan.md` now; it has the exact `plan-<feature>.md` layout.
+
+1. Write the feature-file stories (6e, without ids yet) when the input was a feature file, then
+   `plan-<feature>.md` at the repo root (a slug of the Feature's title, e.g. `plan-release-train-mine.md` —
+   never `plan.md`, which a repo may already use, and never over a file this skill did not write): every
+   Feature and story in creation order, with type, parent, area, iteration, points, tags (CC/SD, QAble),
+   description, acceptance criteria, technical requirements and links — self-contained, so the Scrum
+   Master needs nothing else.
+2. Stop with: **"This is the plan: `plan-<feature>.md`. Tell me when it has been created on the board and I'll
+   pick the ids up."**
+3. When told it was done, find each item **read-only** (`references/scrum-master-plan.md` has the
+   queries), write the ids into the feature file (6e) and report anything not found. A re-run later
+   resumes here.
+
 ## Phase 7 — Summary
 
-Repeat both graph views here with the **real IDs** — the Phase 4 versions used placeholder numbers, and this is the receipt showing what actually landed.
+Repeat both graph views here with the **real IDs** — the Phase 4 versions used placeholder numbers, and
+this is the receipt showing what actually landed.
 
 ~~~markdown
 ## Created
 
 **Feature:** #<PARENT_ID> — <title>   (or "attached to existing #N")
 **Destination:** <iteration> / <area>
+**Change ticket:** <CC-1234 | none yet — tagged no-CC/SD, asked again next run>
+**Points:** <total> across <n> stories
 
 **Stories:**
-| # | Issue | Title | Labels | Blocked by |
-|---|-------|-------|--------|------------|
-| 1 | #N | ... | priority:medium | — |
-| 2 | #N | ... | priority:medium, risk:security | #N |
+| # | Issue | Title | Points | Labels | Blocked by |
+|---|-------|-------|--------|--------|------------|
+| 1 | #N | ... | 2 | priority:medium | — |
+| 2 | #N | ... | 3 | priority:medium, risk:security | #N |
 
 **Tree:**
 ```
@@ -684,34 +966,62 @@ flowchart LR
 **Dependency links:** <N> written as <edge kind> · <N> written as text notes only
 **Parallelism:** #<id> and #<id> can run at the same time; #<id> waits on both.
 
-**Next step:** Run `/implement #<first-story-id>` to start building the first story.
+**Next step:** Run `/implement #<feature-id>` (or `/work-feature <feature-id>`) to build it.
 ~~~
 
-**Be explicit about what kind of edge was actually written** — this is the one line a reader must not have to guess at. Use the Phase 0 table:
+**Be explicit about what kind of edge was actually written** — this is the one line a reader must not
+have to guess at. Use the Phase 0 table:
 
 - **ado** — *"8 native ADO predecessor links."* A scheduler reading the board sees these directly.
-- **github / todoist** — *"8 `Blocked by:` lines written into the item bodies, readable via `get-blockers.sh`. A scheduler that reads the board natively rather than through the adapter will treat all stories as independent."*
+- **github / todoist** — *"8 `Blocked by:` lines written into the item bodies, readable via
+  `get-blockers.sh`. A scheduler that reads the board natively rather than through the adapter will
+  treat all stories as independent."*
 - **local** — *"8 edges written to the `blocked_by` frontmatter list, readable via `get-blockers.sh`."*
-- **No link script at all** — *"This adapter has no `add-blocker.sh`, so the N edges were written into the story bodies as prose `Blocked by` notes and nothing can read them back."* Never let a prose edge be mistaken for a real one.
-- **Anything unwritten** — list every edge skipped because an end failed to create, so it can be added by hand.
+- **No link script at all** — *"This adapter has no `add-blocker.sh`, so the N edges were written into
+  the story bodies as prose `Blocked by` notes and nothing can read them back."* Never let a prose edge
+  be mistaken for a real one.
+- **Anything unwritten** — list every edge skipped because an end failed to create, so it can be added
+  by hand.
 
 Then match the rest of the summary to where items actually landed:
-- **ado** — `#N` + the work item URL; next step `/implement #<n>`. Include the Feature and Destination rows; omit the GitHub milestone/project/label rows (Phase 5 was skipped).
-- **github** — `Issue #N` + URL; next step `/implement #<n>`. Add the infrastructure rows that apply: milestone (N stories assigned), project, labels created/updated.
-- **local** — `task #<id> (tasks/issues/<id>.md)`; next step `/implement #<id>`. Mark milestone/project/label rows "n/a for local backend".
-- **todoist** — task URL/title, plus the project and section they landed in and each item's `p1`–`p4` priority; note that the parent feature was created uncompletable. Next step `/implement "<title>"`. Omit the GitHub milestone/project/label rows (5a–5c were skipped).
+- **ado** — `#N` + the work item URL. Include the Feature and Destination rows; omit the GitHub
+  milestone/project/label rows (Phase 5 was skipped).
+- **github** — `Issue #N` + URL. Add the infrastructure rows that apply: milestone (N stories assigned),
+  project, labels created/updated.
+- **local** — `task #<id> (tasks/issues/<id>.md)`. Mark milestone/project/label rows "n/a for local
+  backend".
+- **todoist** — task URL/title, plus the project and section they landed in and each item's `p1`–`p4`
+  priority; note that the parent feature was created uncompletable. Next step `/implement "<title>"`.
+  Omit the GitHub milestone/project/label rows (5a–5c were skipped).
+- **scrum-master mode** — `plan-<feature>.md` written, then the ids found (or not found) after the Scrum Master
+  created them.
 
-If `--with-tasks` was honored, note how many child items were created per story; if it was refused, say so and point at the `## Breakdown` sections.
+If `--with-tasks` was honored, note how many child items were created per story; if it was refused, say
+so and point at the `## Breakdown` sections.
 
 ## Constraints
 
-- Additive only — creates issues and links, never modifies or deletes existing ones (except adding to milestone/project, and setting the parent/blocked-by links on items it created itself)
-- About 8 stories per Feature is a soft limit — above it, Phase 4 suggests two Features, each with its own Demo, and proceeds only if the user keeps one
-- Every Feature and every standalone item has a `## Demo`; no Demo with a visible result means nothing is created (Phase 3.7)
-- `--standalone` creates exactly one parentless item; without it, even a single story gets a parent Feature
-- **Dependency order is a real graph, not story numbering.** Numbering (creation order) decides which of several *ready* stories runs first; the blocked-by links decide what is ready at all. Both are needed.
-- **Never write a cycle.** The cycle check in Phase 3.5 is a hard gate — a downstream scheduler is likely to fail open and silently ignore the ordering instead of complaining.
+- Additive only — creates issues and links, never modifies or deletes existing ones (except adding to
+  milestone/project, setting the parent/blocked-by links and points on items it created itself, and
+  filling in a CC/SD number the person gave in Phase 0.6)
+- **At most 8 stories per Feature** — more is two Features, each with its own Demo
+- **Points 1, 2 or 3**; 5 only with a written reason; never 8 or more (split)
+- **Every Feature and story has a CC/SD number**, or the `no-CC/SD` tag and a question on every run until
+  it has one
+- Every Feature and every standalone item has a `## Demo`; no Demo with a visible result means nothing
+  is created (Phase 3.7)
+- `--standalone` creates exactly one parentless item; without it, even a single story gets a parent
+  Feature
+- **Nothing is created before the one approval** (Phase 4), whoever called the skill
+- `board_mode: scrum-master` writes nothing to the board, ever — only `plan-<feature>.md` and read-only lookups
+- **Dependency order is a real graph, not story numbering.** Numbering (creation order) decides which of
+  several *ready* stories runs first; the blocked-by links decide what is ready at all. Both are needed.
+- **Never write a cycle.** The cycle check in Phase 3.5 is a hard gate — a downstream scheduler is likely
+  to fail open and silently ignore the ordering instead of complaining.
 - **Never use a "related"-style link as a blocker**, and never write cross-project edges.
 - Works on personal GitHub plans — no org features required
-- **Never branch the create-time env overrides on the backend name.** Set `TRACKER_PRIORITY` (and `TRACKER_UNCOMPLETABLE` on the parent) on every call; adapters that lack the concept ignore them, and a bad `TRACKER_PRIORITY` fails loudly rather than being silently dropped
-- Child items for the breakdown are optional via `--with-tasks`, and refused when `feeds_agent_scheduler = true` — by default the breakdown lives in the story body
+- **Never branch the create-time env overrides on the backend name.** Set `TRACKER_PRIORITY` (and
+  `TRACKER_UNCOMPLETABLE` on the parent) on every call; adapters that lack the concept ignore them, and
+  a bad `TRACKER_PRIORITY` fails loudly rather than being silently dropped
+- Child items for the breakdown are optional via `--with-tasks`, and refused when
+  `feeds_agent_scheduler = true` — by default the breakdown lives in the story body

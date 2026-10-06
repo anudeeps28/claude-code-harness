@@ -23,8 +23,9 @@ const ENTERPRISE_ONLY_AGENTS = [
 
 const ENTERPRISE_ONLY_SKILLS = ['sprint-plan'];
 
-// Retired by F7 #64: installed by no pack, removed by an upgrade.
-const RETIRED_SKILLS = ['story', 'run-tasks'];
+// Retired by F7 #64 (and /to-issues on 2026-10-06, replaced by /plan-features): installed by no
+// pack, removed by an upgrade.
+const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues'];
 const RETIRED_AGENTS = ['story-plan-agent.md'];
 
 // Agents that /implement (in both packs) spawns by name. Skipping
@@ -476,8 +477,10 @@ test('update removes the retired skills and agent from an old install of either 
       const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
       for (const s of RETIRED_SKILLS) assert.ok(!skills.includes(s), `${pack}: update must remove /${s}`);
       for (const a of RETIRED_AGENTS) assert.ok(!agents.includes(a), `${pack}: update must remove ${a}`);
-      assert.match(out, /Retired: removed \/story, \/run-tasks, story-plan-agent/, `${pack}: the person is told`);
+      assert.match(out, /Retired: removed \/story, \/run-tasks, \/to-issues, story-plan-agent/, `${pack}: the person is told`);
+      assert.match(out, /\/to-issues → \/plan-features/, `${pack}: and what replaced each`);
       assert.ok(skills.includes('implement'), `${pack}: /implement stays`);
+      assert.ok(skills.includes('plan-features'), `${pack}: /plan-features replaces /to-issues`);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

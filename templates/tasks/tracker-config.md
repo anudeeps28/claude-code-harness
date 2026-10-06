@@ -16,7 +16,7 @@
 feeds_agent_scheduler = false
 ```
 
-Set to `true` if an agent scheduler picks work straight off this board. `/to-issues` then refuses
+Set to `true` if an agent scheduler picks work straight off this board. `/plan-features` then refuses
 `--with-tasks` and stops at feature → story, because a scheduler with no work-item-type filter would
 try to launch an agent session for every child task too. The breakdown goes into each story body's
 `## Breakdown` section instead, and `/implement` produces the real task plan at build time.
@@ -28,7 +28,7 @@ ado_area_path =
 ado_iteration_path =
 ```
 
-Default destination for work items created by `/to-issues` (it still asks before writing). Without an
+Default destination for work items created by `/plan-features` (it still asks before writing). Without an
 area and iteration, ADO drops new items at the project root — created successfully but invisible in
 the team's filtered board views. The adapters read these as the `ADO_AREA_PATH` / `ADO_ITERATION_PATH`
 env vars. Use the project's own path separator, e.g. `Developer Playground\SDLC Harness`.
