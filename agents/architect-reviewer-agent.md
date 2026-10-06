@@ -19,6 +19,7 @@ You receive:
 - **Story ID or branch name** — identifies the work to review
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Architecture path** (optional) — path to ARCHITECTURE.md. If not provided, search common locations.
+- **Scripts folder** (optional) — `<skill-dir>/bin` of `/implement`, for `migration-check.js`. Without it, do Step 5c by hand.
 
 ---
 
@@ -137,6 +138,36 @@ If the architecture identifies regulated data (PHI/PII), check:
 - Does the change write to a data store owned by another service/module?
 - Does it bypass documented data access patterns (e.g., writing directly instead of through an API)?
 
+### 5c — Does it work on a database that already exists?
+
+CI starts from an empty database, so it cannot see this, and the first deploy can. For every new
+migration or seed file on the branch:
+
+1. **Find the ledger from the repo, never assume one.** EF Core, Flyway, Liquibase, Alembic, Prisma,
+   Rails, Knex, Django and plain SQL folders all name and order migrations differently. Look at the
+   folder the new file sits in on `<base>`, and at the migrator's config if there is one.
+2. **Its name must sort after the last one every environment has already applied**, or the migrator
+   refuses the gap or skips the file for good. Run:
+
+   ```bash
+   node "<scripts folder>/migration-check.js" --base <base> --path "<work folder>"
+   ```
+
+   `misordered:` lines are BLOCK findings — name both files. `unchecked:` means the ledger orders by
+   something other than the name (Alembic's `down_revision` chain, a Liquibase changelog): follow that
+   chain in the files yourself and report what you found. Migrations already on `<base>` that the
+   branch edits or renames are a BLOCK too: environments that ran them will never run the new version.
+3. **It must not assume data a real database does not have, or lacks data a real one has.** Read each
+   new seed and data migration: an `INSERT` that collides with a row production already holds, an
+   `UPDATE ... WHERE id = 1` that relies on an empty table's ids, a `NOT NULL` column added with no
+   default to a table that has rows, a lookup that expects a row only a fresh database gets. Each is a
+   BLOCK, with the line and the real-database case that breaks it.
+4. **Migrate forward where the project can.** If the lessons/notes file (in the state folder) has a
+   `Migrate forward:` command under its test commands — one that stands up a database at `main` and
+   applies this branch's migrations — run it from the work folder and report pass or fail with its last
+   lines. Otherwise say plainly: "could not migrate forward: no `Migrate forward:` command in
+   lessons/notes". Never point it at a shared or production database.
+
 ---
 
 ## Step 6 — Output the report
@@ -165,8 +196,16 @@ Output in this exact format:
 | 3 | NFR compliance | [file:line] | BLOCK / ADVISORY | [description] | [NFR from architecture/PRD] |
 | 4 | Data-flow integrity | [file:line] | BLOCK / ADVISORY | [description] | [data flow section] |
 
+#### Existing database
+
+| # | File | Check | Result | Detail |
+|---|---|---|---|---|
+| 1 | [migration or seed file] | order / assumed data / forward migration | OK / BLOCK / UNCHECKED | [the file it sorts before, the row it assumes, or the migrate-forward result] |
+
+Forward migration: [ran `<command>`: pass / fail] or [could not migrate forward: <why>]
+
 **Severity guide:**
-- **BLOCK** — architectural violation that should be fixed before merge (boundary violation, ADR contradiction, regulated data mishandling)
+- **BLOCK** — architectural violation that should be fixed before merge (boundary violation, ADR contradiction, regulated data mishandling, a migration that sorts before an applied one or assumes data a real database lacks)
 - **ADVISORY** — potential concern worth discussing (undocumented extension, borderline performance pattern, missing doc update)
 
 ---
@@ -187,5 +226,6 @@ Output in this exact format:
 - **Never overlap with the evaluator.** You don't check build, tests, code quality, or test coverage. Those are the evaluator's job.
 - **Never overlap with the security-reviewer.** You don't check OWASP, secret handling, or auth patterns in detail. You only flag data-flow integrity from the architecture perspective.
 - Be specific: cite the architecture document and section for every finding.
-- If no architecture artifacts exist, say so and output an empty report — don't invent architecture constraints.
+- If no architecture artifacts exist, say so and output an empty report — don't invent architecture constraints. The existing-database check (Step 5c) still runs: it needs no architecture document.
+- Never run a migration against a shared or production database; forward migration only ever uses the throwaway database the lessons/notes command stands up.
 - No commentary outside the structured report.

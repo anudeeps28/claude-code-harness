@@ -15,6 +15,10 @@
 //       git worktree remove, then git branch -d (checked against the Feature branch). Both refuse
 //       rather than lose work: uncommitted changes, or a story not merged into the Feature.
 //   check-branch --path <p> --expect <b>
+//   scratch --home <dir> --path <p> --from <ref>
+//       Prove it's scratch copy: a detached worktree at <ref> (no branch). Refuses an existing path.
+//   remove-scratch --home <dir> --path <p>
+//       Removes it only when it is detached and clean: a broken line not put back is refused (exit 1).
 //
 // Output and exit codes:
 //   0 ok ("merged <sha>" after a merge)        3 "conflict: <file>" lines, merge aborted
@@ -121,6 +125,31 @@ function cmdMerge(o) {
   return 0;
 }
 
+// Prove it's scratch copy (F6 #60): a detached worktree at the Feature branch's commit, so a broken
+// line or a tool's output never touches the Feature worktree and no branch is created.
+function cmdScratch(o) {
+  if (fs.existsSync(o.path)) die(1, `${o.path} already exists; remove it with remove-scratch first (nothing was changed)`);
+  must(git(o.home, ['worktree', 'add', '--detach', o.path, o.from]), 'git worktree add --detach');
+  out(`created scratch ${o.path} at ${git(o.path, ['rev-parse', 'HEAD']).out}`);
+  return 0;
+}
+
+// Removed only when it is clean, which is the check that every broken line was put back. Output a
+// tool made is committed on the detached HEAD first (never pushed, no branch: git collects it later).
+function cmdRemoveScratch(o) {
+  if (!isWorktreeRoot(o.path)) die(1, `${o.path} is not a git worktree; nothing was changed`);
+  if (currentBranch(o.path) !== '') die(1, `${o.path} is on a branch, so it is not a scratch copy; nothing was changed`);
+  const dirty = git(o.path, ['status', '--porcelain']).out;
+  if (dirty) {
+    out('not-clean: the scratch copy still has changes; put each broken line back (or commit tool output there) first:');
+    for (const l of dirty.split('\n')) out(`  ${l}`);
+    return 1;
+  }
+  must(git(o.home, ['worktree', 'remove', o.path]), 'git worktree remove');
+  out(`removed scratch ${o.path}`);
+  return 0;
+}
+
 function cmdRemove(o) {
   must(git(o.home, ['worktree', 'remove', o.path]), 'git worktree remove');
   // From the Feature worktree, so "-d" checks the story is merged into the Feature branch (from home
@@ -136,11 +165,13 @@ const NEEDS = {
   merge: ['feature-worktree', 'branch', 'expect', 'test', 'message'],
   remove: ['home', 'feature-worktree', 'path', 'branch'],
   'check-branch': ['path', 'expect'],
+  scratch: ['home', 'path', 'from'],
+  'remove-scratch': ['home', 'path'],
 };
 
 function main() {
   const [command, ...rest] = process.argv.slice(2);
-  if (!NEEDS[command]) die(2, 'usage: worktree.js feature|story|merge|remove|check-branch ... (see the header of this file)');
+  if (!NEEDS[command]) die(2, 'usage: worktree.js feature|story|merge|remove|check-branch|scratch|remove-scratch ... (see the header of this file)');
   const o = {};
   for (let i = 0; i < rest.length; i += 2) {
     if (!rest[i].startsWith('--') || rest[i + 1] === undefined) die(2, `bad argument: ${rest[i]}`);
@@ -151,6 +182,7 @@ function main() {
   const commands = {
     feature: cmdFeature, story: cmdStory, merge: cmdMerge, remove: cmdRemove,
     'check-branch': (x) => (branchMoved(x.path, x.expect) ? 5 : 0),
+    scratch: cmdScratch, 'remove-scratch': cmdRemoveScratch,
   };
   process.exit(commands[command](o));
 }

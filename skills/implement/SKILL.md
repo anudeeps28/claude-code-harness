@@ -274,6 +274,7 @@ names an agent or adapter script that is not listed here. Format: `- <kind> \`<n
 - agent `security-reviewer-agent` — Phase 3 review · build
 - agent `story-pr-agent` — Phase 3 PR · build
 - agent `story-runner-agent` — Feature mode, each story · build
+- agent `loosened-reviewer-agent` — Feature mode, the Feature panel · build
 - skill `local-test` — Phase 2.5 · build
 - skill `debug` — the 3-attempt rule · both
 - skill `troubleshoot` — Phase 3 e2e gate · build
@@ -563,8 +564,9 @@ per the 3-failed-attempts pause-anyway trigger — the same rule the rest of thi
 ## Feature mode
 
 `/implement <feature-id>` builds a whole Feature: one plan approval, a Feature worktree, each story in
-its own worktree by a `story-runner-agent`, each merge tested before it is committed, and one PR from
-the Feature branch to main (ARCHITECTURE.md §1, ADR-0001 to ADR-0004). **Independent stories run at
+its own worktree by a `story-runner-agent`, each merge tested before it is committed, one full review
+panel and Prove it on the whole Feature branch, and one PR from the Feature branch to main, opened only
+when every criterion passes the PR gate (ARCHITECTURE.md §1, ADR-0001 to ADR-0004). **Independent stories run at
 the same time**, up to `max-parallel-stories` and never over Claude Code's limit of 20 agents at once
 (ARCHITECTURE.md §5); merges stay one at a time.
 
@@ -658,7 +660,7 @@ node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-work
      limit on agents running at once. A story that would go over waits and starts when one finishes;
      approved plans are never re-split to make it fit;
    - `wait` → stories are running and nothing else can start: wait for a runner to report;
-   - `done` → every story has merged: go to **The Feature's PR**;
+   - `done` → every story has merged: go to **The Feature panel**;
    - `held: ...` → a story is stuck and nothing else can run: go to **Stuck stories**.
 2. **Create its worktree from the Feature branch**, which already holds every story merged so far:
 
@@ -754,20 +756,172 @@ worktree is there, restart its runner from its saved `executor-state.md`; if not
 worktree from the Feature branch first), `stuck` (held until a person acts), `pending`; then what runs
 next. A merge that was half done when the session died (`MERGE_HEAD` present) is aborted and redone by
 the next `worktree.js merge` on its own. No saved state means a stop, never a fresh run. Print
-`event=run-resumed` and carry on with **Run the stories**.
+`event=run-resumed` and carry on with **Run the stories**. When every story has already merged, carry
+on from the Feature's saved `phase`: `reviewing` → **The Feature panel** (re-run it whole: a panel
+interrupted part-way is never trusted), `testing` → **Prove it**, `shipping` → **The Feature's PR**.
+
+### The Feature panel
+
+The one full review, run once on the whole Feature branch after every story has merged
+(ARCHITECTURE.md §1). The per-story light review stays in each runner; this is where the defects
+*between* stories are caught. From Hydra's work-feature Phase 6.
+
+1. **The Feature's checks first.** In the Feature worktree run the full build and tests, then
+   `/local-test e2e` for the Feature's Demo (NOT SET UP is red). Red goes through the fix loop (step 6)
+   before any reviewer starts: a panel on a red branch reviews code that is about to change.
+2. **Commit first, then leave the tree alone.** `git -C "<feature-worktree>" status --porcelain` must
+   be empty — the merges committed everything, and anything else there is not yours: **stop**
+   (contradiction). Record the commit the panel reads:
+   `feature-state.js set --feature <fid> phase=reviewing panel-head=<git -C "<feature-worktree>" rev-parse HEAD>`.
+   Write the Feature's phase marker (`phase: reviewing`, `feature: <fid>`) and print
+   `event=phase phase=reviewing`.
+3. **Start all five reviewers in one message, each in the foreground** — six calls, because the
+   evaluator runs twice. Every one gets: **work folder** = the Feature worktree; **state folder** =
+   `<state>`; **base ref** = `main` (they diff `main...feature/<fid>`); the Feature id; **scripts
+   folder** = `<skill-dir>/bin`; "Feature panel"; and its **model, passed explicitly** on the Agent
+   call — an answer that is a list goes on the faster model, an answer that is an argument never does:
+
+   | Agent | `model` | Also gets |
+   |---|---|---|
+   | `security-reviewer-agent` | `opus` | — (it runs the built-in `/security-review` from the Feature worktree) |
+   | `architect-reviewer-agent` | `opus` | — |
+   | `acceptance-test-agent` | `opus` | every merged story's `test-strategy.md` and `tasks/features/<fid>/test-strategy.md` (Feature-level and carried-over criteria) |
+   | `evaluator-agent`, part `list` | `sonnet` | `tasks/features/<fid>/plan.md` |
+   | `evaluator-agent`, part `made-false` | `opus` | — |
+   | `loosened-reviewer-agent` | `sonnet` | — |
+
+   Wait for every one (`rules/background-work.md`). **No file in the Feature worktree changes until the
+   last has returned**: queue every fix and apply none while a reviewer is still reading, because a
+   reviewer that reads a file twice and gets two versions reports against code that no longer exists.
+   When they are all back, `rev-parse HEAD` must still equal `panel-head` and the status must still be
+   empty; if not, something wrote during the reviews: **stop** (contradiction).
+4. **Save the reports** to `tasks/features/<fid>/review/` (`security.md`, `architecture.md`,
+   `acceptance.md`, `evaluator-list.md`, `evaluator-made-false.md`, `loosened.md`) and print one
+   `event=review-done` line per report with its finding count.
+5. **Judge every finding against the criteria.** The criteria are the scope.
+   - **In scope — fix it here:** the branch fails a criterion, breaks something that worked, or does
+     something bad of its own: a security hole, a bug, a test that can lie, a claim with nothing behind
+     it, a relaxed check with no reason, a migration that breaks an existing database.
+   - **Asks for more than the criteria** (a case they do not name, wider reach, extra hardening): not
+     built here. Register it as a follow-up Feature
+     (`TRACKER_ITEM_TYPE=Feature bash .claude/trackers/active/create-issue.sh ...`) and link it in the
+     PR's Review section. This Feature is still done when its criteria are.
+   - **Two reviewers that found the same thing independently** ran without seeing each other: weight
+     it up — fix it, whatever label each gave it.
+   - Before skipping anything, the ship test (`rules/deferrals.md`).
+
+   **When a finding is not yours to fix:** a finding that is **security-relevant or architectural**
+   *and* whose fix needs a migration, changes a contract another product uses, or has **two defensible
+   forms** with materially different blast radius goes to the person. Verify its premises in the code
+   first — a review can be wrong. Then ask, as the choice it is: each option with what it touches and
+   what it costs, deferring as one of the options with what it leaves open, and what you would do and
+   why. This **stops under `--autonomous` too**: it is a decision that is not ours. Apply the choice,
+   record it in `tasks/features/<fid>/decisions-log.md` and in the ADR it belongs to, and say so in
+   the PR.
+6. **The fix loop.** You never edit code yourself. Write the fixes as tasks in
+   `tasks/features/<fid>/fix-plan.md` (the same `<task>` XML), run them as `story-executor-agent`
+   waves in the Feature worktree under `rules/wave-execution.md` — **test-first when test-first mode
+   is on**: the failing test that reproduces the finding comes first. Then re-run the Feature's
+   integration and e2e suites, and commit the fixes on their own:
+   `refactor: address review findings for Feature #<fid>`, never folded into a story's commit.
+   **Re-review only what changed:** re-run, under the same rules (commit first, one message, hold
+   edits), only the reviewers whose areas the fixes touched — an endpoint, auth or config →
+   security; a migration, a boundary → architect; a test or a criterion → acceptance; any code →
+   evaluator `list`; a doc, comment or label → evaluator `made-false`; a skip, a gate or a baseline →
+   loosened. Repeat until no new in-scope finding. A third round that still finds new ones is the
+   3-attempt rule: stop and ask.
+
+### Prove it
+
+The panel asks whether the code is sound; this asks whether it does what the criteria say, **on the
+real system**. Run it after the panel's fixes are committed. From Hydra's work-feature Phase 6a.
+
+`feature-state.js set --feature <fid> phase=testing`, the Feature's phase marker `phase: testing`
+(detail `Prove it`), and `event=phase phase=testing`.
+
+1. **A scratch copy.** Prove it never touches the Feature worktree:
+
+   ```bash
+   node "<skill-dir>/bin/worktree.js" scratch --home "<home>" --path "<repo>-f<fid>-prove" --from "<feature-branch>"
+   ```
+
+   A detached copy at the Feature branch's commit — no branch is created.
+2. **Run each criterion's proof against the real system.** Every criterion: each merged story's
+   (`<sid>.<n>`, from its `test-strategy.md`) and the Feature's (`F.<n>`). Run its **Proof** from the
+   plan, seeing the result the way its **Seen by** line says, with the commands in the Observe section
+   of lessons/notes — start the app, the e2e command, the read-only API or database, the screenshot —
+   **test environment only**. Record **intended** (the criterion), **built** (what the branch changed
+   for it) and **observed** (what happened). A `sign-off` criterion is shown, not run: record the
+   evidence the person will need; it becomes `needs-person`.
+3. **If the Feature makes a tool** — a generator, scaffolder, migrator or script — run it once in the
+   scratch copy on a case the Feature did not build for (a made-up second product, a database already
+   at main), then build and test what it produced. Commit that output on the scratch copy's detached
+   commit (`git -C "<scratch>" add -A` and `git -C "<scratch>" commit -m "prove-it scratch"`): never
+   pushed, no branch, so the copy is clean again.
+4. **Break it once.** For each criterion's main test, in the scratch copy: change the **one line** that
+   makes the criterion true (with the Edit tool, not a script), run that test, and confirm it goes
+   **red**. Put the line back and confirm it is green again. A test that stays green when its line is
+   broken is **a proof that lies**: record `broke: green`.
+5. **Remove the scratch copy:**
+   `node "<skill-dir>/bin/worktree.js" remove-scratch --home "<home>" --path "<repo>-f<fid>-prove"`.
+   It refuses while any broken line is still there — that refusal is the clean-tree check. Never
+   forced; put the line back and run it again.
+6. **Write `tasks/features/<fid>/prove-it.md`:** per criterion, intended / built / observed and the
+   break result; then the gate list the PR gate reads, one line per criterion:
+
+   ```
+   ## Gate
+
+   - 201.1: met; broke: red — Orders_Total_AddsLines
+   - 201.2: not-met — the export has no header row
+   - 202.1: needs-person — finance signs off the wording
+   - F.1: deferred #88 — rounding on refunds, the user chose to defer
+   ```
+
+   **Shape only** (ARCHITECTURE.md §4): counts, ids, field names, status codes, pass/fail — never a
+   row's contents, a response body, a name or any personal or health data. Screenshots stay local and
+   are named, never pasted.
+7. **On a failure, diagnose from evidence.** Compare intended, built and observed; find the cause; fix
+   it through the fix loop (a lying test is fixed too, then broken again to prove the fix); and re-run
+   that criterion alone. **No blind re-runs.** Three evidence-based attempts that do not go green:
+   **stop** and put it to the person (`/debug` for a build or runtime failure).
+
+### The PR gate
+
+**No PR while any criterion is not met or partly met**, unless it is fixed and green, needs a person
+(its story stays `needs-person`), or the person chose to defer it and a tracker item for it exists and
+is linked from the PR. Write `tasks/features/<fid>/pr-body.md` (below) first, then:
+
+```bash
+node "<skill-dir>/bin/pr-gate.js" --feature <fid>
+```
+
+`gate: open` → **The Feature's PR**. `gate: closed` → no PR. Each `refused:` line names the criterion
+and why: fix it (the fix loop, then Prove it for that criterion), or, for a criterion that cannot be
+met in this Feature, **ask the person** whether to defer it. Only a person defers a criterion — it
+changes what the Feature delivers, so under `--autonomous` too this is a stop (scope change). On a
+yes: register it (`TRACKER_ITEM_TYPE=<Bug|Task> bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "deferred"`,
+`rules/deferrals.md`), write `deferred #<id>` on its gate line, link `#<id>` in the PR body, and run the
+gate again. The gate also refuses raw evidence in `prove-it.md` or `pr-body.md`, naming the line and
+the kind, never the value. A lying test, a claim with nothing behind it and a relaxed check with no
+reason are fixed before the PR, not listed.
 
 ### The Feature's PR
 
-When `next` prints `done`:
+When the gate is open (`feature-state.js set --feature <fid> phase=shipping`):
 
-1. Run the Feature's checks on the Feature worktree: the full build and tests, then `/local-test e2e`
-   for the Feature's Demo (NOT SET UP is red). The Feature-level review panel and Prove it come in a
-   later Feature (F6); until then the per-story light reviews are the review.
-2. **Build the PR body:** the Feature's summary and Demo, then
+1. The Feature's checks already ran in the panel (build, tests, `/local-test e2e`), and again after
+   every fix.
+2. **Build the PR body** (`tasks/features/<fid>/pr-body.md`, written before the gate): the Feature's
+   summary and Demo, then
    `node "<skill-dir>/bin/run-report.js" --feature <fid>` — the run report (time, attempts, findings,
    agents and tokens per story, and in total) and **"Decisions made on your behalf"**, combined from
-   every story's own `decisions-log.md`, each line prefixed with its story id — plus anything that
-   needs a person. No PHI in the body (ARCHITECTURE.md §4).
+   every story's own `decisions-log.md`, each line prefixed with its story id. Then a **Review**
+   section: one line per panel reviewer with its finding count, the findings fixed, any not fixed with
+   the reason, follow-up Features by id, and every person's choice; a **Prove it** section: per
+   criterion its status and break result, shape only; **"Costs money or changes operations"** from the
+   loosened review, in its plain words; and every deferral by its tracker id, and anything that needs
+   a person. No PHI in the body (ARCHITECTURE.md §4).
 3. **Push the Feature branch and open one PR:**
 
    ```bash
@@ -1321,6 +1475,9 @@ behind** in the working directory.
 - Check the Demo against Observe before Phase 1 (`bin/observe-check.js`): missing access or a prod environment stops the run, naming a credential's variable and never its value; a missing tool becomes a "Build the probe" task
 - The plan restates the Demo, more precise and never weaker, and decides a proof for every criterion before any code; `demo.js compare`, `proof-check.js` and `observe-check.js --plan` must pass before STOP 1
 - `/local-test e2e` reporting NOT SET UP is a red gate, never a skip
+- In Feature mode the full panel runs once, after every story has merged: five reviewers (six calls) in one message, each with its model passed explicitly, on `main...feature/<fid>`, with the tree committed first and left untouched until the last one returns; only the reviewers whose areas a fix touched are re-run
+- No Feature PR until `pr-gate.js` prints `gate: open`: every criterion met and its test turned red when its line was broken, or needs a person, or deferred by the person to a tracker item linked from the PR. Only a person defers a criterion, under `--autonomous` too
+- Prove it runs in a scratch copy (`worktree.js scratch`), never in the Feature worktree, and records evidence by shape only
 - Never chain phases — always wait for confirmation at each STOP — **unless `--autonomous`**, which auto-resolves every STOP via the self-answer rule (see **Autonomous mode**) and pauses only on a contradiction, an irreversible action, a scope change, or the 3-attempt rule
 - Never skip Phase 1 (understand) — the brief grounds planning in what the codebase actually looks like
 - Never skip Phase 1.5 (goal definition) — the goal is the input to planning and the terminal condition; the only way past the gate is the explicit "skip gate — no runtime impact" escape hatch

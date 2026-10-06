@@ -62,6 +62,7 @@ Options:
 - Setup: `<!-- command to start dependencies (e.g., docker compose up -d, or "not applicable") -->`
 - Integration tests: `<!-- your integration test command (e.g., npm run test:integration, pytest tests/integration/) -->`
 - Cleanup: `<!-- command to stop dependencies (e.g., docker compose down) -->`
+- Migrate forward: `<!-- stands up a throwaway database at main, then applies this branch's migrations; the architect reviewer runs it to check migrations work on a database that already exists. Never a shared database. Or "not applicable" -->`
 
 **Level 3 — Dev Server (for manual testing):**
 - Dev server: `<!-- command to start the app (e.g., npm run dev, go run ./cmd/server/, uvicorn main:app --reload) -->`
