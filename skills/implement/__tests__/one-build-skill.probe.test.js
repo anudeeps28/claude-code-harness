@@ -23,11 +23,10 @@ const RETIRED = /(?<![\w/])\/story(?![\w/-]| worktree| \d+ is)|\brun-tasks\b|sto
 
 // Files that may name them: history, the decision and its inventory, the installer code that removes
 // them and its tests, the one README line and the TROUBLESHOOTING note that say they were retired,
-// the phase-marker rule's back-compatibility line, the diagram awaiting a re-draw (#69), and the
-// probes that say what they replaced.
+// the phase-marker rule's back-compatibility line, and the probes that say what they replaced.
 const ALLOWED = [
   /^CHANGELOG\.md$/, /^grill-summary\.md$/, /^\.planning\//, /^ARCHITECTURE\.md$/, /^docs\/adr\//,
-  /^docs\/story-retirement-inventory\.md$/, /^docs\/diagrams\//,
+  /^docs\/story-retirement-inventory\.md$/,
   /^install\/lib\/updater\.js$/, /^install\/__tests__\//,
   /^README\.md$/, /^TROUBLESHOOTING\.md$/, /^rules\/phase-markers\.md$/,
   /^skills\/implement\/__tests__\/(tdd-mode|one-build-skill)\.probe\.test\.js$/,
@@ -119,6 +118,10 @@ test('Docs_AdrsAcceptedAndReadmeHasBothExamples', () => {
   const readme = read('README.md');
   mustMatch(readme, /\*\*Building a Feature\.\*\*/, 'README shows a Feature build');
   mustMatch(readme, /\*\*Building a standalone item\.\*\*/, 'README shows a standalone build');
+  // #69: the top diagram is Mermaid text, so it can be checked and kept current; it shows both builds.
+  const top = readme.slice(0, readme.indexOf('## Why this exists'));
+  mustMatch(top, /```mermaid[\s\S]*\/implement &lt;feature-id&gt;[\s\S]*\/implement #42 --standalone[\s\S]*```/, 'the top diagram shows the Feature and the standalone build');
+  assert.doesNotMatch(top, /harness-flow\.png/, 'the old PNG diagram is gone');
   mustMatch(read('CONFIGURE.md'), /## Building with `\/implement`/, 'CONFIGURE explains the build');
   mustMatch(read('ARCHITECTURE.md'), /## Appendix: What building it taught us/, 'ARCHITECTURE records what building taught us');
   assert.doesNotMatch(read('rules', 'progress-tracking.md'), /until F7 retires/, 'progress-tracking no longer waits on F7');
