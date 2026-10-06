@@ -110,6 +110,26 @@ Normal git/build/test commands. Nothing special. Notes:
 
 ---
 
+## Feature and story worktrees (`/implement` Feature mode)
+
+`/implement <feature-id>` creates worktrees itself, as part of the run, with no per-task confirmation:
+the person approved them when they approved the Feature plan (ADR-0002).
+
+- **Feature worktree:** `<repo>-f<fid>`, branch `feature/<fid>-<slug>`, from main. The home folder
+  stays on main.
+- **Story worktree:** `<repo>-f<fid>-s<sid>`, branch `story/<sid>-<slug>`, created from the Feature
+  branch only after every story it depends on has merged. Its gitignored config is copied and its
+  restore commands run from the **Worktree setup** section below.
+- After a story merges, its worktree is removed and its branch deleted with `git worktree remove` and
+  `git branch -d` — never forced. A stuck story's worktree and branch are kept as evidence.
+- State never lives in a worktree: every agent writes to the home folder's `tasks/` (its **state
+  folder**, ADR-0004).
+
+All are siblings of the home folder, never nested in it, and the session-start cleanup above applies to
+them like any other worktree.
+
+---
+
 ## Anti-Patterns — Don't Do These
 
 - **Don't copy build artefacts** (`bin/`, `obj/`, `node_modules/`, `target/`, `dist/`, virtualenvs, etc.) into a fresh worktree. Let build tools regenerate. Faster (global package caches handle the heavy lifting), and catches environment drift.

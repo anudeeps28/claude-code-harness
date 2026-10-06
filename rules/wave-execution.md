@@ -25,6 +25,21 @@ nothing to do with the code. Worktrees also stranded the failed agents' work in 
 The protection worktrees were meant to provide — two agents never clobbering the same file — is
 provided by the **pre-wave overlap check** below, which holds regardless of isolation.
 
+### Story worktrees are different, and allowed
+
+In `/implement`'s Feature mode each **story** runs in its own git worktree (ADR-0002), and that does
+not contradict the rule above. The difference is who creates the worktree and from what:
+
+| | Story worktree (allowed) | Wave isolation (still forbidden) |
+|---|---|---|
+| Created by | the orchestrator, with `git worktree add <path> -b story/<sid>-slug feature/<fid>-slug` | the agent tool's `isolation: "worktree"` |
+| Starts from | the Feature branch, after every story it depends on has merged | the default branch, committed state only |
+| Holds | one whole story; its waves share it | one task, cut off from its own wave's earlier work |
+| Ends | committed, then merged by the orchestrator after testing, then removed | stranded under `.claude/worktrees/` |
+
+Inside a story worktree everything in this file applies unchanged: that worktree is the "working
+directory" the wave agents share, and they are spawned with no isolation.
+
 ---
 
 ## Before each wave
@@ -142,8 +157,8 @@ are accurate.
 
 Surface it loudly, name the file, and **stop** — do not roll into the next wave. An undeclared edit
 may be a sibling agent's work being silently overwritten, and it will otherwise ship inside the story's
-diff unnoticed. Ignore paths that are gitignored, the story workspace (`tasks/stories/<id>/`), and
-`tasks/.verify.lock` — a leftover lock directory means an agent died mid-verify, which its own BLOCKED
+diff unnoticed. Ignore paths that are gitignored, the story workspace (`tasks/stories/<id>/`, which
+holds the verify lock), and `tasks/.verify.lock` under `verify-lock: global` — a leftover lock directory means an agent died mid-verify, which its own BLOCKED
 report already covers; `rmdir` it and carry on rather than reporting it as a stray edit.
 
 ### 2. Branch-drift check again

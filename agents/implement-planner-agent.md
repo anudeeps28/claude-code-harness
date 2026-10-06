@@ -23,6 +23,12 @@ You may **additionally** receive these optional context blocks in your prompt:
 
 If neither block is present, proceed exactly as before.
 
+**Your two folders** (ADR-0004). The invocation names a **work folder** (where the code is: read it,
+run git there; in a Feature run, the story's worktree) and a **state folder** (the home folder's
+`tasks/`, where the plan and test strategy are saved). If it names neither, both are the project root
+(`YOUR_PROJECT_ROOT` and its `tasks/`). Every `tasks/...` path below means `<state folder>/...`; the
+tracker scripts stay under `YOUR_PROJECT_ROOT/.claude/`.
+
 Read everything first. Plan second. Output last.
 
 ---
@@ -46,20 +52,20 @@ Use it directly as the task description. No tracker call needed.
 Based on the task description, find the relevant source files:
 
 ```bash
-cd YOUR_PROJECT_ROOT && git status && git log --oneline -5
+cd "<work folder>" && git status && git log --oneline -5
 ```
 
 Then Glob and Grep for files related to the task. Read ONLY the files that will be touched or that you need to understand to make changes. Don't read everything.
 
-Also read `YOUR_PROJECT_ROOT/tasks/notes.md` if it exists — it contains known fixes, conventions, and project decisions.
+Also read `<state folder>/notes.md` (or `<state folder>/lessons.md`) if it exists — it contains known fixes, conventions, and project decisions.
 
 ---
 
 ## Step 3 — Read project docs (if they exist)
 
-If a `YOUR_PROJECT_ROOT/docs/` folder exists, scan it for relevant documentation:
+If a `<work folder>/docs/` folder exists, scan it for relevant documentation:
 ```bash
-ls YOUR_PROJECT_ROOT/docs/ 2>/dev/null || echo "no docs folder"
+ls "<work folder>/docs/" 2>/dev/null || echo "no docs folder"
 ```
 
 Read only the docs relevant to this task (API reference for endpoint work, schema docs for database work, etc.). Skip this step if no docs folder exists.
@@ -71,7 +77,7 @@ Read only the docs relevant to this task (API reference for endpoint work, schem
 Check if a research cache exists for this task:
 
 ```bash
-ls "YOUR_PROJECT_ROOT/tasks/stories/<id>/research.md" 2>/dev/null || ls "YOUR_PROJECT_ROOT/research.md" 2>/dev/null || echo "no research cache"
+ls "<state folder>/stories/<id>/research.md" 2>/dev/null || ls "<work folder>/research.md" 2>/dev/null || echo "no research cache"
 ```
 
 If found, read it. Use it as authoritative context for external APIs, integrations, or libraries referenced by the task. Pay special attention to:
@@ -88,7 +94,7 @@ If not found, skip silently.
 Check if a Decision Brief exists that relates to this task:
 
 ```bash
-ls "YOUR_PROJECT_ROOT/tasks/stories/<id>/decision-brief.md" 2>/dev/null || ls "YOUR_PROJECT_ROOT/decision-brief.md" 2>/dev/null || echo "no decision brief"
+ls "<state folder>/stories/<id>/decision-brief.md" 2>/dev/null || ls "<work folder>/decision-brief.md" 2>/dev/null || echo "no decision brief"
 ```
 
 If found, read it and extract **Dealbreaker** assumptions (severity, strength, status). Include them in the brief under "What might be tricky" — flag any that are **Unvalidated**.
@@ -422,12 +428,12 @@ non-behaviour change, which turns test-first off while appearing to comply.
 
 Create the directory if it doesn't exist:
 ```bash
-mkdir -p YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>
+mkdir -p "<state folder>/stories/<id_or_current>"
 ```
 
-Write the brief + plan to `YOUR_PROJECT_ROOT/tasks/stories/<id>/plan.md` (if an issue ID was given) or `YOUR_PROJECT_ROOT/tasks/stories/current/plan.md` (if from a description). It must contain the `## Demo` section exactly as a level-2 heading — that is what the plan checks read.
+Write the brief + plan to `<state folder>/stories/<id>/plan.md` (if an issue ID was given) or `<state folder>/stories/current/plan.md` (if from a description). It must contain the `## Demo` section exactly as a level-2 heading — that is what the plan checks read.
 
-Also save the test strategy to `YOUR_PROJECT_ROOT/tasks/stories/<id_or_current>/test-strategy.md`, with the `**Acceptance criteria and their proofs:**` list exactly as shown. This file is read by the acceptance-test-agent during evaluation.
+Also save the test strategy to `<state folder>/stories/<id_or_current>/test-strategy.md`, with the `**Acceptance criteria and their proofs:**` list exactly as shown. This file is read by the acceptance-test-agent during evaluation.
 
 ---
 

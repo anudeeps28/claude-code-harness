@@ -12,6 +12,21 @@ Read everything first. Implement exactly what is described. Run the verify. Repo
 
 ---
 
+## Your two folders
+
+Your invocation names two folders (ADR-0004):
+
+- **Work folder** — where the code is: you read, edit and verify there. In a Feature run it is the
+  story's own git worktree; otherwise it is the project root.
+- **State folder** — the home folder's `tasks/`, where the harness keeps its state. **Every `tasks/...`
+  path in this file means `<state folder>/...`** — never a `tasks/` inside the work folder.
+
+If your invocation names neither, both are the project root (`YOUR_PROJECT_ROOT`, and its `tasks/`).
+Run every command with the work folder as the current directory. All `<files>` and `<read_first>`
+paths are relative to the work folder.
+
+---
+
 ## Step 1 — Read the files
 
 First, if the task has a `<read_first>` element, read every file listed there. These are context-only files — read them to understand interfaces, base classes, or patterns, but do NOT modify them.
@@ -20,7 +35,7 @@ Then read every file listed in `<files>` (comma-separated). These are the files 
 
 - If a file exists: read it, understand the current state
 - If a file does not exist yet and `<action>` says to create it: proceed to create it in Step 2
-- Base path: `YOUR_PROJECT_ROOT\`
+- Base path: the work folder
 
 ---
 
@@ -29,7 +44,7 @@ Then read every file listed in `<files>` (comma-separated). These are the files 
 Follow the `<action>` instruction precisely.
 
 **YOUR_ORG conventions (always apply):**
-Read `YOUR_PROJECT_ROOT/tasks/lessons.md` — the "Code Conventions" section lists naming patterns, logging rules, dependency management, and other project-specific conventions. Follow them exactly. If `lessons.md` doesn't have a conventions section, follow the conventions visible in the existing files you read in Step 1.
+Read `<state folder>/lessons.md` (or `<state folder>/notes.md` on a solo project) — the "Code Conventions" section lists naming patterns, logging rules, dependency management, and other project-specific conventions. Follow them exactly. If `lessons.md` doesn't have a conventions section, follow the conventions visible in the existing files you read in Step 1.
 
 **When the `<action>` and the project conventions disagree — the `<action>` wins, and you say so.**
 `tasks/lessons.md` describes what the project does *in general*; the `<action>` describes what this
@@ -101,10 +116,10 @@ running at once there produce failures that have nothing to do with the code. Ed
 only the verify step is serialized:
 
 ```bash
-cd YOUR_PROJECT_ROOT
+cd "<work folder>"
 
 # Acquire (mkdir is atomic). Break a lock older than 20 minutes — its owner died.
-LOCK=tasks/.verify.lock
+LOCK="<state folder>/stories/<story id>/.verify.lock"   # or the "Verify lock:" path you were given
 for i in $(seq 1 400); do
   if mkdir "$LOCK" 2>/dev/null; then break; fi
   if [ -d "$LOCK" ] && [ -z "$(find "$LOCK" -maxdepth 0 -mmin -20 2>/dev/null)" ]; then
@@ -118,6 +133,11 @@ done
 rmdir "$LOCK" 2>/dev/null
 exit $VERIFY_RC
 ```
+
+The lock is per story: agents in the same story's waves share it, and another story in its own worktree
+has its own (ARCHITECTURE.md §2 #6). A project whose worktrees share a port, a database or a global
+cache sets `verify-lock: global` in its lessons/notes file; the orchestrator then passes
+`Verify lock: <state folder>/.verify.lock`, and every story queues on that one.
 
 **Always release the lock**, on success and on failure alike — a lock you leave behind stalls every
 sibling agent until the 20-minute break-in fires. If you cannot acquire it within the loop (20
@@ -318,7 +338,7 @@ This agent runs with `permissionMode: bypassPermissions` — tool calls execute 
 - You may READ files listed in the task's `<read_first>` element (context only — never modify these)
 - You may ONLY modify files listed in the task's `<files>` element
 - You may ONLY run the command in the task's `<verify>` element, plus the verify-lock commands in
-  Step 3 (`mkdir`/`rmdir`/`find`/`sleep` on `tasks/.verify.lock`) — no other Bash commands, with one
+  Step 3 (`cd` to the work folder, and `mkdir`/`rmdir`/`find`/`sleep` on the verify lock) — no other Bash commands, with one
   narrow exception below
 - **Exception, `must_fail` tasks only:** Step 3.5 requires you to prove the test file exists on disk
   and contains the test by name before reporting. That cannot be done with the `<verify>` command
@@ -328,14 +348,15 @@ This agent runs with `permissionMode: bypassPermissions` — tool calls execute 
   reading of the rule above leaves the two sections in direct contradiction
 - You may NEVER run a git command that changes state — see "Never run a git command that changes
   state" below. This is unconditional and has no exceptions
-- You may NOT access files outside `YOUR_PROJECT_ROOT`
+- You may NOT access files outside your work folder and your state folder (and in the state folder you
+  only read, apart from the verify lock)
 - You may NOT install packages, modify configs, or change infrastructure
 
 ## Files you must NEVER modify
 
 These are orchestrator-owned. If a task's `<action>` implies modifying one of these, report BLOCKED — do not proceed.
 
-- Anything in `tasks/` — `todo.md`, `lessons.md`, `flags-and-notes.md`, `pr-queue.md`, `people.md`, `tracker-config.md`, `sprint*.md`, `stories/*/brief.md`, `stories/*/plan.md`, `stories/*/test-strategy.md`. **One exception:** `tasks/.verify.lock`, the verify lock directory you create and remove in Step 3.
+- Anything in the state folder (`tasks/`) — `todo.md`, `lessons.md`, `flags-and-notes.md`, `pr-queue.md`, `people.md`, `tracker-config.md`, `sprint*.md`, `stories/*/brief.md`, `stories/*/plan.md`, `stories/*/test-strategy.md`. **One exception:** the verify lock directory you create and remove in Step 3.
 - `CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json`
 - Anything in `docs/` — architecture docs are reference specifications
 - `CONTRIBUTING.md`, `README.md`, `CHANGELOG.md` — **except** when the task's `<files>` names one of
@@ -389,4 +410,4 @@ moment. The wave was planned so that no two agents in it touch the same file, so
 - Never create scratch/temp files in the working directory. If you need a temp file, put it in the
   system temp directory and delete it before you finish — anything you leave behind lands in the
   story's diff and has to be cleaned up by hand
-- Do NOT reference absolute paths outside `YOUR_PROJECT_ROOT`
+- Do NOT reference absolute paths outside your work folder and state folder
