@@ -13,7 +13,39 @@
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
-![Harness flow — understand, plan, execute, evaluate, PR](docs/diagrams/harness-flow.png)
+```mermaid
+flowchart TB
+    subgraph F["/implement &lt;feature-id&gt; — a whole Feature, one PR"]
+        direction LR
+        F1["Read the Feature<br/>stories, links, Demo"] --> F2{{"STOP — approve<br/>the one plan"}}
+        F2 --> F3["Each story in its own worktree<br/>independent ones at once<br/>plan · waves · light review"]
+        F3 --> F4["Merge one at a time<br/>tests pass, or abort"]
+        F4 --> F5["Feature panel<br/>5 reviewers on the whole branch"]
+        F5 --> F6["Prove it<br/>real system · break one line"]
+        F6 --> F7{{"PR gate<br/>every criterion met"}}
+        F7 --> F8(["One PR"])
+    end
+
+    subgraph S["/implement #42 --standalone — one story, bug or description"]
+        direction LR
+        S1["Understand<br/>whole ticket"] --> S2{{"STOP<br/>brief · goal · plan"}}
+        S2 --> S3["Execute<br/>waves, tests in every verify"]
+        S3 --> S4["Local tests"]
+        S4 --> S5["4 reviewers<br/>+ e2e gate"]
+        S5 --> S6{{"STOP<br/>push?"}}
+        S6 --> S7(["PR"])
+    end
+
+    F ~~~ S
+
+    classDef stop fill:#fde2e1,stroke:#c0392b,color:#7b241c
+    classDef gate fill:#fdf2d0,stroke:#b7950b,color:#7d6608
+    class F2,S2,S6 stop
+    class F7 gate
+```
+
+Red boxes are where you decide (`--autonomous` answers the reversible ones itself and leaves the PR
+as the only gate); the amber PR gate is automatic — no PR while a criterion is unmet. Every step is saved, so `/implement --resume <id>` carries on after a crash.
 
 ---
 

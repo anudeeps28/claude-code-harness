@@ -77,6 +77,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). This project adh
 
 ### Changed
 
+- **The README's top diagram is Mermaid, and shows today's design (#69).** The hand-drawn `docs/diagrams/harness-flow.excalidraw` and its 1.6 MB PNG showed the retired `/implement` vs `/story` split, executors in isolated worktrees and plans in `todo.md`, and had no Feature build. They are replaced by a Mermaid diagram in `README.md`, drawn by GitHub like the README's other diagrams: the Feature build and the standalone build, with the stops where you decide marked red and the automatic PR gate amber. Being text, it is checked by `one-build-skill.probe.test.js` and changes with the code.
 - **`/local-test e2e` never reports a Demo as SKIPPED (#40).** With no `E2E command` in Observe the result is **NOT SET UP**, which is a fail and names the missing entry; `/implement` treats it as a red gate. A structured human check shows the shape of the evidence only and waits for a sign-off. The zero-runtime escape hatch ("skip gate — no runtime impact") is unchanged.
 
 - **`LOCAL_ISSUE_TYPE` is checked against the type list (#10)** and written in its canonical form: `User Story` is stored as `Story`, and a value carrying a newline (which could forge a frontmatter field) is now refused outright rather than stripped. `get-issue.sh` initialises `type` (an exported `type` variable no longer leaks into an untyped item, #9) and normalises case (`bug` reads as `Bug`).
