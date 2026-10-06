@@ -468,6 +468,7 @@ branch, and pushes so the PR updates in place.
 | Agent | Model | Used by | Role |
 |---|---|---|---|
 | `implement-planner-agent` | opus | `/implement` Phase 1c | Plans tasks from brief + goal — one pass |
+| `story-runner-agent` | opus | `/implement` Feature mode | Builds one story inside its own git worktree — plan, waves, light review, commit — and reports the commit sha; never merges or pushes |
 | `story-understand-agent` | opus | `/story` Phase 1, `/implement` Phase 1 | Reads issue + docs, produces 8-point brief |
 | `story-plan-agent` | opus | `/story` Phase 2 | Produces XML task plan |
 | `story-executor-agent` | sonnet | `/story`, `/implement` | Writes code for one task |

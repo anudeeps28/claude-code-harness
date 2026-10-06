@@ -85,6 +85,13 @@ orchestrator's PR step renders it verbatim under a **"Decisions made on your beh
 reviewer sees every reversible call made without them. If a run has no story workspace (see below),
 keep the log inline in the conversation and hand it to the PR step directly.
 
+**In a Feature run (`/implement` Feature mode) there is one log per story, never one shared file.**
+Stories are built by separate runners, and one writer per file is what keeps lines from being lost
+(ARCHITECTURE.md §4). Each story runner, and everything it starts, appends to its own
+`tasks/stories/<sid>/decisions-log.md`; the orchestrator's own decisions (the self-approved plan, for
+example) go to `tasks/features/<fid>/decisions-log.md`. At PR time `bin/run-report.js` combines them,
+each line prefixed with its story id.
+
 ---
 
 ## How the mode is inherited (the mechanism)

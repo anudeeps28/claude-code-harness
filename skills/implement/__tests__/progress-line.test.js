@@ -70,3 +70,35 @@ test('Progress_UnknownEventOrPhase_IsRefused', () => withRoot((root) => {
   assert.equal(run(root, ['42', 'step', 'proving-things', 'x']).code, 1);
   assert.equal(fs.existsSync(logPath(root, '42')), false);
 }));
+
+// ── F4 #47: Feature runs ─────────────────────────────────────────────
+
+const FEATURE_LINE_RE = /^\[harness\] ts=\S+ feature=([^ ]+)(?: story=([^ ]+))? event=([a-z-]+) phase=([a-z]+) detail="([^"]*)"$/;
+
+test('Progress_FeatureRun_CarriesFeatureAndStoryAndLogsToTheFeature', () => withRoot((root) => {
+  const r = run(root, ['--feature', '123', '201', 'story-started', 'coding', 'wave 1/3']);
+  assert.equal(r.code, 0, r.err);
+  const m = r.out.trimEnd().match(FEATURE_LINE_RE);
+  assert.ok(m, r.out);
+  assert.deepEqual(m.slice(1), ['123', '201', 'story-started', 'coding', 'wave 1/3']);
+  const log = path.join(root, 'tasks', 'features', '123', 'progress.log');
+  assert.equal(fs.readFileSync(log, 'utf8'), r.out);
+}));
+
+test('Progress_FeatureLevelLine_HasNoStoryKey', () => withRoot((root) => {
+  const r = run(root, ['--feature', '123', '-', 'merge-tested', 'coding', 'story 201: pass']);
+  assert.equal(r.code, 0, r.err);
+  const m = r.out.trimEnd().match(FEATURE_LINE_RE);
+  assert.ok(m, r.out);
+  assert.equal(m[2], undefined);
+}));
+
+test('Progress_FeatureEvents_AreAccepted', () => withRoot((root) => {
+  for (const e of ['story-started', 'story-merged', 'story-stuck', 'merge-tested']) {
+    assert.equal(run(root, ['--feature', '1', '2', e, 'coding', 'x']).code, 0, e);
+  }
+}));
+
+test('Progress_BadFeatureId_IsRefused', () => withRoot((root) => {
+  assert.notEqual(run(root, ['--feature', '../x', '2', 'step', 'coding', 'x']).code, 0);
+}));

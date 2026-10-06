@@ -127,6 +127,8 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/story-executor-agent.md',
     'agents/story-pr-agent.md',
     'agents/implement-planner-agent.md',
+    // Spawned by /implement's Feature mode (F4 #44).
+    'agents/story-runner-agent.md',
     'harness-roles.json',
     'hooks/safety-check.js',
     'rules/code-style.md',

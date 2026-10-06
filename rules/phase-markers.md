@@ -38,6 +38,10 @@ symlink to this file).
 - **`detail`** — one short **single-line** free-text description of the concrete step, e.g.
   `Phase 1c — implement-planner-agent`. See *Writing `detail` safely* — this is the only free-text
   field and the only one that can break the contract.
+- **`feature`** and **`story`** (optional) — in a Feature run (`/implement` Feature mode), the Feature
+  id and, on a story's marker, the story id. Each story's marker lives in its own
+  `tasks/stories/<sid>/phase.md`; the Feature's in `tasks/features/<fid>/phase.md`. They are optional
+  keys, so `schemaVersion` stays `1`: a consumer that does not know them ignores them, as below.
 
 **The persona is NOT in the marker.** `harness-roles.json` is authoritative for the phase→persona
 display mapping (`roles.*.phases[].displayName`: planning→Navigator, coding→Shipwright,

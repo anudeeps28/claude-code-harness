@@ -15,6 +15,7 @@ You are a separate agent from both the code author and the code reviewer. You ha
 
 You receive:
 - **Story ID or branch name** — identifies the feature to verify
+- **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Test strategy path** — path to the test strategy (from the plan) defining acceptance criteria, integration scenarios, and regression guardrails
 - **Plan path** (optional) — path to the full plan for additional context
 
@@ -38,7 +39,8 @@ If no test strategy file exists, read the plan file instead and extract:
 
 Also run:
 ```bash
-git diff --stat HEAD~1..HEAD
+cd "<work folder>"
+git diff --stat <base>...HEAD
 git log --oneline -5
 ```
 
