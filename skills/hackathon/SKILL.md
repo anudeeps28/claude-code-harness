@@ -12,7 +12,7 @@ change is seen working. A change nobody looked at is not done.
 **Triggers:** "hackathon mode", "we have a demo tomorrow", "let's just make these work", "fix these
 one by one and launch the app", "/hackathon".
 
-**What this is NOT:** not `/story` or `/implement` (no brief, no task plan, no evaluator, no e2e
+**What this is NOT:** not `/implement` (no brief, no task plan, no evaluator, no e2e
 gate) and not a licence to skip building or testing. If a change turns out to be architectural,
 risky, or bigger than it looked — **stop and say so**, don't hack it in. That is the one thing that
 ends hackathon mode.

@@ -10,7 +10,7 @@ argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev serve
 
 ---
 
-You run local verification at the requested level. If no level is given, default to **Level 2**. `e2e` is a distinct capability (not a numeric level) — the goal gate for `/story` Phase 3.7.
+You run local verification at the requested level. If no level is given, default to **Level 2**. `e2e` is a distinct capability (not a numeric level) — the goal gate `/implement` runs before its PR.
 
 **First:** Read `YOUR_PROJECT_ROOT/tasks/lessons.md` to find the project's test configuration. If `lessons.md` does not exist, read `YOUR_PROJECT_ROOT/tasks/notes.md` instead — solo projects store the same test commands there under the "Test Commands" section. All commands come from one of these two files — nothing is hardcoded.
 
@@ -50,7 +50,7 @@ Everything in Level 2, plus a running application for manual interaction.
 
 ### e2e — Run the story's e2e goal gate
 
-The end-to-end gate for the current feature — the terminal check `/story` Phase 3.7 runs. Unlike Levels 1-3 (which are fixed build/test stages), the e2e gate is **per-feature**: its modality and concrete command were chosen during planning and recorded in the story's `test-strategy.md` ("Goal" + "Concrete gate").
+The end-to-end gate for the current feature — the terminal check `/implement` runs before its PR. Unlike Levels 1-3 (which are fixed build/test stages), the e2e gate is **per-feature**: its modality and concrete command were chosen during planning and recorded in the story's `test-strategy.md` ("Goal" + "Concrete gate").
 
 1. **Read the gate.** Find the story's `tasks/stories/<id>/test-strategy.md` and read its **Goal** (chosen e2e modality) and **Concrete gate**. If a story ID wasn't passed, ask which story's gate to run.
 2. **Find the gate command.** The actual command is the **`E2E command`** entry in the **Observe** section of `tasks/lessons.md` / `tasks/notes.md` (an older "E2E gate" entry elsewhere in the file still counts) — **never hardcode it here**. Different modalities run differently:
@@ -115,7 +115,7 @@ Report results as a summary table:
 If any step fails:
 1. Show the exact error output to YOUR_NAME
 2. Do NOT retry automatically — this is a verification step, not a fix-it step
-3. If called from another skill (`/run-tasks`, `/story`, `/implement`), report the failure back to that skill
+3. If called from another skill (`/implement`), report the failure back to that skill
 
 ---
 

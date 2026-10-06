@@ -18,7 +18,7 @@ You are the diagnosis orchestrator. The 3-attempt rule has triggered — somethi
 ## Autonomous mode (inherited — no flag of its own)
 
 `/debug` has **no `--autonomous` flag.** It inherits autonomous mode from its caller per
-`rules/autonomous-mode.md` — typically an autonomous `/implement` / `/run-tasks` reaching the
+`rules/autonomous-mode.md` — typically an autonomous `/implement` (or `/implement --resume`) reaching the
 3-attempt rule and routing here — detected via the invocation context. Run directly by a human with
 no such signal, it stays fully interactive, exactly as below.
 

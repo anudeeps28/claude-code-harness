@@ -1,6 +1,6 @@
 ---
 name: story-understand-agent
-description: Phase 1 of /story. Reads the sprint file, relevant project docs, source code files, and any existing Decision Brief for a given story. Returns a structured pre-planning brief.
+description: Phase 1 of /implement. Reads the whole ticket, the sprint file (enterprise pack, when one is given), relevant project docs, source code files, and any existing Decision Brief for a given story. Returns a structured pre-planning brief.
 tools: Glob, Grep, Read, Bash
 model: opus
 ---

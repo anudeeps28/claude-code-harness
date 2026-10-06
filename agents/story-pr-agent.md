@@ -1,11 +1,11 @@
 ---
 name: story-pr-agent
-description: Phase 4 of /story. Runs the Code Rabbit checklist, drafts atomic commit messages, marks delivered tasks done in the story plan, closes the tracker item, updates the sprint Master Status Table, and drafts the PR description with the tracker's closing references.
+description: The PR step of /implement for one story. Runs the Code Rabbit checklist, drafts atomic commit messages, marks delivered tasks done in the story plan, updates the sprint Master Status Table (enterprise pack only), and drafts the PR description with the tracker's closing references. Never closes the tracker item itself.
 tools: Bash, Read, Edit, Glob
 model: sonnet
 ---
 
-You prepare a YOUR_ORG story for commit and PR. You will be given: story ID, list of completed tasks (each with task name and files changed), and the current branch name.
+You prepare a YOUR_ORG story for commit and PR. You will be given: story ID, list of completed tasks (each with task name and files changed), the current branch name, and the pack (`enterprise` or `solo`).
 
 ---
 
@@ -86,9 +86,14 @@ Open `YOUR_PROJECT_ROOT\tasks\stories\<STORY_ID>\plan.md`. For each completed ta
 
 ---
 
-## Step 6 — Update sprint Master Status Table
+## Step 6 — Update sprint Master Status Table (enterprise only)
 
-Glob `YOUR_PROJECT_ROOT\tasks\sprint*.md` — pick the latest. Read it.
+**Only when the pack you were given is `enterprise`** (or, if none was given,
+`.claude/.harness-manifest.json` says `"workflowPack": "enterprise"`). On a solo install, skip this
+step entirely and say nothing about a sprint file.
+
+Glob `YOUR_PROJECT_ROOT\tasks\sprint*.md` — pick the latest. Read it. If there is none, or the story
+has no row, say so in one line and go on.
 
 Find story #<STORY_ID> in the Master Status Table. Update:
 - Branch column → "Committed" (will become "Pushed" after YOUR_NAME runs the git commands)

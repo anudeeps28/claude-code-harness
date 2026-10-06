@@ -110,7 +110,7 @@ Test tasks should be in the same or next wave after the code they test — never
 ## Test-First Mode (`--tdd`, and always for bug fixes)
 
 Ordinarily the test task comes in the same wave as the code it tests, or the wave after. Under
-`--tdd` on `/story` or `/implement`, and for **every bug fix whether or not the flag was passed**, the
+`--tdd` on `/implement`, and for **every bug fix whether or not the flag was passed**, the
 failing test comes **before** the code.
 
 `--tdd` is **off by default**. A plan carrying no `must_fail` attribute behaves exactly as it always

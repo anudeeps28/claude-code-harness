@@ -1,6 +1,6 @@
 # ADR-0003 — Only the orchestrator merges, and every merge is tested before it is committed
 
-- **Status:** proposed
+- **Status:** accepted (2026-10-06): built in F4 (`worktree.js merge`), unchanged by parallel stories in F5
 - **Date:** 2026-10-05
 - **Decided by:** Anudeep Sharma (ARCHITECTURE.md §1, §2 #5, §8)
 

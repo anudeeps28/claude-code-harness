@@ -30,23 +30,70 @@ const HARNESS_HOOK_SCRIPTS = new Set([
 ]);
 
 // Agents only the enterprise pack's skills spawn. The story-understand / -executor
-// / -pr agents are NOT here: /implement and /run-tasks (both solo skills) spawn them
-// by name, so skipping them in solo left those skills pointing at agents that were
-// never installed.
+// / -pr agents are NOT here: /implement (in both packs) spawns them by name, so
+// skipping them in solo left it pointing at agents that were never installed.
 const ENTERPRISE_ONLY_AGENTS = new Set([
-  'story-plan-agent.md',
   'sprint-plan-gap-analyzer.md',
   'sprint-plan-docs-reader.md',
   'sprint-plan-tracker-reader.md',
 ]);
 
 // Skills that only exist in the enterprise pack. Previously every skill was copied
-// to every install, so solo users got /story and /sprint-plan — which spawn the
+// to every install, so solo users got /sprint-plan — which spawns the
 // enterprise-only agents above and cannot work in a solo install.
 const ENTERPRISE_ONLY_SKILLS = new Set([
-  'story',
   'sprint-plan',
 ]);
+
+// Retired by F7 (ADR-0001): /implement is the one build skill, and /implement --resume
+// replaced /run-tasks. An upgrade removes them from an install that still has them, in
+// both packs, and says so (docs/story-retirement-inventory.md lists where each behaviour went).
+const RETIRED_SKILLS = ['story', 'run-tasks'];
+const RETIRED_AGENTS = ['story-plan-agent.md'];
+
+/**
+ * Remove retired skills and agents from an install. Only paths inside the target are touched,
+ * never through a symlink that leads elsewhere. Returns the human-readable lines it printed.
+ */
+function removeRetired(target) {
+  const removed = [];
+  const inside = (p) => {
+    try {
+      const real = fs.realpathSync(path.dirname(p));
+      return real === fs.realpathSync(target) || real.startsWith(fs.realpathSync(target) + path.sep);
+    } catch { return false; }
+  };
+  const drop = (p, label) => {
+    let st;
+    try { st = fs.lstatSync(p); } catch { return; }
+    if (!inside(p)) return;
+    if (st.isSymbolicLink() || st.isFile()) fs.unlinkSync(p);
+    else fs.rmSync(p, { recursive: true, force: true });
+    removed.push(label);
+  };
+  for (const skill of RETIRED_SKILLS) drop(path.join(target, 'skills', skill), `/${skill}`);
+  for (const agent of RETIRED_AGENTS) drop(path.join(target, 'agents', agent), agent.replace(/\.md$/, ''));
+  if (removed.length) {
+    console.log(`    Retired: removed ${removed.join(', ')} — /implement is the one build skill, and /implement --resume replaces /run-tasks`);
+  }
+  return removed;
+}
+
+/**
+ * A project upgrade leaves a user-level (~/.claude) install alone, but its old /story and
+ * /run-tasks would still be offered in every project. Say so, rather than reach outside the target.
+ */
+function warnRetiredElsewhere(target, home = os.homedir()) {
+  const userDir = path.join(home, '.claude');
+  let same = false;
+  try { same = fs.realpathSync(userDir) === fs.realpathSync(target); } catch { /* no user install */ }
+  if (same) return [];
+  const left = RETIRED_SKILLS.filter((s) => fs.existsSync(path.join(userDir, 'skills', s)));
+  if (left.length) {
+    console.log(`  [NOTE]    your user-level install (~/.claude) still has ${left.map((s) => `/${s}`).join(' and ')}; update it too (install with --global) so they are removed there`);
+  }
+  return left;
+}
 
 function isHarnessHook(hookEntry) {
   const cmd = hookEntry.command || '';
@@ -119,10 +166,10 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
   console.log('  Verifying installation...');
   let fail = 0;
   const required = [
-    ...(workflowPack === 'enterprise'
-      ? ['skills/story/SKILL.md', 'agents/story-plan-agent.md']
-      : ['skills/implement/SKILL.md']),
-    // Spawned by /implement and /run-tasks, so required in BOTH packs.
+    // The one build skill, in both packs (ADR-0001).
+    'skills/implement/SKILL.md',
+    ...(workflowPack === 'enterprise' ? ['skills/sprint-plan/SKILL.md'] : []),
+    // Spawned by /implement, so required in BOTH packs.
     'agents/story-understand-agent.md',
     'agents/story-executor-agent.md',
     'agents/story-pr-agent.md',
@@ -200,6 +247,12 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
         console.log(`  [PACK]    skills/${skill} — enterprise-only skill in a solo install`);
         fail++;
       }
+    }
+  }
+  for (const skill of RETIRED_SKILLS) {
+    if (fs.existsSync(path.join(target, 'skills', skill))) {
+      console.log(`  [RETIRED] skills/${skill} — retired; /implement replaces it`);
+      fail++;
     }
   }
   if (fail === 0) console.log('  [OK] All critical files present, no dev artefacts leaked');
@@ -565,6 +618,8 @@ function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = n
       }
     }
   }
+  removeRetired(target);
+  warnRetiredElsewhere(target);
   installedFiles.push(...copyGlob(path.join(src.dir, 'trackers', tracker || 'github'), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active'));
   chmodExecutables(path.join(target, 'trackers/active'));
 
@@ -790,7 +845,8 @@ function backfillManifest(target, opts = {}) {
   let workflowPack = 'solo';
   if (fs.existsSync(agentsDir)) {
     const agents = fs.readdirSync(agentsDir);
-    if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a))) workflowPack = 'enterprise';
+    // story-plan-agent is retired, but an old enterprise install still carries it.
+    if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a) || RETIRED_AGENTS.includes(a))) workflowPack = 'enterprise';
   }
 
   let tracker = null;
@@ -861,4 +917,5 @@ module.exports = {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck, runUpdate, runSwitchTracker, backfillManifest,
   HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS,
+  RETIRED_SKILLS, RETIRED_AGENTS, removeRetired, warnRetiredElsewhere,
 };

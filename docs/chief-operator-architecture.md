@@ -51,7 +51,7 @@ Engineers (other Claude sessions) build.
           ▼            ▼            ▼
    ┌────────────┐┌────────────┐┌────────────┐
    │ Session A  ││ Session B  ││ Session C  │
-   │ /implement ││ /implement ││ /story     │
+   │ /implement ││ /implement ││ /implement │
    │ #42        ││ #55        ││ #99        │
    └────────────┘└────────────┘└────────────┘
    User opens these separately. Each reads
@@ -183,7 +183,7 @@ The CO itself runs on Opus. All decisions stay in CO context.
 | `session-context.js` | Injects learnings — CO reads as context |
 | `session-log.js` | Logs session — CO reads `sessions.jsonl` for staleness |
 | `pre-compact.js` | Fires on compaction — CO benefits from resume marker |
-| `trackers/active/` | CO creates tasks; `/implement` and `/story` read them |
+| `trackers/active/` | CO creates tasks; `/implement` reads them |
 | `tasks/stories/<id>/` | CO writes handoffs; implementation skills read them |
 | `chief-of-staff` agent | Separate agent — comms triage, not project ops |
 

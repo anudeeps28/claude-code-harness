@@ -16,15 +16,18 @@ const REPO = path.resolve(__dirname, '..', '..');
 const LOCAL = ['--local', REPO];
 
 const ENTERPRISE_ONLY_AGENTS = [
-  'story-plan-agent.md',
   'sprint-plan-gap-analyzer.md',
   'sprint-plan-docs-reader.md',
   'sprint-plan-tracker-reader.md',
 ];
 
-const ENTERPRISE_ONLY_SKILLS = ['story', 'sprint-plan'];
+const ENTERPRISE_ONLY_SKILLS = ['sprint-plan'];
 
-// Agents that solo-pack skills (/implement, /run-tasks) spawn by name. Skipping
+// Retired by F7 #64: installed by no pack, removed by an upgrade.
+const RETIRED_SKILLS = ['story', 'run-tasks'];
+const RETIRED_AGENTS = ['story-plan-agent.md'];
+
+// Agents that /implement (in both packs) spawns by name. Skipping
 // any of these in the solo pack leaves those skills pointing at agents that were
 // never installed — the roster drift this list guards against.
 const SOLO_REQUIRED_AGENTS = [
@@ -143,7 +146,7 @@ test('install.js solo install omits enterprise-only skills', () => {
       );
     }
     assert.ok(skills.includes('implement'), 'solo pack must ship /implement');
-    assert.ok(skills.includes('run-tasks'), 'solo pack must ship /run-tasks');
+    for (const skill of RETIRED_SKILLS) assert.ok(!skills.includes(skill), `retired /${skill} must not be installed`);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -337,7 +340,7 @@ test('phase-marker rule ships and the build skills reference it', () => {
     runInstallJs(['--yes', '--project', soloDir, ...LOCAL]);
     const soloClaudeDir = path.join(soloDir, '.claude');
     assert.ok(fs.existsSync(path.join(soloClaudeDir, 'rules', 'phase-markers.md')), 'solo: rules/phase-markers.md must be installed');
-    for (const skill of ['implement', 'run-tasks']) {
+    for (const skill of ['implement']) {
       const skillFile = path.join(soloClaudeDir, 'skills', skill, 'SKILL.md');
       const text = fs.readFileSync(skillFile, 'utf8');
       assert.ok(text.includes('rules/phase-markers.md'), `solo: skills/${skill}/SKILL.md must reference rules/phase-markers.md`);
@@ -368,7 +371,7 @@ test('phase-marker rule ships and the build skills reference it', () => {
     runInstallJs(['--yes', '--project', entDir, '--pack', 'enterprise', ...LOCAL]);
     const entClaudeDir = path.join(entDir, '.claude');
     assert.ok(fs.existsSync(path.join(entClaudeDir, 'rules', 'phase-markers.md')), 'enterprise: rules/phase-markers.md must be installed');
-    for (const skill of ['implement', 'run-tasks', 'story']) {
+    for (const skill of ['implement']) {
       const skillFile = path.join(entClaudeDir, 'skills', skill, 'SKILL.md');
       const text = fs.readFileSync(skillFile, 'utf8');
       assert.ok(text.includes('rules/phase-markers.md'), `enterprise: skills/${skill}/SKILL.md must reference rules/phase-markers.md`);
@@ -432,6 +435,83 @@ test('update migrates a pre-pack-filter solo install: prunes enterprise skills, 
     );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── F7 #64: /story and /run-tasks are retired ────────────────────────────────
+
+test('fresh installs of both packs ship neither retired skill nor story-plan-agent', () => {
+  for (const pack of ['solo', 'enterprise']) {
+    const dir = makeTempProject();
+    try {
+      runInstallJs(installArgsFor(pack, dir));
+      const claudeDir = path.join(dir, '.claude');
+      const skills = fs.readdirSync(path.join(claudeDir, 'skills'));
+      const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
+      for (const s of RETIRED_SKILLS) assert.ok(!skills.includes(s), `${pack}: /${s} must not be installed`);
+      for (const a of RETIRED_AGENTS) assert.ok(!agents.includes(a), `${pack}: ${a} must not be installed`);
+      assert.ok(skills.includes('implement'), `${pack}: /implement is the build skill`);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('update removes the retired skills and agent from an old install of either pack, and says so', () => {
+  for (const pack of ['solo', 'enterprise']) {
+    const dir = makeTempProject();
+    try {
+      runInstallJs(installArgsFor(pack, dir));
+      const claudeDir = path.join(dir, '.claude');
+      // Regress to a pre-F7 install: the two skills and the story planner are still there.
+      for (const s of RETIRED_SKILLS) {
+        fs.mkdirSync(path.join(claudeDir, 'skills', s), { recursive: true });
+        fs.writeFileSync(path.join(claudeDir, 'skills', s, 'SKILL.md'), `---\nname: ${s}\n---\nold\n`);
+      }
+      for (const a of RETIRED_AGENTS) fs.writeFileSync(path.join(claudeDir, 'agents', a), '---\nname: old\n---\n');
+
+      const out = runInstallJs(['--update', '--project', dir, ...LOCAL], { encoding: 'utf8' });
+
+      const skills = fs.readdirSync(path.join(claudeDir, 'skills'));
+      const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
+      for (const s of RETIRED_SKILLS) assert.ok(!skills.includes(s), `${pack}: update must remove /${s}`);
+      for (const a of RETIRED_AGENTS) assert.ok(!agents.includes(a), `${pack}: update must remove ${a}`);
+      assert.match(out, /Retired: removed \/story, \/run-tasks, story-plan-agent/, `${pack}: the person is told`);
+      assert.ok(skills.includes('implement'), `${pack}: /implement stays`);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});
+
+test('removeRetired never follows a symlink out of the install', () => {
+  const { removeRetired } = require('../lib/updater.js');
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'outside-'));
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'target-'));
+  try {
+    fs.mkdirSync(path.join(outside, 'story'));
+    fs.writeFileSync(path.join(outside, 'story', 'SKILL.md'), 'keep me');
+    // The install's whole skills folder is a link to somewhere else (a dogfood setup).
+    try { fs.symlinkSync(outside, path.join(target, 'skills'), 'junction'); } catch { return; }
+    removeRetired(target);
+    assert.ok(fs.existsSync(path.join(outside, 'story', 'SKILL.md')), 'a file outside the install is never removed');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test('warnRetiredElsewhere names a user-level install that still has them', () => {
+  const { warnRetiredElsewhere } = require('../lib/updater.js');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'home-'));
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'proj-'));
+  try {
+    fs.mkdirSync(path.join(home, '.claude', 'skills', 'run-tasks'), { recursive: true });
+    assert.deepStrictEqual(warnRetiredElsewhere(target, home), ['run-tasks']);
+    assert.ok(fs.existsSync(path.join(home, '.claude', 'skills', 'run-tasks')), 'it only warns; it never reaches outside the target');
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(target, { recursive: true, force: true });
   }
 });
 

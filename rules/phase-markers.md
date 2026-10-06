@@ -7,7 +7,7 @@ internals.
 
 **Location:** `rules/phase-markers.md` (installed alongside `.claude/skills/`; the `.claude/` copy is a
 symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md`, `skills/story/SKILL.md`, `skills/run-tasks/SKILL.md`,
+**Referenced by:** `skills/implement/SKILL.md`, `agents/story-runner-agent.md`,
 `skills/evaluate/SKILL.md`.
 
 ---
@@ -34,7 +34,9 @@ symlink to this file).
   mean different things to a consumer.
 - **`updated`** — ISO-8601 UTC timestamp, e.g. `2026-07-31T18:56:35Z`. **Required on every write** —
   staleness is derived from it (see *Terminal state and staleness*).
-- **`skill`** — the skill that owns the run: `implement`, `story`, `run-tasks`, or `evaluate`.
+- **`skill`** — the skill that owns the run: `implement` or `evaluate`. Markers written before F7
+  retired the other build skills may say `story` or `run-tasks`; a consumer reads them as
+  `implement`.
 - **`detail`** — one short **single-line** free-text description of the concrete step, e.g.
   `Phase 1c — implement-planner-agent`. See *Writing `detail` safely* — this is the only free-text
   field and the only one that can break the contract.
@@ -72,8 +74,8 @@ coding) is expected and fine.
 The marker is written in **every** run mode, interactive and autonomous alike. It is not gated on
 `--autonomous`.
 
-**The sequence is not monotonic.** A run may revisit an earlier phase — `/story` runs its goal gate
-(`testing`) *after* its review phase (`reviewing`), and any skill may return to `coding` to fix what
+**The sequence is not monotonic.** A run may revisit an earlier phase — `/implement` runs its e2e gate,
+and in a Feature Prove it (`testing`), *after* its review (`reviewing`), and any skill may return to `coding` to fix what
 testing found. A consumer must render `phase` as *current state*, never as monotonic progress along
 the roster's `phases[]` order.
 
@@ -87,7 +89,7 @@ from `updated`: a marker whose `updated` is older than the consumer's own livene
 active session for that project) describes a finished or abandoned run, not a running one.
 
 **"Fresh" means `updated` within the last 30 minutes.** State a number, because the foreign-work
-pre-flight check in `/story` and `/implement` turns on this word and is **not self-answerable under
+pre-flight check in `/implement` turns on this word and is **not self-answerable under
 `--autonomous`** — an undefined threshold on a non-self-answerable gate means the run must either halt
 or invent a number, and a real run had to invent one. Thirty minutes is comfortably longer than any
 single wave and comfortably shorter than a working session, so a marker older than that belongs to a

@@ -1,8 +1,8 @@
 # Autonomous Mode — Inherited Convention (Harness Rule)
 
 This file is the **single source of truth** for how autonomous mode behaves across the harness. The
-`--autonomous` flag is declared on the **orchestrator skills only** (`/implement`, and — as sibling
-work — `/story`). Every sub-skill and agent an orchestrator invokes **inherits** the mode; sub-skills
+`--autonomous` flag is declared on the **orchestrator only** (`/implement`, the one build skill since
+ADR-0001). Every sub-skill and agent an orchestrator invokes **inherits** the mode; sub-skills
 have **no `--autonomous` flag of their own** (grill decision, fork 6).
 
 **Explicit autonomous entry points.** Autonomy always begins at an *explicit* signal (never assumed —
@@ -16,8 +16,7 @@ story workspace, so its decisions log stays inline (see the decisions-log sectio
 
 **Location:** `rules/autonomous-mode.md` (installed alongside `.claude/skills/`; the `.claude/` copy
 is a symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md`, `skills/story/SKILL.md`, `skills/run-tasks/SKILL.md`,
-`skills/tdd/SKILL.md`, `skills/debug/SKILL.md`, `skills/local-test/SKILL.md`.
+**Referenced by:** `skills/implement/SKILL.md`, `agents/story-runner-agent.md`, `skills/tdd/SKILL.md`, `skills/debug/SKILL.md`, `skills/local-test/SKILL.md`.
 
 ---
 
@@ -104,8 +103,8 @@ signals, checked in this order:
    `rules/autonomous-mode.md` and append decisions to `tasks/stories/<id>/decisions-log.md`."* The
    sub-skill honors that.
 2. **Durable marker (for standalone resume).** An autonomous orchestrator writes `run-mode:
-   autonomous` into `tasks/stories/<id>/executor-state.md`. A skill invoked **standalone** against an
-   existing story (e.g. `/run-tasks <id>` after a crash) reads that marker and inherits the mode even
+   autonomous` into `tasks/stories/<id>/executor-state.md`. A run carried on against an
+   existing story (`/implement --resume <id>` after a crash) reads that marker and inherits the mode even
    though no live orchestrator is present.
 
 **Default = interactive.** A skill invoked directly by a human with **neither** signal present runs

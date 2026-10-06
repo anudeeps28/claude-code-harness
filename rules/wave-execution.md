@@ -4,7 +4,7 @@ This file is the **single source of truth** for how a skill runs a wave of execu
 run, what must be checked before and after each wave, and what happens to a failed task's edits.
 
 **Location:** `rules/wave-execution.md` (installed alongside `.claude/skills/`).
-**Referenced by:** `skills/implement/SKILL.md`, `skills/story/SKILL.md`, `skills/run-tasks/SKILL.md`,
+**Referenced by:** `skills/implement/SKILL.md`, `agents/story-runner-agent.md`,
 `agents/story-executor-agent.md`.
 
 ---

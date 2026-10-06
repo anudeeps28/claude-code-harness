@@ -63,7 +63,7 @@ For each pattern below, **count occurrences in the window**. A pattern only qual
 
 Group `sessions.jsonl` entries by `story_id`. If any story_id appears ≥ 3 times → flag.
 
-**Hypothesis:** the story was under-planned or under-evaluated. **Proposal target:** `agents/story-plan-agent.md` (tighten the planning checklist) or `agents/evaluator-agent.md` (add an early-exit check for the failure mode).
+**Hypothesis:** the story was under-planned or under-evaluated. **Proposal target:** `agents/implement-planner-agent.md` (tighten the planning rules) or `agents/evaluator-agent.md` (add an early-exit check for the failure mode).
 
 ### Pattern 2 — Recurring evaluator finding category
 

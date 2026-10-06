@@ -1,6 +1,6 @@
 # ADR-0004 — Every build agent receives a separate work folder and state folder
 
-- **Status:** proposed
+- **Status:** accepted (2026-10-06): built in F4 #42; the F5 Demo found one path that still assumed the current folder (`observe-check.js`), fixed by passing the state folder's file
 - **Date:** 2026-10-05
 - **Decided by:** Anudeep Sharma (ARCHITECTURE.md §2 #4, §4)
 

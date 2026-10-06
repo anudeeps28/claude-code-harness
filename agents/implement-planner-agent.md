@@ -19,6 +19,12 @@ You may **additionally** receive these optional context blocks in your prompt:
 
 - **`Probes to build:`** — `probe <entry>: ...` lines from `/implement`'s Observe check. Each names a tool the Demo needs that the project does not have yet (a screenshot script, an e2e command). Plan one task per line, named exactly `Build the probe: <entry>`, that builds it **and** fills in that entry in the Observe section of `tasks/lessons.md` / `tasks/notes.md`. Plan approval rejects the plan if one is missing.
 
+- **`Child tasks:`** — on an enterprise install whose ticket lists child tasks (an ADO story's tasks,
+  for example). Plan **one `<task>` per child task**, named after it, plus the paired test tasks; no
+  task does more than one child task's work. The board and the plan then stay one to one, which is
+  what the sprint file's Master Status Table and the people reading the board expect. A child task
+  that needs no code (a manual step, a sign-off) is a `type="manual"` task.
+
 - **`Reuse inventory:`** — a list of existing files/symbols in the codebase that could plausibly be reused. When present, you **must** prefer reusing listed utilities over writing new code. For each item you reuse, cite it by path in the brief's "What's already set up" section and in the `<files>` of the task that uses it. If you choose NOT to reuse something on the list, add a one-sentence justification in the brief.
 
 If neither block is present, proceed exactly as before.
@@ -439,7 +445,7 @@ Also save the test strategy to `<state folder>/stories/<id_or_current>/test-stra
 
 ## Step 6 — The plan file is the resume source
 
-The `<tasks>` XML block you saved to `tasks/stories/<id_or_current>/plan.md` in Step 5 is what `/run-tasks` reads to resume the work if the session is interrupted. There is nothing more to do here — the story-folder `plan.md` is always local and works in every tracker mode.
+The `<tasks>` XML block you saved to `tasks/stories/<id_or_current>/plan.md` in Step 5 is what `/implement --resume` reads to carry on if the session is interrupted. There is nothing more to do here — the story-folder `plan.md` is always local and works in every tracker mode.
 
 **Never write to `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. The story-folder `plan.md` is the single source of the XML task plan.
 
