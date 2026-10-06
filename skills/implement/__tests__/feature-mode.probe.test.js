@@ -97,6 +97,10 @@ test('Runner_IsANamedAgentWithTheAgentTool', () => {
   mustMatch(RUNNER, /never merge|Never merge/, 'it never merges');
   mustMatch(RUNNER, /COMMIT: /, 'it reports the commit sha');
   mustMatch(RUNNER, /BLOCKED[\s\S]{0,400}worktree exactly as/i, 'BLOCKED leaves the worktree as it is');
+  // F5 Demo: a runner that started its reviewers in the background ended its turn with no result.
+  mustMatch(RUNNER, /foreground — never with `run_in_background`/, 'the runner starts its agents in the foreground');
+  // F5 Demo: run from a worktree, observe-check.js's default path finds no lessons/notes file.
+  mustMatch(RUNNER, /--observe "<state folder>\/lessons\.md"/, 'the runner points observe-check.js at the state folder');
   const required = readRequired().filter((r) => r.kind === 'agent').map((r) => r.name);
   assert.ok(required.includes('story-runner-agent'), 'the startup check must name story-runner-agent');
   mustMatch(read('install', 'lib', 'updater.js'), /'agents\/story-runner-agent\.md'/, 'the installer requires it');

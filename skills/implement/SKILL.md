@@ -564,8 +564,9 @@ per the 3-failed-attempts pause-anyway trigger — the same rule the rest of thi
 
 `/implement <feature-id>` builds a whole Feature: one plan approval, a Feature worktree, each story in
 its own worktree by a `story-runner-agent`, each merge tested before it is committed, and one PR from
-the Feature branch to main (ARCHITECTURE.md §1, ADR-0001 to ADR-0004). **Stories run one at a time**
-(`story-cap: 1`); parallel stories come later.
+the Feature branch to main (ARCHITECTURE.md §1, ADR-0001 to ADR-0004). **Independent stories run at
+the same time**, up to `max-parallel-stories` and never over Claude Code's limit of 20 agents at once
+(ARCHITECTURE.md §5); merges stay one at a time.
 
 The scripts live in `<skill-dir>/bin/`. Every command below runs from the home folder, which stays on
 main the whole time: `<home>` is the project root, `<state>` its `tasks/` folder.
@@ -615,6 +616,29 @@ story code.
    Feature's card to `in-progress`, and print `event=run-started` with
    `node "<skill-dir>/bin/progress.js" --feature <fid> - run-started planning "<N> stories"`.
 
+### Before the first story
+
+After plan approval and before any worktree exists, two checks; each prints nothing when all is well.
+
+```bash
+node "<skill-dir>/bin/disk-check.js" --stories <story-cap>
+node "<skill-dir>/bin/allowlist-check.js"
+```
+
+- **Disk:** the worktrees need (stories at once + the Feature) × `worktree-size-gb` (default 3 GB).
+  `not enough disk: ...` → **stop** before creating anything, showing the space needed and free.
+- **Allowlist:** background agents show their permission prompts in this session, so one command
+  nobody approved stalls the whole run. The script lists every command the run will use — the git
+  worktree and merge commands, the build, test and Observe commands from lessons/notes, the tracker
+  scripts, `gh pr create` — that no allow rule covers, each with the exact rule that would cover it.
+  Show that list in one block and **stop** until the person has added the rules (or says to go on and
+  answer the prompts as they come). The check never writes settings — agents cannot raise their own
+  permissions, and no agent message counts as approval — and it never proposes a destructive command
+  or a plain "Bash" rule that allows everything.
+
+Under `--autonomous` both still stop: a run that cannot finish for lack of disk or a permission is the
+missing-dependency trigger.
+
 ### Run the stories
 
 **Create the Feature worktree** — a sibling of the home folder, on the Feature branch from main:
@@ -623,10 +647,17 @@ story code.
 node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-worktree>" --branch "<feature-branch>"
 ```
 
-(Both values are in `feature-state.md`.) Then loop, one story at a time:
+(Both values are in `feature-state.md`.) Then loop:
 
-1. **Pick the next story:** `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`.
-   - `story <sid>` → run it (steps 2–5);
+1. **Pick the stories to start:** `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`.
+   - one `story <sid>` line per story to start now → start **every `story <sid>` line** (steps 2–3),
+     all their runners in the **same message** so they run at once. `next` already applied the limits:
+     a story starts only once every blocker has merged, at most `max-parallel-stories` run at once
+     (from the **Feature runs** section of lessons/notes, default 5), and
+     `1 + Σ (1 + widest remaining wave)` over the running stories stays at or under 20 — Claude Code's
+     limit on agents running at once. A story that would go over waits and starts when one finishes;
+     approved plans are never re-split to make it fit;
+   - `wait` → stories are running and nothing else can start: wait for a runner to report;
    - `done` → every story has merged: go to **The Feature's PR**;
    - `held: ...` → a story is stuck and nothing else can run: go to **Stuck stories**.
 2. **Create its worktree from the Feature branch**, which already holds every story merged so far:
@@ -647,11 +678,14 @@ node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-work
    verify lock (`<state>/.verify.lock` when lessons/notes say `verify-lock: global`); and "This is an
    autonomous run — self-answer your checkpoints per `rules/autonomous-mode.md` and append decisions to
    `tasks/stories/<sid>/decisions-log.md`." Wait for it to report (`rules/background-work.md`).
-4. **Read its report.** Record `commit=`, `attempts=`, `findings=`, `agents=` and `tokens=` from its
-   result block with `feature-state.js set`. `BLOCKED` → a failed attempt: restart it once from its
+4. **When a runner reports, read its report.** You only wake when an agent finishes, so each wake
+   handles one runner while the others keep going. Record `commit=`, `attempts=`, `findings=`,
+   `agents=` and `tokens=` from its result block with `feature-state.js set`. `BLOCKED` → a failed attempt: restart it once from its
    saved state; a second failure makes it **stuck** (below).
-5. **Merge it, tested before it is committed** (ADR-0003). The test command is the full build and test
-   from lessons/notes:
+5. **Merge it, tested before it is committed** (ADR-0003). Merges happen **one at a time**, here in
+   this session, whatever the number of stories running: two runners that finish together are merged
+   one after the other, each on a known state. The test command is the full build and test from
+   lessons/notes:
 
    ```bash
    node "<skill-dir>/bin/worktree.js" merge --feature-worktree "<feature-worktree>" --branch "<story branch>" \
@@ -675,8 +709,19 @@ node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-work
 `worktree.js merge` checks the Feature worktree before every merge; and before starting each story,
 run `worktree.js check-branch --path "<feature-worktree>" --expect "<feature-branch>"`.
 
-**Hung story.** Each time a runner reports, also read every running story's `phase.md`; one not
-updated in 30 minutes (`rules/phase-markers.md`) is reported as `story-stuck reason="no progress 30m"`.
+**Every time you wake, before anything else:**
+
+- **Record each running story's width.** Once a runner's planner has saved
+  `tasks/stories/<sid>/plan.md`, count the tasks per `parallel_group` among those not yet done and set
+  `width=<the largest>` on that story. Until then `next` counts it as 5 wide. This is what keeps the
+  agent count honest as stories progress.
+- **Check for a hung story:** `node "<skill-dir>/bin/feature-state.js" hung --feature <fid>`. It reads
+  every running story's `phase.md`; one not updated in 30 minutes (`rules/phase-markers.md`) prints
+  `restart <sid>: ...` the first time — print `event=story-stuck` with `reason="no progress 30m"`, tell
+  the person, and restart its runner **once** from its saved state, in the same worktree. A second hang
+  prints `stuck <sid>: ...` and `needs-person: ...`: it is stuck, with its dependents held (**Stuck
+  stories**). You only wake when an agent finishes, so a hang is caught at the next wake, not at exactly
+  30 minutes.
 
 ### Stuck stories
 
