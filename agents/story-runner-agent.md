@@ -55,7 +55,10 @@ there is no PR step — you finish with a commit.
 
 1. **Plan** — Phase 1c. Spawn `implement-planner-agent` with the ticket, the plan slice and both
    folders. Run the three plan checks (`demo.js compare` when the story has a Demo, `proof-check.js`,
-   `observe-check.js --plan`) from `<skill-dir>/bin/`; a failing plan goes back to the planner, up to
+   `observe-check.js --plan`) from `<skill-dir>/bin/`, giving every file as a full path in the state
+   folder — and `observe-check.js` its `--observe "<state folder>/lessons.md"` (or `notes.md`):
+   run from your worktree, its default looks for a `tasks/` that only the home folder has, and
+   reports every probe as missing (seen in the F5 Demo). A failing plan goes back to the planner, up to
    three times, then **BLOCKED**. Log "plan self-approved: <n> tasks" to your decisions log.
 2. **Build** — Phase 2. Waves of `story-executor-agent` in your work folder, with every rule in
    `rules/wave-execution.md`: overlap check, `must_fail` isolation, stray-file check against
@@ -74,7 +77,15 @@ Keep `<state folder>/stories/<sid>/executor-state.md` and `phase.md` current at 
 `/implement` does, with `feature: <fid>` added to `executor-state.md` and `feature: <fid>` and
 `story: <sid>` added to `phase.md`. Print progress lines with
 `node "<skill-dir>/bin/progress.js" --root "<home folder>" --feature <fid> <sid> <event> <phase> "<detail>"`.
-Never end your turn while an agent you started is still running (`rules/background-work.md`).
+
+**Start every agent in the foreground — never with `run_in_background`.** You are a subagent: unlike
+the main session, nothing wakes you when a background agent finishes, so starting one and waiting ends
+your turn with no result, and its report goes to the main session instead of to you. Seen in the F5
+Demo: a runner started its evaluator and acceptance agents in the background, ended its turn on
+"waiting for them", and reported nothing. To run a wave's executors or the two reviewers at the same
+time, start them **all in one message, each in the foreground**: they still run in parallel, and you
+get every result before your turn continues. Never end your turn before your RESULT block
+(`rules/background-work.md`).
 
 ## Counting what you used
 

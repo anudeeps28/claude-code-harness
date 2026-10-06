@@ -11,7 +11,13 @@
 //          Orders the stories by dependency, rejects a cycle or a blocker outside the Feature, and
 //          writes the state. Closed stories are "skipped". Prints the order. Refuses to overwrite.
 //   set    --feature <fid> [--story <sid>] key=value ...     update a story, or the header
-//   next   --feature <fid>   prints "story <sid>", "wait", "done", or "held: ..." (stuck, nothing left)
+//   next   --feature <fid>   prints one "story <sid>" line per story to start now, then
+//          "agents: <n>/<limit>"; or "wait", "done", or "held: ..." (stuck, nothing left). A story
+//          starts once every blocker has merged, while the stories running stay within story-cap
+//          (max-parallel-stories, default 5) and 1 + Σ(1 + widest wave) stays ≤ agent-limit (20).
+//          A story's width= is its widest remaining wave; unplanned stories count as 5 (F5 #49).
+//   hung   --feature <fid> [--now <iso>]   every running story whose phase.md is 30+ minutes old:
+//          "restart <sid>: ..." the first time, then "stuck <sid>: ..." and its dependents held (#51)
 //   resume --feature <fid>   prints what --resume does with each story
 //   stuck  --feature <fid> --story <sid> --reason <text>
 //          marks the story stuck and every story that depends on it, directly or not, held; prints
@@ -21,6 +27,12 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { readSettings } = require('./settings.js');
+
+const DEFAULT_CAP = 5;        // max-parallel-stories (ARCHITECTURE.md §5)
+const AGENT_LIMIT = 20;       // Claude Code's default limit on agents running at once
+const DEFAULT_WIDTH = 5;      // a story whose plan is not made yet is assumed to be this wide
+const HANG_MINUTES = 30;      // rules/phase-markers.md freshness
 
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const STATUSES = ['pending', 'running', 'in-review', 'merged', 'stuck', 'held', 'skipped'];
@@ -135,7 +147,8 @@ function cmdInit(root, opts) {
     'plan-approved': 'no',
     'feature-branch': `feature/${fid}-${slug(opts.title || fid)}`,
     'feature-worktree': path.join(parent, `${repoName}-f${fid}`),
-    'story-cap': opts['story-cap'] || '1',
+    'story-cap': opts['story-cap'] || readSettings(root)['max-parallel-stories'] || String(DEFAULT_CAP),
+    'agent-limit': String(AGENT_LIMIT),
     phase: 'planning',
   };
   const rows = result.order.map((s) => ({
@@ -181,13 +194,32 @@ function cmdSet(root, opts, pairs) {
   return 0;
 }
 
+// Agents a running story holds at once: its runner, plus its widest remaining wave.
+const storyAgents = (s) => 1 + (Number(s.width) > 0 ? Number(s.width) : DEFAULT_WIDTH);
+
 function cmdNext(root, opts) {
   const { header, stories } = load(root, opts.feature);
   const status = new Map(stories.map((s) => [s.id, s.status]));
-  const active = stories.filter((s) => s.status === 'running' || s.status === 'in-review').length;
-  const ready = stories.find((s) => s.status === 'pending' && blockersOf(s).every((b) => ['merged', 'skipped'].includes(status.get(b))));
-  if (ready && active < Number(header['story-cap'] || 1)) return out(`story ${ready.id}`), 0;
-  if (active > 0) return out('wait'), 0;
+  const running = stories.filter((s) => s.status === 'running' || s.status === 'in-review');
+  const cap = Number(header['story-cap']) > 0 ? Number(header['story-cap']) : DEFAULT_CAP;
+  const limit = Number(header['agent-limit']) > 0 ? Number(header['agent-limit']) : AGENT_LIMIT;
+  // 1 (this session) + Σ over running stories of (1 + widest remaining wave) must stay ≤ the limit.
+  let agents = 1 + running.reduce((n, s) => n + storyAgents(s), 0);
+  let count = running.length;
+  const start = [];
+  for (const s of stories) {
+    if (s.status !== 'pending' || !blockersOf(s).every((b) => ['merged', 'skipped'].includes(status.get(b)))) continue;
+    if (count >= cap || agents + storyAgents(s) > limit) break;
+    start.push(s.id);
+    agents += storyAgents(s);
+    count++;
+  }
+  if (start.length) {
+    for (const id of start) out(`story ${id}`);
+    out(`agents: ${agents}/${limit}`);
+    return 0;
+  }
+  if (running.length > 0) return out('wait'), 0;
   if (stories.every((s) => s.status === 'merged' || s.status === 'skipped')) return out('done'), 0;
   const stuck = stories.filter((s) => s.status === 'stuck').map((s) => `#${s.id}`);
   const held = stories.filter((s) => s.status === 'held' || s.status === 'pending').map((s) => `#${s.id}`);
@@ -219,12 +251,42 @@ function cmdResume(root, opts) {
   return cmdNext(root, opts);
 }
 
+function cmdHung(root, opts) {
+  const state = load(root, opts.feature);
+  const now = opts.now ? Date.parse(opts.now) : Date.now();
+  if (!Number.isFinite(now)) return fail(2, `bad --now: ${opts.now}`);
+  for (const s of state.stories.filter((x) => x.status === 'running' || x.status === 'in-review')) {
+    const phaseFile = path.join(root, 'tasks', 'stories', s.id, 'phase.md');
+    let updated = s.started;
+    if (fs.existsSync(phaseFile)) {
+      const m = fs.readFileSync(phaseFile, 'utf8').match(/^updated: (\S+)/m);
+      if (m) updated = m[1];
+    }
+    const minutes = Math.floor((now - Date.parse(updated)) / 60000);
+    if (!Number.isFinite(minutes) || minutes < HANG_MINUTES) continue;
+    if ((Number(s.hangs) || 0) === 0) {
+      s.hangs = '1';
+      writeState(root, opts.feature, state);
+      out(`restart ${s.id}: no progress ${minutes}m (phase.md updated ${updated}); restart its runner once from its saved state, in the same worktree`);
+    } else {
+      out(`stuck ${s.id}: no progress ${minutes}m, a second time`);
+      markStuck(root, opts.feature, state, s.id, `no progress ${minutes}m, a second time`);
+    }
+  }
+  return 0;
+}
+
 function cmdStuck(root, opts) {
   const state = load(root, opts.feature);
-  const story = state.stories.find((s) => s.id === opts.story);
-  if (!story) return fail(1, `no story #${opts.story} in Feature #${opts.feature}`);
+  if (!state.stories.some((s) => s.id === opts.story)) return fail(1, `no story #${opts.story} in Feature #${opts.feature}`);
+  markStuck(root, opts.feature, state, opts.story, opts.reason || 'no reason given');
+  return 0;
+}
+
+function markStuck(root, fid, state, sid, reason) {
+  const story = state.stories.find((s) => s.id === sid);
   story.status = 'stuck';
-  story.reason = clean(opts.reason || 'no reason given');
+  story.reason = clean(reason);
   const held = new Set([story.id]);
   let grew = true;
   while (grew) {
@@ -234,9 +296,8 @@ function cmdStuck(root, opts) {
       if (blockersOf(s).some((b) => held.has(b))) { held.add(s.id); s.status = 'held'; grew = true; }
     }
   }
-  writeState(root, opts.feature, state);
+  writeState(root, fid, state);
   out(`needs-person: ${state.stories.filter((s) => held.has(s.id)).map((s) => s.id).join(' ')}`);
-  return 0;
 }
 
 function out(line) { process.stdout.write(line + '\n'); }
@@ -263,8 +324,11 @@ function main() {
   const root = opts.root || process.cwd();
   if (!opts.feature || !ID_RE.test(opts.feature) || opts.feature.includes('..')) fail(2, `--feature <fid> is required, letters, digits, . _ - only`);
   if (opts.story !== undefined && (!ID_RE.test(opts.story) || opts.story.includes('..'))) fail(2, `bad --story id`);
-  const commands = { init: () => cmdInit(root, opts), set: () => cmdSet(root, opts, pairs), next: () => cmdNext(root, opts), resume: () => cmdResume(root, opts), stuck: () => cmdStuck(root, opts) };
-  if (!commands[command]) fail(2, 'usage: feature-state.js init|set|next|resume|stuck --feature <fid> [...] (see the header of this file)');
+  const commands = {
+    init: () => cmdInit(root, opts), set: () => cmdSet(root, opts, pairs), next: () => cmdNext(root, opts),
+    resume: () => cmdResume(root, opts), stuck: () => cmdStuck(root, opts), hung: () => cmdHung(root, opts),
+  };
+  if (!commands[command]) fail(2, 'usage: feature-state.js init|set|next|resume|stuck|hung --feature <fid> [...] (see the header of this file)');
   process.exit(commands[command]());
 }
 

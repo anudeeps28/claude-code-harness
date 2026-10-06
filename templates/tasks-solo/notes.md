@@ -73,6 +73,17 @@ Options:
 
 ---
 
+## Feature runs
+
+> Settings for `/implement <feature-id>`, which builds each story in its own git worktree. Leave a
+> line as a placeholder to keep its default.
+
+- max-parallel-stories: `<!-- default 5; how many stories run at once (never over the 20-agent limit) -->`
+- worktree-size-gb: `<!-- default 3; disk per worktree with dependencies restored, for the startup disk check -->`
+- verify-lock: `<!-- default per-story; "global" if worktrees share a port, a database or a global cache -->`
+
+---
+
 ## Observe
 
 > How the harness may see the running app, so every item's Demo can be watched happen. `/implement`

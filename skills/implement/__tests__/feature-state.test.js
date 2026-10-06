@@ -41,7 +41,7 @@ test('Init_WritesStateWithBranchesAndSiblingWorktrees', () => {
   assert.equal(s.header['feature-branch'], 'feature/123-orders-page');
   assert.equal(s.header['feature-worktree'], path.join(path.dirname(dir), 'shop-f123'));
   assert.equal(s.header['plan-approved'], 'no');
-  assert.equal(s.header['story-cap'], '1');
+  assert.equal(s.header['story-cap'], '5');
   assert.deepEqual(s.stories.map((x) => x.id), ['201', '202']);
   const b = s.stories[1];
   assert.equal(b.status, 'pending');
@@ -193,4 +193,98 @@ test('Resume_NoState_StopsAndNeverStartsFresh', () => {
 test('BadFeatureId_IsRefused', () => {
   const r = run(home(AB), 'next', '--feature', '../etc');
   assert.equal(r.code, 2, r.out);
+});
+
+// ── F5 #49: independent stories in parallel ──────────────────────────
+
+function initWith(stories, extra = []) {
+  const dir = home(stories);
+  const r = run(dir, 'init', '--feature', '123', '--title', 'T', '--stories', path.join(dir, 'stories.json'), '--repo-name', 'shop', ...extra);
+  assert.equal(r.code, 0, r.out);
+  return dir;
+}
+const indep = (n) => Array.from({ length: n }, (_, i) => ({ id: String(i + 1), title: `s${i + 1}`, state: 'OPEN', blockers: [] }));
+const started = (out) => [...out.matchAll(/^story (\S+)$/gm)].map((m) => m[1]);
+
+test('Parallel_IndependentStoriesStartTogether', () => {
+  const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
+  assert.equal(readState(dir, '123').header['story-cap'], '5', 'the default cap is 5');
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1', '2'], 'A and B start at once; C waits for A');
+});
+
+test('Parallel_BlockedStoryNeverStartsBeforeItsBlockerMerges', () => {
+  const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
+  run(dir, 'set', '--feature', '123', '--story', '2', 'status=merged');
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), [], 'B merged, but C still waits for A');
+  assert.match(run(dir, 'next', '--feature', '123').out, /^wait$/m);
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=merged');
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['3']);
+});
+
+test('Parallel_CapOfOne_RunsOneAtATimeInOrder', () => {
+  const dir = initWith(indep(3), ['--story-cap', '1']);
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1']);
+});
+
+test('Parallel_AgentLimit_FiveWideStoriesRunThreeAtATime', () => {
+  const dir = initWith(indep(5));
+  for (const s of ['1', '2', '3', '4', '5']) run(dir, 'set', '--feature', '123', '--story', s, 'width=5');
+  // 1 + 3 × (1 + 5) = 19 ≤ 20; a fourth would make 25.
+  const r = run(dir, 'next', '--feature', '123');
+  assert.deepEqual(started(r.out), ['1', '2', '3'], r.out);
+  assert.match(r.out, /^agents: 19\/20$/m);
+  for (const s of ['1', '2', '3']) run(dir, 'set', '--feature', '123', '--story', s, 'status=running');
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), []);
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=merged');
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['4'], 'the next one starts as soon as one finishes');
+});
+
+test('Parallel_UnplannedStoryCountsAsFiveWide', () => {
+  const dir = initWith(indep(5));
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1', '2', '3']);
+});
+
+test('Parallel_NarrowStoriesFitUpToTheCap', () => {
+  const dir = initWith(indep(6));
+  for (const s of ['1', '2', '3', '4', '5', '6']) run(dir, 'set', '--feature', '123', '--story', s, 'width=1');
+  // 1 + 5 × 2 = 11: the cap of 5 binds before the agent limit.
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1', '2', '3', '4', '5']);
+});
+
+// ── F5 #51: a hung story is restarted once, then stuck ──────────────
+
+function phase(dir, sid, updated) {
+  fs.mkdirSync(path.join(dir, 'tasks', 'stories', sid), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'tasks', 'stories', sid, 'phase.md'),
+    `schemaVersion: 1\nphase: coding\nrole: builder\nupdated: ${updated}\nskill: implement\ndetail: wave 1\n`);
+}
+
+test('Hung_FreshStory_IsNotFlagged', () => {
+  const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
+  phase(dir, '1', '2026-10-06T10:00:00Z');
+  const r = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:29:00Z');
+  assert.equal(r.code, 0, r.out);
+  assert.equal(r.out, '');
+});
+
+test('Hung_FirstTime_RestartOnceThenStuckWithDependentsHeld', () => {
+  const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
+  phase(dir, '1', '2026-10-06T10:00:00Z');
+  const first = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:31:00Z');
+  assert.match(first.out, /^restart 1: no progress 31m \(phase\.md updated 2026-10-06T10:00:00Z\); restart its runner once from its saved state, in the same worktree$/m);
+  assert.equal(readState(dir, '123').stories[0].status, 'running');
+  phase(dir, '1', '2026-10-06T10:40:00Z');
+  const second = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T11:15:00Z');
+  assert.match(second.out, /^stuck 1: no progress 35m, a second time$/m);
+  assert.match(second.out, /^needs-person: 1 3$/m);
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['stuck', 'pending', 'held']);
+});
+
+test('Hung_NoPhaseFile_UsesTheStartTime', () => {
+  const dir = initWith(indep(1));
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running', 'started=2026-10-06T09:00:00Z');
+  assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:00:00Z').out, /^restart 1: no progress 60m/m);
 });
