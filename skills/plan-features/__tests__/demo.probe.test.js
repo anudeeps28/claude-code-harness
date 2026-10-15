@@ -44,7 +44,7 @@ test('Demo_HasAUiFormABackendFormAndABugForm', () => {
 });
 
 test('Demo_FeatureBodyCarriesTheDemo', () => {
-  const create = section(SKILL, '### 6a — Create the parent feature');
+  const create = section(SKILL, '### 6a — Create the Features');
   mustMatch(create, /## Demo/, 'the Feature body must carry a ## Demo section');
 });
 
@@ -131,4 +131,28 @@ test('WithoutTheHarnessAdapter_AdoGoesThroughAz', () => {
   const ref = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'plan-features', 'references', 'ado-commands.md'), 'utf8');
   mustMatch(ref, /--relation-type predecessor/, 'the blocked-by edge is a predecessor link');
   mustMatch(ref, /CONTAINS 'no-CC\/SD'/, 'the CC/SD sweep query is there');
+});
+
+// 2026-10-15 (Anudeep): several Features per run, links at both levels, a finishable gate, no Epics.
+test('SeveralFeatures_LinksAtBothLevels', () => {
+  mustMatch(section(SKILL, '### Features first, when the work is bigger than one'), /cut it into\s+Features first/i,
+    'work bigger than one Feature is cut into Features first, in the same run');
+  const graph = section(SKILL, '## Phase 3.5 — Build the dependency graph');
+  mustMatch(graph, /Story ← story\*\*, in the same Feature or in a different one/, 'story edges may cross Features');
+  mustMatch(graph, /Feature ← Feature\*\*/, 'Features link to Features');
+  mustMatch(section(SKILL, '## Phase 1 — Read the input, then the repo'), /open stories of the other open Features/,
+    'the run reads other Features\' open stories, so --parent can link across');
+  mustMatch(section(SKILL, '### 6a — Create the Features'), /Create every Feature first/, 'every Feature is created before the stories');
+});
+
+test('FinishableGate_BeforeApproval', () => {
+  const gate = section(SKILL, '## Phase 3.8 — Finishable gate');
+  assert.ok(gate, 'expected a "## Phase 3.8 — Finishable gate"');
+  assert.ok(SKILL.indexOf('## Phase 3.8') < SKILL.indexOf('## Phase 4'), 'the finishable gate runs before Phase 4');
+  for (const fix of ['move the criterion', 'add the edge', 're-cut the Features']) assert.ok(gate.includes(fix), `the gate offers: ${fix}`);
+  mustMatch(section(SKILL, '## Phase 4 — Review with user'), /What runs in parallel\*\*, in waves/, 'approval shows the waves');
+});
+
+test('NoEpics', () => {
+  assert.ok(!/--epic/.test(SKILL), 'the skill has no --epic mode');
 });

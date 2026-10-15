@@ -1,14 +1,16 @@
 ---
 name: plan-features
-description: Turn any plan into Features and stories on the board, the way the Software Delivery and Release Process wants them — a rough brainstorm, a PRD, a grill or wayfinder summary, architect output, a feature file, or a few lines in chat. Reads the repo's docs, feature files and code first. Each Feature has a Demo (what visibly changes and where you see it), at most 8 stories of 1, 2 or 3 points (5 only with a written reason), a CC/SD change ticket, and real blocked-by links between stories that genuinely block one another. Creates the items itself after one approval, or — where the repo's settings say so — writes a plan file for the Scrum Master and reads the ids back afterwards. Backend-aware: ADO, GitHub, Todoist or local task files. Usage: /plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run] [--settings]
+description: Turn any plan into Features and stories on the board, the way the Software Delivery and Release Process wants them — a rough brainstorm, a PRD, a grill or wayfinder summary, architect output, a feature file, or a few lines in chat. Reads the repo's docs, feature files and code first. Each Feature has a Demo (what visibly changes and where you see it), at most 8 stories of 1, 2 or 3 points (5 only with a written reason), a CC/SD change ticket, and real blocked-by links (story to story, also across Features, and Feature to Feature) so anything unlinked can run in parallel. Plans one Feature or several in one run, and checks that each Feature can be finished by its own stories plus the Features linked before it. Creates the items itself after one approval, or — where the repo's settings say so — writes a plan file for the Scrum Master and reads the ids back afterwards. Backend-aware: ADO, GitHub, Todoist or local task files. Usage: /plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run] [--settings]
 triggers: /plan-features
 ---
 
 # /plan-features
 
-Turn whatever plan exists into Features and stories. Each story is an independently testable slice;
-stories hang off one parent Feature, and stories that genuinely block one another are joined by a
-**blocked-by edge**. Creates the items in the active tracker (ADO work items, GitHub issues, Todoist
+Turn whatever plan exists into Features and stories. Each story is an independently testable slice.
+One run can plan one Feature or several. Stories hang off their Feature; Features that genuinely block
+one another, and stories that genuinely block one another (in the same Feature or in different ones),
+are joined by a **blocked-by edge**. Anything with no edge is free to run at the same time, in its own
+worktree. Creates the items in the active tracker (ADO work items, GitHub issues, Todoist
 tasks or local task files), or hands a plan to the Scrum Master (Phase 6S).
 
 It is the one planning skill. It replaced `/to-issues` (claude-code-harness) and `prd-to-stories`
@@ -238,7 +240,10 @@ was given is the input.
    will touch (Phase 3.5 needs it).
 4. **The board**: open Features whose titles overlap the plan (`list-issues.sh`, or the ADO search in
    `references/ado-commands.md`) — if the work is already there, say so in Phase 4 instead of making it
-   again.
+   again. Also read the **open stories of the other open Features** in the same project, with their
+   titles and what they touch. A new story that waits on one of them gets an edge to it (Phase 3.5),
+   and its Feature an edge to that Feature. This matters most with `--parent`, when the run would
+   otherwise see only one Feature's stories.
 
 Report in two or three lines what was read and what the repo context is.
 
@@ -258,6 +263,22 @@ From the input and the repo, extract:
 ## Phase 3 — Decompose into vertical slices (stories)
 
 Read `references/story-template.md` and `references/phase-classification.md` now.
+
+### Features first, when the work is bigger than one
+
+When the work is more than one goal the business can see, or more than 8 stories, cut it into
+Features first, then cut every Feature's stories in this same run, so Phase 3.5 sees every story at
+once. Each Feature is **one goal the business can see, with its own Demo, finishable in one sprint**
+(at most 8 stories). With `--parent`, the run plans stories for that one Feature only.
+
+**Cut for parallel work.** Aim for the most Features that can run at the same time:
+
+- Put groundwork several Features need (a shared screen, a table, a shell) in its **own first
+  Feature**, so the rest wait on one thing instead of on each other.
+- Keep Features off the same screens and files where you can. Where they cannot avoid it, that is an
+  `overlap` edge (Phase 3.5), and it removes parallel work like any other edge.
+- Never add an edge to make the order look tidy. An edge is only for "cannot be built or finished
+  without".
 
 **Slicing rules:**
 - Each story is **independently testable** — a tester or reviewer can verify it on its own
@@ -335,8 +356,8 @@ the page shipped with the wrong layout while every gate passed. Hard rules:
 creation order *is* run order — so the sequence you settle on here decides which of several ready
 stories a scheduler starts first. This skill deliberately does not set an explicit rank field.
 
-Also decide the **parent feature**: a title, a one-paragraph description covering the whole initiative,
-and its **Demo** (next subsection). Skip this if `--parent` was passed.
+Also decide each **Feature**: a title, a one-paragraph description of its goal, and its **Demo** (next
+subsection). Skip this if `--parent` was passed.
 
 ### The Demo section
 
@@ -418,8 +439,18 @@ its own to create a standalone item.
 Stories that block one another must be joined by a real edge. Derive the edges yourself from the input
 and the code; do not ask story-by-story.
 
-**An edge means: this story cannot start until that one is done.** Write every edge as
-`blocked story ← blocker`, and tag each with one of two reasons:
+**An edge means: this story cannot start until that one is done.** Edges exist at two levels, and both
+are written as predecessor links:
+
+- **Story ← story**, in the same Feature or in a different one. A story in one Feature that cannot start
+  until a story in another Feature is done gets that edge directly, story to story.
+- **Feature ← Feature**, whenever any story of one Feature waits on a story of the other. This is what
+  shows on the board's Feature cards, so the order of Features is visible without opening a story.
+
+A Feature edge never replaces the story edges under it: a scheduler starts stories, so it needs the
+story edge. Anything with no edge, at either level, can run at the same time in its own worktree.
+
+Write every edge as `blocked ← blocker`, and tag each with one of two reasons:
 
 | Reason | When | Example |
 |---|---|---|
@@ -527,6 +558,25 @@ service") with the visible part left for later. Stop and say:
 Then re-cut the stories with the user and run this gate again. Never pad a Demo to get past it ("the
 build passes", "the code exists") — a Demo nobody can see is the failure this gate exists to catch.
 
+With several Features, each Feature's Demo passes this gate on its own.
+
+## Phase 3.8 — Finishable gate
+
+Before anything is shown for approval, check every acceptance criterion of every story, and each
+Feature's Demo. Each one must be met by **the stories of its own Feature, or by Features it is linked
+after** (Phase 3.5). A criterion that needs a screen, an API or data that only a later or unlinked
+Feature builds fails the gate. With `--parent`, the other Features are the open ones read in Phase 1.
+
+For each failure, fix the plan before Phase 4, one of three ways:
+
+- **move the criterion** to the story that builds what it needs;
+- **add the edge**, when the need is real and the order allows it;
+- **re-cut the Features**, when the need runs both ways.
+
+Say which fix you took in the Phase 4 view, under "Finishable check". Never let a Feature reach the
+board with a criterion it cannot meet. A real run (Hydra's cleanup Feature, 2026-10-14) did: half its
+criteria named screens from three other Features, and the run had to stop and ask.
+
 ## Phase 4 — Review with user
 
 Present the proposed decomposition — stories, destination, change ticket, edges, and both graph views.
@@ -535,39 +585,48 @@ session) called this skill: its proposal waits here for a person, and the callin
 its own work meanwhile.
 
 > **Initiative:** [project name — one-line summary]
-> **Parent feature:** [title — or "existing #N" if `--parent` was passed]
-> **Demo:** [the `## Demo` section, in full — or the standalone item's]
+> **Features:** [one, or the table below — or "existing #N" if `--parent` was passed]
+> **Demo:** [each Feature's `## Demo` section, in full — or the standalone item's]
 > **Destination:** [iteration] / [area] — from Phase 3.6
 > **Change ticket:** [CC-1234 — or "none yet: every item is tagged no-CC/SD and you'll be asked again"]
 > **Board:** [created by this skill now | written to plan-<feature>.md for the Scrum Master] — from the settings
 > **Dependency links:** [native predecessor links | `Blocked by:` body lines, readable via `get-blockers.sh` | prose only — this adapter has no link script]
 >
+> **Features** (only when there is more than one) — in creation order:
+>
+> | # | Feature | Goal | Stories | Points | Blocked by |
+> |---|---------|------|---------|--------|------------|
+> | F1 | ... | ... | 4 | 9 | — |
+> | F2 | ... | ... | 6 | 14 | F1 |
+>
 > **Stories** — listed in creation order, which is also run order:
 >
-> | # | Title | Delivers | Points | QAble | Risk | Blocked by |
-> |---|-------|----------|--------|-------|------|------------|
-> | 1 | ... | ... | 2 | QAble | ... | — |
-> | 2 | ... | ... | 3 | QAble | ... | 1 |
-> | 3 | ... | ... | 1 | Not QAble | ... | 1 |
-> | 4 | ... | ... | 5 (why: …) | QAble | ... | 2, 3 |
+> | # | Feature | Title | Delivers | Points | QAble | Risk | Blocked by |
+> |---|---------|-------|----------|--------|-------|------|------------|
+> | 1 | F1 | ... | ... | 2 | QAble | ... | — |
+> | 2 | F1 | ... | ... | 3 | QAble | ... | 1 |
+> | 3 | F1 | ... | ... | 1 | Not QAble | ... | 1 |
+> | 4 | F2 | ... | ... | 5 (why: …) | QAble | ... | 2, 3 |
 >
 > **Total:** <N> points across <n> stories.
 >
-> **Edges** — each one removes parallelism, so each needs a reason:
+> **Edges** — each one removes parallelism, so each needs a reason. Story edges first, then Feature edges:
 >
 > | Blocked | Blocker | Reason | Why |
 > |---------|---------|--------|-----|
 > | 2 | 1 | prerequisite | needs the table from #1 |
 > | 3 | 1 | prerequisite | needs the table from #1 |
 > | 4 | 2 | overlap | both rewrite `OrderService` |
+> | F2 | F1 | prerequisite | story 4 waits on story 2 |
 >
 > **Tree:**
 >
 > ```
-> Feature: <parent title>
+> Feature F1: <title>
 > ├── 1. <story title>
 > ├── 2. <story title>          (blocked by 1)
-> ├── 3. <story title>          (blocked by 1)
+> └── 3. <story title>          (blocked by 1)
+> Feature F2: <title>           (blocked by F1)
 > └── 4. <story title>          (blocked by 2, 3)
 > ```
 >
@@ -575,34 +634,47 @@ its own work meanwhile.
 >
 > ```mermaid
 > flowchart LR
->   S1["1. story title"] --> S2["2. story title"]
->   S1 --> S3["3. story title"]
->   S2 -.->|overlap| S4["4. story title"]
+>   subgraph F1["F1. feature title"]
+>     S1["1. story title"] --> S2["2. story title"]
+>     S1 --> S3["3. story title"]
+>   end
+>   subgraph F2["F2. feature title"]
+>     S4["4. story title"]
+>   end
+>   S2 -.->|overlap| S4
 >   S3 --> S4
 > ```
 >
-> **What runs in parallel:** stories 2 and 3 can start together once 1 is done. Story 4 waits for both.
+> **What runs in parallel**, in waves:
 >
-> **Already on the board:** [overlapping Features found in Phase 1, or "nothing overlapping"]
+> - **Wave 1 (start now):** story 1.
+> - **Wave 2 (after 1):** stories 2 and 3, in separate worktrees.
+> - **Wave 3 (after 2 and 3):** F2 (story 4).
+>
+> **Finishable check:** [each Feature: "met by its own stories" or "met with F1 before it"; and every
+> fix Phase 3.8 made — a criterion moved, an edge added, Features re-cut]
+>
+> **Already on the board:** [overlapping Features, and open stories in other Features that new stories
+> wait on, found in Phase 1 — or "nothing overlapping"]
 >
 > "Does this look right? You can merge, split, or reorder stories, change points, and add or drop any
 > edge — dropping an `overlap` edge is the usual one if you know both changes are additive. Say 'go' to
 > create everything."
 
 **Rendering rules for the two views:**
-- The **tree** shows hierarchy only (feature → stories) with blockers annotated in parentheses. It must
-  read correctly as plain text in a terminal.
+- The **tree** shows hierarchy only (feature → stories) with blockers annotated in parentheses, on both
+  Features and stories. It must read correctly as plain text in a terminal.
 - The **mermaid graph** shows the blocking edges, arrow pointing *from blocker to blocked* (reading
-  direction = execution order). Draw `overlap` edges dotted and labelled so they are distinguishable
-  from `prerequisite` edges. Use `flowchart LR`.
+  direction = execution order). With more than one Feature, draw each Feature as a `subgraph` holding
+  its stories, so a story edge between Features crosses the boxes. Draw `overlap` edges dotted and
+  labelled so they are distinguishable from `prerequisite` edges. Use `flowchart LR`.
 - If there are **no edges at all**, say so explicitly — "every story is independent; all N can run in
   parallel" — and skip the mermaid block rather than drawing a graph with no arrows.
 
 **More than 8 stories** is more than one sprint's Feature (delivery process; `ARCHITECTURE.md` §5), and
 it turns plan approval into a rubber stamp. Do not offer it as one Feature: split it into **two Features,
 each with its own Demo**, naming which stories go where and what each Demo shows, and present both.
-They are created one after the other (one parent per pass, Phase 6a), with any edge between them recorded
-under "Open items".
+Both are planned and created in this run, with their links (Phase 3.5).
 
 **A story over 3 points** is shown with its `Why 5:` reason; one with none is sent back to Phase 3.
 
@@ -610,7 +682,7 @@ If `--dry-run` was passed, stop here and print: *"Dry run complete. Nothing was 
 `--dry-run` to create these items."*
 
 Otherwise, do not proceed to Phase 5 without explicit user approval. If the user changes any edge,
-re-run the Phase 3.5 cycle check before continuing.
+re-run the Phase 3.5 cycle check and the Phase 3.8 finishable gate before continuing.
 
 ## Phase 5 — Setup infrastructure
 
@@ -669,8 +741,9 @@ td section create --project "<project>" --name "<section>"
 
 **In `scrum-master` mode, skip to Phase 6S** — this skill writes nothing to the board.
 
-Order of operations is fixed: **parent first, then stories in the approved order, then the edges, then
-the points.** Edges last, because they need the real IDs of both ends.
+Order of operations is fixed: **every Feature first, then the stories of each Feature in the approved
+order, then the edges (story edges, then Feature edges), then the points.** Edges last, because they
+need the real IDs of both ends.
 
 On ADO, export the destination from Phase 3.6 before the first call so every item lands in the right
 bucket — the adapter scripts read it from the environment, and a child does **not** inherit its parent's
@@ -686,14 +759,13 @@ story (`CC-1234`); with none yet, the tag is `no-CC/SD` instead. On ADO, when th
 `Change Ticket` field (Appendix B of the delivery process), set it too. Tags are what the release train
 and `work-feature` read, so the tag is never skipped.
 
-### 6a — Create the parent feature
+### 6a — Create the Features
 
 Skip if `--parent <id>` was passed; use that ID as the parent instead.
 
-**One pass creates exactly one parent.** If the work needs several parent headers (two Features from the
-8-story rule), create the first with its stories and edges, then the second — two passes of 6a–6c
-within the run, never one pass with two roots: the dependency graph in Phase 3.5 is built per Feature
-and assumes one root.
+**Several Features in one run.** Create every Feature first, in the approved order, holding each one's
+id (`F1_ID`, `F2_ID`…). Then 6b creates the stories of each Feature under its own id, and 6c writes all
+the edges, story edges and Feature edges together, once every id exists.
 
 **Every item gets a type, on every backend:** `TRACKER_ITEM_TYPE` is one of `Feature`, `Story`, `Bug`,
 `Task`, and each adapter stores it its own way (a `type:` field, a `type:<x>` label, or ADO's work item
@@ -743,7 +815,8 @@ A standalone item (`--standalone`, see Phase 3) is created the same way with `TR
 or `TRACKER_ITEM_TYPE=Story` and no `TRACKER_UNCOMPLETABLE`, and its body uses the story format below
 plus the `## Demo` section.
 
-Parse the printed ID and hold it as `PARENT_ID`. If the parent fails to create, **halt** — do not create
+Parse the printed ID and hold it as `PARENT_ID` (with several Features, one id per Feature; each story
+in 6b uses its own Feature's id as `PARENT_ID`). If a Feature fails to create, **halt** — do not create
 orphan stories.
 
 For an adapter with no hierarchy capability (Phase 0 probe), skip this step and create stories flat.
@@ -839,9 +912,11 @@ their edges cannot be written in 6c.
 
 ### 6c — Write the dependency edges
 
-Now that every story has a real ID, translate the approved edge list.
+Now that every Feature and story has a real ID, translate the approved edge list: the story edges first
+(including those to stories in other Features, new or already on the board), then the Feature edges.
 
-**Where `add-blocker.sh` exists** (Phase 0 probe — all four shipped adapters), one call per edge:
+**Where `add-blocker.sh` exists** (Phase 0 probe — all four shipped adapters), one call per edge, the
+same call for a story edge and a Feature edge:
 
 ```bash
 bash trackers/active/add-blocker.sh <BLOCKED_ID> <BLOCKER_ID>
@@ -935,7 +1010,8 @@ this is the receipt showing what actually landed.
 ~~~markdown
 ## Created
 
-**Feature:** #<PARENT_ID> — <title>   (or "attached to existing #N")
+**Feature:** #<PARENT_ID> — <title>   (or "attached to existing #N"; with several Features, the
+Features table with real ids and their Blocked by)
 **Destination:** <iteration> / <area>
 **Change ticket:** <CC-1234 | none yet — tagged no-CC/SD, asked again next run>
 **Points:** <total> across <n> stories
@@ -964,7 +1040,7 @@ flowchart LR
 ```
 
 **Dependency links:** <N> written as <edge kind> · <N> written as text notes only
-**Parallelism:** #<id> and #<id> can run at the same time; #<id> waits on both.
+**Parallelism:** the Phase 4 waves with real ids — what can start now, and what starts after what.
 
 **Next step:** Run `/implement #<feature-id>` (or `/work-feature <feature-id>`) to build it.
 ~~~
