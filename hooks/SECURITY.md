@@ -22,7 +22,31 @@ If your threat model includes hostile prompt injection, untrusted user input, or
 - **Git operations needing approval**: `git commit`, `git push` — by policy these need human sign-off. To let Claude commit and push without a prompt, set `SAFETY_ALLOW_GIT_COMMIT_PUSH=1` in the `env` block of `~/.claude/settings.json`. That lifts only these two prompts; every destructive rule above still applies.
 - **Plain-text supply chain risks**: `curl … | bash`, `wget … | sh`, `iex … web…`.
 - **Plain-text credential leaks**: `curl …password=…`, `echo $API_KEY`, `printenv`.
-- **Hardcoded secrets in Write content**: PEM private-key headers, or the heuristic "long token + secret-keyword" combo. Skipped for `.md`/`.mdx`/`.rst`/`.txt` and any `docs/` path so docs can quote the patterns.
+- **Hardcoded secrets in Write content**: PEM private-key headers, or the heuristic "secret keyword next to a plausible secret value" (see below). Skipped for `.md`/`.mdx`/`.rst`/`.txt` and any `docs/` path so docs can quote the patterns.
+
+### Data vs command (#13293)
+
+The destructive rules used to scan the whole Bash command string, so a command that only *mentioned* a dangerous word was denied: `grep -E "rm -rf|DELETE FROM" …`, a `cat > script.py <<'EOF'` whose body named `DELETE FROM`, a `gh pr create --body "$(cat <<'EOF' … EOF)"` describing `rm -rf`. Before the destructive rules run, the hook now removes two kinds of text that are data, not commands:
+
+1. **Heredoc bodies owned by `cat` or `tee`** — written to a file, printed, or substituted as an argument (`--body "$(cat <<'EOF' …)"`). A heredoc body stays in the scanned text (it is code) when any of these hold:
+   - its owner is anything else — `bash <<EOF`, `python - <<EOF`, `node <<EOF`, `psql <<EOF`, `ssh host <<EOF`;
+   - it is piped into anything other than `tee` (`cat <<EOF | sh`, `cat <<EOF | tee a.sh | sh`);
+   - it is substituted into a code runner (`bash -c "$(cat <<EOF …)"`, `eval "$(…)"`, `source <(cat <<EOF …)`, anything with `-c`/`-e`/`-Command`/`/c`);
+   - the file it writes is named again later in the same command by anything except `git`/`ls`/`wc`/`stat`/`chmod`/`code` (`bash x.sh`, `./x.sh`, `sh < x.sh`, `cat x.sh | sh`).
+2. **The contents of quoted arguments to read-only search tools** — `grep`/`egrep`/`fgrep`/`rg`/`ag`/`ack`/`findstr`/`Select-String`. Not when the quote contains `$(` or a backtick (those run), and not for `rg --pre` (it runs a command).
+
+Nothing else is stripped. A quoted string given to `bash -c`, `sh -c`, `eval`, `powershell -Command`, `pwsh -c`, `cmd /c` or `python -c` is code and is scanned. `;`, `&&`, `||`, `|`, `$( )`, `( )` and backticks start new commands that are scanned as usual, so `grep "x" f | xargs rm -rf` is still denied. The lexer understands quotes, comments, command substitution and heredoc terminators; whenever it is unsure — an unclosed quote, an unclosed `$(`, an unterminated heredoc — it strips nothing and the whole command is scanned as before. Any exception in the lexer has the same effect.
+
+What is still scanned raw: the `echo-secrets` rule and the `git commit`/`git push` approval prompts see the whole, unstripped command.
+
+A heredoc written to a file is a Write by another name, so its body now gets the Write rules (PEM key, curl credentials, hardcoded secret).
+
+**Limits, honestly:** this is a lexer for the common shapes, not a shell parser. A heredoc written to a file and run *indirectly* — via a variable (`F=x.sh; bash "$F"`), a glob (`sh x*`), a copy (`cp x.sh y.sh; bash y.sh`), or a file that something else runs later (`.git/hooks/pre-commit`, `~/.bashrc`, a crontab) — is not followed. That is the same gap as "a script written via `Write`, then executed via `Bash`" below, and the same threat model applies: this guards against accidents, not against an adversary.
+
+### curl credentials and the hardcoded-secret heuristic (#13293)
+
+- `curl-creds` (and the Write rule `curl-creds-file`) fire only when a credential sits where curl sends it: `-u`/`--user user:pass`, `--password`, `--oauth2-bearer`, a header whose name is `Authorization`/`Cookie` or carries auth/key/token/secret/password, a query parameter like `?api_key=…`/`&token=…`/`&sig=…` with a value, or `-d`/`--data*`/`-F`/`--json` carrying `password=` or `"token":`. The word `key` or `token` in a URL path (`/api/key/health`), a variable name, or a comment no longer fires. Line continuations (`\` + newline) are joined first, so a header on the next line is now caught.
+- `looksLikeHardcodedSecret` works line by line and needs a plausible secret **value** next to the secret word: either assigned to it (`password = "…"`, `"ClientSecret": "…"`, `Bearer …`) and not a reference (`${VAR}`, `%VAR%`, `config.Secrets.Key`) or a name (`my-app-db-password`, `ClientSecretName`), or a 32+ character token on the same line that is varied and not mostly words. Long identifiers (`Script_below_canary_applies_when_secret_name_differs`), GUIDs and `=====` separator lines no longer trigger it. The PEM rule is unchanged.
 
 `drift-check.js` (PostToolUse) protects task-file consistency, not security.
 
@@ -52,11 +76,13 @@ CMD=rm; FLAGS=-rf; $CMD $FLAGS /
 r''m -rf /
 ```
 
-### Heredoc obfuscation
+### Heredoc indirection
+A heredoc fed straight to a shell (`bash <<'EOF'`) is scanned. A heredoc written to a file with `cat`/`tee` is treated as data (see *Data vs command* above), so a file written that way and then run indirectly is not seen:
 ```bash
-bash <<'EOF'
+cat > x.sh <<'EOF'
 rm -rf /
 EOF
+F=x.sh; bash "$F"
 ```
 
 ### Indirect invocation
