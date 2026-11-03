@@ -188,6 +188,7 @@ flowchart LR
 | I want to... | Use this |
 |---|---|
 | Stress-test an idea, plan, or design | `/grill-me` |
+| Explain something to a human one piece at a time, checking as you go | `/explain-in-parts` |
 | Stress-test a plan against your domain glossary and ADRs | `/grill-with-docs` |
 | Chart a big, fuzzy effort — too many decisions to settle in one `/grill-me` | `/wayfinder` |
 | Kill a bad feature before spending a sprint | `/decision-brief` |
