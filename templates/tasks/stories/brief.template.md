@@ -53,6 +53,16 @@
 
 > [exact quotes from docs/ files, with file name and section]
 
+## Source requirements
+
+Source: [path of the source document, or "none"]
+Coverage: [tasks/coverage/<doc-slug>.md, if any]
+- [<id>] [the line, verbatim — "extracted — confirm" above the list when Phase 1 extracted them]
+
+## Open questions
+
+1. [question] — Recommended: [answer] (asked at the plan gate)
+
 ## 8. Corrections from YOUR_NAME
 
-[filled in after STOP 1 — any corrections or additions from the human review]
+[filled in at the plan gate (or STOP 1 under --step) — answers, corrections and additions from the human review]
