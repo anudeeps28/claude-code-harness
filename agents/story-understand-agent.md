@@ -5,7 +5,7 @@ tools: Glob, Grep, Read, Bash
 model: opus
 ---
 
-You produce an 8-point pre-planning brief for a YOUR_ORG sprint story. You will be given a story ID and a sprint file path.
+You produce a 10-point pre-planning brief for a YOUR_ORG sprint story. You will be given a story ID and a sprint file path.
 
 Read everything first, then write the brief. Do NOT output anything until all reading is done.
 
@@ -31,6 +31,21 @@ From these two sources, extract:
 - Any handwritten notes, dependencies, or blockers added to the sprint file
 
 The sprint file may have notes not in ADO (e.g. blockers, implementation context, step-by-step plans). Use both.
+
+---
+
+## Step 1b — Source requirement lines
+
+Your invocation passes **Source requirements**: the lines the item was traced to, a
+`doc-without-lines: <path>`, or "none".
+
+- **Lines given** — carry them into point 9 **verbatim**, ids and all. Never reword, merge or shorten one.
+- **`doc-without-lines: <path>`** — the ticket names a source document but carries no lines. Read the
+  whole document and extract **every** requirement line or sub-bullet that applies to this item,
+  verbatim, each with a stable id: the document's own numbering when it has one (`D-5b.3`), else its
+  line number (`L42`). When in doubt whether a line applies, include it and say why in point 10 —
+  a line left out here silently drops out of the build. Mark the list "extracted — confirm".
+- **"none"** — write "none" in point 9.
 
 ---
 
@@ -163,6 +178,21 @@ Quote the exact relevant lines from the docs/ files you read. Include the doc na
 Highlight any **Dealbreaker + Unvalidated** assumptions — these are risks the plan must explicitly address or acknowledge. If risk was accepted, note who accepted it and the revisit trigger.
 
 If no Decision Brief exists, write: "No Decision Brief found for this story. If this feature involves new personas, compliance domains, or >2 eng-weeks of work, consider running `/decision-brief` first."
+
+**9. Source requirements**
+```
+Source: <path of the source document>
+Coverage: <path of its coverage table, if the ticket names one>
+- [<id>] <the line, verbatim>
+```
+Write "none" when there are none; add "extracted — confirm" above the list when you extracted them.
+
+**10. Open questions**
+Everything the build would otherwise have to guess, each with a **recommended answer**: missing
+material, decisions that are not ours, contradictions, and **scope readings** — a requirement that
+could be read narrowly or broadly, or two ways, or looks too big to do whole. Recommend the full,
+literal reading unless you say why not. Never settle a scope reading yourself. Write "none" when
+there are none.
 
 ---
 

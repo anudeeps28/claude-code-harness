@@ -6,10 +6,11 @@ ADR-0001). Every sub-skill and agent an orchestrator invokes **inherits** the mo
 have **no `--autonomous` flag of their own** (grill decision, fork 6).
 
 **Explicit autonomous entry points.** Autonomy always begins at an *explicit* signal (never assumed —
-see "How the mode is inherited" below). There are two kinds: `--autonomous` on an orchestrator (the
-forward flow), and `--rework <PR#>` on `/implement` (the reject-loop that re-enters an open PR). Both
-are direct, human-typed flags whose presence *is* the signal, so both run under the self-answer rule
-without contradicting "autonomy is only ever inherited from a signal" — the flag itself is that signal.
+see "How the mode is inherited" below). There are three kinds: a person **approving `/implement`'s
+plan gate** (every run, from that moment to the PR), `--autonomous` on an orchestrator (the whole
+forward flow), and `--rework <PR#>` on `/implement` (the reject-loop that re-enters an open PR). Each
+is a direct human act whose presence *is* the signal, so each runs under the self-answer rule
+without contradicting "autonomy is only ever inherited from a signal" — the approval or the flag is that signal.
 `--rework` is **not** a second `--autonomous`-style flag on sub-skills; it is a mode selector on the
 orchestrator that happens to imply autonomous semantics. A rework run is keyed by PR number and has no
 story workspace, so its decisions log stays inline (see the decisions-log section).
@@ -22,20 +23,46 @@ is a symlink to this file).
 
 ## What autonomous mode is
 
-An autonomous run executes the **entire** flow with **no human STOP checkpoints**. The PR is the
-single human gate. The mode changes *only whether the flow pauses* — it changes nothing about *what
-work is done*: every phase, the goal definition, the e2e gate, local tests, and all safety machinery
-still run.
+**The one-gate default.** Every `/implement` run asks its questions once. Understand, Goal and Plan
+run back to back and end at **one plan gate**: the plan, the coverage of the source requirement lines,
+and every open question with a recommended answer. Once a person approves it, the run is autonomous:
+build, local tests, review, the fix loop and the PR run with **no further STOP**, under the self-answer
+rule below. A Feature run works the same way: its plan approval is its gate. `--step` (opt-in) brings
+back a stop after every phase and every wave, for a person who wants to watch.
+
+**What `--autonomous` adds:** the plan gate approves itself when it has nothing to ask (no open
+question, no unmapped source line) and logs that; with anything to ask, it stops like any other run.
+Nothing else differs.
+
+Autonomy changes *only whether the flow pauses* — it changes nothing about *what work is done*: every
+phase, the goal definition, the e2e gate, local tests, and all safety machinery still run. The PR is
+the human gate at the end.
 
 ---
 
 ## The self-answer rule (the core of the mode)
 
-At every point where the flow would normally STOP and wait for a human:
+At every point where the flow would otherwise STOP and wait for a human:
 
 - If the decision is **reversible** AND there is a clear recommended option → **take the recommended
   option, do not wait**, and append one line to the **decisions log** (below).
 - Otherwise → **pause and ask.** This is the only thing that stops an autonomous run mid-flight.
+
+## Never shrink scope — not self-answerable, in any mode
+
+A question about **what** to build is never a reversible decision, however small it looks. Never
+self-answer, and never log as a decision:
+
+- **reading a requirement more narrowly than it is written** — it says "the views board goes away"
+  and the run removes it from one screen of two;
+- **doing part of a requirement and deferring the rest**;
+- **choosing between two readings** of a requirement.
+
+These are collected and asked **at the plan gate**, each with a recommended answer (normally the full,
+literal reading). One that only surfaces mid-build is the **scope narrowing** pause-anyway trigger
+below. This holds with or without `--autonomous`. A real run (2026-11-03) took the narrow reading of
+exactly that line, logged it as "reversible", and shipped the gap; reversible means *how*, never
+*how much*.
 
 ## Pause-anyway triggers
 
@@ -47,6 +74,8 @@ An autonomous run stops and asks the human on any of these, regardless of the se
   rewrite, dropping a table, etc.). Committing and pushing your *own* branch and opening a PR are
   reversible and non-destructive; force-push is not.
 - **Scope change** — the work turns out materially larger or different than the approved brief/goal.
+- **Scope narrowing** — a requirement would be read more narrowly than written, done in part, or
+  read one of two ways (above).
 - **3-failed-attempts** — the 3-attempt rule fires (route to `/debug`, which itself runs inherited-
   autonomous; see "How `/debug` behaves" below).
 - **Missing dependency** — a skill, agent, script, or tracker adapter the flow names by identity is
@@ -65,8 +94,7 @@ BLOCKED cause on a `must_fail` task, and every BLOCKED on any other task, halts 
 carve-out stated here, a run reading the next sentence literally pauses exactly where test-first mode
 says it should not.
 
-A task **FAIL or BLOCKED** result also halts the run — that is a genuine block, not a checkpoint, and
-`--auto`'s "pause on failure" behavior is unchanged. `--autonomous` implies `--auto`.
+A task that still **FAILs** after the 3-attempt rule and `/debug`, or reports **BLOCKED**, also halts the run — that is a genuine block, not a checkpoint.
 
 ---
 
@@ -98,14 +126,15 @@ each line prefixed with its story id.
 A sub-skill or agent is a prompt, not code — it "inherits" the mode by **detecting a signal**. Two
 signals, checked in this order:
 
-1. **Invocation context (primary).** When an autonomous orchestrator invokes a sub-skill or spawns an
-   agent, it states in the invocation: *"This is an autonomous run — self-answer your checkpoints per
-   `rules/autonomous-mode.md` and append decisions to `tasks/stories/<id>/decisions-log.md`."* The
-   sub-skill honors that.
-2. **Durable marker (for standalone resume).** An autonomous orchestrator writes `run-mode:
-   autonomous` into `tasks/stories/<id>/executor-state.md`. A run carried on against an
-   existing story (`/implement --resume <id>` after a crash) reads that marker and inherits the mode even
-   though no live orchestrator is present.
+1. **Invocation context (primary).** When an autonomous orchestrator (any `/implement` run past its
+   plan gate) invokes a sub-skill or spawns an agent, it states in the invocation: *"This is an
+   autonomous run — self-answer your checkpoints per `rules/autonomous-mode.md` and append decisions to
+   `tasks/stories/<id>/decisions-log.md`."* The sub-skill honors that.
+2. **Durable marker (for standalone resume).** The orchestrator writes `run-mode: autonomous` into
+   `tasks/stories/<id>/executor-state.md` once the plan gate is approved (from the start under
+   `--autonomous`; never under `--step`). A run carried on against an existing story
+   (`/implement --resume <id>` after a crash) reads that marker and inherits the mode even though no
+   live orchestrator is present.
 
 **Default = interactive.** A skill invoked directly by a human with **neither** signal present runs
 with all its normal STOP checkpoints. Autonomy is never assumed — it is only ever triggered by an
@@ -133,7 +162,8 @@ mode passes through them unchanged:
   Yes means the run is about to ship something broken, which fails the reversibility test: fix it
   in-run, and if it cannot be fixed in-run, that is a **contradiction** pause-anyway trigger, not a
   logged decision. A No is self-answerable — register the deferral as a tracker item, log the line,
-  carry on.
+  carry on. A finding that a **source requirement line** is unmet or met only in part is never
+  skipped or deferred by the run: it is fixed, or it is the scope-narrowing trigger.
 
 These are documented as no-ops so it is explicit that "propagation" reached them and there was
 nothing to change.
@@ -161,5 +191,6 @@ resolve it.
 > This skill has no `--autonomous` flag. When it detects an inherited autonomous run (invocation
 > context, or `run-mode: autonomous` in the story's `executor-state.md`), it self-answers its own
 > STOP checkpoints per the self-answer rule above, logs each decision to the story's
-> `decisions-log.md`, and pauses only on a pause-anyway trigger. With neither signal it runs
-> interactively, exactly as before.
+> `decisions-log.md`, and pauses only on a pause-anyway trigger. It never self-answers a question
+> about how much to build (scope narrowing). With neither signal it runs interactively, exactly as
+> before.

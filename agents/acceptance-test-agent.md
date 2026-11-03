@@ -18,6 +18,9 @@ You receive:
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Test strategy path** — path to the test strategy (from the plan) defining acceptance criteria, integration scenarios, and regression guardrails
 - **Plan path** (optional) — path to the full plan for additional context
+- **Source requirements** (optional) — the ticket or brief holding the story's `## Source requirements`:
+  the lines of the source document it was traced to, as `- [<id>] <line>`. In a Feature panel, every
+  story's ticket.
 - **Feature panel** (optional) — set when `/implement` runs you on a whole Feature branch: the Feature
   id, every story's test strategy (`<state folder>/stories/<sid>/test-strategy.md`), the Feature's own
   (`<state folder>/features/<fid>/test-strategy.md`, which holds the Feature-level criteria **and the
@@ -120,6 +123,15 @@ Rate each criterion:
 
 In a Feature panel the same statuses are read as **met** (PASS), **partly met** (PARTIAL) and **not
 met** (FAIL); Prove it and the PR gate use those words.
+
+---
+
+### Source requirement lines — the line as written, not the plan's reading
+A criterion that starts with `[<id>]` carries a line from the source document. Judge it against **the
+line exactly as the source requirements state it**, not against the plan's paraphrase, the task list
+or the test's name. Read it in full: "the views board goes away" with the board still on one screen
+is **FAIL**, however the plan described it. A line done in part is **PARTIAL**, never PASS. A source
+line with no criterion at all is **FAIL (dropped)**. Report each one under its id.
 
 ---
 
@@ -274,6 +286,7 @@ The e2e gate is met by **machine-green OR human-accepted** — never bypassed.
 ## Hard rules
 
 - **Never fix code.** You verify, you don't implement. Your report goes back to the orchestrator.
+- **A source requirement line is judged as written.** A narrower reading, or part of it built, is never PASS.
 - **Never skip a criterion.** Every acceptance criterion in the test strategy must be verified. If you can't verify it automatically, mark it UNTESTABLE and describe the manual test.
 - **Never assume.** If you can't find a test that exercises a criterion, it's not covered — even if the code "looks like it would work."
 - **Be specific.** Name the test file, the test method, the line number. "There's probably a test for this" is not evidence.

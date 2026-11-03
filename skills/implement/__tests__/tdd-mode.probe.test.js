@@ -919,8 +919,9 @@ test('Resume_KeepsMustFailTasksAndTheRunMode', () => {
 
 test('Regression_ExistingFlagsAndStopTokensSurvive', () => {
   const implementTokens = [
-    'STOP 1', 'STOP 1.5', 'STOP 3',
-    '--discuss', '--research', '--quick', '--auto', '--full', '--autonomous', '--rework',
+    // STOP 1, 1.5 and 3 survive as --step-only stops; the plan gate is the default's one stop.
+    'STOP 1', 'STOP 1.5', 'STOP 3', 'The plan gate',
+    '--discuss', '--research', '--quick', '--step', '--auto', '--full', '--autonomous', '--rework',
   ];
   for (const token of implementTokens) {
     assert.ok(IMPLEMENT.includes(token), `skills/implement/SKILL.md must still contain "${token}"`);

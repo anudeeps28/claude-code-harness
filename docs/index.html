@@ -315,7 +315,7 @@
     <div class="demo" aria-label="Simulated harness run">
       <div class="demo-head">
         <span>run — <b>/implement #42</b></span>
-        <span class="counter">gates passed <b id="gate-count">0</b>/3</span>
+        <span class="counter">gates passed <b id="gate-count">0</b>/1</span>
       </div>
       <div class="demo-body">
         <div class="cmd">/implement #42</div>
@@ -324,41 +324,33 @@
           <div class="phase-line">Phase 1 · UNDERSTAND · GOAL · PLAN</div>
           <div class="out">reading issue #42 — “add dark mode toggle”</div>
           <div class="out">brief <span class="ok">✓</span> &nbsp;goal defined <span class="ok">✓</span> &nbsp;task plan <span class="ok">✓</span> (3 tasks · 2 waves) &nbsp;test strategy <span class="ok">✓</span></div>
+          <div class="out">coverage: 4/4 source lines → criteria <span class="ok">✓</span> &nbsp;open questions: 1, with a recommended answer</div>
           <div class="gate" id="gate-1">
-            <span class="glabel">STOP 1 · review the plan. say go to start building.</span>
+            <span class="glabel">THE PLAN GATE · plan, coverage, every question at once. say go to build through to the PR.</span>
             <button class="gate-btn" data-gate="1" data-word="go">go ↵</button>
           </div>
         </div>
 
         <div class="demo-step" id="step-2">
           <div class="you">you: go</div>
-          <div class="phase-line">Phase 2 · EXECUTE — wave 1/2 <span style="color:var(--ink-40);font-weight:400">(isolated git worktree)</span></div>
+          <div class="phase-line">Phase 2 · EXECUTE — waves back to back</div>
           <div class="out">T1 ThemeContext.tsx — build + tests <span class="ok">✓</span></div>
           <div class="out">T2 useTheme hook — build + tests <span class="ok">✓</span></div>
-          <div class="gate" id="gate-2">
-            <span class="glabel">WAVE 1 COMPLETE · continue?</span>
-            <button class="gate-btn" data-gate="2" data-word="go">go ↵</button>
-          </div>
+          <div class="out">T3 settings toggle — build + tests <span class="ok">✓</span></div>
         </div>
 
         <div class="demo-step" id="step-3">
-          <div class="you">you: go</div>
           <div class="phase-line">Phase 3 · EVALUATE + ACCEPT + PR</div>
           <div class="out">4 reviewers in parallel — evaluator <span class="ok">✓</span> · acceptance <span class="ok">✓</span> · architecture <span class="ok">✓</span> · security <span class="ok">✓</span></div>
-          <div class="out">acceptance: criteria 4/4 <span class="ok">PASS</span> · PR description drafted</div>
-          <div class="gate" id="gate-3">
-            <span class="glabel">STOP 3 · review and commit. say push when ready.</span>
-            <button class="gate-btn" data-gate="3" data-word="push">push ↵</button>
-          </div>
+          <div class="out">acceptance: every source line met as written <span class="ok">PASS</span> · committed, pushed, PR opened</div>
         </div>
 
         <div class="demo-step" id="step-done">
-          <div class="you">you: push</div>
-          <div class="done-line">✓ run complete — 3 human gates, full paper trail in tasks/<span class="cursor"></span></div>
+          <div class="done-line">✓ run complete — 1 human gate, then straight to the PR; full paper trail in tasks/<span class="cursor"></span></div>
           <button class="replay" id="replay">replay run</button>
         </div>
       </div>
-      <div class="demo-foot">this demo is the product: every phase halts at a gate until a human says go.</div>
+      <div class="demo-foot">this demo is the product: nothing is built until a human approves the plan, and the run asks everything at once.</div>
     </div>
   </div>
 </div>
@@ -378,7 +370,7 @@
       </div>
       <div class="answer">
         <p class="kicker">The harness adds the structure</p>
-        <p>Every feature runs through human gates — <b>understand, goal, plan, execute, evaluate, PR</b> — and nothing advances without your explicit "go".</p>
+        <p>Every feature is <b>understood, goal-defined and planned</b>, then stops at one gate that asks every question at once — nothing is built without your explicit "go", and nothing you asked for is quietly narrowed.</p>
         <p>For teams it goes further: tracker integration, PR review loops that drive threads to zero, sprint files, and handoff contracts that leave an audit trail per story.</p>
       </div>
     </div>
@@ -390,7 +382,7 @@
   <div class="wrap">
     <div class="section-head">
       <p class="eyebrow">how a run works — /implement, solo</p>
-      <h2 class="display">Six phases. Gated end to end.</h2>
+      <h2 class="display">Six phases. One gate, then straight to the PR.</h2>
     </div>
 
     <div class="rail">
@@ -398,7 +390,7 @@
         <span class="node">1</span>
         <h3>Understand</h3>
         <p>Reads the GitHub issue (or a plain-text description), maps the relevant source files, and writes a brief. Flags let you widen the front end first.</p>
-        <p class="detail">flags: --discuss (pre-plan Q&amp;A) · --research (codebase reuse scan) · --quick (skip evaluation) · --auto (run all waves) · --full (= --discuss + --research)</p>
+        <p class="detail">flags: --discuss (pre-plan Q&amp;A) · --research (codebase reuse scan) · --quick (skip evaluation) · --step (stop at every phase) · --full (= --discuss + --research)</p>
       </div>
 
       <div class="phase">
@@ -406,21 +398,19 @@
         <h3>Goal definition</h3>
         <p>Locks the acceptance bar — the definition of done — before a line of code is written. The run treats this as mandatory and never skips it.</p>
       </div>
-      <div class="rail-gate">■ STOP 1.5 — approve the goal before any building starts.</div>
 
       <div class="phase">
         <span class="node">2</span>
         <h3>Plan</h3>
         <p>Produces an XML task plan — tasks grouped into waves — and a test strategy in one pass.</p>
       </div>
-      <div class="rail-gate">■ STOP 1 — review the plan. say go to start building.</div>
+      <div class="rail-gate">■ THE PLAN GATE — the plan, coverage of every source line, every open question with a recommended answer. say go.</div>
 
       <div class="phase">
         <span class="node">3</span>
-        <h3>Execute, wave by wave</h3>
-        <p>Each task runs in an isolated git worktree. Every verify step runs build + relevant tests — a task is only ✓ when tests pass. Three failures on anything stops the retries and auto-invokes <span class="mono">/debug</span> for root-cause diagnosis.</p>
+        <h3>Execute, waves back to back</h3>
+        <p>Executors share the working folder, with overlap and branch checks around every wave. Every verify step runs build + relevant tests — a task is only ✓ when tests pass. Three failures on anything stops the retries and auto-invokes <span class="mono">/debug</span> for root-cause diagnosis.</p>
       </div>
-      <div class="rail-gate">■ GATE — after every wave: continue?</div>
 
       <div class="phase">
         <span class="node">3.5</span>
@@ -431,9 +421,8 @@
       <div class="phase">
         <span class="node">4</span>
         <h3>Evaluate + accept + PR</h3>
-        <p>Four review agents run in parallel — an adversarial evaluator, an acceptance tester, an architecture reviewer, and a security reviewer. Then commit messages and a PR description are drafted.</p>
+        <p>Four review agents run in parallel — an adversarial evaluator, an acceptance tester, an architecture reviewer, and a security reviewer — checking the code against the source lines as written. Then it commits, pushes and opens the PR: the human gate at the end.</p>
       </div>
-      <div class="rail-gate">■ STOP 3 — review and commit. say push when ready.</div>
     </div>
 
     <p class="rail-note">Every <span class="mono">/implement</span> run writes handoff contracts to disk at every step — <span class="mono">brief.md → plan.md → test-strategy.md → executor-state.md → evaluation.md → acceptance.md</span> (plus <span class="mono">architecture-review.md</span> and <span class="mono">security-review.md</span>) — so the evaluator can check work against the original plan, and anyone can audit what was approved, when, and by whom.</p>
@@ -449,8 +438,8 @@
     </div>
 
     <div class="plates">
-      <div class="plate"><div class="num">32</div><div class="what">Skills</div><p>Slash commands from <span class="mono">/implement</span> to <span class="mono">/improve-harness</span> — each a folder you can read, edit, and extend.</p></div>
-      <div class="plate"><div class="num">20</div><div class="what">Agents</div><p>Purpose-built sub-agents: planners, executors, an adversarial evaluator, architecture and security reviewers, PR analysts, debuggers — plus the two role identities a session orchestrator spawns.</p></div>
+      <div class="plate"><div class="num">33</div><div class="what">Skills</div><p>Slash commands from <span class="mono">/implement</span> to <span class="mono">/improve-harness</span> — each a folder you can read, edit, and extend.</p></div>
+      <div class="plate"><div class="num">21</div><div class="what">Agents</div><p>Purpose-built sub-agents: planners, executors, an adversarial evaluator, architecture and security reviewers, PR analysts, debuggers — plus the two role identities a session orchestrator spawns.</p></div>
       <div class="plate"><div class="num">5</div><div class="what">Hook events</div><p>Cross-platform Node hooks across 5 lifecycle events (12 scripts): safety checks on destructive ops, drift detection, session logs, pre-compact state saves.</p></div>
       <div class="plate"><div class="num">5</div><div class="what">Path-scoped rules</div><p>Rules that activate only when matching files are touched — code style, testing, security, docs. Five path-scoped of ten total.</p></div>
       <div class="plate"><div class="num">4</div><div class="what">Tracker adapters</div><p>Azure DevOps, GitHub, Todoist, and a local file-based backend behind one 8-script interface. PR review threads run through a separate 3-script <span class="mono">code-platform</span> layer (GitHub, Azure Repos, or none).</p></div>
@@ -599,9 +588,10 @@ node claude-code-harness/install/install.js
       var n = btn.getAttribute('data-gate');
       var word = btn.getAttribute('data-word');
       approve(document.getElementById('gate-' + n), word);
-      var next = (n === '3') ? document.getElementById('step-done')
-                             : document.getElementById('step-' + (parseInt(n,10)+1));
-      if(next){ next.classList.add('on','reveal'); }
+      ['step-2','step-3','step-done'].forEach(function(id){
+        var next = document.getElementById(id);
+        if(next){ next.classList.add('on','reveal'); }
+      });
     });
   });
 

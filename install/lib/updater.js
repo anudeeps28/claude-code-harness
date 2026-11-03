@@ -183,6 +183,9 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/story-runner-agent.md',
     // The Feature panel's fifth reviewer (F6 #58).
     'agents/loosened-reviewer-agent.md',
+    // The closing check /implement runs when a run completes a coverage table.
+    'skills/coverage-audit/SKILL.md',
+    'agents/coverage-auditor-agent.md',
     'harness-roles.json',
     'hooks/safety-check.js',
     'rules/code-style.md',

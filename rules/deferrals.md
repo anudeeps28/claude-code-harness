@@ -36,6 +36,12 @@ Ask exactly one question:
   third option and no severity label that converts a Yes into a No.
 - **No → it is a genuine deferral.** Register it (next section). Never leave it as prose alone.
 
+**A requirement the work was asked to deliver is not the run's to defer.** When the item is a line
+the story or Feature was traced to — a source requirement line, an acceptance criterion, the Demo —
+leaving all or part of it undone changes *what* is delivered, not *how*. Only a person can approve
+that: ask at the plan gate, or pause mid-build (`rules/autonomous-mode.md`, "Never shrink scope"). The
+ship test applies to everything else a review raises.
+
 **When the change introduces a NEW input, ask the question of its intended use, not of today's
 config.** A brand-new option, flag or environment variable is by definition declared nowhere yet, so
 every finding about it answers "No" vacuously — the code is unreachable, therefore it cannot misbehave
@@ -122,10 +128,11 @@ sweep is exactly where a mislabeled blocker would otherwise be laundered into a 
 
 ---
 
-## Under autonomous mode
+## Under autonomous mode (every run past its plan gate)
 
 The fix-vs-skip decision on review findings is self-answered by the orchestrator
-(`rules/autonomous-mode.md`). The ship test is **not** self-answerable away: a Yes means the change is
+(`rules/autonomous-mode.md`), except for a finding that a requirement the work was asked to deliver is
+unmet or met in part: that is fixed, or it is the scope-narrowing pause, never a logged deferral. The ship test is **not** self-answerable away: a Yes means the change is
 shipping broken, which fails the reversibility test, so it is fixed in-run — and if it cannot be fixed
 in-run, it is a **pause-anyway trigger** (a contradiction between the goal and what the code does), not
 a logged decision. A No is self-answerable: register the item, log the decision, carry on.
@@ -136,5 +143,6 @@ a logged decision. A No is self-answerable: register the item, log the decision,
 
 > Before deferring anything, apply the ship test in `rules/deferrals.md` — if the shipped change
 > behaves incorrectly for its real configured inputs without it, it is a blocker, not a deferral.
-> Every surviving deferral is registered as a tracker item at defer-time and referenced in the PR by
+> A requirement the work was asked to deliver is never deferred by the run, only by a person. Every
+> surviving deferral is registered as a tracker item at defer-time and referenced in the PR by
 > its id; a deferral bullet with no id is a defect in the run.

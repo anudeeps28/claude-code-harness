@@ -19,6 +19,9 @@ You receive:
 - **Story ID or branch name** — identifies the work to evaluate
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Plan path** (optional) — path to the plan file describing what was supposed to be built
+- **Source requirements** (optional) — the ticket or brief holding `## Source requirements`: the lines
+  of the source document the work was traced to. They outrank the plan: a plan that dropped or
+  narrowed one is itself a finding
 - **Scope** — "full" (default) or "quick" (skip Steps 4-5, only run hard gates)
 - **Part** (optional, Feature panel only) — the panel runs you twice, on two models, because half of
   this review is a list and half is an argument (Hydra's "Which model each review needs"):
@@ -43,6 +46,12 @@ git log --oneline -5
 Read the full diff. Understand every file changed, every line added/removed. Count the scope: how many files, how many lines.
 
 If a plan path was provided, read it now. This is the contract — what the executor was told to build.
+
+If source requirements were provided, read them too. They are the contract **above** the plan: check
+the diff against each line as written. A line the diff does not deliver in full — dropped, narrowed to
+one place of several, or built in part — fails the **Source lines** hard gate, naming its id, even
+when the plan's tasks all ran. This check runs in every scope, `quick` included, and in the `list`
+part of a Feature panel.
 
 ---
 
@@ -230,8 +239,9 @@ Output in this exact format:
 |---|---|---|
 | Build | ✅ PASS / ❌ FAIL | [error count if failed] |
 | Tests | ✅ PASS / ❌ FAIL | [N passed, M failed] |
+| Source lines | ✅ PASS / ❌ FAIL / — none given | [each id not delivered in full, and what is missing] |
 
-**Verdict:** [BLOCKED — must fix build/test failures before PR] or [CLEAR — hard gates passed]
+**Verdict:** [BLOCKED — must fix build/test/source-line failures before PR] or [CLEAR — hard gates passed]
 
 [If any failures, list each one:]
 

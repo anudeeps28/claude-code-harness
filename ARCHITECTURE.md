@@ -55,7 +55,7 @@ claude-code-harness-f123-s202\  Story 202 worktree, branch story/202-slug
 
 | Component | Owns | Never does |
 |---|---|---|
-| **Orchestrator** (main session, home folder) | Reads the Feature and its dependency graph. Creates the Feature worktree and the story worktrees. Decides which stories are ready and caps how many run at once. Merges stories one at a time and tests each merge before committing it. Runs the Feature panel, Prove it, the PR gate and the PR. Owns the one human stop (plan approval). Writes `tasks/features/<fid>/` and prints progress lines | Edits story code |
+| **Orchestrator** (main session, home folder) | Reads the Feature and its dependency graph. Creates the Feature worktree and the story worktrees. Decides which stories are ready and caps how many run at once. Merges stories one at a time and tests each merge before committing it. Runs the Feature panel, Prove it, the closing check (when the Feature completes a coverage table), the PR gate and the PR. Owns the one human stop (the plan gate: plan, coverage, every open question). Writes `tasks/features/<fid>/` and prints progress lines | Edits story code |
 | **Feature worktree** | The Feature branch, kept out of the home folder so home stays on main ([git-worktrees.md](rules/git-worktrees.md)) | none |
 | **`story-runner-agent`** (new, background, one per story) | Works only in its own worktree. Runs the per-story pipeline: plan, executor waves, light review. Commits on its story branch. Writes only `tasks/stories/<sid>/` | Merges, pushes, opens a PR, or touches another worktree |
 | **Planner / executors / light reviewers** (existing agents) | Unchanged roles. They now receive a **work folder** and a **state folder** instead of a single `YOUR_PROJECT_ROOT` | none |

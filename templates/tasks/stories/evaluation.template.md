@@ -38,7 +38,7 @@
 
 ## YOUR_NAME Decisions
 
-[filled in after STOP 3.6 — for each finding, "fix" or "skip" with reason]
+[filled in after the review — for each finding, "fix" or "skip" with reason (self-answered after the plan gate and logged; a finding that a source line is unmet is always "fix")]
 
 | # | Finding | Decision | Reason |
 |---|---|---|---|

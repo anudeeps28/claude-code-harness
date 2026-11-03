@@ -103,8 +103,9 @@ test('HardRules_MentionsRework', () => {
 
 test('Regression_ExistingStopTokensAndFlagsStillPresent', () => {
   const requiredTokens = [
-    'STOP 1', 'STOP 1.5', 'STOP 3',
-    '--discuss', '--research', '--quick', '--auto', '--full', '--autonomous',
+    // STOP 1, 1.5 and 3 survive as --step-only stops; the plan gate is the default's one stop.
+    'STOP 1', 'STOP 1.5', 'STOP 3', 'The plan gate',
+    '--discuss', '--research', '--quick', '--step', '--auto', '--full', '--autonomous',
   ];
   for (const token of requiredTokens) {
     assert.ok(SKILL_MD.includes(token), `Expected SKILL.md to still contain "${token}"`);

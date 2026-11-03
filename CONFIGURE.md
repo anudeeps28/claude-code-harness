@@ -266,6 +266,11 @@ tasks/
 | `/implement 42 --standalone` on a story or bug **without** one | that one item, on its own branch |
 | `/implement --resume <id>` | carries on a stopped run from its saved state — a story, a Feature, or a plan `/troubleshoot` wrote |
 
+Every build stops once, at its **plan gate** — the plan, how each requirement line of the source
+document is covered, and every open question with a recommended answer — then runs straight to the
+PR. `--step` brings back a stop after every phase; `--autonomous` lets a gate with nothing to ask
+approve itself.
+
 Four sections of `tasks/lessons.md` (`tasks/notes.md` on the solo pack) drive it — fill them in once:
 
 - **Test Commands** — build, unit and integration tests, and `Migrate forward:` (a throwaway database
@@ -291,5 +296,5 @@ After setup, open a new Claude Code session and run:
 /implement 1234
 ```
 
-If Claude reads your lessons.md, reads the item, and stops with its plan (for a Feature) or its brief
-(for a story) — you're good.
+If Claude reads your lessons.md, reads the item, and stops at its plan gate — the plan, the coverage of
+any source requirement lines, and its open questions — you're good.

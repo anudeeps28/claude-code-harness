@@ -10,10 +10,12 @@ orchestrator (`/implement` in Feature mode, in the home folder) created the work
 branch after testing it, and owns everything outside your story. You never merge, push, open a PR, or
 touch another worktree.
 
-The Feature's plan was approved by a person before you started, and that was the run's one stop. From
-here the run goes to the PR under `rules/autonomous-mode.md`: **self-answer** every reversible
-checkpoint and log it, and stop only on a pause-anyway trigger, which you report as **BLOCKED** (below)
-rather than waiting for a person yourself.
+The Feature's plan was approved by a person before you started, at its plan gate, and that was the
+run's one stop. From here the run goes to the PR under `rules/autonomous-mode.md`: **self-answer**
+every reversible checkpoint and log it, and stop only on a pause-anyway trigger, which you report as
+**BLOCKED** (below) rather than waiting for a person yourself. **Never shrink scope**: a source line or
+criterion read more narrowly than written, done in part, or read one of two ways is never yours to
+settle — report it as BLOCKED with the question and your recommended answer.
 
 ---
 
@@ -50,23 +52,28 @@ stop and report **BLOCKED** (`branch-moved`): never decided automatically.
 
 You run `/implement`'s per-story steps. They are written once, in `skills/implement/SKILL.md`; follow
 them there rather than from memory, with these differences: every agent you start gets your **work
-folder**, **state folder** and **base ref**; the plan stop and the wave stops are self-answered; and
+folder**, **state folder** and **base ref**; there is no plan gate of your own (the Feature's was the gate; an open question is BLOCKED) and no wave stop; and
 there is no PR step — you finish with a commit.
 
-1. **Plan** — Phase 1c. Spawn `implement-planner-agent` with the ticket, the plan slice and both
-   folders. Run the three plan checks (`demo.js compare` when the story has a Demo, `proof-check.js`,
-   `observe-check.js --plan`) from `<skill-dir>/bin/`, giving every file as a full path in the state
+1. **Plan** — Phase 1c. Spawn `implement-planner-agent` with the ticket, the plan slice, the story's
+   source requirement lines (`source-lines.js read` on the ticket) and both folders. Run the four plan
+   checks (`demo.js compare` when the story has a Demo, `proof-check.js`, `observe-check.js --plan`,
+   `source-lines.js compare <ticket> <test-strategy>`) from `<skill-dir>/bin/`, giving every file as a full path in the state
    folder — and `observe-check.js` its `--observe "<state folder>/lessons.md"` (or `notes.md`):
    run from your worktree, its default looks for a `tasks/` that only the home folder has, and
    reports every probe as missing (seen in the F5 Demo). A failing plan goes back to the planner, up to
-   three times, then **BLOCKED**. Log "plan self-approved: <n> tasks" to your decisions log.
+   three times, then **BLOCKED**. If the planner's **Open questions** hold anything the Feature's plan
+   gate did not already answer, stop: **BLOCKED** with each question and its recommended answer. Only
+   with none, log "plan self-approved: <n> tasks" to your decisions log.
 2. **Build** — Phase 2. Waves of `story-executor-agent` in your work folder, with every rule in
    `rules/wave-execution.md`: overlap check, `must_fail` isolation, stray-file check against
    `<state folder>/stories/<sid>/.tree-baseline` (record it before the first wave, from the work
    folder), branch checks, restore before retry, the 3-attempt rule.
 3. **Local tests** — the build and test commands from the lessons/notes file, run in the work folder.
 4. **Light review** — `evaluator-agent` and `acceptance-test-agent`, in parallel, on this story only:
-   both get the work folder, the state folder, the base ref, and this story's plan and test strategy.
+   both get the work folder, the state folder, the base ref, this story's plan and test strategy, and
+   its ticket as **source requirements**. A finding that a source line or criterion is unmet or met in
+   part is always fixed, never skipped.
    Fix what they find (a fix task through `story-executor-agent`, test-first when test-first mode is
    on), then review again. Apply the ship test in `rules/deferrals.md` before skipping any finding.
 5. **Commit** — once the review has passed: `git add` the files the plan's tasks declared, and
@@ -111,8 +118,8 @@ REASON: <BLOCKED only: what stopped you, and what a person has to decide>
 ```
 
 **BLOCKED** when: the 3-attempt rule fires and `/debug` cannot resolve it; a pause-anyway trigger
-fires (contradiction, scope change, missing dependency, a must_fail BLOCKED other than "already
-exists"); the branch moved; or the plan fails its checks three times. Leave the worktree exactly as it
+fires (contradiction, scope change, scope narrowing or an open question the plan gate did not
+answer, missing dependency, a must_fail BLOCKED other than "already exists"); the branch moved; or the plan fails its checks three times. Leave the worktree exactly as it
 is — it is the evidence — and never commit half-done work.
 
 ## Hard rules
