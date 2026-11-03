@@ -1,6 +1,6 @@
 ---
 name: plan-features
-description: Turn any plan into Features and stories on the board, the way the Software Delivery and Release Process wants them — a rough brainstorm, a PRD, a grill or wayfinder summary, architect output, a feature file, or a few lines in chat. Reads the repo's docs, feature files and code first. Each Feature has a Demo (what visibly changes and where you see it), at most 8 stories of 1, 2 or 3 points (5 only with a written reason), a CC/SD change ticket, and real blocked-by links (story to story, also across Features, and Feature to Feature) so anything unlinked can run in parallel. Plans one Feature or several in one run, and checks that each Feature can be finished by its own stories plus the Features linked before it. Creates the items itself after one approval, or — where the repo's settings say so — writes a plan file for the Scrum Master and reads the ids back afterwards. Backend-aware: ADO, GitHub, Todoist or local task files. Usage: /plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run] [--settings]
+description: Turn any plan into Features and stories on the board, the way the Software Delivery and Release Process wants them — a rough brainstorm, a PRD, a grill or wayfinder summary, architect output, a feature file, or a few lines in chat. Reads the repo's docs, feature files and code first. Each Feature has a Demo (what visibly changes and where you see it), at most 8 stories of 1, 2 or 3 points (5 only with a written reason), a CC/SD change ticket, and real blocked-by links (story to story, also across Features, and Feature to Feature) so anything unlinked can run in parallel. Plans one Feature or several in one run, and checks that each Feature can be finished by its own stories plus the Features linked before it. From a document it numbers every requirement line and refuses to create anything until each one is mapped to a story (carried verbatim) or approved as out of scope. Creates the items itself after one approval, or — where the repo's settings say so — writes a plan file for the Scrum Master and reads the ids back afterwards. Backend-aware: ADO, GitHub, Todoist or local task files. Usage: /plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run] [--settings] [--gaps]
 triggers: /plan-features
 ---
 
@@ -45,7 +45,7 @@ every later run until it is filled in (Phase 0.6).
 ## Input
 
 ```
-/plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--with-tasks] [--dry-run] [--settings]
+/plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--with-tasks] [--dry-run] [--settings] [--gaps]
 ```
 
 - `<what to plan, or a path>` — optional. Free text (a rough brainstorm, a line from the middle of other
@@ -67,6 +67,9 @@ every later run until it is filled in (Phase 0.6).
 - `--with-tasks` — also create child items for each story's breakdown. **Refused when the board feeds an
   agent scheduler** — see below. Default off: the breakdown lives in the story body.
 - `--settings` — re-ask this repo's settings (Phase 0.5) before planning.
+- `--gaps` — the input is a coverage table (`tasks/coverage/<slug>.md`) after `/coverage-audit` found
+  lines Partly or Missing: plan stories for **those lines only**, map each line to its new story in
+  the same table, and leave the rest alone. Combine with `--parent` to hang them off a Feature.
 
 ### Why `--with-tasks` is refused on scheduler-backed boards
 
@@ -260,6 +263,47 @@ From the input and the repo, extract:
    piece of work touches. Note the touched files/modules per requirement — Phase 3.5 needs them.
 7. **PRD reference** — the PRD's path or link when the input came from one (it goes on the Feature).
 
+## Phase 2.5 — Number every requirement (input is a document)
+
+When the input is a document — a PRD, a design doc, a grill or wayfinder summary, architect output, a
+feature file — every requirement in it must land somewhere you can point to. A real run built a
+133-line design doc from hand-made one-line tickets; every part "passed" its own checks while 21
+requirements fell between them.
+
+1. **Number every requirement line and sub-bullet** with a stable id: the document's own numbering
+   when it has one (`D-5b.3`), else its line number (`L42`). A decision with sub-bullets is several
+   requirements, one per sub-bullet. Headings and pure narrative are not requirements; anything that
+   says what the product does, shows, stops doing or must not do is.
+2. **Map each one to exactly one owner** as you cut stories in Phase 3: a story and its criterion,
+   a Feature-level criterion, or `Out of scope — <reason>`, which the person sees and approves in
+   Phase 4. A line you are unsure how to read is a question for Phase 4, not a narrower mapping.
+3. **Write the coverage table** to `tasks/coverage/<doc-slug>.md` (local state every later run reads):
+
+   ```markdown
+   # Coverage — docs/weekly-review-design.md
+   Source: docs/weekly-review-design.md
+   Status: open
+
+   | Id | Requirement | Mapped to | Audit |
+   |---|---|---|---|
+   | D-5b.3 | who engages: change from last month | story 3 AC1 | |
+   | D-7 | export to PDF | Out of scope — the owner wants it in a later Feature | |
+   ```
+
+   The Requirement cell is the line **verbatim** (escape a `|` as `\|`). Phase 6 replaces "story 3"
+   with the real id (`story 3 (#205) AC1`); `/coverage-audit` fills the Audit column at the end.
+4. **The coverage gate — nothing is created while a line is unmapped:**
+
+   ```bash
+   node "<implement-skill-dir>/bin/source-lines.js" coverage tasks/coverage/<doc-slug>.md
+   ```
+
+   (`<implement-skill-dir>` is `.claude/skills/implement/` or `~/.claude/skills/implement/`.) Any
+   output is a stop: map the line, or ask about it in Phase 4. Without the build skill, check by
+   reading that every row has an owner and every "Out of scope" a reason.
+
+Free-text input (a brainstorm, a line in chat) has no document to number: skip this phase.
+
 ## Phase 3 — Decompose into vertical slices (stories)
 
 Read `references/story-template.md` and `references/phase-classification.md` now.
@@ -296,6 +340,7 @@ For each story, prepare:
 | **Title** | Imperative verb phrase, ≤ 60 characters |
 | **What it delivers** | 1–2 sentences describing the end-to-end behavior (the story body, in the voice `references/story-template.md` gives) |
 | **Source** | Which input this derives from (e.g., "grill-summary § Resolved fork #3", "the brainstorm in chat") |
+| **Source requirements** | Input was a document: the lines mapped to this story (Phase 2.5), **verbatim**, each with its id. Each is quoted, id and all, at the start of the criterion that tests it — the Given/When/Then may add detail below it, never replace it (`references/story-template.md`) |
 | **Risk flags** | Any of: `security-sensitive`, `performance-sensitive`, `customer-data-touching`, `regulated-data` |
 | **QAble** | `QAble` when QA can observe the change (a screen, an API, a file or report, a queryable result); else `Not QAble` — see the template |
 | **Acceptance criteria** | QAble stories: Given/When/Then, each business-testable, tagged `[UI]` / `[API]` / `[DB Query]`, numbered `AC1`, `AC2`… per story (template rules). Not QAble: none — the developer checks go in Technical Requirements |
@@ -654,6 +699,11 @@ its own work meanwhile.
 > **Finishable check:** [each Feature: "met by its own stories" or "met with F1 before it"; and every
 > fix Phase 3.8 made — a criterion moved, an edge added, Features re-cut]
 >
+> **Coverage** (input was a document): [N] requirement lines — [n] mapped to stories, [n] to Feature
+> criteria, [n] out of scope. Every **Out of scope** line in full, with its reason: approving the plan
+> approves each one. Every line whose reading is unclear, as a question with a recommended answer
+> (normally the full, literal reading). The full table is at `tasks/coverage/<doc-slug>.md`.
+>
 > **Already on the board:** [overlapping Features, and open stories in other Features that new stories
 > wait on, found in Phase 1 — or "nothing overlapping"]
 >
@@ -807,6 +857,11 @@ Seen through: <kinds>
 ## PRD
 <path or link of the PRD this came from — omit the section when there was none>
 
+## Coverage
+<input was a document: "Source: <doc path>", "Coverage: tasks/coverage/<doc-slug>.md", then the
+coverage rows mapped to this Feature's stories and criteria (on the first Feature, also every
+"Out of scope" row) — omit the section otherwise>
+
 ## Source
 - <§ references to the input>
 ```
@@ -843,7 +898,9 @@ environment would follow the wrong item.
 subtask inherits its parent's project and section on Todoist, so no destination args are needed here.
 
 Every adapter prints `{"parent": N, "child": N, "url": "..."}` — parse `.child` and record it against
-the story's number from the Phase 4 table. You need that map for 6c.
+the story's number from the Phase 4 table. You need that map for 6c, and for the coverage table: write
+each real id into its rows' **Mapped to** (`story 3 (#205) AC1`) and into the Feature bodies'
+`## Coverage`, so every later run can trace a line to its item.
 
 Without the hierarchy capability, call `create-issue.sh` in the form that matches the backend:
 
@@ -874,6 +931,12 @@ Story body format:
 <QAble stories only — the template's numbered, tagged criteria:>
 - [UI] **AC1:** Given <context>, when <action>, then <outcome>
 - [API] **AC2:** Given ...
+
+## Source requirements
+<input was a document — omit the section otherwise:>
+Source: <doc path>
+Coverage: tasks/coverage/<doc-slug>.md
+- [<id>] <the line, verbatim>
 
 ## Technical requirements
 <files, classes, tables, endpoints, type of change — confirmed in the code; open points named>
@@ -999,7 +1062,7 @@ not anywhere.** Read `references/scrum-master-plan.md` now; it has the exact `pl
 2. Stop with: **"This is the plan: `plan-<feature>.md`. Tell me when it has been created on the board and I'll
    pick the ids up."**
 3. When told it was done, find each item **read-only** (`references/scrum-master-plan.md` has the
-   queries), write the ids into the feature file (6e) and report anything not found. A re-run later
+   queries), write the ids into the feature file (6e) and the coverage table (Phase 2.5), and report anything not found. A re-run later
    resumes here.
 
 ## Phase 7 — Summary
@@ -1041,6 +1104,9 @@ flowchart LR
 
 **Dependency links:** <N> written as <edge kind> · <N> written as text notes only
 **Parallelism:** the Phase 4 waves with real ids — what can start now, and what starts after what.
+
+**Coverage:** `tasks/coverage/<doc-slug>.md`, real ids filled in — when the last item closes,
+`/sync-tracker` runs `/coverage-audit` on it (input was a document).
 
 **Next step:** Run `/implement #<feature-id>` (or `/work-feature <feature-id>`) to build it.
 ~~~
@@ -1089,6 +1155,9 @@ so and point at the `## Breakdown` sections.
 - `--standalone` creates exactly one parentless item; without it, even a single story gets a parent
   Feature
 - **Nothing is created before the one approval** (Phase 4), whoever called the skill
+- **Input was a document → every requirement line is mapped** (Phase 2.5): to one story or Feature
+  criterion, or to an owner-approved "Out of scope — <reason>". Nothing is created while one is
+  unmapped, and each story carries its lines verbatim, never paraphrased in their place
 - `board_mode: scrum-master` writes nothing to the board, ever — only `plan-<feature>.md` and read-only lookups
 - **Dependency order is a real graph, not story numbering.** Numbering (creation order) decides which of
   several *ready* stories runs first; the blocked-by links decide what is ready at all. Both are needed.

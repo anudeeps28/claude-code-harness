@@ -183,6 +183,20 @@ Method" below for the tag, and "Stable AC ids" for the id):
 - `[TAG]` **AC<N>:** Given <precondition>, when <action>, then <observable outcome>.
 ```
 
+### Source requirement lines (input was a document)
+
+When the story was traced to lines of a source document (SKILL.md Phase 2.5), each line is carried
+**verbatim** twice: in the story's `## Source requirements` section (what `/implement` reads as the
+finish line), and quoted at the start of the criterion that tests it, with its id:
+
+```
+- `[UI]` **AC1:** [D-5b.3] "who engages: change from last month" — Given two months of engagement, when I open the review, then each engager shows this month, last month and the change.
+```
+
+The Given/When/Then follows the quote and may add detail; it never replaces or narrows the quote.
+Every source line of a QAble story is quoted by at least one criterion. A Not QAble story carries its
+lines in `## Source requirements` only.
+
 ### Business-testable framing (mandatory)
 
 Every AC must be something a QA analyst with **no codebase access** can
