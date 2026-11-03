@@ -15,7 +15,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8');
+// CRLF on a Windows checkout (core.autocrlf=true) would break every pattern that spans a line end.
+const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
 
 const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
 const PLAN_FEATURES = read('skills', 'plan-features', 'SKILL.md');
