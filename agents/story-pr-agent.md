@@ -159,6 +159,8 @@ Tests: [result if dotnet test was run, otherwise "N/A — integration tests requ
 
 ## Final output
 
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
 After all 8 steps, output the exact git commands YOUR_NAME needs to run. Use a heredoc for commit messages to preserve formatting:
 
 ```bash

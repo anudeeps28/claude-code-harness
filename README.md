@@ -596,7 +596,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 
 ## Rules
 
-`rules/` holds 13 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
+`rules/` holds 14 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
 
 | Rule | Applies to | Content |
 |---|---|---|
@@ -606,10 +606,11 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `security.md` | `**/*.{cs,ts,js,py}` | No hardcoded secrets, parameterized queries |
 | `documentation.md` | `docs/**`, `*.md` | Don't modify architecture docs |
 
-The other 8 are always-referenced convention docs, not path-scoped:
+The other 9 are always-referenced convention docs, not path-scoped:
 
 | Rule | Content |
 |---|---|
+| `agent-handoff.md` | The `STATUS:` line every agent's report starts with, how the main session routes on it, and never re-reading an agent's work |
 | `autonomous-mode.md` | The one-gate default, the self-answer rule after it, never shrinking scope, pause-anyway triggers, decisions log |
 | `background-work.md` | Never end a turn, summarise or STOP while background agents or commands are still running |
 | `deferrals.md` | The ship test, and why every deferral is a tracker item, not a sentence |

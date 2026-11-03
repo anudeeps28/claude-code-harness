@@ -399,6 +399,30 @@ test('phase-marker rule ships and the build skills reference it', () => {
   }
 });
 
+test('agent-handoff rule ships and /implement references it', () => {
+  const soloDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', soloDir, ...LOCAL]);
+    const soloClaudeDir = path.join(soloDir, '.claude');
+    assert.ok(fs.existsSync(path.join(soloClaudeDir, 'rules', 'agent-handoff.md')), 'solo: rules/agent-handoff.md must be installed');
+    const text = fs.readFileSync(path.join(soloClaudeDir, 'skills', 'implement', 'SKILL.md'), 'utf8');
+    assert.ok(text.includes('rules/agent-handoff.md'), 'solo: skills/implement/SKILL.md must reference rules/agent-handoff.md');
+  } finally {
+    fs.rmSync(soloDir, { recursive: true, force: true });
+  }
+
+  const entDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', entDir, '--pack', 'enterprise', ...LOCAL]);
+    const entClaudeDir = path.join(entDir, '.claude');
+    assert.ok(fs.existsSync(path.join(entClaudeDir, 'rules', 'agent-handoff.md')), 'enterprise: rules/agent-handoff.md must be installed');
+    const text = fs.readFileSync(path.join(entClaudeDir, 'skills', 'implement', 'SKILL.md'), 'utf8');
+    assert.ok(text.includes('rules/agent-handoff.md'), 'enterprise: skills/implement/SKILL.md must reference rules/agent-handoff.md');
+  } finally {
+    fs.rmSync(entDir, { recursive: true, force: true });
+  }
+});
+
 test('update migrates a pre-pack-filter solo install: prunes enterprise skills, restores story agents', () => {
   const dir = makeTempProject();
   try {

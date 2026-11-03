@@ -478,6 +478,8 @@ The `<tasks>` XML block you saved to `tasks/stories/<id_or_current>/plan.md` in 
 
 **Never write to `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. The story-folder `plan.md` is the single source of the XML task plan.
 
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
 ---
 
 ## Planner authority limits

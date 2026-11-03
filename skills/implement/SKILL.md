@@ -294,6 +294,15 @@ git checkout -b implement/<issue-id-or-slugified-title>
 
 ---
 
+## Work handed to agents
+
+Every agent this skill starts reports back with a `STATUS:` line first, and the brief says so; route
+on it as `rules/agent-handoff.md` says. The main session acts on the agent's short result and never
+re-reads its logs or transcript, never re-runs its commands and never opens the files it wrote; it asks
+one narrower question instead.
+
+---
+
 ## Required tools
 
 Everything this skill hands work to, by name. `bin/startup-check.js` reads this list, so it is the

@@ -212,7 +212,9 @@ Rate each guardrail:
 
 ## Step 7 — Output the Acceptance Report
 
-Output in this exact format:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then output in this exact format:
 
 ---
 

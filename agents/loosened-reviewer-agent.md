@@ -70,7 +70,9 @@ at 03:00 and export orders to a new storage bucket"). Do not guess prices; say w
 
 ## Step 4 — Output the report
 
-Output in this exact format:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then output in this exact format:
 
 ---
 

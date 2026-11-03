@@ -104,7 +104,9 @@ did not measure is reported as missing, never guessed.
 
 ## Report
 
-End with exactly this block, and nothing after it:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`). Map your result onto it: `RESULT: PASS` is `STATUS: DONE`, `RESULT: BLOCKED` is `STATUS: BLOCKED`.
+
+End with the status line, then exactly this block, and nothing after it:
 
 ```
 RESULT: PASS | BLOCKED

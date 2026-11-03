@@ -189,6 +189,7 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'harness-roles.json',
     'hooks/safety-check.js',
     'rules/code-style.md',
+    'rules/agent-handoff.md',
     'trackers/active/get-issue.sh',
     'trackers/lib/retry.sh',
     'code-platform/active/get-pr-review-threads.sh',

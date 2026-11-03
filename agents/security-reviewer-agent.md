@@ -233,7 +233,9 @@ report: give the file, the line and the kind.
 
 ## Step 6 — Output the report
 
-Output in this exact format:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then output in this exact format:
 
 ---
 

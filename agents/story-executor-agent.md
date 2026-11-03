@@ -276,7 +276,9 @@ manufactured failure passes this task and leaves a worthless test behind forever
 
 ## Step 4 — Report back
 
-Output this structure exactly:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`). Map your result onto it: `RESULT: PASS` is `STATUS: DONE`, `RESULT: FAIL` is `STATUS: DONE_WITH_CONCERNS`, `RESULT: BLOCKED` is `STATUS: BLOCKED`.
+
+Then output this structure exactly:
 
 ---
 

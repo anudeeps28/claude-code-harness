@@ -136,7 +136,9 @@ Note: which branch is active, any uncommitted changes, and the last 5 commits.
 
 ## Step 7 — Produce the brief
 
-Output exactly this structure. Be specific and concrete — use real field names, real file paths, real method names from the code you read. No vague generalities.
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then output exactly this structure. Be specific and concrete — use real field names, real file paths, real method names from the code you read. No vague generalities.
 
 ---
 
