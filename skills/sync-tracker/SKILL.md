@@ -92,7 +92,7 @@ If `--dry-run` was passed, report:
 
 ---
 
-…then skip Step 6 and continue to **Step 6.5** (which is also read-only under `--dry-run`).
+…then skip Step 6 and continue to **Step 6.3** and **Step 6.5** (both read-only under `--dry-run`).
 
 ---
 
@@ -104,6 +104,10 @@ bash .claude/trackers/active/close-issue.sh <ID> "Delivered in PR #<N>"
 ```
 
 **Ambiguous evidence items:** ask the user for confirmation on each one before closing.
+
+**Never close an item whose own coverage lines are open.** A Feature (or other parent) whose body
+has a `## Coverage` section stays open while any of its rows in that coverage table is marked
+`Partly` or `Missing` (Step 6.3); report it as "held: coverage lines open" instead of closing it.
 
 Report each closure result.
 
@@ -118,6 +122,26 @@ Output:
 **Sync complete.** Closed [N] delivered items in [tracker type]. [M] items were already closed. [K] open items have no delivery evidence (still in progress).
 
 ---
+
+Then continue to **Step 6.3**.
+
+---
+
+## Step 6.3 — The closing check for documents
+
+Work planned from a document by `/plan-features` has a coverage table, `tasks/coverage/<slug>.md`,
+mapping every requirement line of the document to a story. For each table whose `Status:` is not
+`complete`, check the items its **Mapped to** column names (`get-issue.sh <id>`). When **all** of them
+are now closed — this sync closed the last one, or an earlier one did — run the closing check:
+
+```
+/coverage-audit tasks/coverage/<slug>.md
+```
+
+It reads every line of the document against the merged code with a fresh agent, and turns every
+Partly or Missing line into proposed stories or an owner-approved out-of-scope row. Under `--dry-run`,
+list the tables that would be audited and run nothing. Tables with items still open are listed as
+"waiting on #<ids>".
 
 Then continue to **Step 6.5** — closing delivered work is only half of reconciliation; the other half
 is work that was deferred and never registered.

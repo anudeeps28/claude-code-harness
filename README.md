@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-32 skills, 20 agents, 7 cross-platform Node hooks, 13 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 21 agents, 7 cross-platform Node hooks, 13 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -17,35 +17,37 @@ See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 flowchart TB
     subgraph F["/implement &lt;feature-id&gt; — a whole Feature, one PR"]
         direction LR
-        F1["Read the Feature<br/>stories, links, Demo"] --> F2{{"STOP — approve<br/>the one plan"}}
+        F1["Read the Feature<br/>stories, links, Demo"] --> F2{{"Plan gate — plan, coverage,<br/>every question at once"}}
         F2 --> F3["Each story in its own worktree<br/>independent ones at once<br/>plan · waves · light review"]
         F3 --> F4["Merge one at a time<br/>tests pass, or abort"]
         F4 --> F5["Feature panel<br/>5 reviewers on the whole branch"]
-        F5 --> F6["Prove it<br/>real system · break one line"]
+        F5 --> F6["Prove it + closing check<br/>real system · every doc line"]
         F6 --> F7{{"PR gate<br/>every criterion met"}}
         F7 --> F8(["One PR"])
     end
 
     subgraph S["/implement #42 --standalone — one story, bug or description"]
         direction LR
-        S1["Understand<br/>whole ticket"] --> S2{{"STOP<br/>brief · goal · plan"}}
+        S1["Understand · goal · plan<br/>source lines, questions"] --> S2{{"Plan gate — plan, coverage,<br/>every question at once"}}
         S2 --> S3["Execute<br/>waves, tests in every verify"]
         S3 --> S4["Local tests"]
         S4 --> S5["4 reviewers<br/>+ e2e gate"]
-        S5 --> S6{{"STOP<br/>push?"}}
-        S6 --> S7(["PR"])
+        S5 --> S7(["PR"])
     end
 
     F ~~~ S
 
     classDef stop fill:#fde2e1,stroke:#c0392b,color:#7b241c
     classDef gate fill:#fdf2d0,stroke:#b7950b,color:#7d6608
-    class F2,S2,S6 stop
+    class F2,S2 stop
     class F7 gate
 ```
 
-Red boxes are where you decide (`--autonomous` answers the reversible ones itself and leaves the PR
-as the only gate); the amber PR gate is automatic — no PR while a criterion is unmet. Every step is saved, so `/implement --resume <id>` carries on after a crash.
+The red box is the one place you decide: the plan gate shows the plan, how every requirement line of
+the source document is covered, and every question the run has, each with a recommended answer. After
+your go it runs straight to the PR, stopping only for something genuinely new (a contradiction, an
+irreversible action, a scope change, a failure it cannot fix). The amber PR gate is automatic — no PR
+while a criterion is unmet. Every step is saved, so `/implement --resume <id>` carries on after a crash.
 
 ---
 
@@ -53,7 +55,7 @@ as the only gate); the amber PR gate is automatic — no PR while a criterion is
 
 AI coding tools are powerful — but unstructured. You start a task, the model edits 12 files, and you're not sure what happened or why. There's no plan to review, no evaluation to catch mistakes, and no way to know if the change actually matches what was asked for.
 
-**This harness adds the structure.** Every feature runs through human gates — understand, plan, execute, evaluate, PR — and nothing advances without your explicit "go". Not an autonomous agent. A supervised one. (An optional `--autonomous` flag moves the gate to the PR instead of removing it — see [Autonomous mode](#autonomous-mode---autonomous) below.)
+**This harness adds the structure.** Every feature is understood and planned first, and nothing is built until you approve the plan — at one gate where the run asks all its questions at once. Then it builds, checks and opens the PR, and never quietly narrows what you asked for. Not an autonomous agent. A supervised one. (`--autonomous` lets a plan with nothing to ask approve itself — see [Autonomous mode](#autonomous-mode---autonomous) below; `--step` brings back a stop at every phase.)
 
 **If you're on a team**, it goes further. Context switching costs you 20 minutes every session re-reading the story, the architecture doc, and the last PR. Code review bots leave 15 threads and you fix them one at a time, push, wait, repeat. Sprint status lives in your head. And management doesn't trust AI-generated code because nobody can prove a human approved the plan before code was written. The harness handles all of that — tracker integration, PR review loops, sprint files, and the audit trail your team needs.
 
@@ -79,8 +81,8 @@ each into the Feature branch only after its tests pass, runs the five-reviewer p
 on the whole branch, and opens one PR — only when every acceptance criterion is met.
 
 **Building a standalone item.** `/implement 42 --standalone` builds one story or bug on its own
-branch: understand → goal → plan → build in waves → local tests → four reviewers → e2e gate → PR, with
-a stop for you at each step (or none, with `--autonomous`). A story that belongs to a Feature makes
+branch: understand → goal → plan → **plan gate** → build in waves → local tests → four reviewers →
+e2e gate → PR, with one stop for you at the plan gate (a stop at every step with `--step`). A story that belongs to a Feature makes
 `/implement` ask whether you meant the Feature.
 
 ### Solo developers
@@ -90,9 +92,9 @@ a stop for you at each step (or none, with `--autonomous`). A story that belongs
 /implement #42 --discuss          ← 3 clarifying questions before planning
 /implement #42 --research         ← scan codebase for reusable utilities first
 /implement #42 --full             ← --discuss + --research (max understanding)
-/implement #42 --auto             ← run all waves without pausing between them
+/implement #42 --step             ← stop after every phase and wave, the old way
 /implement #42 --full --quick     ← max understanding, skip post-build evaluation
-/implement #42 --autonomous       ← full pipeline, zero STOPs, opens a PR as the only gate
+/implement #42 --autonomous       ← unattended: a plan with nothing to ask approves itself
 /implement --rework 58 "also rename the flag"   ← re-enter a rejected PR, fix on the same branch, push
 /implement --resume 42            ← carry on a stopped run (a story or a whole Feature)
 /plan                             ← prioritize your open issues
@@ -102,9 +104,10 @@ a stop for you at each step (or none, with `--autonomous`). A story that belongs
 - `--discuss` — pre-plan Q&A (intent, acceptance bar, constraints, free-form notes)
 - `--research` — codebase scan produces a reuse inventory before the plan
 - `--quick` — skip Phase 3 (evaluation + acceptance testing)
-- `--auto` — auto-run all waves without pausing between them (still stops on failure)
-- `--full` — sugar for `--discuss --research`; orthogonal to `--quick` and `--auto`
-- `--autonomous` — run the entire flow with no human STOP checkpoints; self-answer reversible decisions, pause only when genuinely blocked, auto-push and open a non-draft PR as the single human gate. Implies `--auto` (NOT `--quick`).
+- `--step` — the old step-by-step run: a stop after the brief, the goal, every wave and before the push, as well as at the plan gate
+- `--auto` — kept for old commands; waves no longer pause, so it only matters with `--step` (drops the wave stops)
+- `--full` — sugar for `--discuss --research`; orthogonal to `--quick`
+- `--autonomous` — fully unattended: the plan gate approves itself when it has nothing to ask; with any question (a scope reading above all) it stops like any run. NOT `--quick`.
 - `--rework <PR#>` — mode selector (not additive): re-enter an already-open, rejected PR, merge its review comments with optional typed feedback, fix on the same branch, and push so the PR updates. Its own explicit autonomous entry point.
 - `--resume <id>` — carry on a stopped run from its saved state; a finished task or a merged story is never redone.
 - `--standalone` — build a story or bug that has no parent Feature.
@@ -114,7 +117,7 @@ a stop for you at each step (or none, with `--autonomous`). A story that belongs
 ### Enterprise teams
 ```
 /implement 9950             ← the same build; also keeps the sprint file's Master Status Table in step
-/implement 9950 --autonomous ← zero STOPs, the PR is the only gate
+/implement 9950 --autonomous ← a plan with nothing to ask approves itself
 /sprint-plan 8              ← reads tracker, creates sprint file, surfaces gaps
 /babysit-pr 163             ← loops PR reviews until zero threads remain
 ```
@@ -196,6 +199,7 @@ flowchart LR
 | Critique an architecture doc for gaps and risks | `/architect-critique` |
 | Generate the full spec stack (DB schema, API ref, diagrams) | `/design-artifacts` |
 | Turn any plan (a brainstorm, a PRD, a grill summary) into Features and stories on the board | `/plan-features` |
+| Check a design doc or PRD against the merged code, line by line | `/coverage-audit` |
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
 | Build a whole Feature, every story, to one PR | `/implement <feature-id>` |
 | Build one story, bug or issue | `/implement #42 --standalone` |
@@ -395,7 +399,8 @@ each thing they did now lives.
 | **tdd** | `/tdd <feature or behavior>` | Strict RED-GREEN-REFACTOR cycles with vertical slicing — one behavior at a time, test first, no refactoring while RED |
 | **hackathon** | `/hackathon [list of changes]` | Demo-deadline mode — work a queue of small changes one at a time, each built, launched, and looked at before the next. Cuts process, never verification |
 | **calibrate** | `/calibrate` | Learning effectiveness dashboard — shows how learnings are performing, promotes high-scoring ones to permanent rules, archives ineffective ones |
-| **sync-tracker** | `/sync-tracker [--dry-run]` | Reconcile merged PRs and completed work against open tracker items — closes delivered issues/tasks in GitHub, Todoist, or ADO |
+| **sync-tracker** | `/sync-tracker [--dry-run]` | Reconcile merged PRs and completed work against open tracker items — closes delivered issues/tasks in GitHub, Todoist, or ADO, and runs the closing check when the last item traced to a document closes |
+| **coverage-audit** | `/coverage-audit <coverage file or doc> [--ref <folder>] [--now]` | The closing check for work planned from a document — a fresh read-only agent marks every requirement line Built, Partly or Missing against the code (never the plans); gaps become new stories or owner-approved out-of-scope lines |
 | **update-harness** | `/update-harness [--global\|--project]` | Check for and apply updates to your claude-code-harness installation — resolves target, shows changelog, applies updates with human confirmation |
 
 ---
@@ -408,8 +413,9 @@ each thing they did now lives.
 PLAN THE FEATURE
   → Reads the whole Feature: its stories, the links between them, comments, attachments
   → Orders the stories by dependency; checks the Demo against the Observe section
-  → The one stop: the plan plus "Before I finalize this plan I need" (missing material,
-    untestable criteria, decisions that are not ours, missing access, contradictions)
+  → The one stop, the plan gate: the plan, the coverage of the source lines, and "Before I finalize
+    this plan I need" (missing material, untestable criteria, decisions that are not ours, missing
+    access, contradictions, scope readings), each with a recommended answer
 
 BEFORE THE FIRST STORY
   → Disk check for the worktrees; lists any command no allow rule covers
@@ -439,24 +445,25 @@ PROVE IT, THE PR GATE, ONE PR
 Phase 1: UNDERSTAND
   → Spawns story-understand-agent; reads the whole ticket + codebase + project docs
     (on the enterprise pack, the sprint file's notes too)
+  → Carries the ticket's source requirement lines (or extracts them from a named doc) and open questions
   → Writes handoff contract: tasks/stories/<id>/brief.md
-  → STOP 1: "Does this brief match your understanding?"
 
 Phase 1.5: GOAL DEFINITION
   → Defines the e2e modality, acceptance criteria (each with a proof), concrete gate
-  → STOP 1.5: "Approve this goal, or adjust it?"
+  → Every source requirement line becomes a criterion, verbatim
 
 Phase 1c: PLAN
   → Spawns implement-planner-agent with brief + goal as input
   → Produces XML task plan + test strategy; mandatory type="test" tasks
   → With --tdd (and always for bug fixes): each slice ordered
     empty shell → failing test → real code, three separate agents
-  → STOP: "Review the plan and test strategy. Say 'go' to start building."
+  → Checks: Demo never weaker, a proof per criterion, probes planned, every source line kept verbatim
+  → THE PLAN GATE (the one stop): plan, coverage, every open question with a recommended answer
 
-Phase 2: EXECUTE (wave by wave)
+Phase 2: EXECUTE (waves back to back)
   → Executors in your working folder, no isolation; overlap and branch checks around every wave
   → Every <verify> runs build + relevant tests; a task is done only after the review passes
-  → After each wave — "Continue?"; 3 failures → auto-invokes /debug
+  → 3 failures → auto-invokes /debug; a failure it cannot fix stops the run
 
 Phase 2.5: LOCAL VERIFICATION
   → Runs /local-test to verify full build + tests pass (stack-agnostic)
@@ -464,8 +471,9 @@ Phase 2.5: LOCAL VERIFICATION
 Phase 3: REVIEW + e2e GATE + PR
   → Four review agents in parallel: evaluator, acceptance, architect, security
   → The e2e goal gate — evidence-driven re-approach on a failure, never a blind retry
+  → Closing check when this story completes a coverage table: every doc line vs the code
   → Drafts commit messages + PR description (enterprise: updates the Master Status Table)
-  → STOP 3: "Review and commit. Say 'push' when ready."
+  → Commits, pushes and opens the PR — no stop (with --step: "Review and commit. Say 'push'")
 ```
 
 Every step leaves a saved state behind, so `/implement --resume <id>` carries on from the last
@@ -475,20 +483,25 @@ finished step after a crash, a closed terminal or a compaction.
 
 ### Autonomous mode (`--autonomous`)
 
-`--autonomous` is a per-run flag on `/implement` that runs the whole pipeline —
-understand → plan → build → test → review → PR — with **no human STOP checkpoints**. It implies
-`--auto`, but it does NOT imply `--quick`: evaluation, acceptance testing, and the e2e goal gate
-still run. Autonomy is never a default — it only ever starts from an explicit per-run flag.
+**Every run is autonomous after its plan gate.** Understand, goal and plan run back to back and end at
+one gate: the plan, the coverage of the source requirement lines, and every open question with a
+recommended answer. After your go, build → local tests → review → fix loop → PR run without stopping.
+At each point that would once have been a stop, the run takes the recommended option if the decision
+is reversible, and logs one line to `tasks/stories/<id>/decisions-log.md`.
 
-**Self-answer rule.** At every point that would normally STOP and wait for you: if the decision is
-reversible AND there's a clear recommended option, the agent takes it and logs one line to
-`tasks/stories/<id>/decisions-log.md`. Otherwise it pauses and asks.
+**`--autonomous`** is for fully unattended runs: the plan gate approves itself when it has nothing to
+ask. With any question it stops like any run. It does NOT imply `--quick`: evaluation, acceptance
+testing and the e2e goal gate still run.
 
-**Pause-anyway triggers** — the agent stops and asks regardless of the self-answer rule: a
-contradiction it can't reconcile, an irreversible action, a scope change, or the 3-failed-attempts
-rule (routes to `/debug`). A task FAIL or BLOCKED also halts the run.
+**Never shrink scope.** Reading a requirement more narrowly than written, doing part of it, or
+choosing between two readings is never a "reversible decision": it is asked at the plan gate, or the
+run pauses if it only shows up mid-build. In every mode.
 
-**The PR is the single human gate.** It's opened non-draft, and it carries a "Decisions made on your behalf" section rendering the decisions log verbatim — so you see every reversible call made without
+**Pause-anyway triggers** — the run stops and asks: a contradiction it can't reconcile, an
+irreversible action, a scope change, scope narrowing, a missing dependency, or the 3-failed-attempts
+rule (routes to `/debug`). A task that still fails after that, or is BLOCKED, also halts the run.
+
+**The PR is the human gate at the end.** It's opened non-draft, and it carries a "Decisions made on your behalf" section rendering the decisions log verbatim — so you see every reversible call made without
 you. There is no auto-merge: the PR always waits for your verdict — approve to merge, or request
 changes and then re-enter the PR yourself with `/implement --rework <PR#>` (see the reject loop below).
 
@@ -519,6 +532,7 @@ branch, and pushes so the PR updates in place.
 | `acceptance-test-agent` | opus | `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
 | `architect-reviewer-agent` | opus | `/implement` 3 and Feature panel | Architecture drift, NFR compliance, data-flow integrity, migrations on a database that already exists |
 | `security-reviewer-agent` | opus | `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
+| `coverage-auditor-agent` | opus | `/coverage-audit` | The closing check's reader — every requirement line of a document vs the code, Built / Partly / Missing with file evidence; never reads the plans |
 | `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
 | `babysit-pr-analyst` | sonnet | `/babysit-pr` | Categorizes threads as fix/reply |
 | `babysit-pr-fixer` | sonnet | `/babysit-pr` | Applies code fixes |
@@ -595,7 +609,7 @@ The other 8 are always-referenced convention docs, not path-scoped:
 
 | Rule | Content |
 |---|---|
-| `autonomous-mode.md` | `--autonomous` self-answer rule, pause-anyway triggers, decisions log |
+| `autonomous-mode.md` | The one-gate default, the self-answer rule after it, never shrinking scope, pause-anyway triggers, decisions log |
 | `background-work.md` | Never end a turn, summarise or STOP while background agents or commands are still running |
 | `deferrals.md` | The ship test, and why every deferral is a tracker item, not a sentence |
 | `git-worktrees.md` | Worktree naming, lifecycle, and cleanup conventions |
@@ -645,7 +659,7 @@ Each story gets structured state files that pass between phases:
 
 ```
 tasks/stories/<story-id>/
-├── brief.md           ← Phase 1 output (8-point understanding)
+├── brief.md           ← Phase 1 output (understanding, source requirement lines, open questions)
 ├── plan.md            ← Phase 2 output (XML task plan + rationale)
 ├── test-strategy.md   ← Phase 2 output (acceptance criteria + integration scenarios + regression guardrails)
 ├── executor-state.md  ← Phase 3 output (per-task results, updated per wave)
@@ -653,6 +667,10 @@ tasks/stories/<story-id>/
 ├── acceptance.md          ← Phase 3.6 output (acceptance criteria PASS/FAIL + verdict)
 ├── architecture-review.md ← Phase 3.6 output (architecture drift + NFR compliance)
 └── security-review.md     ← Phase 3.6 output (security findings + PHI/PII risks)
+
+tasks/coverage/
+├── <doc-slug>.md          ← /plan-features: every requirement line of a document → the story that owns it
+└── <doc-slug>.audit.md    ← /coverage-audit: each line Built / Partly / Missing against the code
 ```
 
 This prevents goal drift, makes debugging easier, and lets the evaluator check work against the original plan.
@@ -708,8 +726,8 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 34 skills
-├── agents/           ← 19 agents (16 sub-agents + 1 main-session operator + 2 role identities)
+├── skills/           ← 33 skills
+├── agents/           ← 21 agents (18 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 11 rules (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
