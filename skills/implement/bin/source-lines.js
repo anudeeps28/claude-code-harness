@@ -18,6 +18,9 @@
 //   node source-lines.js compare <ticket-or-brief> <test-strategy.md>
 //                                                          every line is a criterion, verbatim; the plan
 //                                                          may add criteria, never drop or reword one
+//   node source-lines.js compare <ticket> <feature-plan.md> --story <sid>
+//                                                          the same, over that story's "## Story #<sid>"
+//                                                          section of the Feature plan only
 //   node source-lines.js coverage <coverage.md>            every requirement row is mapped
 //   node source-lines.js audit <coverage.md> [--items <id,id>]
 //                                                          every in-scope row's Audit is Built
@@ -25,7 +28,7 @@
 // Prints one problem per line and exits 1; exits 0 when all is well; exit 2 is a usage error.
 
 const fs = require('node:fs');
-const { parseCriteria } = require('./proof-check');
+const { parseCriteria, storySections } = require('./proof-check');
 
 const SECTION = /^## Source requirements\s*$/;
 const ID = '[A-Za-z0-9][A-Za-z0-9._-]*';
@@ -83,7 +86,13 @@ function readSource(text) {
   return out;
 }
 
-function compare(sourceText, strategyText) {
+function compare(sourceText, strategyText, storyId) {
+  if (storyId) {
+    // A Feature plan: read only this story's "## Story #<sid>" section.
+    const section = storySections(strategyText).find((s) => s.sid === String(storyId));
+    if (!section) return [`no "## Story #${storyId}" section in the Feature plan`];
+    strategyText = section.text;
+  }
   const src = readSource(sourceText);
   if (src.lines.length === 0) return src.bad.map((b) => `bad line: "${b}" — write it as "- [<id>] <the line, verbatim>"`);
   const criteria = parseCriteria(strategyText);
@@ -192,7 +201,7 @@ function read(file) {
 }
 
 function usage() {
-  process.stderr.write('usage: source-lines.js read <file> | compare <ticket-or-brief> <test-strategy.md> | coverage <coverage.md> | audit <coverage.md> [--items <id,id>]\n');
+  process.stderr.write('usage: source-lines.js read <file> | compare <ticket-or-brief> <test-strategy.md|feature-plan.md> [--story <sid>] | coverage <coverage.md> | audit <coverage.md> [--items <id,id>]\n');
   process.exit(2);
 }
 
@@ -209,8 +218,8 @@ function main(argv) {
       for (const l of src.lines) out.push(`line [${l.id}] ${l.text}`);
     } else if (src.docRef) out.push(`doc-without-lines: ${src.docRef}`);
     else out.push('none');
-  } else if (cmd === 'compare' && rest.length === 2) {
-    out = compare(read(rest[0]), read(rest[1]));
+  } else if (cmd === 'compare' && (rest.length === 2 || (rest.length === 4 && rest[2] === '--story'))) {
+    out = compare(read(rest[0]), read(rest[1]), rest.length === 4 ? rest[3].replace(/^#/, '') : null);
     failed = out.length > 0;
   } else if (cmd === 'coverage' && rest.length === 1) {
     out = checkCoverage(read(rest[0]));

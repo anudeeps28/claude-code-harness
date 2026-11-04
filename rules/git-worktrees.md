@@ -110,23 +110,21 @@ Normal git/build/test commands. Nothing special. Notes:
 
 ---
 
-## Feature and story worktrees (`/implement` Feature mode)
+## The Feature worktree (`/implement` Feature mode)
 
-`/implement <feature-id>` creates worktrees itself, as part of the run, with no per-task confirmation:
-the person approved them when they approved the Feature plan (ADR-0002).
+`/implement <feature-id>` creates its worktree itself, as part of the run, with no per-task
+confirmation: the person approved it when they approved the Feature plan (ADR-0005).
 
 - **Feature worktree:** `<repo>-f<fid>`, branch `feature/<fid>-<slug>`, from main. The home folder
-  stays on main.
-- **Story worktree:** `<repo>-f<fid>-s<sid>`, branch `story/<sid>-<slug>`, created from the Feature
-  branch only after every story it depends on has merged. Its gitignored config is copied and its
-  restore commands run from the **Worktree setup** section below.
-- After a story merges, its worktree is removed and its branch deleted with `git worktree remove` and
-  `git branch -d` — never forced. A stuck story's worktree and branch are kept as evidence.
+  stays on main. Its gitignored config is copied and its restore commands run from the **Worktree
+  setup** section below.
+- Every story is built in it, one after another, as one commit each. There is no worktree or branch
+  per story.
 - State never lives in a worktree: every agent writes to the home folder's `tasks/` (its **state
   folder**, ADR-0004).
 
-All are siblings of the home folder, never nested in it, and the session-start cleanup above applies to
-them like any other worktree.
+It is a sibling of the home folder, never nested in it, and the session-start cleanup above applies to
+it like any other worktree. Parallel work is one worktree per Feature, never per story.
 
 ---
 

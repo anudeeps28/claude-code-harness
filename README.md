@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 21 agents, 7 cross-platform Node hooks, 13 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 25 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -18,9 +18,9 @@ flowchart TB
     subgraph F["/implement &lt;feature-id&gt; — a whole Feature, one PR"]
         direction LR
         F1["Read the Feature<br/>stories, links, Demo"] --> F2{{"Plan gate — plan, coverage,<br/>every question at once"}}
-        F2 --> F3["Each story in its own worktree<br/>independent ones at once<br/>plan · waves · light review"]
-        F3 --> F4["Merge one at a time<br/>tests pass, or abort"]
-        F4 --> F5["Feature panel<br/>5 reviewers on the whole branch"]
+        F2 --> F3["One story at a time, in order<br/>tests · red · code · green · 2 reviews"]
+        F3 --> F4["One commit per story<br/>on the Feature branch"]
+        F4 --> F5["Feature panel<br/>seven checks on the whole branch"]
         F5 --> F6["Prove it + closing check<br/>real system · every doc line"]
         F6 --> F7{{"PR gate<br/>every criterion met"}}
         F7 --> F8(["One PR"])
@@ -68,17 +68,18 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 `/implement` is the one build skill (ADR-0001). What it builds depends on what you hand it:
 
 ```
-/implement 40                     ← a Feature: one plan for all its stories, each story built in its own
-                                    git worktree (independent ones at the same time), one review panel
-                                    and Prove it on the whole Feature, then one PR
+/implement 40                     ← a Feature: one plan for all its stories, built one after another on
+                                    the Feature branch, one review panel and Prove it on the whole
+                                    Feature, then one PR
 /implement 42 --standalone        ← a single story or bug with no parent Feature
 ```
 
 **Building a Feature.** `/plan-features` breaks the work into a Feature with stories and the links
 between them. `/implement 40` shows you one plan — the stories in dependency order, the Feature's
-Demo, and anything it needs from you — and that is the only stop. Then it builds every story, merges
-each into the Feature branch only after its tests pass, runs the five-reviewer panel and **Prove it**
-on the whole branch, and opens one PR — only when every acceptance criterion is met.
+Demo, and anything it needs from you — and that is the only stop. Then it builds the stories one
+after another, committing each to the Feature branch only after its tests pass, runs the seven-check
+panel and **Prove it** on the whole branch, and opens one PR — only when every acceptance criterion
+is met.
 
 **Building a standalone item.** `/implement 42 --standalone` builds one story or bug on its own
 branch: understand → goal → plan → **plan gate** → build in waves → local tests → four reviewers →
@@ -109,7 +110,7 @@ e2e gate → PR, with one stop for you at the plan gate (a stop at every step wi
 - `--full` — sugar for `--discuss --research`; orthogonal to `--quick`
 - `--autonomous` — fully unattended: the plan gate approves itself when it has nothing to ask; with any question (a scope reading above all) it stops like any run. NOT `--quick`.
 - `--rework <PR#>` — mode selector (not additive): re-enter an already-open, rejected PR, merge its review comments with optional typed feedback, fix on the same branch, and push so the PR updates. Its own explicit autonomous entry point.
-- `--resume <id>` — carry on a stopped run from its saved state; a finished task or a merged story is never redone.
+- `--resume <id>` — carry on a stopped run from its saved state; a finished task or a committed story is never redone.
 - `--standalone` — build a story or bug that has no parent Feature.
 - `--tdd` — test-first: each slice is planned as empty shell → failing test → real code (always on for bug fixes).
 - `--no-ship` — run everything up to the PR, then stop before any git step.
@@ -351,7 +352,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 ### Build (both packs)
 | Skill | Usage | What it does |
 |---|---|---|
-| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story in its own worktree, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run, `--tdd` builds test-first. On the enterprise pack it also keeps the sprint file in step |
+| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story one after another on the Feature branch, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run, `--tdd` builds test-first. On the enterprise pack it also keeps the sprint file in step |
 
 ### Solo workflow
 | Skill | Usage | What it does |
@@ -419,19 +420,17 @@ PLAN THE FEATURE
     access, contradictions, scope readings), each with a recommended answer
 
 BEFORE THE FIRST STORY
-  → Disk check for the worktrees; lists any command no allow rule covers
+  → Disk check for the Feature worktree; lists any command no allow rule covers
 
 RUN THE STORIES
-  → Each story in its own git worktree, branched from the Feature branch once its blockers merged
-  → Independent stories at the same time (max-parallel-stories, never over 20 agents)
-  → Each built by a story-runner-agent: plan, waves, light review (evaluator + acceptance), commit
-  → Merged one at a time: git merge --no-commit, the full tests, then commit or abort
-  → A story that fails twice is stuck: it and its dependents wait for a person, no PR
+  → One story at a time, on the Feature branch, once its blockers are committed
+  → Each built by story-builder and checked by story-reviewer, then one commit with a "Story: #<id>" line
+  → A story that is BLOCKED twice is stuck: it and its dependents wait for a person, no PR
 
 THE FEATURE PANEL
-  → Five reviewers in one message on main...feature: security (with the built-in /security-review),
-    architect, acceptance, evaluator (two calls), loosened — each on its own model
-  → Fixes go through executors; only the reviewers whose areas changed run again
+  → Seven checks on main...feature: security (with the built-in /security-review), architecture,
+    acceptance, made-false, complexity, dead code, loosened — each on its own model
+  → Fixes go to `story-builder` (job fix); only the reviewers whose areas changed run again
 
 PROVE IT, THE PR GATE, ONE PR
   → Each criterion's proof on the real system; any tool the Feature makes run on a second case
@@ -525,16 +524,20 @@ branch, and pushes so the PR updates in place.
 | Agent | Model | Used by | Role |
 |---|---|---|---|
 | `implement-planner-agent` | opus | `/implement` Phase 1c | Plans tasks from brief + goal — one pass |
-| `story-runner-agent` | opus | `/implement` Feature mode | Builds one story inside its own git worktree — plan, waves, light review, commit — and reports the commit sha; never merges or pushes |
 | `story-understand-agent` | opus | `/implement` Phase 1 | Reads the whole ticket + docs (and the sprint file on enterprise), produces the brief |
-| `story-executor-agent` | sonnet | `/implement` waves, in a story runner too | Writes code for one task |
+| `story-executor-agent` | sonnet | `/implement` waves | Writes code for one task |
 | `story-pr-agent` | sonnet | `/implement` PR step | Commit messages + PR description; the Master Status Table on enterprise |
-| `evaluator-agent` | opus (Feature panel: sonnet for the list part) | `/evaluate`, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
+| `evaluator-agent` | opus (Feature panel: sonnet for the complexity and dead-code parts) | `/evaluate`, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
 | `acceptance-test-agent` | opus | `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
 | `architect-reviewer-agent` | opus | `/implement` 3 and Feature panel | Architecture drift, NFR compliance, data-flow integrity, migrations on a database that already exists |
 | `security-reviewer-agent` | opus | `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
 | `coverage-auditor-agent` | opus | `/coverage-audit` | The closing check's reader — every requirement line of a document vs the code, Built / Partly / Missing with file evidence; never reads the plans |
 | `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
+| `prover` | sonnet | `/implement` Prove it | Runs each criterion's proof on the real system in a scratch copy, a tool on a second case, breaks each main test once; one line per criterion; fixes nothing. Job `diagnose` (the cause of a failed criterion) is called on opus |
+| `story-builder` | sonnet | `/implement` | Writes the tests first from the criteria, the code that turns them green, or a fix; never stages, commits or pushes |
+| `story-reviewer` | sonnet | `/implement` | Reviews in one named mode (Correctness, Rules and quality, Re-review, Cross-story); findings only, edits nothing |
+| `suite-runner` | sonnet | `/implement` | Runs the build and test commands and returns only exit codes, counts and each failing test's first error line |
+| `tracker-helper` | haiku | `/implement` | Runs the given tracker adapter commands (card moves, deferral items), reads each write back and reports it; never improvises another command |
 | `babysit-pr-analyst` | sonnet | `/babysit-pr` | Categorizes threads as fix/reply |
 | `babysit-pr-fixer` | sonnet | `/babysit-pr` | Applies code fixes |
 | `sprint-plan-tracker-reader` | haiku | `/sprint-plan` | Calls tracker CLI |
@@ -596,7 +599,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 
 ## Rules
 
-`rules/` holds 13 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
+`rules/` holds 14 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
 
 | Rule | Applies to | Content |
 |---|---|---|
@@ -606,10 +609,11 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `security.md` | `**/*.{cs,ts,js,py}` | No hardcoded secrets, parameterized queries |
 | `documentation.md` | `docs/**`, `*.md` | Don't modify architecture docs |
 
-The other 8 are always-referenced convention docs, not path-scoped:
+The other 9 are always-referenced convention docs, not path-scoped:
 
 | Rule | Content |
 |---|---|
+| `agent-handoff.md` | The `STATUS:` line every agent's report starts with, how the main session routes on it, and never re-reading an agent's work |
 | `autonomous-mode.md` | The one-gate default, the self-answer rule after it, never shrinking scope, pause-anyway triggers, decisions log |
 | `background-work.md` | Never end a turn, summarise or STOP while background agents or commands are still running |
 | `deferrals.md` | The ship test, and why every deferral is a tracker item, not a sentence |
@@ -728,9 +732,9 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 33 skills
-├── agents/           ← 21 agents (18 sub-agents + 1 main-session operator + 2 role identities)
+├── agents/           ← 25 agents (22 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
-├── rules/            ← 11 rules (5 path-scoped)
+├── rules/            ← 14 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
 ├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects

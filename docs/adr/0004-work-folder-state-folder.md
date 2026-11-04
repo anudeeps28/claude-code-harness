@@ -1,6 +1,7 @@
 # ADR-0004 — Every build agent receives a separate work folder and state folder
 
 - **Status:** accepted (2026-10-06): built in F4 #42; the F5 Demo found one path that still assumed the current folder (`observe-check.js`), fixed by passing the state folder's file
+- **Amended by ADR-0005 (2026-11-04):** the work folder of a Feature run is the Feature worktree; there is no story worktree or story runner; the main session writes both `stories/<sid>/` and `features/<fid>/`, one story in flight at a time.
 - **Date:** 2026-10-05
 - **Decided by:** Anudeep Sharma (ARCHITECTURE.md §2 #4, §4)
 

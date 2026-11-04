@@ -5,7 +5,7 @@
 **Author:** Anudeep Sharma
 **Status:** Draft. Regulated data is in scope (Prove it reads KBA data) and no compliance owner is named yet; see §6.
 **Requirements:** [`grill-summary.md`](grill-summary.md) (14 decisions, 2026-09-30), from [`feature-unit-grill-brief.md`](feature-unit-grill-brief.md)
-**Platform:** local only. The harness runs in a Claude Code terminal on the developer's machine. The only outside systems are the trackers and each project's own app. The eight sections are adapted to that: cost means tokens and agent runs, scale means how many stories run at once, and recovery means resume and crashes.
+**Platform:** local only. The harness runs in a Claude Code terminal on the developer's machine. The only outside systems are the trackers and each project's own app. The eight sections are adapted to that: cost means tokens and agent runs, scale means how many Features run side by side, and recovery means resume and crashes.
 
 ---
 
@@ -18,54 +18,47 @@ flowchart TB
     orch["/implement: Feature orchestrator (main session)"]
     state[("tasks/features/fid/ + tasks/stories/sid/")]
   end
-  trk[["Tracker adapters (bash): get-issue, get-issue-children, get-blockers, set-status (new), create-issue"]]
+  trk[["Tracker adapters (bash): get-issue, get-issue-children, get-blockers, set-status, create-issue (run by tracker-helper, Haiku)"]]
   subgraph fwt["Feature worktree: repo-f123, branch feature/123-slug"]
-    merge["Merge, tested before commit (orchestrator, one at a time)"]
-    panel["Feature panel (layer 1): security + /security-review, architect, acceptance, evaluator, loosened-reviewer-agent"]
-    prove["Prove it, PR gate, gh pr create to main"]
-  end
-  subgraph swt["Story worktrees: repo-f123-s201 ..., branch story/201-slug from feature branch"]
-    sa["story-runner-agent (layer 1, background, one per worktree)"]
-    plan["implement-planner-agent (layer 2)"]
-    exec["story-executor-agent waves (layer 2)"]
-    rev["Light review: evaluator + acceptance (layer 2)"]
+    tests["story-builder: tests, then the suite-runner shows them red"]
+    code["story-builder: code, then the suite-runner shows them green"]
+    rev["story-reviewer x2, fix rounds, one commit: Story: #sid"]
+    panel["Feature panel: seven checks (security + /security-review, architect, acceptance, made-false, complexity, dead code, loosened)"]
+    prove["Prove it (prover), PR gate, gh pr create to main"]
   end
   app[("Project app, via the Observe section: launch, screenshot, read-only API, read-only DB")]
 
   human -->|"/implement 123, one plan approval"| orch
   orch <--> trk
   orch <--> state
-  orch -->|"git worktree add, once blockers have merged"| sa
-  sa --> plan --> exec --> rev
-  sa -->|"result + commit sha"| orch
-  orch --> merge --> panel --> prove
+  orch -->|"next story, in plan order"| tests
+  tests --> code --> rev
+  rev -->|"commit sha"| orch
+  orch --> panel --> prove
   prove --> app
-  sa -. "writes its own story state" .-> state
   orch -->|"progress lines"| human
 ```
 
 **Folder layout (all siblings, never nested):**
 
 ```
-claude-code-harness\            home folder, stays on main, holds tasks\ (all state)
-claude-code-harness-f123\       Feature worktree, branch feature/123-slug
-claude-code-harness-f123-s201\  Story 201 worktree, branch story/201-slug
-claude-code-harness-f123-s202\  Story 202 worktree, branch story/202-slug
+claude-code-harness\         home folder, stays on main, holds tasks\ (all state)
+claude-code-harness-f123\    Feature worktree, branch feature/123-slug
 ```
 
 | Component | Owns | Never does |
 |---|---|---|
-| **Orchestrator** (main session, home folder) | Reads the Feature and its dependency graph. Creates the Feature worktree and the story worktrees. Decides which stories are ready and caps how many run at once. Merges stories one at a time and tests each merge before committing it. Runs the Feature panel, Prove it, the closing check (when the Feature completes a coverage table), the PR gate and the PR. Owns the one human stop (the plan gate: plan, coverage, every open question). Writes `tasks/features/<fid>/` and prints progress lines | Edits story code |
-| **Feature worktree** | The Feature branch, kept out of the home folder so home stays on main ([git-worktrees.md](rules/git-worktrees.md)) | none |
-| **`story-runner-agent`** (new, background, one per story) | Works only in its own worktree. Runs the per-story pipeline: plan, executor waves, light review. Commits on its story branch. Writes only `tasks/stories/<sid>/` | Merges, pushes, opens a PR, or touches another worktree |
-| **Planner / executors / light reviewers** (existing agents) | Unchanged roles. They now receive a **work folder** and a **state folder** instead of a single `YOUR_PROJECT_ROOT` | none |
+| **Orchestrator** (main session, home folder, Sonnet) | Reads the Feature and its dependency graph. Creates the Feature worktree. Builds the stories one after another in plan order, one commit per story. Runs the Feature panel, Prove it, the closing check (when the Feature completes a coverage table), the PR gate and the PR. Owns the one human stop (the plan gate: plan, coverage, every open question). Writes `tasks/features/<fid>/` and `tasks/stories/<sid>/` and prints progress lines | Edits story code |
+| **Feature worktree** | The Feature branch and every story's code, kept out of the home folder so home stays on main ([git-worktrees.md](rules/git-worktrees.md)) | none |
+| **`story-builder`, `suite-runner`, `story-reviewer`** | The per-story work: tests then code, the suite run, the two reviews. Each gets a **work folder** (the Feature worktree) and a **state folder** (home `tasks/`) | Stage, commit or push (the orchestrator commits) |
+| **`tracker-helper`** (Haiku) | Every tracker read and write, so tickets stay out of the main session | Anything but the tracker adapters |
 | **Feature panel** | The whole-branch review on `git diff main...feature/<fid>` | Edits the tree while it reads (Hydra rule: commit first, change nothing during the reviews) |
 
-**How deep agents go:** main → story runner → executor is 2 layers below the main session. Claude Code allows 3.
+**How deep agents go:** main → builder, runner or reviewer is 1 layer below the main session, and none of them starts agents of its own.
 
-**Merges are a bottleneck on purpose.** Only the orchestrator writes the Feature branch, so there are no merge races, and the test after each merge always runs on a known state. Parallel stories queue at the merge, which takes seconds; the test-after-merge takes minutes.
+**One story at a time.** Only the orchestrator writes the Feature branch, so there are no merge races and no merge step. Each story ends in one commit with the trailer `Story: #<sid>`, made only when its scoped tests are green.
 
-**Overlapping stories.** Stories with a `/plan-features` overlap link (same file or module) never run in parallel. The second one starts after the first has merged, from a branch that already has the first story's changes. A conflict that happens anyway is resolved at merge time. If it can't be resolved cleanly, the story is stuck (§8).
+**Overlapping stories.** Stories are built in plan order, so an overlap link (same file or module) needs no special handling: the second story starts from a branch that already has the first one's commit. A story that cannot be finished is stuck (§8).
 
 ---
 
@@ -73,12 +66,12 @@ claude-code-harness-f123-s202\  Story 202 worktree, branch story/202-slug
 
 | # | Component | Choice | Why this over alternatives |
 |---|---|---|---|
-| 1 | Story isolation | **Git worktrees as sibling folders**, one per story and one for the Feature | Separate folders and branches mean no shared files or build scratch, and per-story commits and review. Rejected: *one folder with a file-overlap check across stories*, because build scratch still collides and commits and reviews get mixed; *full clones*, because they use more disk and need push/fetch between them |
-| 2 | Worktree creation | **The orchestrator runs `git worktree add <path> -b story/<sid>-slug feature/<fid>-slug`** | Can start from the Feature branch after dependencies merge. Rejected: *the agent's built-in `isolation: "worktree"`*, which only starts from the default branch or HEAD (Claude Code docs, worktrees) |
-| 3 | Story worker | **New named agent `story-runner-agent`**, with the Agent tool | A named agent is a quality contract ([autonomous-mode.md](rules/autonomous-mode.md)), so a `general-purpose` stand-in isn't allowed, and the runner needs the Agent tool to start planner, executors and reviewers. Rejected: *headless `claude -p` per worktree*, because `.claude/` is gitignored so a worktree has no skills, agents or hooks, and nothing watches them |
+| 1 | Story order | **Stories in sequence**, one after another in plan order, in one Feature worktree ([ADR-0005](docs/adr/0005-stories-in-sequence-on-the-feature-branch.md)) | Token cost: a Feature run with parallel stories spent 70 to 90 agents and a 5-hour usage window in about an hour. One at a time also matches the Software Factory's `work-feature`. Rejected: *a worktree per story*, because the fixed cost per story stays and only the rate changes; *parallel stories in one folder*, because build scratch collides and commits get mixed |
+| 2 | Worktree creation | **The orchestrator runs `worktree.js feature`** to make the one Feature worktree from the base branch | Keeps the home folder on main. Rejected: *the agent's built-in `isolation: "worktree"`*, which only starts from the default branch or HEAD (Claude Code docs, worktrees) |
+| 3 | Story workers | **Named agents `story-builder`, `suite-runner`, `story-reviewer`** (and `tracker-helper` for the tracker), each with a fixed job and no Agent tool | A named agent is a quality contract ([autonomous-mode.md](rules/autonomous-mode.md)), so a `general-purpose` stand-in isn't allowed. The main session keeps the plan, the judgement and the commits, and never holds the code. Rejected: *a runner per story that starts its own agents*, which is the 70-to-90-agent shape |
 | 4 | Paths | **Every agent gets a work folder (the worktree) and a state folder (home `tasks/`)**, replacing the single `YOUR_PROJECT_ROOT` | Fixes [story-executor-agent.md:331](agents/story-executor-agent.md) ("may NOT access files outside `YOUR_PROJECT_ROOT`") and the mix of anchored and bare `tasks/` paths in [implement/SKILL.md](skills/implement/SKILL.md) and [run-tasks/SKILL.md](skills/run-tasks/SKILL.md). **This is the riskiest edit in the work**: these agents run on every build, standalone ones included |
-| 5 | Story → Feature merge | **`git merge --no-ff --no-commit`, then tests, then commit or `git merge --abort`** | Keeps per-story commits and gives one merge commit per story, and the Feature branch only ever holds merges that passed. Rejected: *squash*, because it loses the per-story history; *commit then revert on failure*, because merging a reverted branch again in git silently drops its changes |
-| 6 | Verify lock | **One per worktree**, at `tasks/stories/<sid>/.verify.lock`. Setting `verify-lock: global` in lessons/notes for stacks whose worktrees share a port, database or global cache | Worktrees don't share build scratch, so stories build in parallel and waves inside a story still queue. Rejected: *today's one lock per repo*, which queues every story behind every other |
+| 5 | Story → Feature branch | **One commit per story, trailer `Story: #<sid>`, made only on a green scoped run** | The Feature branch only ever holds stories that passed, and resume reads the trailers. Rejected: *squash*, because it loses the per-story history; *a merge per story*, because it needs a branch and a worktree per story |
+| 6 | Verify lock | **One per working folder**, at `tasks/stories/<sid>/.verify.lock`. Setting `verify-lock: global` in lessons/notes for stacks whose Features share a port, database or global cache | Only one story builds at a time, so inside a Feature there is nothing to queue. The lock serialises the executor waves of a standalone single-story build (`story-executor-agent`). Rejected: *today's one lock per repo*, which queues every Feature behind every other |
 | 7 | State format | **Plain `key: value` markdown files, plus single-line progress lines** | Same format as `executor-state.md` and `phase.md` today. Rejected: *JSON*, which would be inconsistent with every existing state file |
 | 8 | Tracker access | **Bash adapters, plus the new `set-status.sh` in all four** (ADO, GitHub, Todoist, local) | Existing pattern, works on every tracker |
 | 9 | Built-in `/security-review` | **Run from the security reviewer agent, working inside the Feature worktree** | It reviews "the current branch", and the main session's folder is home, on main. **Proven (F6 spike, 2026-10-06, Claude Code 2.1.289):** a subagent cannot type a slash command, so it runs `claude -p "/security-review"` as its own headless session with the Feature worktree as the current folder; that reviewed the worktree's branch against `origin/HEAD` and reported the vulnerability planted there. It needs `claude` on the PATH and an `origin/HEAD`. When either is missing, the agent runs the same checklist on `git diff main...feature/<fid>` and reports the built-in as unavailable, never quietly skipped |
@@ -89,34 +82,36 @@ claude-code-harness-f123-s202\  Story 202 worktree, branch story/202-slug
 
 ## 3. Cost-at-scale estimates
 
-The cost is **tokens and agent runs**, not money. These are **estimates**; the harness doesn't measure tokens today (§7 fixes that). Assumptions: 5 stories, about 6 tasks per story in 3 waves, normal retries.
+The cost is **tokens and agent runs**, not money. The numbers are **measured from the run report once a Demo has run** (§7): every agent result returns its tokens, tool calls and duration, and the report adds them up per story and per Feature. The old parallel design is the reason for the change: one Feature run spent 70 to 90 agents and a 5-hour usage window in about an hour ([ADR-0005](docs/adr/0005-stories-in-sequence-on-the-feature-branch.md)). Nothing here is a guess to plan around until a Demo's report fills it in.
 
-### Steady state (one 5-story Feature)
+### Shape of one story
 
-| Part | Agent runs | Tokens (rough) |
+| Part | Agent runs | Model |
 |---|---|---|
-| Per story: runner 1, planner 1, executors about 6, light review 2, retries about 2 | about 12 | about 1.0–1.2M |
-| × 5 stories | about 60 | about 5–6M |
-| Feature panel: 5 reviewers, dead code split, one round of re-review after fixes | about 8 | about 0.8M |
-| Orchestrator (including a compaction or two) | 1 | about 0.3M |
-| **Total** | **about 70** | **about 6–7M** (mostly input, much of it cached) |
+| Tests: `story-builder` (job tests), then `suite-runner` to show them red | 2 | Sonnet |
+| Code: `story-builder` (job code), then `suite-runner` to show them green | 2 | Sonnet |
+| Review round 1: two `story-reviewer` calls (correctness, rules and quality) | 2 | Sonnet |
+| **About 6 agents per story**, plus fix rounds | | |
+| Fix rounds: a `story-builder` fix, a re-review and a green run each | 3 per round | Sonnet in rounds 1 to 3; in rounds 4 and 5 only the fix builder and the re-review run on Opus, the green `suite-runner` stays Sonnet |
+
+### Per Feature
+
+| Part | Models |
+|---|---|
+| Understand and plan (one plan gate) | Opus |
+| The seven-check panel on the whole branch | Opus for security, architecture, acceptance and made-false; Sonnet for complexity, dead code and loosened |
+| Prove it (`prover`) | Sonnet; Opus to diagnose a failed criterion |
+| The closing coverage audit | Opus |
+| Orchestrator and tracker moves | Sonnet and Haiku |
 
 ### Burst scenario
 
-| Trigger | Impact | Delta | Mitigation |
-|---|---|---|---|
-| One story hits 3 attempts plus `/debug`, two review rounds with real findings | about 2× | about 12–14M tokens, about 100 agent runs | the 3-attempt rule caps retries; a stuck story is held, not retried forever |
-| Stories in parallel | **same total, faster rate**: about 5× tokens per minute at 5 stories | reaches the plan's usage window or rate limits sooner | the story cap (§5); `run-paused reason="usage limit"` and resume (§8) |
+| Trigger | Impact | Mitigation |
+|---|---|---|
+| A story hits the 3-attempt rule, or goes to review rounds 4 and 5 | more agents for that story, and Opus for the late rounds | the 3-attempt rule caps retries; at most 5 review rounds; a stuck story is held, not retried forever |
+| A long Feature | the usage window is reached partway | `run-paused reason="usage limit"` and resume (§8); only one story runs at a time, so the rate stays low |
 
-### Unit economics
-
-| Metric | Value |
-|---|---|
-| Per story | about 1.1M tokens, about 12 agent runs |
-| Fixed per Feature (panel + orchestrator) | about 1.1M tokens |
-| Today's equivalent (each story through `/implement` with the full 4-reviewer panel) | about 1.5M per story |
-| Break-even | **Feature mode is cheaper from 2 stories up**, and it also catches cross-story defects |
-| 1-story Feature or standalone item | about the same as today (one story plus one panel) |
+One Feature with one story costs about the same as a standalone item.
 
 ---
 
@@ -128,15 +123,16 @@ Everything is in the home folder's `tasks/` (gitignored), reached by absolute pa
 
 | Location | Writer | What lives here | Retention |
 |---|---|---|---|
-| `tasks/features/<fid>/feature-state.md` | orchestrator only | run mode, plan approved yes/no, Feature branch and worktree, story cap, current phase. Per story: status (`pending` / `running` / `in-review` / `merged` / `stuck`), worktree, branch, commit sha, merge sha, attempts. **The source of truth for resume**, saved after every step | kept after merge |
-| `tasks/features/<fid>/plan.md` | orchestrator | story order, parallel groups, Demo, proof and observation per criterion | kept |
+| `tasks/features/<fid>/feature-state.md` | orchestrator only | run mode, plan approved yes/no, Feature branch and worktree, current phase. Per story: status (`pending` / `running` / `committed` / `stuck` / `held` / `skipped`), base ref, commit sha, attempts. Saved after every step. Resume checks it against the `Story:` commits on the Feature branch, which win if they disagree | kept |
+| `tasks/features/<fid>/plan.md` | orchestrator | story order, Demo, proof and observation per criterion | kept |
 | `tasks/features/<fid>/phase.md` | orchestrator | Feature-level marker | kept |
 | `tasks/features/<fid>/progress.log` | orchestrator | progress lines, appended (§7) | kept |
-| `tasks/features/<fid>/review/*.md`, `prove-it.md`, `pr-body.md`, `decisions-log.md` | orchestrator | panel reports, proof results, PR body, decisions combined from the stories at PR time | kept |
-| `tasks/stories/<sid>/` (existing) | that story's runner only | brief, plan, test-strategy, `executor-state.md` (+ `feature: <fid>`), `phase.md`, `.tree-baseline`, `.verify.lock`, evaluation, acceptance, **its own `decisions-log.md`** | kept |
-| Story worktrees and branches | orchestrator | the story's code | **removed after merge** (`git worktree remove`, `git branch -d`; never forced) |
+| `tasks/features/<fid>/review/*.md`, `prove-it.md`, `pr-body.md`, `decisions-log.md` | orchestrator | panel reports, proof results, PR body, and the one decisions log, each line starting `#<sid>:` | kept |
+| `tasks/stories/<sid>/` | orchestrator (`ticket.md`: `tracker-helper`) | `ticket.md`, `executor-state.md` (+ `feature: <fid>`, the red evidence and the review round), `phase.md`, `.tree-baseline`, `stuck.diff` when a story is stuck. The story's plan is its `## Story #<sid>` section of the Feature `plan.md`, so there is no per-story plan or test-strategy | kept |
 
-**One writer per file**, so nothing needs locking. That's why the decisions log is per story and combined at PR time. [autonomous-mode.md](rules/autonomous-mode.md) currently has everyone append to one file, which with parallel writers would lose lines. That rule changes for Feature runs.
+**One commit per story**, with the trailer `Story: #<sid>`, on the Feature branch. The Feature worktree is the only place story code lives.
+
+**One writer per file**, so nothing needs locking: only one story runs at a time, and the orchestrator writes every state file, except `ticket.md`, which `tracker-helper` writes. The builders and reviewers write product code and tests, and report back. A Feature run keeps one decisions log, with each line prefixed by its story ([autonomous-mode.md](rules/autonomous-mode.md)).
 
 **`phase.md`** gets two optional keys, `feature:` and `story:`. The contract already says unknown keys are ignored, so `schemaVersion` stays 1.
 
@@ -146,11 +142,10 @@ Everything is in the home folder's `tasks/` (gitignored), reached by absolute pa
 flowchart LR
   T[[Tracker]] -->|"Feature, children, blockers, comments, attachments"| O[Orchestrator]
   O -->|"plan + Demo + proofs"| FS[("features/fid/")]
-  O -->|"ticket + plan slice + work folder + state folder"| R[Story runner]
-  R -->|"commits"| SB[(story branch)]
-  R --> SS[("stories/sid/")]
-  R -->|"result + sha"| O
-  O -->|"merge --no-ff --no-commit, test, commit"| FB[(feature branch)]
+  O -->|"ticket + plan slice + work folder + state folder"| R[Builder and reviewers]
+  R -->|"code and tests, report"| O
+  O --> SS[("stories/sid/")]
+  O -->|"one commit per story, Story: #sid"| FB[(feature branch)]
   FB -->|"git diff main...feature"| P[Feature panel + Prove it]
   P -. "shape of evidence only, no PHI" .-> FS
   O -->|"set-status"| T
@@ -174,22 +169,20 @@ Not applicable. There are no databases; state is per Feature and per story folde
 
 ## 5. Scalability model
 
-### More stories at once
+### More work at once
 
-| | 1 at a time | 3 at once | **5 at once (default)** |
-|---|---|---|---|
-| Agents at once | about 7 | about 19 | about 16 when waves are at most 2 wide; **31 at a wave width of 5, over the limit of 20** |
-| Disk (worktrees with dependencies, about 1–3 GB each) | 1 extra | 3–4 | 5–6, **up to about 18 GB** |
-| Setup (restore per worktree) | 1 | 3 | 5, minutes each |
-| Machine load | fine | builds and tests run side by side | **the first bottleneck**: tests time out from load, not code ([tasks/notes.md](tasks/notes.md)) |
-| Usage window | fine | about 3× rate | about 5× rate; may hit limits partway through a Feature |
+**Stories never overlap: parallel only across Features** (story #73). Inside a Feature there is one story in flight, so there is no width setting and no agent limit to manage. Building two Features side by side, each in its own Feature worktree, is planned (story #73) and not built yet; the table below is what to expect, not something measured.
 
-**Rules:**
-- `max-parallel-stories` defaults to **5** and can be set in lessons/notes.
-- **The agent limit lowers it, never raises it.** Before starting a story, the orchestrator checks `1 + Σ (1 + widest remaining wave)` across running stories ≤ 20. If adding the next story would go over, it waits and starts that story as soon as one finishes. Approved plans are never re-split.
-- The Feature panel runs only after every story has merged, so it never overlaps with the stories.
+| | One Feature | Two Features side by side |
+|---|---|---|
+| Agents at once | the story's builder or reviewers, a handful | twice that |
+| Disk (a worktree with dependencies, about 1–3 GB) | 1 extra | 2 extra |
+| Machine load | fine | builds and tests run side by side: tests can time out from load, not code ([tasks/notes.md](tasks/notes.md)) |
+| Usage window | low rate | about twice the rate |
 
-**Bottleneck order:** machine load, then the usage window, then the 20-agent limit.
+- The Feature panel runs only after every story is committed, so it never overlaps with the stories.
+
+**Bottleneck order:** the usage window, then machine load when Features run side by side.
 
 ### Bigger Features
 
@@ -207,14 +200,14 @@ Not applicable. There are no databases; state is per Feature and per story folde
 
 Claude Code behaviour this section relies on (Claude Code docs, sub-agents and hooks):
 - **Background agents' permission prompts pop up in the main session**, so an unapproved command stops the whole run.
-- **`PreToolUse`/`PostToolUse` hooks run for every agent's tool calls**, so the existing `safety-check.js` protects story runners and executors.
+- **`PreToolUse`/`PostToolUse` hooks run for every agent's tool calls**, so the existing `safety-check.js` protects builders, reviewers and executors.
 - **Agents can't raise their own permissions.**
 
 ### What agents are allowed to run
 
 | Layer | Mechanism | Details |
 |---|---|---|
-| Allowed commands | **A narrow allowlist, set up before the run** | `git worktree add/remove`, `git merge --no-ff`, `git merge --abort`, `git branch -d`, the build and test commands from lessons/notes, `trackers/active/*.sh`, `gh pr create`, the Observe commands. **Never a blanket "allow all Bash"** |
+| Allowed commands | **A narrow allowlist, set up before the run** | `git worktree add/remove` (the Feature worktree), `git commit` by path, the build and test commands from lessons/notes, `trackers/active/*.sh`, `gh pr create`, the Observe commands. **Never a blanket "allow all Bash"** |
 | Startup check | Plan commands compared with the allowlist | anything missing is listed **before** the run starts, so you approve once at the start |
 | Always blocked (`safety-check.js`) | Hook on every agent's tool call | force-push, forced worktree removal, force-deleting a branch, hard resets, and any push to main. The only push is the Feature branch |
 
@@ -247,15 +240,14 @@ Claude Code behaviour this section relies on (Claude Code docs, sub-agents and h
 A fixed single line, printed in the terminal and appended to `tasks/features/<fid>/progress.log`:
 
 ```
-[harness] ts=2026-10-05T14:02:11Z feature=123 story=201 event=story-started phase=coding detail="wave 1/3"
+[harness] ts=2026-10-05T14:02:11Z feature=123 story=201 event=story-started phase=coding
 ```
 
 | Event | When |
 |---|---|
 | `run-started` / `run-paused` / `run-finished` | start, any stop, end |
 | `phase` | every Feature-level phase change: planning, coding, reviewing, proving, shipping |
-| `story-started` / `story-merged` / `story-stuck` | each story's lifecycle |
-| `merge-tested` | each test-after-merge, with pass/fail |
+| `story-started` / `story-committed` / `story-stuck` | each story's lifecycle |
 | `review-done` | each panel reviewer, with its finding count |
 | `proof` | each criterion: met / not met / needs-person |
 | `pr-opened` | with the PR number |
@@ -265,18 +257,18 @@ The same safety rules as `phase.md` `detail` ([phase-markers.md](rules/phase-mar
 ### Markers and hang detection
 
 - `phase.md` per Feature and per story, overwritten each step, shows the current state.
-- **Hung story:** the orchestrator only wakes when an agent finishes. Each time it wakes, it checks every running story's `phase.md`. Not updated in **30 minutes** (the existing freshness rule) means `story-stuck reason="no progress 30m"`, and you're told.
+- **Hung story:** agents run in the foreground, so a live session cannot see one that has hung (the call never returns), and checking between calls would only misfire on slow agents. A hang ends with the person stopping the session; it is caught on `--resume`, by running `feature-state.js hung` on the running story's `phase.md`. Not updated in **30 minutes** (the existing freshness rule) means one relaunch of that step; the same step stopping a second time (a new step starts the count again) means the run pauses and asks you whether to retry it or mark the story stuck. It never marks a story stuck by itself: on a resume nothing is running, so an old `phase.md` only says the session stopped (a crash, a closed laptop, the usage limit).
 
 ### Run report
 
 Written at the end and included in the PR:
 - per story: time taken, attempts, findings;
-- **measured agent count and tokens**. Every agent result already returns its tokens, tool calls and duration, so the orchestrator adds up its story runners' totals and each runner adds up its own children's. This replaces the estimates in §3;
+- **measured agent count and tokens**. Every agent result already returns its tokens, tool calls and duration, so the orchestrator adds up the totals of every builder, runner, reviewer and panel agent it started. This fills in §3;
 - decisions made on your behalf, and anything that needs a person.
 
 ### Alerts
 
-There's no dashboard. An alert is the run stopping and saying why: a stuck or hung story, three failed attempts, a missing tool or permission at startup, the usage limit, a red test after a merge.
+There's no dashboard. An alert is the run stopping and saying why: a stuck or hung story, three failed attempts, a missing tool or permission at startup, the usage limit, a red suite that will not go green.
 
 ### Tracing
 
@@ -288,27 +280,27 @@ Not applicable beyond the progress lines. Each line carries `feature=` and `stor
 
 | Metric | Target | Current | Gap |
 |---|---|---|---|
-| **Point lost (RPO)** | at most the wave in flight; state saved after every step | met (F1): a step record after every step, re-read first after a compaction | none |
-| **Time to recover (RTO)** | minutes: `/implement --resume <fid>`, merged stories never redone | met (F1, F4): `--resume` for a story and for a Feature; `/run-tasks` retired (F7) | none |
+| **Point lost (RPO)** | at most the step in flight; state saved after every step | met (F1): a step record after every step, re-read first after a compaction | none |
+| **Time to recover (RTO)** | minutes: `/implement --resume <fid>`, committed stories never redone | met (F1, F4, F72): `--resume` for a story and for a Feature; `/run-tasks` retired (F7) | none |
 
 ### Failure scenarios and recovery
 
 | Scenario | Detection | Recovery | Tested? |
 |---|---|---|---|
 | Main session compacts | the conversation starts with a summary | re-read `feature-state.md` before anything else, print the current phase again, carry on | yes: `feature-mode.probe.test.js`, and lived through in every Feature's build |
-| Terminal closed, laptop asleep, session crash (background agents stop with it) | the developer runs `/implement --resume <fid>` | merged stories: skipped. Running stories: worktree checked, runner restarted from its last saved wave. Half-done merge: `git merge --abort`, then redone | yes: `feature-state.test.js` (resume), `worktree.test.js` (half-done merge) |
-| Story runner crashes or hangs | an error result, or no progress for 30 minutes | worktree kept; one automatic restart from saved state; a second failure means stuck | yes: `feature-state.test.js` (hung, stuck), F5 Demo |
-| Merge conflict that can't be resolved cleanly | the merge fails | `git merge --abort`, Feature branch untouched, story stuck, worktree kept | yes: `worktree.test.js` |
-| Tests fail after a merge | red tests on the uncommitted merge | `git merge --abort`, story stuck with the test output | yes: `worktree.test.js` |
+| Terminal closed, laptop asleep, session crash (background agents stop with it) | the developer runs `/implement --resume <fid>` | a resume: the `Story:` commits on the Feature branch are read first, and a story with its commit is skipped. The story in flight carries on from its saved `executor-state.md` step (tests, code, review round) | yes: `feature-state.test.js` (resume) |
+| A builder or reviewer crashes or hangs | an error result, or a hang (no progress for 30 minutes) caught on `--resume`, after the person stopped the session mid-step | the story's uncommitted edits are kept; one relaunch of that step from the saved step; the same step stopping a second time means the run asks you (retry, or mark it stuck) | yes: `feature-state.test.js` (hung, stuck) |
+| A story cannot go green or clean | the 3-attempt rule, or round 5 of review is still open | `/debug`, then stop and ask; the story is stuck and nothing is committed for it | yes: `feature-state.test.js` (stuck) |
 | Usage limit reached | agents return limit errors | `run-paused reason="usage limit"`, resume once the limit resets | no |
 | Tracker unreachable | an adapter error | at startup: stop. During the run: log it and carry on | partly: a failed status write is a `tracker-error` line (F2) |
-| Not enough disk | startup check: free space vs. stories × estimated size | stop at startup with the number needed | yes: `disk-check.test.js` |
-| Branch moves in a worktree | branch check before and after every wave and every merge, in each worktree | stop; never decided automatically | yes: `worktree.test.js` (check-branch, merge) |
+| Not enough disk | startup check: free space vs. the Feature worktree's estimated size | stop at startup with the number needed | yes: `disk-check.test.js` |
+| Branch moves in the Feature worktree | branch check before every story | stop; never decided automatically | yes: `worktree.test.js` (check-branch) |
 
-**Stuck-story rule (from the grill, Q11):** a stuck story and its dependents are held at `needs-person`. Independent stories finish and merge. The run pauses before the Feature-level phases, and there is no PR while a story is stuck.
+**Stuck-story rule (from the grill, Q11):** a stuck story and its dependents are held at `needs-person`. Stories that do not depend on it are still built, in plan order. The run pauses before the Feature-level phases, and there is no PR while a story is stuck.
 
-The four probes this section once asked for (resume after compaction, resume after a crash, a merge
-conflict, a failing test after a merge) were built in F4; the table above names where each lives.
+The two probes that remain (resume after compaction, resume after a crash) were built in F4; the table
+above names where each lives. The other two this section once asked for, a merge conflict and a failing
+test after a merge, were retired with the merge step ([ADR-0003](docs/adr/0003-orchestrator-only-merger.md)).
 
 ---
 
@@ -317,12 +309,12 @@ conflict, a failing test after a merge) were built in F4; the table above names 
 | Decision | Rationale | ADR |
 |---|---|---|
 | One build skill: `/implement` builds Features; `/story` retired | one build engine; keeps test-first, autonomous, rework and their probes | [ADR-0001](docs/adr/0001-one-build-skill.md) |
-| Story isolation through sibling git worktrees, created by the orchestrator from the Feature branch | parallel stories without shared files; the built-in agent worktree option can't start from a named branch | [ADR-0002](docs/adr/0002-story-worktrees.md) |
-| Orchestrator is the only merger; merges tested before commit (`--no-commit`, then abort or commit) | no merge races; the Feature branch only holds merges that passed; avoids reverting a merge in git | [ADR-0003](docs/adr/0003-orchestrator-only-merger.md) |
+| Stories in sequence on the Feature branch, one commit per story (supersedes ADR-0002 and ADR-0003) | token cost (70 to 90 agents in a 5-hour window) and parity with the Software Factory | [ADR-0005](docs/adr/0005-stories-in-sequence-on-the-feature-branch.md) |
+| Story worktrees, and merge-tested by the orchestrator (superseded) | parallel stories without shared files; kept for the record | [ADR-0002](docs/adr/0002-story-worktrees.md), [ADR-0003](docs/adr/0003-orchestrator-only-merger.md) |
 | Work folder and state folder split for every agent | the only way agents can work in a worktree; changes the prompts every build uses | [ADR-0004](docs/adr/0004-work-folder-state-folder.md) |
-| One writer per state file; decisions log per story, combined at PR time | parallel stories without locking or lost lines | in this document |
-| Per-worktree verify lock, with a global setting | parallel builds where safe | in this document |
-| `max-parallel-stories` 5, lowered by the 20-agent limit; soft limit of 8 stories per Feature | machine load and reviewer depth are the real limits | in this document |
+| One writer per state file; one decisions log per Feature, lines prefixed `#<sid>:` | one story at a time, so no locking and no lost lines | in this document |
+| Verify lock per working folder, with a global setting | builds that share a port or cache queue | in this document |
+| Soft limit of 8 stories per Feature | reviewer depth is the real limit | in this document |
 | Prove it records the shape of evidence only; Observe test environment only | PHI/PII on KBA projects | in this document |
 | Allowlist checked before the run instead of auto or bypass-permissions mode | background-agent prompts would stall the run; runs read PHI | in this document |
 
@@ -338,10 +330,12 @@ runs showed that the design did not foresee, and what changed because of it:
 
 - **A subagent cannot wait for agents it starts in the background.** A story runner started its
   reviewers with `run_in_background`, ended its turn "waiting", and reported nothing; their results
-  went to the main session. Runners now start every agent in the foreground, several in one message
-  when they should run side by side (F5).
+  went to the main session. Runners started every agent in the foreground, several in one message
+  when they should run side by side (F5). The runners are gone (F72); the rule carries over to the main
+  session, which waits for each agent it starts.
 - **Paths relative to the current folder break inside a worktree.** `observe-check.js`'s default path
-  pointed at a `tasks/` only the home folder has; runners pass the state folder's file explicitly (F5).
+  pointed at a `tasks/` only the home folder has; runners passed the state folder's file explicitly (F5).
+  The main session does the same.
 - **The built-in `/security-review` can review a Feature branch** when run as `claude -p` from the
   Feature worktree (§2 #9, F6). A subagent cannot type a slash command, so this is the only way in.
 - **Agent definitions load when a session starts.** An agent added mid-session is "not found" until a
@@ -354,3 +348,7 @@ runs showed that the design did not foresee, and what changed because of it:
   `/story` only (reading `lessons.md`, the default-branch push guard, the no-PII line for the decisions
   log). The inventory caught them; they now apply in both packs (F7,
   [docs/story-retirement-inventory.md](docs/story-retirement-inventory.md)).
+- **Parallel stories cost too much** (F72). A Feature run with a runner per story spent 70 to 90 agents
+  and a 5-hour usage window in about an hour. Stories are now built one after another on the Feature
+  branch, by a handful of named agents with fixed jobs and a model per job
+  ([ADR-0005](docs/adr/0005-stories-in-sequence-on-the-feature-branch.md)).

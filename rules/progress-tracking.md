@@ -58,7 +58,7 @@ of execution). Seeding it after work has begun defeats the purpose.
   leave it `in_progress`; mark it `completed` in the same pass that writes `✅` to its `<task>` line in
   the story plan, after the review. A review finding on one of its files puts it back to plain
   `in_progress`. `/implement` defines the statuses (`verified`, `done`, `reopened`) in its "State and
-  progress" section. In a Feature, each story runner keeps its own story's statuses the same way, and
+  progress" section. In a Feature, the orchestrator keeps each story's statuses the same way, and
   the orchestrator's checklist holds one item per story.
 - A fixed-step skill (`/deploy`, `/tdd`) has no review step: mark a step `completed` when it genuinely
   finishes.

@@ -27,11 +27,12 @@ const GOOD = [
   '1. N/A',
 ].join('\n');
 
-function run(content) {
+function run(content, extra = [], name = 'test-strategy.md') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'proof-'));
-  const file = path.join(dir, 'test-strategy.md');
+  const file = path.join(dir, name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, content);
-  const r = spawnSync(process.execPath, [SCRIPT, file], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [SCRIPT, file, ...extra], { encoding: 'utf8' });
   return { code: r.status, out: r.stdout + r.stderr };
 }
 
@@ -82,4 +83,74 @@ test('ProofCheck_NoCriteriaList_Fails', () => {
 test('ProofCheck_MissingFile_ExitsTwo', () => {
   const r = spawnSync(process.execPath, [SCRIPT, path.join(os.tmpdir(), 'no-such-strategy.md')], { encoding: 'utf8' });
   assert.equal(r.status, 2);
+});
+
+// ── Feature plan (F72 #77): one plan.md with a "## Story #<sid>" section per story ──────────────
+
+const FEATURE_PLAN = [
+  '## Story order',
+  '1. #201 then #202',
+  '',
+  '## Story #201 — Orders',
+  '',
+  '**Acceptance criteria and their proofs:**',
+  '1. Orders list loads',
+  '   - Proof: integration — Orders_List_Loads',
+  '   - Seen by: GET /api/orders returns rows',
+  '   - Would lie if: the test seeds no orders',
+  '',
+  '**Commands:**',
+  '- npm test',
+  '',
+  '## Story #202 — Status',
+  '',
+  '**Acceptance criteria and their proofs:**',
+  '1. Status shows on the card',
+  '   - Proof: ui-automation — status.spec.ts "shows status"',
+  '   - Seen by: screenshot of /orders',
+  '   - Would lie if: the fixture always has status set',
+  '',
+].join('\n');
+
+test('ProofCheck_FeaturePlan_ChecksEveryStorySection', () => {
+  const ok = run(FEATURE_PLAN);
+  assert.equal(ok.code, 0, ok.out);
+  assert.equal(ok.out, '', 'a complete two-story plan is silent (companion: both sections are readable)');
+
+  const broken = run(FEATURE_PLAN.replace(/\n {3}- Would lie if: the fixture[^\n]*/, ''));
+  assert.equal(broken.code, 1, broken.out);
+  assert.match(broken.out, /^#202 criterion 1 \("Status shows on the card"\): no "Would lie if:" line/m);
+  assert.doesNotMatch(broken.out, /#201/, 'story 201 is fine and is not named');
+});
+
+test('ProofCheck_StoryFlag_ChecksOnlyThatSection', () => {
+  const broken = FEATURE_PLAN.replace(/\n {3}- Would lie if: the fixture[^\n]*/, '');
+  const mine = run(broken, ['--story', '201']);
+  assert.equal(mine.code, 0, mine.out);
+  assert.equal(mine.out, '', 'story 201 is complete; story 202 is not checked');
+
+  const other = run(broken, ['--story', '#202']);
+  assert.equal(other.code, 1, other.out);
+  assert.match(other.out, /^#202 criterion 1 .*no "Would lie if:" line/m);
+  assert.doesNotMatch(other.out, /#201/);
+});
+
+test('ProofCheck_StoryFlag_MissingSection_IsAProblem', () => {
+  const r = run(FEATURE_PLAN, ['--story', '999']);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /no "## Story #999" section/);
+});
+
+test('ProofCheck_FeaturePlanWithNoStorySections_SaysSo', () => {
+  const r = run('## Story order\n1. #201\n', [], path.join('features', '72', 'plan.md'));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /no "## Story #<sid>" sections/);
+  assert.doesNotMatch(r.out, /the test strategy/);
+});
+
+// A single story's task plan is also called plan.md; only a plan under features/ is a Feature plan.
+test('ProofCheck_StoryPlanMd_IsNotTakenForAFeaturePlan', () => {
+  const r = run('## Story order\n1. #201\n', [], path.join('stories', '9', 'plan.md'));
+  assert.equal(r.code, 1, r.out);
+  assert.doesNotMatch(r.out, /no "## Story #<sid>" sections/);
 });

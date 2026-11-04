@@ -140,7 +140,7 @@ If in doubt, continue. The cost of one extra iteration is low; the cost of a wro
 
 ## Output format
 
-Return this exact structure:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`). Then return this exact structure:
 
 ---
 

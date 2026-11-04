@@ -11,13 +11,14 @@ plan gate** (every run, from that moment to the PR), `--autonomous` on an orches
 forward flow), and `--rework <PR#>` on `/implement` (the reject-loop that re-enters an open PR). Each
 is a direct human act whose presence *is* the signal, so each runs under the self-answer rule
 without contradicting "autonomy is only ever inherited from a signal" — the approval or the flag is that signal.
+For a Feature, approving the plan gate means either a reply to it or `/implement --resume <fid>` run after the gate was shown (`gate-shown: yes` in `feature-state.md`); a resume of a Feature whose gate was never shown approves nothing, and a single story's plan is never approved by a resume.
 `--rework` is **not** a second `--autonomous`-style flag on sub-skills; it is a mode selector on the
 orchestrator that happens to imply autonomous semantics. A rework run is keyed by PR number and has no
 story workspace, so its decisions log stays inline (see the decisions-log section).
 
 **Location:** `rules/autonomous-mode.md` (installed alongside `.claude/skills/`; the `.claude/` copy
 is a symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md`, `agents/story-runner-agent.md`, `skills/tdd/SKILL.md`, `skills/debug/SKILL.md`, `skills/local-test/SKILL.md`.
+**Referenced by:** `skills/implement/SKILL.md`, `skills/tdd/SKILL.md`, `skills/debug/SKILL.md`, `skills/local-test/SKILL.md`.
 
 ---
 
@@ -112,12 +113,11 @@ orchestrator's PR step renders it verbatim under a **"Decisions made on your beh
 reviewer sees every reversible call made without them. If a run has no story workspace (see below),
 keep the log inline in the conversation and hand it to the PR step directly.
 
-**In a Feature run (`/implement` Feature mode) there is one log per story, never one shared file.**
-Stories are built by separate runners, and one writer per file is what keeps lines from being lost
-(ARCHITECTURE.md §4). Each story runner, and everything it starts, appends to its own
-`tasks/stories/<sid>/decisions-log.md`; the orchestrator's own decisions (the self-approved plan, for
-example) go to `tasks/features/<fid>/decisions-log.md`. At PR time `bin/run-report.js` combines them,
-each line prefixed with its story id.
+**In a Feature run (`/implement` Feature mode) there is one log:
+`tasks/features/<fid>/decisions-log.md`.** Stories are built one after another, so one file has one
+writer at a time (ARCHITECTURE.md §4). The orchestrator and every agent it starts append to it, and
+each line about a story starts with `#<sid>:`; the orchestrator's own decisions (the self-approved
+plan, for example) carry no prefix. The PR step renders it as it stands.
 
 ---
 

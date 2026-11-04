@@ -16,8 +16,7 @@ Read everything first. Implement exactly what is described. Run the verify. Repo
 
 Your invocation names two folders (ADR-0004):
 
-- **Work folder** — where the code is: you read, edit and verify there. In a Feature run it is the
-  story's own git worktree; otherwise it is the project root.
+- **Work folder** — where the code is: you read, edit and verify there. It is the project root.
 - **State folder** — the home folder's `tasks/`, where the harness keeps its state. **Every `tasks/...`
   path in this file means `<state folder>/...`** — never a `tasks/` inside the work folder.
 
@@ -276,7 +275,9 @@ manufactured failure passes this task and leaves a worthless test behind forever
 
 ## Step 4 — Report back
 
-Output this structure exactly:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`). Map your result onto it: `RESULT: PASS` is `STATUS: DONE`, `RESULT: FAIL` is `STATUS: DONE_WITH_CONCERNS`, `RESULT: BLOCKED` is `STATUS: BLOCKED`.
+
+Then output this structure exactly:
 
 ---
 
@@ -311,7 +312,7 @@ Do NOT retry automatically. Report:
 
 **Changes I made:** [List every change so the orchestrator can review]
 
-The orchestrator (`/implement`, or a story runner in a Feature) will decide whether to retry or invoke /debug.
+The orchestrator (`/implement`) will decide whether to retry or invoke /debug.
 
 ---
 

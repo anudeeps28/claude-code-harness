@@ -23,29 +23,44 @@ function run(args, { free, lessons } = {}) {
 }
 
 test('Disk_NotEnough_StopsWithNeededAndFree', () => {
-  // 3 stories at once + the Feature worktree = 4 worktrees × 3 GB = 12 GB.
-  const r = run(['--stories', '3'], { free: 10 * GB });
+  // The Feature worktree + the Prove-it scratch copy = 2 worktrees × 3 GB = 6 GB.
+  const r = run([], { free: 5 * GB });
   assert.equal(r.code, 1, r.out);
-  assert.match(r.out, /^not enough disk: need 12\.0 GB for 4 worktrees \(3 stories at once \+ the Feature\) at 3 GB each, 10\.0 GB free at /m);
+  assert.match(r.out, /^not enough disk: need 6\.0 GB for 2 worktrees \(the Feature and the Prove-it scratch copy\) at 3 GB each, 5\.0 GB free at /m);
+  assert.doesNotMatch(r.out, /max-parallel-stories|stories at once/, 'there is no story width to lower');
+});
+
+test('Disk_NotEnoughForThreeWorktrees_SaysThreeWorktrees', () => {
+  const r = run(['--worktrees', '3'], { free: 8 * GB });
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^not enough disk: need 9\.0 GB for 3 worktrees at 3 GB each, 8\.0 GB free at /m);
 });
 
 test('Disk_Enough_PassesSilently', () => {
-  const r = run(['--stories', '3'], { free: 50 * GB });
+  const r = run([], { free: 50 * GB });
   assert.equal(r.code, 0, r.out);
   assert.equal(r.out, '');
 });
 
+test('Disk_FeatureWorktreeAndScratch_NoStoryCount', () => {
+  // AC5 of #79: no --stories; the count is always two, and --worktrees overrides it.
+  assert.equal(run([], { free: 7 * GB }).code, 0, '2 × 3 GB fits in 7 GB');
+  assert.equal(run([], { free: 5 * GB }).code, 1, 'and does not fit in 5 GB');
+  assert.equal(run(['--worktrees', '3'], { free: 8 * GB }).code, 1, '3 × 3 GB does not fit in 8 GB');
+  assert.equal(run(['--worktrees', '3'], { free: 10 * GB }).code, 0, '3 × 3 GB fits in 10 GB');
+});
+
 test('Disk_SizeSettingInLessons_IsUsed', () => {
   const lessons = '# Lessons\n\n## Feature runs\n\n- worktree-size-gb: 1\n';
-  assert.equal(run(['--stories', '3'], { free: 5 * GB, lessons }).code, 0, '4 × 1 GB fits in 5 GB');
-  assert.equal(run(['--stories', '3'], { free: 3 * GB, lessons }).code, 1);
+  assert.equal(run([], { free: 3 * GB, lessons }).code, 0, '2 × 1 GB fits in 3 GB');
+  assert.equal(run([], { free: 1 * GB, lessons }).code, 1);
 });
 
 test('Disk_RealFreeSpace_IsReadOnThisPlatform', () => {
-  const r = run(['--stories', '1', '--size-gb', '0.001']);
+  const r = run(['--size-gb', '0.001']);
   assert.equal(r.code, 0, r.out);
 });
 
 test('Disk_BadInput_ExitsTwo', () => {
-  assert.equal(run(['--stories', 'many']).code, 2);
+  assert.equal(run(['--worktrees', 'many']).code, 2);
 });

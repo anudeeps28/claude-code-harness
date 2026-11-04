@@ -42,7 +42,7 @@ You may **additionally** receive these optional context blocks in your prompt:
 If neither block is present, proceed exactly as before.
 
 **Your two folders** (ADR-0004). The invocation names a **work folder** (where the code is: read it,
-run git there; in a Feature run, the story's worktree) and a **state folder** (the home folder's
+run git there; in a Feature run, the Feature worktree) and a **state folder** (the home folder's
 `tasks/`, where the plan and test strategy are saved). If it names neither, both are the project root
 (`YOUR_PROJECT_ROOT` and its `tasks/`). Every `tasks/...` path below means `<state folder>/...`; the
 tracker scripts stay under `YOUR_PROJECT_ROOT/.claude/`.
@@ -477,6 +477,76 @@ Also save the test strategy to `<state folder>/stories/<id_or_current>/test-stra
 The `<tasks>` XML block you saved to `tasks/stories/<id_or_current>/plan.md` in Step 5 is what `/implement --resume` reads to carry on if the session is interrupted. There is nothing more to do here — the story-folder `plan.md` is always local and works in every tracker mode.
 
 **Never write to `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. The story-folder `plan.md` is the single source of the XML task plan.
+
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+---
+
+## Feature-plan mode
+
+`/implement` in Feature mode starts you **once for the whole Feature**, before the plan gate, with the
+Feature brief (`tasks/features/<fid>/brief.md`, from the understand agent's Feature scope), every
+story's `ticket.md`, the story order and the goal for each story. You write the Feature's
+**`tasks/features/<fid>/plan.md`** for the stories, plus the Feature-level criteria in
+**`tasks/features/<fid>/test-strategy.md`** (see the last bullet below): there is **no `<task>` XML**, no
+wave table and no per-story `plan.md` or `test-strategy.md`. Nothing plans a story again after the gate;
+the builders take their story's section as written. Everything above (Demo, source requirement lines,
+the proof lines, probes, open questions, test-first wording, the authority limits) applies unchanged,
+per story.
+
+The file, in this order:
+
+```markdown
+## Story order
+<the order and why: each story after every story it depends on>
+
+## Demo
+Seen through: <the Feature ticket's kinds, plus any you add>
+1. <where you look, and exactly what you see there>
+
+## Probes
+- Build the probe: <entry>
+
+## Story #<sid> — <title>
+
+**Files:**
+- <path> — <create or modify, and what for>
+
+**Tests to write first:**
+- AC<n> → <test name>: <the assertion it fails on before the code exists>
+
+**Acceptance criteria and their proofs:**
+1. [<id>] <a source requirement line, verbatim, first>
+   - Proof: <unit | integration | e2e | ui-automation | graded-eval | sign-off> — <the exact test or check>
+   - Seen by: <how the real result is seen>
+   - Would lie if: <what would let this proof pass while the criterion is unmet>
+
+**Source requirements:**
+Source: <path of the source document>
+- [<id>] <the line, verbatim>
+
+**Commands:**
+- <the build command, and the scoped test command for this story>
+
+**Open questions:**
+1. <question> — Recommended: <answer, and why in one line>
+```
+
+- **`## Demo` comes first after the story order**, so `demo.js compare` reads the Feature's. Restate the
+  Feature ticket's Demo, more precise and never weaker.
+- **`## Probes`** holds one `- Build the probe: <entry>` line per `Probes to build:` line you were given,
+  and is left out when there are none. `observe-check.js --plan` reads these lines.
+- **One `## Story #<sid> — <title>` section per story, in build order**, each with all six parts above,
+  as written: `**Files:**`, `**Tests to write first:**`, `**Acceptance criteria and their proofs:**`,
+  `**Source requirements:**`, `**Commands:**` and `**Open questions:**` ("none" when empty). The checks
+  (`proof-check.js`, `source-lines.js compare --story <sid>`) read each section on its own: a criterion's
+  Proof, Seen by and Would lie if lines, and every source line verbatim as its `[<id>]` criterion, go in
+  the section of the story that builds them.
+- In Feature mode every story's tests come first (the per-story loop writes them before the code);
+  `--tdd` (SKILL.md "Test-first mode") governs single-story runs. A bug story's first test reproduces the bug.
+- The Feature-level criteria go to `tasks/features/<fid>/test-strategy.md` as before, numbered `F.<n>`.
+- A scope reading or any other question goes under that story's **Open questions**, with a recommended
+  answer. The gate lists every open question of every story; never settle one inside a section.
 
 ---
 

@@ -73,7 +73,9 @@ round up to Built.
 
 ## Output
 
-Return exactly this; `/coverage-audit` saves it. You write nothing:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then return exactly this; `/coverage-audit` saves it. You write nothing:
 
 ```
 ## Coverage audit — <document path>

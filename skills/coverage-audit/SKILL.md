@@ -52,7 +52,7 @@ item → stop and name it, unless `--now`: "The audit runs when the last item cl
 
 ## Step 3 — Read the code against the document
 
-Spawn a **`coverage-auditor-agent`** (foreground, `model: opus`) with:
+Spawn a **`coverage-auditor-agent`** (foreground, model: `opus`) with:
 
 - **Source document:** the `Source:` path
 - **Requirement lines:** every row whose Mapped to is not "Out of scope", as `[<id>] <requirement>`

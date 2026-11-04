@@ -50,7 +50,10 @@ const ENTERPRISE_ONLY_SKILLS = new Set([
 // both packs, and says so (docs/story-retirement-inventory.md lists where each behaviour went).
 // /to-issues retired 2026-10-06: /plan-features replaced it (and ClaudeSkills' prd-to-stories).
 const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues'];
-const RETIRED_AGENTS = ['story-plan-agent.md'];
+const RETIRED_AGENTS = ['story-plan-agent.md', 'story-runner-agent.md'];
+// story-runner-agent retired with the per-story worktrees (F72 #79): stories are built one at a time
+// on the Feature branch by the main session. Only story-plan-agent marks an old install as enterprise.
+const ENTERPRISE_MARKER_AGENTS = new Set(['story-plan-agent.md']);
 
 // What took each retired skill's place, said when it is removed.
 const REPLACED_BY = { story: '/implement', 'run-tasks': '/implement --resume', 'to-issues': '/plan-features' };
@@ -179,16 +182,31 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/story-executor-agent.md',
     'agents/story-pr-agent.md',
     'agents/implement-planner-agent.md',
-    // Spawned by /implement's Feature mode (F4 #44).
-    'agents/story-runner-agent.md',
     // The Feature panel's fifth reviewer (F6 #58).
     'agents/loosened-reviewer-agent.md',
+    // Proves each Feature criterion on the real system, in the scratch copy (F72 #80).
+    'agents/prover.md',
+    // The story agents and their test rules (F72 #76).
+    'agents/story-builder.md',
+    'agents/story-reviewer.md',
+    'agents/suite-runner.md',
+    // Runs every card move and deferral item on Haiku (F72 #75).
+    'agents/tracker-helper.md',
+    'skills/implement/reference/test-rules.md',
+    // The reviewers and the diagnosis agent in SKILL.md's model table (F72 #81); none is enterprise-only.
+    'agents/evaluator-agent.md',
+    'agents/acceptance-test-agent.md',
+    'agents/architect-reviewer-agent.md',
+    'agents/security-reviewer-agent.md',
+    'agents/debug-agent.md',
+    'agents/troubleshoot-investigator.md',
     // The closing check /implement runs when a run completes a coverage table.
     'skills/coverage-audit/SKILL.md',
     'agents/coverage-auditor-agent.md',
     'harness-roles.json',
     'hooks/safety-check.js',
     'rules/code-style.md',
+    'rules/agent-handoff.md',
     'trackers/active/get-issue.sh',
     'trackers/lib/retry.sh',
     'code-platform/active/get-pr-review-threads.sh',
@@ -854,7 +872,7 @@ function backfillManifest(target, opts = {}) {
   if (fs.existsSync(agentsDir)) {
     const agents = fs.readdirSync(agentsDir);
     // story-plan-agent is retired, but an old enterprise install still carries it.
-    if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a) || RETIRED_AGENTS.includes(a))) workflowPack = 'enterprise';
+    if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a) || ENTERPRISE_MARKER_AGENTS.has(a))) workflowPack = 'enterprise';
   }
 
   let tracker = null;

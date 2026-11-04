@@ -106,7 +106,9 @@ Put the highest-confidence hypothesis first. If two are equally likely, put the 
 
 ## Step 7 — Produce the diagnosis
 
-Output this exact structure:
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then output this exact structure:
 
 ---
 

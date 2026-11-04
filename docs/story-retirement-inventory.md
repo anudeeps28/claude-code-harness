@@ -58,7 +58,7 @@ sprint file.
 | Agent | Used by `/implement`? | Behaviour `/implement`'s agents lack | Decision |
 |---|---|---|---|
 | `story-understand-agent` | Yes, Phase 1 | Reads the sprint file's section for the story | **Kept.** Enterprise `/implement` now passes the sprint file (#63) |
-| `story-pr-agent` | Yes, the PR step | Step 6 updates the sprint file's Master Status Table | **Kept**, with Step 6 run only on an enterprise install that has a sprint file (#63). In a Feature run, `/implement` updates each merged story's row itself at the Feature's PR, because no `story-pr-agent` runs per story there |
+| `story-pr-agent` | Yes, the PR step | Step 6 updates the sprint file's Master Status Table | **Kept**, with Step 6 run only on an enterprise install that has a sprint file (#63). In a Feature run, `/implement` updates each committed story's row itself at the Feature's PR, because no `story-pr-agent` runs per story there |
 | `story-plan-agent` | No, `/story` only | One `<task>` per tracker child task | **Moved (#63), enterprise only:** `implement-planner-agent` plans one task per child task when the ticket has child tasks on an enterprise install |
 | | | `DependencyInjection.cs` always in its own wave | **Dropped.** A .NET-specific rule. The overlap check (`<files>` against `<files>`) already keeps two tasks off one file, whatever it is called |
 | | | `type="manual"` tasks alone and last | Covered: `implement-planner-agent` "`type="manual"` → always alone" |

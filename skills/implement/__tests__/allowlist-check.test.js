@@ -42,7 +42,7 @@ function run(s, args = []) {
 }
 
 const ALL = [
-  'Bash(git worktree add:*)', 'Bash(git worktree remove:*)', 'Bash(git merge:*)', 'Bash(git branch -d:*)',
+  'Bash(git worktree add:*)', 'Bash(git worktree remove:*)',
   'Bash(git add:*)', 'Bash(git commit:*)', 'Bash(git push:*)', 'Bash(gh pr create:*)',
   'Bash(node:*)', 'Bash(bash:*)', 'Bash(npm run build:*)', 'Bash(npm test:*)', 'Bash(npm run test:e2e:*)', 'Bash(npm run dev:*)',
 ];
@@ -73,11 +73,25 @@ test('Allowlist_EverythingCovered_PassesSilently', () => {
 });
 
 test('Allowlist_MissingCommand_ListedWithTheRuleThatWouldCoverIt', () => {
-  const r = run(setup(ALL.filter((a) => a !== 'Bash(npm run test:e2e:*)' && a !== 'Bash(git merge:*)')));
+  const r = run(setup(ALL.filter((a) => a !== 'Bash(npm run test:e2e:*)' && a !== 'Bash(git commit:*)')));
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /^missing: npm run test:e2e +→ add "Bash\(npm run test:e2e:\*\)"$/m);
-  assert.match(r.out, /^missing: git merge --no-ff --no-commit <story branch> +→ add "Bash\(git merge:\*\)"$/m);
+  assert.match(r.out, /^missing: git commit .* +→ add "Bash\(git commit:\*\)"$/m);
   assert.doesNotMatch(r.out, /npm run build/);
+});
+
+test('Allowlist_NoMergeOrStoryBranchCommands', () => {
+  // AC3/AC5 of #79: with no story branches the run never merges and never deletes a story branch.
+  // ALL no longer lists those rules, so a command the run still needs would show up as missing.
+  const r = run(setup(ALL));
+  assert.equal(r.code, 0, `nothing is missing without a merge or branch -d rule: ${r.out}`);
+  assert.doesNotMatch(r.out, /git merge|git branch -d|story branch/);
+  // Companion: the commands that stay are really checked (the set is not empty).
+  const without = run(setup(ALL.filter((a) => a !== 'Bash(git worktree add:*)')));
+  assert.match(without.out, /^missing: git worktree add /m);
+  // And the destructive list still refuses the capital-D delete.
+  const d = run(setup(ALL), ['--command', ['git branch', '-' + 'D', 'feature/1-x'].join(' ')]);
+  assert.match(d.out, /^refused: .* is destructive/m);
 });
 
 test('Allowlist_SameCommandTwice_ListedOnce', () => {

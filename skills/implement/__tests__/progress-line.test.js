@@ -86,7 +86,7 @@ test('Progress_FeatureRun_CarriesFeatureAndStoryAndLogsToTheFeature', () => with
 }));
 
 test('Progress_FeatureLevelLine_HasNoStoryKey', () => withRoot((root) => {
-  const r = run(root, ['--feature', '123', '-', 'merge-tested', 'coding', 'story 201: pass']);
+  const r = run(root, ['--feature', '123', '-', 'run-started', 'coding', 'Feature 123']);
   assert.equal(r.code, 0, r.err);
   const m = r.out.trimEnd().match(FEATURE_LINE_RE);
   assert.ok(m, r.out);
@@ -94,9 +94,17 @@ test('Progress_FeatureLevelLine_HasNoStoryKey', () => withRoot((root) => {
 }));
 
 test('Progress_FeatureEvents_AreAccepted', () => withRoot((root) => {
-  for (const e of ['story-started', 'story-merged', 'story-stuck', 'merge-tested']) {
+  for (const e of ['story-started', 'story-committed', 'story-stuck']) {
     assert.equal(run(root, ['--feature', '1', '2', e, 'coding', 'x']).code, 0, e);
   }
+}));
+
+test('Progress_StoryCommittedEvent_IsAccepted', () => withRoot((root) => {
+  const r = run(root, ['--feature', '1', '2', 'story-committed', 'coding', 'abc1234']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out.trimEnd(), FEATURE_LINE_RE);
+  assert.match(r.out, /event=story-committed /);
+  assert.notEqual(run(root, ['--feature', '1', '2', 'story-commited', 'coding', 'x']).code, 0, 'companion: a misspelt event is still refused');
 }));
 
 test('Progress_BadFeatureId_IsRefused', () => withRoot((root) => {

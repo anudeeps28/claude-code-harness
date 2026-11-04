@@ -26,7 +26,7 @@ const ENTERPRISE_ONLY_SKILLS = ['sprint-plan'];
 // Retired by F7 #64 (and /to-issues on 2026-10-06, replaced by /plan-features): installed by no
 // pack, removed by an upgrade.
 const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues'];
-const RETIRED_AGENTS = ['story-plan-agent.md'];
+const RETIRED_AGENTS = ['story-plan-agent.md', 'story-runner-agent.md'];
 
 // Agents that /implement (in both packs) spawns by name. Skipping
 // any of these in the solo pack leaves those skills pointing at agents that were
@@ -36,6 +36,11 @@ const SOLO_REQUIRED_AGENTS = [
   'story-understand-agent.md',
   'story-executor-agent.md',
   'story-pr-agent.md',
+  'story-builder.md',
+  'story-reviewer.md',
+  'suite-runner.md',
+  'tracker-helper.md',
+  'prover.md',
 ];
 
 const REMOVED_ROLE_AGENTS = ['navigator.md', 'shipwright.md', 'lookout.md', 'warden.md', 'harbormaster.md'];
@@ -399,6 +404,30 @@ test('phase-marker rule ships and the build skills reference it', () => {
   }
 });
 
+test('agent-handoff rule ships and /implement references it', () => {
+  const soloDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', soloDir, ...LOCAL]);
+    const soloClaudeDir = path.join(soloDir, '.claude');
+    assert.ok(fs.existsSync(path.join(soloClaudeDir, 'rules', 'agent-handoff.md')), 'solo: rules/agent-handoff.md must be installed');
+    const text = fs.readFileSync(path.join(soloClaudeDir, 'skills', 'implement', 'SKILL.md'), 'utf8');
+    assert.ok(text.includes('rules/agent-handoff.md'), 'solo: skills/implement/SKILL.md must reference rules/agent-handoff.md');
+  } finally {
+    fs.rmSync(soloDir, { recursive: true, force: true });
+  }
+
+  const entDir = makeTempProject();
+  try {
+    runInstallJs(['--yes', '--project', entDir, '--pack', 'enterprise', ...LOCAL]);
+    const entClaudeDir = path.join(entDir, '.claude');
+    assert.ok(fs.existsSync(path.join(entClaudeDir, 'rules', 'agent-handoff.md')), 'enterprise: rules/agent-handoff.md must be installed');
+    const text = fs.readFileSync(path.join(entClaudeDir, 'skills', 'implement', 'SKILL.md'), 'utf8');
+    assert.ok(text.includes('rules/agent-handoff.md'), 'enterprise: skills/implement/SKILL.md must reference rules/agent-handoff.md');
+  } finally {
+    fs.rmSync(entDir, { recursive: true, force: true });
+  }
+});
+
 test('update migrates a pre-pack-filter solo install: prunes enterprise skills, restores story agents', () => {
   const dir = makeTempProject();
   try {
@@ -477,7 +506,7 @@ test('update removes the retired skills and agent from an old install of either 
       const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
       for (const s of RETIRED_SKILLS) assert.ok(!skills.includes(s), `${pack}: update must remove /${s}`);
       for (const a of RETIRED_AGENTS) assert.ok(!agents.includes(a), `${pack}: update must remove ${a}`);
-      assert.match(out, /Retired: removed \/story, \/run-tasks, \/to-issues, story-plan-agent/, `${pack}: the person is told`);
+      assert.match(out, /Retired: removed \/story, \/run-tasks, \/to-issues, story-plan-agent, story-runner-agent/, `${pack}: the person is told`);
       assert.match(out, /\/to-issues → \/plan-features/, `${pack}: and what replaced each`);
       assert.ok(skills.includes('implement'), `${pack}: /implement stays`);
       assert.ok(skills.includes('plan-features'), `${pack}: /plan-features replaces /to-issues`);

@@ -41,13 +41,28 @@ test('Init_WritesStateWithBranchesAndSiblingWorktrees', () => {
   assert.equal(s.header['feature-branch'], 'feature/123-orders-page');
   assert.equal(s.header['feature-worktree'], path.join(path.dirname(dir), 'shop-f123'));
   assert.equal(s.header['plan-approved'], 'no');
-  assert.equal(s.header['story-cap'], '5');
   assert.deepEqual(s.stories.map((x) => x.id), ['201', '202']);
   const b = s.stories[1];
   assert.equal(b.status, 'pending');
   assert.equal(b.blockers, '201');
-  assert.equal(b.branch, 'story/202-show-orders-on-the-page');
-  assert.equal(b.worktree, path.join(path.dirname(dir), 'shop-f123-s202'));
+});
+
+test('Init_HasNoStoryCapOrStoryBranches', () => {
+  // AC5 of #79: one story at a time on the Feature branch, so no cap, no agent limit, and no
+  // per-story branch or worktree in the state file.
+  const dir = home(AB);
+  assert.equal(init(dir, ['--story-cap', '3']).code, 0);
+  const s = readState(dir, '123');
+  assert.equal(s.header['feature-branch'], 'feature/123-orders-page', 'companion: the Feature branch is still recorded');
+  assert.equal(s.stories.length, 2, 'companion: both stories are there');
+  assert.equal(s.header['story-cap'], undefined, 'no story-cap');
+  assert.equal(s.header['agent-limit'], undefined, 'no agent-limit');
+  for (const st of s.stories) {
+    assert.equal(st.branch, undefined, `story ${st.id} has no branch`);
+    assert.equal(st.worktree, undefined, `story ${st.id} has no worktree`);
+  }
+  const raw = fs.readFileSync(path.join(dir, 'tasks', 'features', '123', 'feature-state.md'), 'utf8').replace(/\r\n/g, '\n');
+  assert.doesNotMatch(raw, /story-cap|agent-limit|story\/\d|-s20\d/, 'nothing in the file names a story branch or a story worktree');
 });
 
 test('Init_OrdersStoriesByDependencyNotByListOrder', () => {
@@ -95,22 +110,22 @@ test('Init_MoreThanEightStories_Warns', () => {
 test('Init_ExistingState_IsNotOverwritten', () => {
   const dir = home(AB);
   init(dir);
-  run(dir, 'set', '--feature', '123', '--story', '201', 'status=merged');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed');
   const r = init(dir);
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /already exists.*--resume/);
-  assert.equal(readState(dir, '123').stories[0].status, 'merged');
+  assert.equal(readState(dir, '123').stories[0].status, 'committed');
 });
 
-test('Next_BlockedStoryWaitsUntilItsBlockerHasMerged', () => {
+test('Next_BlockedStoryWaitsUntilItsBlockerIsCommitted', () => {
   const dir = home(AB);
   init(dir);
   assert.match(run(dir, 'next', '--feature', '123').out, /^story 201$/m);
   run(dir, 'set', '--feature', '123', '--story', '201', 'status=running');
-  assert.match(run(dir, 'next', '--feature', '123').out, /^wait$/m, 'one story at a time, and 202 is blocked anyway');
-  run(dir, 'set', '--feature', '123', '--story', '201', 'status=merged');
+  assert.match(run(dir, 'next', '--feature', '123').out, /^running 201$/m, 'one story at a time, and 202 is blocked anyway');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed');
   assert.match(run(dir, 'next', '--feature', '123').out, /^story 202$/m);
-  run(dir, 'set', '--feature', '123', '--story', '202', 'status=merged');
+  run(dir, 'set', '--feature', '123', '--story', '202', 'status=committed');
   assert.match(run(dir, 'next', '--feature', '123').out, /^done$/m);
 });
 
@@ -118,7 +133,7 @@ test('Set_RejectsUnknownStatusAndUnknownStory', () => {
   const dir = home(AB);
   init(dir);
   assert.equal(run(dir, 'set', '--feature', '123', '--story', '201', 'status=finished').code, 1);
-  assert.equal(run(dir, 'set', '--feature', '123', '--story', '999', 'status=merged').code, 1);
+  assert.equal(run(dir, 'set', '--feature', '123', '--story', '999', 'status=committed').code, 1);
 });
 
 test('Set_HeaderField', () => {
@@ -133,8 +148,8 @@ test('Set_HeaderField', () => {
 test('Set_ValueCannotForgeALine', () => {
   const dir = home(AB);
   init(dir);
-  run(dir, 'set', '--feature', '123', '--story', '201', 'reason=bad\nstory 202: status=merged');
-  run(dir, 'set', '--feature', '123', '--story', '201', 'title=Orders status=merged');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'reason=bad\nstory 202: status=committed');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'title=Orders status=committed');
   const s = readState(dir, '123');
   assert.equal(s.stories[1].status, 'pending', 'a value cannot add a line');
   assert.equal(s.stories[0].status, 'pending', 'a value cannot set another field on its own line');
@@ -150,37 +165,212 @@ test('Stuck_HoldsDependentsAndLetsIndependentStoriesFinish', () => {
   init(dir);
   const r = run(dir, 'stuck', '--feature', '123', '--story', '1', '--reason', 'tests red after merge');
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /^needs-person: 1 2 3$/m);
+  assert.match(r.out, /^needs-person: 1$/m, 'only the stuck story needs a person');
+  assert.match(r.out, /^held: 2 3$/m, 'the held dependents are on their own line');
+  assert.doesNotMatch(r.out, /worktree kept/, 'there is no per-story worktree to keep');
   const s = readState(dir, '123');
   assert.deepEqual(s.stories.map((x) => x.status), ['stuck', 'held', 'held', 'pending']);
   assert.equal(s.stories[0].reason, 'tests red after merge');
   assert.match(run(dir, 'next', '--feature', '123').out, /^story 4$/m, 'the independent story still runs');
-  run(dir, 'set', '--feature', '123', '--story', '4', 'status=merged');
+  run(dir, 'set', '--feature', '123', '--story', '4', 'status=committed');
   const n = run(dir, 'next', '--feature', '123');
   assert.match(n.out, /^held: stuck #1; waiting on it #2 #3$/m, 'nothing left to run: pause, no PR');
 });
 
-test('Resume_SkipsMergedRestartsRunningKeepsTheRest', () => {
+// ── F72 #79: resume reads the Feature branch's own commits, in a real git repository ──
+
+function git(cwd, ...args) {
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+  return r.stdout.trim();
+}
+
+// A real repo on main with the Feature branch checked out; `commits` are made on the Feature branch,
+// `onMain` are made on main before it. Returns the repo path and each commit's sha by message.
+function featureRepo(commits, onMain = []) {
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'fstate-git-'));
+  git(wt, 'init', '-q', '-b', 'main');
+  git(wt, 'config', 'user.email', 'test@example.com');
+  git(wt, 'config', 'user.name', 'Test');
+  git(wt, 'config', 'core.autocrlf', 'false');
+  const shas = {};
+  const commit = (msg, i) => {
+    fs.writeFileSync(path.join(wt, `f${i}.txt`), `${i}\n`);
+    git(wt, 'add', '.');
+    git(wt, 'commit', '-q', '-m', msg);
+    shas[msg] = git(wt, 'rev-parse', 'HEAD');
+  };
+  commit('init', 0);
+  onMain.forEach((m, i) => commit(m, 100 + i));
+  git(wt, 'checkout', '-q', '-b', 'feature/123-orders-page');
+  commits.forEach((m, i) => commit(m, i + 1));
+  return { wt, shas };
+}
+
+const resume = (dir, wt) => run(dir, 'resume', '--feature', '123', '--feature-worktree', wt);
+
+test('Resume_SkipsStoriesWhoseCommitIsOnTheFeatureBranch', () => {
+  // AC4 of #79. 201 has its commit although the state lagged (still pending). 202 only has look-alikes:
+  // a message that merely mentions it, a longer id, and a commit on main, before the Feature branch.
+  const { wt, shas } = featureRepo(
+    ['Add the orders table\n\nStory: #201', 'Tidy\n\nStory: #2020', 'Notes about Story: #202 in prose'],
+    ['Old work\n\nStory: #202']);
   const dir = home([...AB, { id: '203', title: 'Export orders', state: 'OPEN', blockers: [] }]);
   init(dir);
-  run(dir, 'set', '--feature', '123', '--story', '201', 'status=merged');
-  run(dir, 'set', '--feature', '123', '--story', '203', 'status=running');
-  const r = run(dir, 'resume', '--feature', '123');
+  const r = resume(dir, wt);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /^skip 201: merged$/m);
-  assert.match(r.out, /^restart 203: running; its worktree .*shop-f123-s203 is missing, recreate it from the Feature branch$/m);
-  assert.match(r.out, /^pending 202$/m);
+  const sha = shas['Add the orders table\n\nStory: #201'];
+  assert.ok(sha, 'fixture: the 201 commit exists');
+  assert.match(r.out, new RegExp(`^skip 201: committed ${sha.slice(0, 7)}[0-9a-f]*$`, 'm'));
+  assert.equal(readState(dir, '123').stories[0].status, 'committed', 'the lagging state is brought up to date');
+  assert.doesNotMatch(r.out, /^skip 202/m, 'look-alike messages and a commit on main are not 202\'s commit');
+  assert.doesNotMatch(r.out, /^skip 203/m);
+  assert.equal(readState(dir, '123').stories[1].status, 'pending');
+  assert.match(r.out, /^story 202$/m, 'the next story is handed out');
 });
 
-test('Resume_RunningStoryWithWorktree_RestartsFromSavedState', () => {
+test('Resume_RunningStoryRestartsFromItsSavedStep', () => {
+  const { wt } = featureRepo(['Add the orders table\n\nStory: #201']);
+  const dir = home([...AB, { id: '203', title: 'Export orders', state: 'OPEN', blockers: [] }]);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed');
+  run(dir, 'set', '--feature', '123', '--story', '202', 'status=running', 'step=review');
+  let r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^restart 202: from step review$/m);
+  run(dir, 'set', '--feature', '123', '--story', '202', 'step=green');
+  r = resume(dir, wt);
+  assert.match(r.out, /^restart 202: from step green$/m, 'it follows the saved step, whatever it is');
+  assert.doesNotMatch(r.out, /^restart 203/m, 'a pending story is not restarted');
+  assert.doesNotMatch(r.out, /runner|per-story worktree|recreate/, 'no runner and no per-story worktree');
+});
+
+test('Resume_AllCommitted_GoesToTheFeaturePhases', () => {
+  const { wt } = featureRepo(['One\n\nStory: #201', 'Two\n\nStory: #202']);
   const dir = home(AB);
   init(dir);
-  const s = readState(dir, '123');
-  fs.mkdirSync(s.stories[0].worktree, { recursive: true });
-  try {
-    run(dir, 'set', '--feature', '123', '--story', '201', 'status=running');
-    assert.match(run(dir, 'resume', '--feature', '123').out, /^restart 201: running; worktree present, restart its runner from tasks\/stories\/201\/executor-state\.md$/m);
-  } finally { fs.rmSync(s.stories[0].worktree, { recursive: true, force: true }); }
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^skip 201: committed [0-9a-f]{7,40}$/m);
+  assert.match(r.out, /^skip 202: committed [0-9a-f]{7,40}$/m);
+  assert.match(r.out, /^done$/m, 'nothing left to build: on to the Feature phases');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['committed', 'committed']);
+});
+
+test('Resume_BaseBranchIsNotMain_StillSkipsTheCommittedStory', () => {
+  // A repo whose trunk is "trunk": main..HEAD would make git fail and redo every committed story.
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'fstate-trunk-'));
+  git(wt, 'init', '-q', '-b', 'trunk');
+  git(wt, 'config', 'user.email', 'test@example.com');
+  git(wt, 'config', 'user.name', 'Test');
+  fs.writeFileSync(path.join(wt, 'a.txt'), 'a\n');
+  git(wt, 'add', '.');
+  git(wt, 'commit', '-q', '-m', 'init');
+  git(wt, 'checkout', '-q', '-b', 'feature/123-orders-page');
+  fs.writeFileSync(path.join(wt, 'b.txt'), 'b\n');
+  git(wt, 'add', '.');
+  git(wt, 'commit', '-q', '-m', 'Add the orders table\n\nStory: #201');
+  const sha = git(wt, 'rev-parse', 'HEAD');
+  const dir = home(AB);
+  assert.equal(init(dir, ['--base', 'trunk']).code, 0);
+  assert.equal(readState(dir, '123').header.base, 'trunk', 'the base branch is recorded at init');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', `commit=${sha}`);
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, new RegExp(`^skip 201: committed ${sha.slice(0, 7)}`, 'm'));
+  assert.doesNotMatch(r.out, /^redo 201/m);
+  assert.equal(readState(dir, '123').stories[0].status, 'committed');
+});
+
+// The base is passed to git as an argument, so a value shaped like an option is refused at init.
+test('Init_BaseThatLooksLikeAnOption_IsRefused', () => {
+  const dir = home(AB);
+  const r = init(dir, ['--base', '--all']);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /bad branch name for --base: --all/);
+  assert.equal(init(dir, ['--base', 'release/2026.11']).code, 0, 'a real branch name with a slash and dots is fine');
+});
+
+// A state file written before the base was recorded still resumes against main.
+test('Resume_StateWithNoBaseHeader_UsesMain', () => {
+  const { wt } = featureRepo(['Add the orders table\n\nStory: #201']);
+  const dir = home(AB);
+  init(dir);
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^base: main\r?\n/m, ''));
+  assert.equal(readState(dir, '123').header.base, undefined, 'the header really has no base now');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', 'commit=x');
+  const r = resume(dir, wt);
+  assert.match(r.out, /^skip 201: committed/m, r.out);
+});
+
+test('Resume_CommittedStoryWhoseCommitIsNotOnTheBranch_IsRedoneAndPending', () => {
+  const { wt } = featureRepo(['Other work\n\nStory: #999']);
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', 'commit=deadbeefdeadbeef');
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^redo 201: commit deadbee not on feature\/123-orders-page$/m);
+  assert.equal(readState(dir, '123').stories[0].status, 'pending');
+});
+
+test('Resume_RunningStoryWithoutStep_ReadsNextFromItsExecutorState', () => {
+  const { wt } = featureRepo([]);
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=running');
+  const sdir = path.join(dir, 'tasks', 'stories', '201');
+  fs.mkdirSync(sdir, { recursive: true });
+  fs.writeFileSync(path.join(sdir, 'executor-state.md'), 'run-mode: autonomous\nnext: review\n');
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^restart 201: from step review$/m);
+});
+
+test('Resume_FeatureWorktreeMissing_WarnsAndTrustsTheStateFile', () => {
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', 'commit=abc1234');
+  const gone = path.join(os.tmpdir(), 'fstate-no-such-worktree');
+  const r = resume(dir, gone);
+  assert.equal(r.code, 0, r.out);
+  const lines = r.out.split('\n');
+  assert.equal(lines[0], `warn: no Feature worktree at ${gone}; committed stories are taken from the state file`);
+  assert.match(r.out, /^skip 201: committed$/m, 'the committed story is still trusted');
+  assert.equal(readState(dir, '123').stories[0].status, 'committed');
+});
+
+test('Resume_GateNeverShown_ShowsTheGateAgain', () => {
+  const dir = home(AB);
+  init(dir);
+  const r = run(dir, 'resume', '--feature', '123');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^show-gate: the plan gate was never shown/m);
+  assert.doesNotMatch(r.out, /^approve:/m, 'a plan nobody saw is never approved by a resume');
+  run(dir, 'set', '--feature', '123', 'gate-shown=no');
+  assert.match(run(dir, 'resume', '--feature', '123').out, /^show-gate:/m, 'gate-shown=no is the same as absent');
+});
+
+test('Resume_PlanningButApproved_NoApproveLine', () => {
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', 'gate-shown=yes', 'plan-approved=yes');
+  const r = run(dir, 'resume', '--feature', '123');
+  assert.doesNotMatch(r.out, /^approve:/m);
+  assert.doesNotMatch(r.out, /^show-gate:/m);
+});
+
+test('Resume_GateShownUnapproved_PrintsApproveFirst', () => {
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', 'gate-shown=yes');
+  const r = run(dir, 'resume', '--feature', '123');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^approve: the plan was not approved yet; this resume is the approval/m);
+  assert.equal(r.out.split('\n')[0].startsWith('approve:'), true, 'approve comes before the story lines');
+  run(dir, 'set', '--feature', '123', 'plan-approved=yes', 'phase=coding');
+  assert.doesNotMatch(run(dir, 'resume', '--feature', '123').out, /^approve:/m, 'an approved plan prints no approve line');
 });
 
 test('Resume_NoState_StopsAndNeverStartsFresh', () => {
@@ -195,7 +385,7 @@ test('BadFeatureId_IsRefused', () => {
   assert.equal(r.code, 2, r.out);
 });
 
-// ── F5 #49: independent stories in parallel ──────────────────────────
+// ── helpers for the one-at-a-time and hung-story tests (F5 #49 parallel tests retired by F72 #78) ──
 
 function initWith(stories, extra = []) {
   const dir = home(stories);
@@ -205,52 +395,6 @@ function initWith(stories, extra = []) {
 }
 const indep = (n) => Array.from({ length: n }, (_, i) => ({ id: String(i + 1), title: `s${i + 1}`, state: 'OPEN', blockers: [] }));
 const started = (out) => [...out.matchAll(/^story (\S+)$/gm)].map((m) => m[1]);
-
-test('Parallel_IndependentStoriesStartTogether', () => {
-  const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
-  assert.equal(readState(dir, '123').header['story-cap'], '5', 'the default cap is 5');
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1', '2'], 'A and B start at once; C waits for A');
-});
-
-test('Parallel_BlockedStoryNeverStartsBeforeItsBlockerMerges', () => {
-  const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
-  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
-  run(dir, 'set', '--feature', '123', '--story', '2', 'status=merged');
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), [], 'B merged, but C still waits for A');
-  assert.match(run(dir, 'next', '--feature', '123').out, /^wait$/m);
-  run(dir, 'set', '--feature', '123', '--story', '1', 'status=merged');
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['3']);
-});
-
-test('Parallel_CapOfOne_RunsOneAtATimeInOrder', () => {
-  const dir = initWith(indep(3), ['--story-cap', '1']);
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1']);
-});
-
-test('Parallel_AgentLimit_FiveWideStoriesRunThreeAtATime', () => {
-  const dir = initWith(indep(5));
-  for (const s of ['1', '2', '3', '4', '5']) run(dir, 'set', '--feature', '123', '--story', s, 'width=5');
-  // 1 + 3 × (1 + 5) = 19 ≤ 20; a fourth would make 25.
-  const r = run(dir, 'next', '--feature', '123');
-  assert.deepEqual(started(r.out), ['1', '2', '3'], r.out);
-  assert.match(r.out, /^agents: 19\/20$/m);
-  for (const s of ['1', '2', '3']) run(dir, 'set', '--feature', '123', '--story', s, 'status=running');
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), []);
-  run(dir, 'set', '--feature', '123', '--story', '1', 'status=merged');
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['4'], 'the next one starts as soon as one finishes');
-});
-
-test('Parallel_UnplannedStoryCountsAsFiveWide', () => {
-  const dir = initWith(indep(5));
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1', '2', '3']);
-});
-
-test('Parallel_NarrowStoriesFitUpToTheCap', () => {
-  const dir = initWith(indep(6));
-  for (const s of ['1', '2', '3', '4', '5', '6']) run(dir, 'set', '--feature', '123', '--story', s, 'width=1');
-  // 1 + 5 × 2 = 11: the cap of 5 binds before the agent limit.
-  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['1', '2', '3', '4', '5']);
-});
 
 // ── F5 #51: a hung story is restarted once, then stuck ──────────────
 
@@ -269,22 +413,200 @@ test('Hung_FreshStory_IsNotFlagged', () => {
   assert.equal(r.out, '');
 });
 
-test('Hung_FirstTime_RestartOnceThenStuckWithDependentsHeld', () => {
+// hung runs on --resume, when no agent is running: an old phase.md says the session stopped, not
+// that a job hung (a crash, a closed laptop and the usage limit all look the same). So it never
+// marks a story stuck by itself: the first time it relaunches the step, the second time it asks.
+test('Hung_FirstTimeRelaunches_SecondTimeAsks_NeverStuckByItself', () => {
   const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
   run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
   phase(dir, '1', '2026-10-06T10:00:00Z');
   const first = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:31:00Z');
-  assert.match(first.out, /^restart 1: no progress 31m \(phase\.md updated 2026-10-06T10:00:00Z\); restart its runner once from its saved state, in the same worktree$/m);
+  assert.match(first.out, /^relaunch 1: no progress 31m \(phase\.md updated 2026-10-06T10:00:00Z\)/m);
   assert.equal(readState(dir, '123').stories[0].status, 'running');
   phase(dir, '1', '2026-10-06T10:40:00Z');
-  const second = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T11:15:00Z');
-  assert.match(second.out, /^stuck 1: no progress 35m, a second time$/m);
-  assert.match(second.out, /^needs-person: 1 3$/m);
-  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['stuck', 'pending', 'held']);
+  const second = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T14:00:00Z');
+  assert.match(second.out, /^ask 1: step stopped twice with no progress \(200m\)/m, second.out);
+  assert.doesNotMatch(second.out, /^(stuck|needs-person|held)\b/m, 'it never marks a story stuck by itself');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['running', 'pending', 'pending'],
+    'the story is still running and its dependent is not held');
+});
+
+test('Hung_OnlyTheStoryInFlight', () => {
+  // AC5 of #79: one story runs at a time, so only the running one can hang. Planted look-alikes: a
+  // pending story and a committed one both have a stale phase.md and must not be reported.
+  const dir = initWith(indep(3));
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=committed');
+  run(dir, 'set', '--feature', '123', '--story', '2', 'status=running');
+  phase(dir, '1', '2026-10-06T08:00:00Z');
+  phase(dir, '2', '2026-10-06T10:00:00Z');
+  phase(dir, '3', '2026-10-06T08:00:00Z');
+  const r = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:45:00Z');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^relaunch 2: no progress 45m/m, 'the running story is reported');
+  assert.doesNotMatch(r.out, /^\S+ [13]:/m, 'the committed and the pending story are not');
+  assert.doesNotMatch(r.out, /^restart /m, 'the first hang is a relaunch, not a per-story restart');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['committed', 'running', 'pending']);
 });
 
 test('Hung_NoPhaseFile_UsesTheStartTime', () => {
   const dir = initWith(indep(1));
   run(dir, 'set', '--feature', '123', '--story', '1', 'status=running', 'started=2026-10-06T09:00:00Z');
-  assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:00:00Z').out, /^restart 1: no progress 60m/m);
+  assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:00:00Z').out, /^relaunch 1: no progress 60m/m);
+});
+
+test('Hung_ANewStep_ClearsTheCounter_TheSameStepTwiceAsks', () => {
+  // The counter counts relaunches of the same step only: a story that hung once and then moved on
+  // to its next step gets a fresh relaunch, not a question.
+  const dir = initWith(indep(1));
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running', 'step=tests');
+  phase(dir, '1', '2026-10-06T10:00:00Z');
+  assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:31:00Z').out, /^relaunch 1:/m);
+  assert.equal(readState(dir, '123').stories[0].hangs, '1', 'companion: the first hang is counted');
+
+  run(dir, 'set', '--feature', '123', '--story', '1', 'step=tests');
+  assert.equal(readState(dir, '123').stories[0].hangs, '1', 'the same step set again keeps the count');
+
+  run(dir, 'set', '--feature', '123', '--story', '1', 'step=code');
+  assert.equal(readState(dir, '123').stories[0].hangs, undefined, 'a different step clears the count');
+  const next = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:45:00Z');
+  assert.match(next.out, /^relaunch 1:/m, `an old phase.md on the new step relaunches again: ${next.out}`);
+  assert.doesNotMatch(next.out, /^ask /m);
+
+  const again = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T11:15:00Z');
+  assert.match(again.out, /^ask 1: /m, `the same step stopping twice is asked about: ${again.out}`);
+});
+
+test('ReadState_DropsABadStoryId_AndSaysSo', () => {
+  const dir = initWith(indep(1));
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.appendFileSync(file, 'story a..b: status=pending title=x\n');
+  const r = run(dir, 'next', '--feature', '123');
+  assert.match(r.out, /^warn: dropped story row "a\.\.b": bad id$/m, r.out);
+  assert.match(r.out, /^story 1$/m, 'companion: the good row is still read');
+});
+
+// ── F72 #78: one story at a time, on the Feature branch ──────────────
+
+test('Next_OneStoryAtATime_EvenWhenIndependent', () => {
+  const dir = initWith(indep(3));
+  const first = run(dir, 'next', '--feature', '123');
+  assert.deepEqual(started(first.out), ['1'], `three independent stories, only the first is handed out: ${first.out}`);
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
+  const busy = run(dir, 'next', '--feature', '123');
+  assert.match(busy.out, /^running 1$/m, 'while one runs, next names it and starts nothing');
+  assert.deepEqual(started(busy.out), [], 'no second story while one is running');
+});
+
+test('Next_AfterACommit_HandsOutTheNextPendingStoryInPlanOrder', () => {
+  const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=committed');
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['2'], 'committed 1 unblocks 3, but 2 comes first in plan order');
+  run(dir, 'set', '--feature', '123', '--story', '2', 'status=committed');
+  assert.deepEqual(started(run(dir, 'next', '--feature', '123').out), ['3']);
+  run(dir, 'set', '--feature', '123', '--story', '3', 'status=committed');
+  assert.match(run(dir, 'next', '--feature', '123').out, /^done$/m);
+});
+
+test('Set_CommittedIsAStatus', () => {
+  const dir = initWith(AB);
+  const r = run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed');
+  assert.equal(r.code, 0, r.out);
+  assert.equal(readState(dir, '123').stories[0].status, 'committed');
+  assert.equal(run(dir, 'set', '--feature', '123', '--story', '201', 'status=merged').code, 1, 'merged is no longer a status');
+});
+
+function progressLog(dir, events) {
+  const f = path.join(dir, 'tasks', 'features', '123');
+  fs.mkdirSync(f, { recursive: true });
+  fs.writeFileSync(path.join(f, 'progress.log'), events.map(([sid, event], i) =>
+    `[harness] ts=2026-11-03T10:0${i}:00Z feature=123 story=${sid} event=${event} phase=coding detail="x"`).join('\n') + '\n');
+}
+
+test('Sequence_TwoStartedWithoutACommit_IsAnOverlap', () => {
+  const dir = initWith(indep(2));
+  progressLog(dir, [['1', 'story-started'], ['2', 'story-started'], ['1', 'story-committed']]);
+  const r = run(dir, 'sequence', '--feature', '123');
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^overlap: story-started #2 while #1 in flight$/m);
+});
+
+test('Sequence_StartedCommittedStartedCommitted_Ok', () => {
+  const dir = initWith(indep(2));
+  progressLog(dir, [['1', 'story-started'], ['1', 'story-committed'], ['2', 'story-started'], ['2', 'story-committed']]);
+  const r = run(dir, 'sequence', '--feature', '123');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^ok$/m);
+  assert.doesNotMatch(r.out, /overlap/);
+});
+
+test('Stuck_WithNothingDependingOnIt_PrintsNoHeldLine', () => {
+  const dir = initWith(indep(2));
+  const r = run(dir, 'stuck', '--feature', '123', '--story', '1', '--reason', 'x');
+  assert.match(r.out, /^needs-person: 1$/m);
+  assert.doesNotMatch(r.out, /^held:/m, 'no dependents, no held line');
+});
+
+test('Sequence_StoryStuckReleasesTheStoryInFlight', () => {
+  const dir = initWith(indep(2));
+  progressLog(dir, [['1', 'story-started'], ['1', 'story-stuck'], ['2', 'story-started'], ['2', 'story-committed']]);
+  const r = run(dir, 'sequence', '--feature', '123');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^ok$/m, 'a stuck story is no longer in flight');
+});
+
+test('Sequence_RestartOfTheSameStory_IsNotAnOverlap', () => {
+  const dir = initWith(indep(2));
+  progressLog(dir, [['1', 'story-started'], ['1', 'story-started'], ['1', 'story-committed']]);
+  const r = run(dir, 'sequence', '--feature', '123');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^ok$/m);
+});
+
+// ── review panel: values read from the state file reach git as arguments, so they are checked ──
+
+test('Set_BaseThatLooksLikeAnOption_IsRefusedAndNotWritten', () => {
+  const dir = home(AB);
+  init(dir);
+  const r = run(dir, 'set', '--feature', '123', 'base=--output=x');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /bad branch name for base: --output=x/);
+  assert.equal(readState(dir, '123').header.base, 'main', 'the refused value was not written');
+  assert.equal(run(dir, 'set', '--feature', '123', 'base=release/2026.11').code, 0, 'a real branch name is still accepted');
+});
+
+test('Resume_StateFileBaseThatLooksLikeAnOption_IsRefusedAndGitNeverSeesIt', () => {
+  const { wt } = featureRepo(['Add the orders table\n\nStory: #201']);
+  const dir = home(AB);
+  init(dir);
+  const planted = path.join(os.tmpdir(), `fstate-planted-${process.pid}.txt`);
+  fs.rmSync(planted, { force: true });
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^base: .*$/m, `base: --output=${planted.split(path.sep).join('/')}`));
+  const r = resume(dir, wt);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /bad branch name for base/);
+  assert.equal(fs.existsSync(planted), false, 'git was never run with the planted option, so no file was created');
+});
+
+test('Resume_StoryIdWithARegexDot_DoesNotMatchAnotherStorysCommit', () => {
+  // Story 1.2 must not claim the commit "Story: #1x2": the id is matched as text, never as a pattern.
+  const { wt } = featureRepo(['Other work\n\nStory: #1x2']);
+  const dir = home([{ id: '1.2', title: 'Dotted', state: 'OPEN', blockers: [] }]);
+  init(dir);
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.doesNotMatch(r.out, /^skip 1\.2/m, 'a look-alike commit with x for the dot is not 1.2');
+  assert.match(r.out, /^story 1\.2$/m, 'it is still to build');
+  const own = featureRepo(['Real\n\nStory: #1.2']);
+  const dir2 = home([{ id: '1.2', title: 'Dotted', state: 'OPEN', blockers: [] }]);
+  init(dir2);
+  assert.match(resume(dir2, own.wt).out, /^skip 1\.2: committed/m, 'its own commit is still found');
+});
+
+test('ReadState_DropsAStoryRowWithABadId', () => {
+  const dir = home(AB);
+  init(dir);
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.appendFileSync(file, 'story ../evil: status=pending\nstory --all: status=pending\n');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.id), ['201', '202'], 'only well-formed ids survive; the two real stories prove the file was read');
 });
