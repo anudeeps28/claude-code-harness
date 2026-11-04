@@ -36,6 +36,9 @@ If something you need is missing from the brief, stop and report `STATUS: NEEDS_
 - Only synthetic or de-identified data: never put a real person's details in a test, a fixture or a log,
   and never read or copy production data.
 - Never run SQL against a shared or live database; test a database script on a temporary local one.
+- When the brief gives a `Test lock:` prefix, run every build, test and Observe command with it in front
+  (`<prefix> <command>`). A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the lock's owner.
+  A compound command (`a && b`) is not wrapped by it: wrap each command on its own.
 - One job. Nothing outside the story's scope or, for a fix, outside the files the findings name.
   A good idea for something else goes in a `Found:` line, not in the code.
 - **Tests:** write them before any implementation, from the criteria text and nothing else, per

@@ -25,8 +25,23 @@ const { spawnSync } = require('node:child_process');
 
 const BRANCH_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
+// Another session's git command may hold a lock file for a moment (F73 #82): a lock-file failure is
+// retried 3 times, 2 seconds apart. Still locked: say which lock; this script never deletes one.
+const LOCK_MESSAGE = /\.lock': File exists|Unable to create '[^']*\.lock'|cannot lock ref/;
+const RETRIES = 3;
+const RETRY_WAIT_MS = 2000;
+
 function git(cwd, args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  let r;
+  for (let attempt = 0; ; attempt++) {
+    r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    if (r.status === 0 || !LOCK_MESSAGE.test(r.stderr || '')) break;
+    if (attempt === RETRIES) {
+      const named = (r.stderr || '').match(/Unable to create '([^']*\.lock)'/);
+      die(1, `${named ? named[1] : 'a git lock file'} is held: another git command is running, or one stopped and left it; check, then remove it`);
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RETRY_WAIT_MS);
+  }
   return { code: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
 

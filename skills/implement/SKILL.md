@@ -87,7 +87,9 @@ under a gitignored directory, so nothing finds it by looking. See `rules/wave-ex
 
 - the current branch is already another story's branch (e.g. `implement/<some-other-id>`);
 - another story's `tasks/stories/<other-id>/executor-state.md` shows an in-progress run with a recent `updated` timestamp;
-- another story's `tasks/stories/<other-id>/phase.md` is fresh (freshness comes from `updated`, never from the file merely existing — see `rules/phase-markers.md`).
+- another story's `tasks/stories/<other-id>/phase.md` is fresh (freshness comes from `updated`, never from the file merely existing — see `rules/phase-markers.md`), unless it carries a `feature:` key (next paragraph).
+
+**A Feature run is not foreign work here.** A `phase.md`, or the `phase.md` of an `executor-state.md`, that carries a `feature:` key belongs to a Feature run, which builds in its own Feature worktree and writes only `tasks/` in this folder, so it is **not foreign work** for this folder. Paths under `tasks/` are not counted as dirty for this check. Everything else in the check is unchanged: a standalone run still builds in the folder it runs in.
 
 **Show what you found and ask.** Do not refuse outright, and do not proceed silently — a dirty tree is often YOUR_NAME's own scratch work, so the call is theirs:
 
@@ -184,7 +186,10 @@ bash trackers/active/get-attachments.sh <id>      # downloads files into tasks/s
 read its `**State:**` line. If any blocker is not closed (`CLOSED`, `Closed`, `Done`, `Removed`), it is an
 **open blocker**: **stop** before Phase 1 and name it — `#<id> "<title>" (<state>) blocks #<id>` — instead
 of building on work that is not there yet. This is not self-answered under `--autonomous`: building
-past a blocker is a scope change.
+past a blocker is a scope change. When the open blocker is a Feature with
+`tasks/features/<b>/feature-state.md`, the stop line adds where it is being built and what to do:
+`#<b> "<title>" (<state>) blocks #<id>; #<b> is being built in <feature-worktree> (phase <phase>); start
+#<id> after #<b>'s PR merges and #<b> is closed`.
 
 **Save it all as `tasks/stories/<id>/ticket.md`**, one heading per part — `## Item` (the `get-issue.sh`
 output), `## Children`, `## Blockers` (each with its state), `## Comments` (author, date and text of
@@ -690,6 +695,33 @@ main the whole time: `<home>` is the project root, `<state>` its `tasks/` folder
 **Who writes what.** You (the main session) write `tasks/features/<fid>/`, `tasks/stories/<sid>/` and git
 state; the builders write product code and tests in the Feature worktree. You never edit story code.
 
+**Several Features at once.** Open one session per Feature, each in the home folder, each running
+`/implement <fid>` (ADR-0006). Each session writes only its own `tasks/features/<fid>/` and its stories'
+folders. A shared file (`lessons.md`/`notes.md`, the sprint file) is read just before it is edited; a failed
+Edit is re-read and redone, never written over. A git command that meets another session's lock file is
+retried by `worktree.js`, which never deletes a lock. Stories inside a Feature still go one at a time.
+
+### Another session on the same Feature
+
+Run this first, before **Plan the Feature** step 1 and first in **Resume a Feature**: two sessions
+building one Feature would write one worktree and one state file.
+
+```bash
+node "<skill-dir>/bin/feature-state.js" claim --feature <fid> --session "${CLAUDE_SESSION_ID}"
+```
+
+- `free` → carry on; the claim now names this session.
+- `busy <fid>: session <s>, last activity <n>m ago (<event>)` → **stop**, show the line and ask:
+  "(A) Stop — that session is still building it; (B) That session is closed, take it over." On (B), run
+  the command again with `--take-over`.
+- `took over <fid> from session <s>, idle <n>m` (before `free`) → the claim was taken from a session that had
+  gone quiet for 30 minutes or more; never silent, so tell the person in one line, so that a session that was
+  only waiting is not lost without notice.
+
+Never self-answered, under `--autonomous` too: it is the contradiction pause-anyway trigger, and a wrong
+guess means two sessions writing one Feature. A session id that is empty or not substituted is refused
+(exit 2): stop and say so.
+
 ### Plan the Feature
 
 1. **Read the stories through `tracker-helper`** (model: `haiku`), which keeps whole tickets out of this
@@ -729,7 +761,9 @@ TITLE_END
    model: `opus`) in its **Feature-plan mode**. Give it the goals, the brief, the tickets, the story
    order, the Feature's Demo, the `Probes to build:` lines from the Observe check and both folders; it
    writes `tasks/features/<fid>/plan.md` and no other plan. Its format is in the planner's Feature-plan
-   mode.
+   mode. **A numbered file** (an ADR, a migration) takes a number that is free on the base branch and not
+   named in another Feature's `tasks/features/*/plan.md`: give the planner those paths, and the plan says
+   `Reserves: ADR-<n>` on the story that creates it.
 5. **Check the plan, before the gate.** The four plan checks run on the Feature plan; each prints
    nothing when all is well:
 
@@ -783,11 +817,13 @@ TITLE_END
 After plan approval and before any worktree exists, two checks; each prints nothing when all is well.
 
 ```bash
-node "<skill-dir>/bin/disk-check.js"
+node "<skill-dir>/bin/disk-check.js" --feature <fid> --root "<home>"
 node "<skill-dir>/bin/allowlist-check.js"
 ```
 
-- **Disk:** two worktrees (the Feature and the Prove-it scratch copy) × `worktree-size-gb` (default 3 GB).
+- **Disk:** two worktrees (the Feature and the Prove-it scratch copy) × `worktree-size-gb` (default 3 GB),
+  plus what other Features being built from this home folder will still create (their Prove-it copy, and
+  their worktree if not made yet).
   `not enough disk: ...` → **stop** before creating anything, showing the space needed and free.
 - **Allowlist:** background agents show their permission prompts in this session, so one command
   nobody approved stalls the whole run. The script lists every command the run will use — the git
@@ -821,6 +857,18 @@ Feature worktree as its **work folder** and `<state>` as its **state folder**, a
 decisions to `tasks/features/<fid>/decisions-log.md`, each line starting `#<sid>:`." Before each
 story run `worktree.js check-branch --path "<feature-worktree>" --expect "<feature-branch>"`
 (a moved branch is a contradiction pause-anyway trigger: **stop**, never self-answered).
+
+**Shared test resources.** When lessons/notes set `verify-lock: global`, every brief to `story-builder`,
+`suite-runner` and `prover` carries one extra line:
+
+`Test lock: node "<skill-dir>/bin/test-lock.js" run --lock "<state>/.verify.lock" --heartbeat "<state>/features/<fid>/heartbeat" --`
+
+With it, Features built side by side take turns on a shared port, database, Docker or cache. The heartbeat
+file is refreshed every minute while a session waits for the lock or runs a long command, so
+`feature-state.js claim` never reads that session as idle. The agents put the line in front of one command;
+a compound command (`a && b`) is not wrapped, so they wrap each command on its own. On Windows the lock finds
+`npm`, `npx` and the other `.cmd` shims itself. The default (`per-story`) passes none: each Feature has its
+own worktree and one story in flight.
 
 Then loop on `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`:
 
@@ -953,9 +1001,11 @@ and lets the Feature go ahead without it.
 
 ### Resume a Feature
 
-`/implement --resume <fid>` on a Feature (it has `tasks/features/<fid>/feature-state.md`):
+`/implement --resume <fid>` on a Feature (it has `tasks/features/<fid>/feature-state.md`). First run
+the claim from **Another session on the same Feature**, and stop on `busy`; then:
 
 ```bash
+node "<skill-dir>/bin/feature-state.js" claim --feature <fid> --session "${CLAUDE_SESSION_ID}"
 node "<skill-dir>/bin/feature-state.js" resume --feature <fid> --feature-worktree "<feature-worktree>"
 ```
 

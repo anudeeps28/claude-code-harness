@@ -117,11 +117,13 @@ only the verify step is serialized:
 ```bash
 cd "<work folder>"
 
-# Acquire (mkdir is atomic). Break a lock older than 20 minutes — its owner died.
+# Acquire (mkdir is atomic). Break a lock older than 20 minutes — its owner died — but never one that
+# holds an "owner" file: that is test-lock.js's lock (builders, runners and provers under verify-lock:
+# global), which breaks itself when its owner process is gone.
 LOCK="<state folder>/stories/<story id>/.verify.lock"   # or the "Verify lock:" path you were given
 for i in $(seq 1 400); do
   if mkdir "$LOCK" 2>/dev/null; then break; fi
-  if [ -d "$LOCK" ] && [ -z "$(find "$LOCK" -maxdepth 0 -mmin -20 2>/dev/null)" ]; then
+  if [ -d "$LOCK" ] && [ ! -e "$LOCK/owner" ] && [ -z "$(find "$LOCK" -maxdepth 0 -mmin -20 2>/dev/null)" ]; then
     rmdir "$LOCK" 2>/dev/null
   fi
   sleep 3
@@ -136,7 +138,9 @@ exit $VERIFY_RC
 The lock is per story: agents in the same story's waves share it, and another story in its own worktree
 has its own (ARCHITECTURE.md §2 #6). A project whose worktrees share a port, a database or a global
 cache sets `verify-lock: global` in its lessons/notes file; the orchestrator then passes
-`Verify lock: <state folder>/.verify.lock`, and every story queues on that one.
+`Verify lock: <state folder>/.verify.lock`, and every story queues on that one. That is the same
+directory `bin/test-lock.js` takes for the story builder, suite runner and prover, so the two kinds of
+holder queue on each other (until the executor is retired, #83).
 
 **Always release the lock**, on success and on failure alike — a lock you leave behind stalls every
 sibling agent until the 20-minute break-in fires. If you cannot acquire it within the loop (20

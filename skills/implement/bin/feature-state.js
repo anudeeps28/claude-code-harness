@@ -35,6 +35,22 @@
 //          marks the story stuck and every story that depends on it, directly or not, held; prints
 //          "needs-person: <sid>" (the card to move) and, on its own line, "held: <ids>" when any
 //
+//   claim  --feature <fid> --session <id> [--take-over] [--now <iso>]   one session builds a Feature at a
+//          time (ADR-0006). Reads and writes tasks/features/<fid>/claim.md ("session:", "claimed:").
+//          Prints "free" (and writes the claim) when there is no claim, it is this session's, or the
+//          Feature's last activity is 30+ minutes old (the newest of the last progress.log line, the
+//          Feature's phase.md, the running story's phase.md and the mtime of tasks/features/<fid>/heartbeat,
+//          which test-lock.js --heartbeat keeps fresh while a session waits for the test lock or runs a
+//          long command); otherwise "busy <fid>: session <s>, last activity <n>m ago (<event>)", exit 1,
+//          nothing written. A claim taken from another session that was idle prints first
+//          "took over <fid> from session <s>, idle <n>m". --take-over writes the claim regardless.
+//          A new claim is created exclusively (flag wx); a changed one is written to a temp file and
+//          renamed, then read back: two sessions racing give one "free" and one "busy".
+//          An empty --session, or one still reading ${CLAUDE_SESSION_ID}, is refused (exit 2).
+//   together --feature <a> --with <b>   reads both progress.log files: "ok" when a story-started of one
+//          Feature falls between the other's first story-started and its last story-committed (a story
+//          still in flight runs to the latest event of either log), else "apart: ..." (exit 1)
+//
 // Exit codes: 0 ok, 1 refused (cycle, bad value, no state), 2 usage error.
 
 const fs = require('node:fs');
@@ -355,6 +371,174 @@ function cmdSequence(root, opts) {
   return 0;
 }
 
+// The newest sign of life of a Feature: its last progress.log line, its phase.md, the phase.md of the
+// story running now, the heartbeat test-lock.js keeps while this Feature's session waits for the test
+// lock or runs a long command, and the claim itself. Returns {at (ms), what} or null.
+function lastActivity(root, fid, claimedAt) {
+  const dir = path.join(root, 'tasks', 'features', fid);
+  const found = [];
+  const log = path.join(dir, 'progress.log');
+  if (fs.existsSync(log)) {
+    const lines = fs.readFileSync(log, 'utf8').replace(/\r/g, '').split('\n').filter((l) => / ts=\S+/.test(l));
+    const last = lines[lines.length - 1];
+    if (last) {
+      const ts = Date.parse(last.match(/ ts=(\S+)/)[1]);
+      const ev = last.match(/ event=(\S+)/);
+      if (Number.isFinite(ts)) found.push({ at: ts, what: ev ? ev[1] : 'progress' });
+    }
+  }
+  const phaseOf = (file, label) => {
+    if (!fs.existsSync(file)) return;
+    const text = fs.readFileSync(file, 'utf8');
+    const u = text.match(/^updated: (\S+)/m);
+    const d = text.match(/^detail: (.*)$/m);
+    const at = u ? Date.parse(u[1]) : NaN;
+    if (Number.isFinite(at)) found.push({ at, what: (d && d[1].trim()) || label });
+  };
+  phaseOf(path.join(dir, 'phase.md'), 'phase.md');
+  const state = readState(root, fid);
+  for (const s of state ? state.stories.filter((x) => x.status === 'running') : []) {
+    phaseOf(path.join(root, 'tasks', 'stories', s.id, 'phase.md'), `story ${s.id} phase.md`);
+  }
+  try {
+    found.push({ at: fs.statSync(path.join(dir, 'heartbeat')).mtimeMs, what: 'test lock' });
+  } catch { /* no heartbeat: this session never waited on the test lock */ }
+  const c = Date.parse(claimedAt);
+  if (Number.isFinite(c)) found.push({ at: c, what: 'claimed' });
+  return found.sort((a, b) => b.at - a.at)[0] || null;
+}
+
+// One session builds a Feature at a time (ADR-0006): the claim names the session that does.
+// `hooks.afterRead` (tests only) runs once, right after the first read of the claim file.
+function cmdClaim(root, opts, hooks = {}) {
+  const session = opts.session === undefined ? '' : clean(opts.session);
+  if (!session || session.includes('${')) return fail(2, 'no session id: --session is empty or still reads ${CLAUDE_SESSION_ID} (not substituted); the claim is refused, nothing was written');
+  const now = opts.now ? Date.parse(opts.now) : Date.now();
+  if (!Number.isFinite(now)) return fail(2, `bad --now: ${opts.now}`);
+  const file = path.join(root, 'tasks', 'features', opts.feature, 'claim.md');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const body = `session: ${session}\nclaimed: ${new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z')}\n`;
+  // null when there is no claim file at all.
+  const read = () => {
+    try { return fs.readFileSync(file, 'utf8').replace(/\r/g, ''); } catch (e) { if (e.code === 'ENOENT') return null; throw e; }
+  };
+  const holderOf = (text) => ((text || '').match(/^session: (.*)$/m) || [])[1];
+  // Replace an existing claim in one step: write a temp file, rename it over the claim.
+  // The temp file is removed on failure; a rename that Windows refuses for a moment (EPERM/EBUSY) is retried.
+  const replace = () => {
+    const tmp = `${file}.${process.pid}.tmp`;
+    try {
+      fs.writeFileSync(tmp, body);
+      for (let i = 1; ; i++) {
+        try { fs.renameSync(tmp, file); return; } catch (e) {
+          if ((e.code !== 'EPERM' && e.code !== 'EBUSY') || i >= 5) throw e;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20 * i);
+        }
+      }
+    } catch (e) {
+      fs.rmSync(tmp, { force: true });
+      throw new Error(`cannot replace the claim ${file}: ${e.message}`);
+    }
+  };
+  let afterRead = hooks.afterRead;
+  let text = null;
+  let busy = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    text = read();
+    if (afterRead) { const f = afterRead; afterRead = null; f(); }
+    if (text === null) {
+      // A new claim is created exclusively: of two sessions only one create succeeds.
+      try { fs.writeFileSync(file, body, { flag: 'wx' }); out('free'); return 0; } catch (e) { if (e.code === 'EEXIST') continue; throw e; }
+    }
+    const holder = holderOf(text);
+    let tookOver = null;
+    if (holder && holder.trim() !== session) {
+      if (opts['take-over'] !== 'true') {
+        const act = lastActivity(root, opts.feature, (text.match(/^claimed: (\S+)/m) || [])[1]);
+        const minutes = act ? Math.floor((now - act.at) / 60000) : Infinity;
+        if (minutes < HANG_MINUTES) { busy = `busy ${opts.feature}: session ${clean(holder)}, last activity ${minutes}m ago (${clean(act.what)})`; break; }
+        tookOver = `took over ${opts.feature} from session ${clean(holder)}, idle ${Number.isFinite(minutes) ? `${minutes}m` : 'for an unknown time'}`;
+      }
+      // Taking over another session's claim is atomic: of two sessions renaming the same claim aside only
+      // one succeeds; the loser (ENOENT) re-reads and reports busy. The moved file must be the claim that
+      // was judged: if it is another one, it is put back and this session reports busy.
+      const taken = `${file}.taken-${process.pid}`;
+      try { fs.renameSync(file, taken); } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+        text = read();
+        if (text === null) continue;
+        break;
+      }
+      if (fs.readFileSync(taken, 'utf8').replace(/\r/g, '') !== text) {
+        if (fs.existsSync(file)) fs.rmSync(taken, { force: true }); else fs.renameSync(taken, file);
+        text = read();
+        break;
+      }
+      try { fs.writeFileSync(file, body, { flag: 'wx' }); } catch (e) {
+        fs.rmSync(taken, { force: true });
+        if (e.code !== 'EEXIST') throw e;
+        text = read();
+        break;
+      }
+      fs.rmSync(taken, { force: true });
+      if (tookOver) out(tookOver);
+      out('free');
+      return 0;
+    }
+    replace();
+    // Two sessions may have replaced at once: the one the file names now holds the claim.
+    const after = holderOf(read());
+    if (after !== undefined && after.trim() === session) {
+      if (tookOver) out(tookOver);
+      out('free');
+      return 0;
+    }
+    text = read();
+  }
+  const holder = holderOf(text) || 'unknown';
+  const act = lastActivity(root, opts.feature, ((text || '').match(/^claimed: (\S+)/m) || [])[1]);
+  out(busy || `busy ${opts.feature}: session ${clean(holder)}, last activity ${act ? Math.floor((now - act.at) / 60000) : '?'}m ago (${act ? clean(act.what) : 'unknown'})`);
+  return 1;
+}
+
+// Did two Features' stories run side by side? Reads both progress.log files.
+// A Feature's window runs from its first story-started to its latest story-committed. A story still in
+// flight (started, not committed or stuck yet) has no end, so its window runs to the latest event of
+// either log: `latest` here, and the other Feature's in cmdTogether.
+function storyWindow(root, fid) {
+  const file = path.join(root, 'tasks', 'features', fid, 'progress.log');
+  const starts = [];
+  const last = new Map(); // story id -> its latest event
+  let lastCommit = null;
+  let latest = null;
+  if (fs.existsSync(file)) {
+    for (const line of fs.readFileSync(file, 'utf8').replace(/\r/g, '').split('\n')) {
+      const ts = Date.parse((line.match(/ ts=(\S+)/) || [])[1]);
+      const ev = (line.match(/ event=(\S+)/) || [])[1];
+      const sid = (line.match(/ story=(\S+)/) || [])[1];
+      if (!Number.isFinite(ts)) continue;
+      if (latest === null || ts > latest) latest = ts;
+      if (ev === 'story-started') starts.push(ts);
+      if (sid && (ev === 'story-started' || ev === 'story-committed' || ev === 'story-stuck')) last.set(sid, ev);
+      if (ev === 'story-committed' && (lastCommit === null || ts > lastCommit)) lastCommit = ts;
+    }
+  }
+  const open = [...last.values()].some((ev) => ev === 'story-started');
+  return { starts, first: starts.length ? Math.min(...starts) : null, lastCommit, latest, open };
+}
+
+function cmdTogether(root, opts) {
+  if (!opts.with || !ID_RE.test(opts.with) || opts.with.includes('..')) return fail(2, '--with <fid> is required, letters, digits, . _ - only');
+  const a = storyWindow(root, opts.feature);
+  const b = storyWindow(root, opts.with);
+  const latestOfBoth = Math.max(a.latest === null ? -Infinity : a.latest, b.latest === null ? -Infinity : b.latest);
+  const endOf = (w) => (w.open ? Math.max(w.lastCommit === null ? -Infinity : w.lastCommit, latestOfBoth) : w.lastCommit);
+  const inside = (x, y) => y.first !== null && endOf(y) !== null && x.starts.some((t) => t >= y.first && t <= endOf(y));
+  if (inside(a, b) || inside(b, a)) { out('ok'); return 0; }
+  out(`apart: no story of #${opts.feature} started between #${opts.with}'s first story-started and its last story-committed, or the other way round; they were built one after the other`);
+  return 1;
+}
+
 function cmdStuck(root, opts) {
   const state = load(root, opts.feature);
   if (!state.stories.some((s) => s.id === opts.story)) return fail(1, `no story #${opts.story} in Feature #${opts.feature}`);
@@ -392,7 +576,8 @@ function parse(argv) {
   const opts = {};
   const pairs = [];
   for (let i = 0; i < rest.length; i++) {
-    if (rest[i].startsWith('--')) {
+    if (rest[i] === '--take-over') opts['take-over'] = 'true';
+    else if (rest[i].startsWith('--')) {
       if (rest[i + 1] === undefined) fail(2, `${rest[i]} needs a value`);
       opts[rest[i].slice(2)] = rest[++i];
     } else pairs.push(rest[i]);
@@ -408,12 +593,12 @@ function main() {
   const commands = {
     init: () => cmdInit(root, opts), set: () => cmdSet(root, opts, pairs), next: () => cmdNext(root, opts),
     resume: () => cmdResume(root, opts), stuck: () => cmdStuck(root, opts), hung: () => cmdHung(root, opts),
-    sequence: () => cmdSequence(root, opts),
+    sequence: () => cmdSequence(root, opts), claim: () => cmdClaim(root, opts), together: () => cmdTogether(root, opts),
   };
-  if (!commands[command]) fail(2, 'usage: feature-state.js init|set|next|resume|stuck|hung|sequence --feature <fid> [...] (see the header of this file)');
+  if (!commands[command]) fail(2, 'usage: feature-state.js init|set|next|resume|stuck|hung|sequence|claim|together --feature <fid> [...] (see the header of this file)');
   process.exit(commands[command]());
 }
 
 if (require.main === module) main();
 
-module.exports = { readState };
+module.exports = { readState, cmdClaim };

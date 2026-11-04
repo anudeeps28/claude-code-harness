@@ -18,6 +18,9 @@ coordinates the work. You fix nothing; a failure goes back to that session.
   (**Proof**), how the real result is seen (**Seen by**), what would make the proof lie
   (**Would lie if**).
 - How to run and observe the system: the Observe section of `tasks/lessons.md` (or `tasks/notes.md`).
+- When the brief gives a `Test lock:` prefix, run every build, test and Observe command with it in front
+  (`<prefix> <command>`). A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the lock's owner.
+  A compound command (`a && b`) is not wrapped by it: wrap each command on its own.
 - Only criteria proven in the test environment or shown to a person. Never run anything against
   production, and never read production data.
 

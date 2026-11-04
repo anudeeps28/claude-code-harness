@@ -7,7 +7,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 
 const SCRIPT = path.join(__dirname, '..', 'bin', 'worktree.js');
 
@@ -85,6 +85,48 @@ test('Feature_PathIsAPlainFolder_RefusedWithAClearReason', () => {
   assert.equal(s.code, 1, s.out);
   assert.match(s.out, /exists and is not a git worktree/);
   assert.doesNotMatch(s.out, /branch-moved/);
+});
+
+// ── git lock files held by another session (F73 #82, AC6) ─────────────
+
+function plantRefLock(r) {
+  const lockDir = path.join(r.home, '.git', 'refs', 'heads', 'feature');
+  fs.mkdirSync(lockDir, { recursive: true });
+  const lock = path.join(lockDir, 'x.lock');
+  fs.writeFileSync(lock, '');
+  return lock;
+}
+
+test('Feature_RefLockHeldBriefly_RetriedAndCreated', async () => {
+  const r = repo();
+  const lock = plantRefLock(r);
+  const child = spawn(process.execPath, [SCRIPT, 'feature', '--home', r.home, '--path', r.fwt, '--branch', 'feature/x'], { encoding: 'utf8' });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.stderr.on('data', (d) => { out += d; });
+  const done = new Promise((resolve) => child.on('close', resolve));
+  // Timing is the criterion: the other session's lock is held for a second, then released.
+  setTimeout(() => fs.rmSync(lock, { force: true }), 1000);
+  const code = await done;
+  assert.equal(code, 0, out);
+  assert.match(out, /created /);
+  assert.equal(git(r.fwt, 'branch', '--show-current'), 'feature/x');
+});
+
+test('Feature_LockNeverReleased_NamesTheLock', () => {
+  const r = repo();
+  const lock = plantRefLock(r);
+  const f = run('feature', '--home', r.home, '--path', r.fwt, '--branch', 'feature/x');
+  assert.equal(f.code, 1, f.out);
+  assert.match(f.out, /x\.lock is held: another git command is running, or one stopped and left it; check, then remove it/);
+  assert.ok(fs.existsSync(lock), 'the run never deletes a lock itself');
+  assert.ok(!fs.existsSync(r.fwt), 'no worktree was made');
+  // Companion: a real failure that is not a lock is not retried or reworded.
+  const plain = repo();
+  fs.mkdirSync(path.join(plain.fwt, 'lib'), { recursive: true });
+  const p = run('feature', '--home', plain.home, '--path', plain.fwt, '--branch', 'feature/1-x');
+  assert.equal(p.code, 1, p.out);
+  assert.doesNotMatch(p.out, /is held/);
 });
 
 test('CheckBranch_ReportsAMovedBranch', () => {

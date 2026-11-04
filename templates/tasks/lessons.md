@@ -141,7 +141,7 @@ Examples:
 > branch. Leave a line as a placeholder to keep its default.
 
 - worktree-size-gb: `<!-- default 3; disk per worktree with dependencies restored, for the startup disk check -->`
-- verify-lock: `<!-- default per-story; "global" if worktrees share a port, a database or a global cache -->`
+- verify-lock: `<!-- default per-story (no lock); "global" if Features running side by side share a port, a database, Docker or a global cache -->`
 
 ---
 

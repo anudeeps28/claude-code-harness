@@ -11,7 +11,9 @@ This file teaches the AI harness (Claude Code, Cursor, Aider, Cline, Continue, e
 
 ## Core Principle
 
-**1 worktree = 1 folder = 1 branch = 1 AI terminal context.**
+**1 worktree = 1 folder = 1 branch = 1 AI terminal context.** For a Feature run this reads: **one Feature = one worktree = one branch = one session** (ADR-0006).
+
+A Feature session runs from the home folder (as the factory's `work-feature` runs from its clone), never edits code there, and writes only its own `tasks/` folders, so several Feature sessions may share the home folder. A standalone run builds in the folder it runs in, so it is still one per folder.
 
 The home folder is pinned to `main` (or the project's default branch). Every feature, fix, or PR-review lives in its own sibling folder named `<repo>-<short-name>`. Each worktree gets its own AI terminal — no stash/checkout dance, no cross-contamination between in-flight work.
 
@@ -124,7 +126,7 @@ confirmation: the person approved it when they approved the Feature plan (ADR-00
   folder**, ADR-0004).
 
 It is a sibling of the home folder, never nested in it, and the session-start cleanup above applies to
-it like any other worktree. Parallel work is one worktree per Feature, never per story.
+it like any other worktree. Parallel work is one worktree per Feature, never per story. A second session on the same Feature is refused (`feature-state.js claim`, ADR-0006).
 
 ---
 

@@ -279,8 +279,9 @@ Four sections of `tasks/lessons.md` (`tasks/notes.md` on the solo pack) drive it
   read-only API and database, the *names* of their credential variables (never the values), and the
   e2e command. `/implement` checks the item's Demo against it before planning.
 - **Feature runs** — `worktree-size-gb` (default 3, used for the disk check: the Feature
-  worktree plus the Prove-it copy) and `verify-lock` (`global` when worktrees share a port, database
-  or cache). Stories run one at a time, so there is no width setting.
+  worktree plus the Prove-it copy) and `verify-lock` (default per-story, no lock; `global` if Features
+  running side by side share a port, a database, Docker or a global cache). Stories run one at a time,
+  so there is no width setting.
 - **Worktree setup** — the gitignored files each new worktree needs, and its restore commands.
 
 On the **enterprise** pack (`workflowPack: enterprise` in `.claude/.harness-manifest.json`),

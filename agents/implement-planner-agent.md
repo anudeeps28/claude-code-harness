@@ -494,6 +494,10 @@ the builders take their story's section as written. Everything above (Demo, sour
 the proof lines, probes, open questions, test-first wording, the authority limits) applies unchanged,
 per story.
 
+A numbered file takes a number that no other `tasks/features/*/plan.md` names, as well as one free on
+the base branch (an ADR, a migration): the orchestrator gives you those paths. Say `Reserves: <name>-<n>`
+(for example `Reserves: ADR-0007`) on the story that creates it.
+
 The file, in this order:
 
 ```markdown

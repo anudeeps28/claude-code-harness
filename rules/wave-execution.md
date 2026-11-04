@@ -208,6 +208,11 @@ foreign work when the tree is dirty **and** any of these hold:
 - another story's `tasks/stories/<other-id>/phase.md` is fresh (see `rules/phase-markers.md` — freshness
   comes from `updated`, never from the file merely existing).
 
+A marker with a `feature:` key is a Feature run in its own worktree, not foreign work here: such a run
+writes only `tasks/` in this folder, and paths under `tasks/` are not counted as dirty for this check.
+The same Feature open in two sessions is a different check, the claim (`feature-state.js claim`,
+ADR-0006). A standalone run still builds in the folder it runs in, so the bullets above hold for it.
+
 **Show what was found and ask** — do not refuse outright and do not proceed silently. Dirty state is
 often the human's own scratch work, so the decision is theirs:
 

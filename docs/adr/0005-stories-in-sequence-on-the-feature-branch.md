@@ -29,7 +29,8 @@ step.
   `suite-runner` runs the suite and shows red, then green; `story-reviewer` reviews. That is about six
   agents per story, plus fix rounds. Opus is kept for the jobs that need judgement.
 - **Parallel only across Features.** Two Features side by side, each in its own Feature worktree, is
-  planned (story #73) and not built yet. Stories inside a Feature never overlap.
+  built (story #82): one session per Feature, in the home folder ([ADR-0006](0006-one-session-per-feature.md)).
+  Stories inside a Feature never overlap.
 - **Resume reads the `Story:` commits.** A story with its commit is done and never redone.
 - **The sequence is proven** by `feature-state.js sequence`, which reads the Feature's progress
   log and reports any two stories that were in flight at the same time.
