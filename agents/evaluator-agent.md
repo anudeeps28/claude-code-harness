@@ -17,7 +17,7 @@ You are a separate agent from the one that wrote this code. You have no loyalty 
 
 You receive:
 - **Story ID or branch name** — identifies the work to evaluate
-- **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
+- **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (the Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Plan path** (optional) — path to the plan file describing what was supposed to be built
 - **Source requirements** (optional) — the ticket or brief holding `## Source requirements`: the lines
   of the source document the work was traced to. They outrank the plan: a plan that dropped or

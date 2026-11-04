@@ -131,8 +131,8 @@ When `/plan-features` has broken the work into a Feature with stories:
 
 #40 is a Feature, so `/implement` builds all of it. It shows one plan — the stories in dependency
 order, the Feature's Demo, and anything it needs from you — and that is the only stop. Then each story
-is built in its own git worktree, stories that don't depend on each other at the same time, and merged
-into the Feature branch only after its tests pass. Once every story has merged, a full review panel and
+is built one after another, in plan order, in one Feature worktree, and committed to the Feature branch
+(`Story: #<id>`) only after its tests pass. Once every story is committed, a full review panel and
 **Prove it** run on the whole Feature, and one PR opens — only when every acceptance criterion is met.
 
 ## Scenario walkthrough: a quick change, no issue

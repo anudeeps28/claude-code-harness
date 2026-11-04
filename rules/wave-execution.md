@@ -24,10 +24,10 @@ nothing to do with the code. Worktrees also stranded the failed agents' work in 
 The protection worktrees were meant to provide — two agents never clobbering the same file — is
 provided by the **pre-wave overlap check** below, which holds regardless of isolation.
 
-In `/implement`'s Feature mode the "working directory" is the one Feature worktree, which the
-orchestrator creates (`rules/git-worktrees.md`). Stories are built in it one after another, and
-everything in this file applies there unchanged: the wave agents share that folder and are spawned
-with no isolation.
+A Feature's stories have no waves and no executors: they are built one after another in the one
+Feature worktree, by `story-builder` jobs. This file applies to standalone single-story runs. The
+Feature worktree still gets the branch-drift check before every story, and the `isolation: "worktree"`
+ban holds there too (`rules/git-worktrees.md`).
 
 ---
 

@@ -32,7 +32,9 @@ If something you need is missing, stop and report `STATUS: NEEDS_CONTEXT` naming
    evidence they will need and report it `needs-person`, with `broke: n/a`.
 2. **If the Feature makes a tool** (a generator, scaffolder, migrator or script), run it once in the
    scratch copy on a second case it was not built for (a made-up second product, a database already at
-   main), then build and test what it produces. Commit that output on the scratch copy's detached
+   main), then build and test what it produces. Before any `git add` or `git commit`, check that
+   `git rev-parse --abbrev-ref HEAD` prints `HEAD` (a detached copy) in that folder; if it prints a branch,
+   refuse and report `STATUS: BLOCKED`. Commit that output on the scratch copy's detached
    commit so the copy is clean again; never push it.
 3. **Break it once.** For each criterion's main test, in the scratch copy only: change the one line
    that makes the criterion true, with the Edit tool (never a script), run that test, and confirm it

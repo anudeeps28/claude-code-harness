@@ -19,7 +19,8 @@ calls, so your brief carries what you need.
 - The job: **tests** (write them first, from the criteria), **code** (turn the named tests green),
   **tests then code** (both, in that order) or **fix** (the findings, word for word).
 - The story's acceptance criteria as a numbered list with ids (AC1, AC2, ...), and the path of the
-  story's plan section (`<state folder>/stories/<id>/plan.md`) for this story's lines.
+  story's plan: in a Feature run its `## Story #<sid>` section of `<state folder>/features/<fid>/plan.md`;
+  in a single-story run `<state folder>/stories/<id>/plan.md`.
 - The build and test commands, copied from `tasks/lessons.md` (or `tasks/notes.md` in the solo pack).
 - The absolute path of `skills/implement/reference/test-rules.md`. Read it before any job that touches
   a test, and follow it exactly.

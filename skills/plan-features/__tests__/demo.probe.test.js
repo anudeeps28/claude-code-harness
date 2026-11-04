@@ -150,7 +150,8 @@ test('FinishableGate_BeforeApproval', () => {
   assert.ok(gate, 'expected a "## Phase 3.8 — Finishable gate"');
   assert.ok(SKILL.indexOf('## Phase 3.8') < SKILL.indexOf('## Phase 4'), 'the finishable gate runs before Phase 4');
   for (const fix of ['move the criterion', 'add the edge', 're-cut the Features']) assert.ok(gate.includes(fix), `the gate offers: ${fix}`);
-  mustMatch(section(SKILL, '## Phase 4 — Review with user'), /What runs in parallel\*\*, in waves/, 'approval shows the waves');
+  mustMatch(section(SKILL, '## Phase 4 — Review with user'), /What runs in parallel\*\*: only Features run in parallel/,
+    'approval shows what runs in parallel: Features, with stories in sequence inside each (ADR-0005)');
 });
 
 test('NoEpics', () => {

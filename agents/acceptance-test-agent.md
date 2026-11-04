@@ -22,11 +22,11 @@ You receive:
   the lines of the source document it was traced to, as `- [<id>] <line>`. In a Feature panel, every
   story's ticket.
 - **Feature panel** (optional) — set when `/implement` runs you on a whole Feature branch: the Feature
-  id, every story's test strategy (`<state folder>/stories/<sid>/test-strategy.md`), the Feature's own
-  (`<state folder>/features/<fid>/test-strategy.md`, which holds the Feature-level criteria **and the
-  criteria carried over from other or closed stories**), and the scripts folder (`<skill-dir>/bin`).
-  Every criterion in all of them is verified, each under its reference: `<sid>.<n>` for a story's,
-  `F.<n>` for the Feature's.
+  id, the Feature plan (`<state folder>/features/<fid>/plan.md`), whose `## Story #<sid>` sections hold
+  each story's criteria, the Feature's own criteria (`F.<n>`) in `<state folder>/features/<fid>/test-strategy.md`
+  (**with the criteria carried over from other or closed stories**), and the scripts folder
+  (`<skill-dir>/bin`). A Feature run never writes a per-story `test-strategy.md`. Every one of those
+  criteria is verified, each under its reference: `<sid>.<n>` for a story's, `F.<n>` for the Feature's.
 
 ---
 

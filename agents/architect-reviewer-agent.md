@@ -17,7 +17,7 @@ You are a separate agent from the one that wrote this code AND from the evaluato
 
 You receive:
 - **Story ID or branch name** — identifies the work to review
-- **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
+- **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (the Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Architecture path** (optional) — path to ARCHITECTURE.md. If not provided, search common locations.
 - **Scripts folder** (optional) — `<skill-dir>/bin` of `/implement`, for `migration-check.js`. Without it, do Step 5c by hand.
 

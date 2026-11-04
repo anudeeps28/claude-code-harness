@@ -73,7 +73,7 @@ fires. This skill produces a plan, not code — see the `/troubleshoot` exceptio
 
 ### Iteration 1 — Fresh investigation
 
-Spawn a **`troubleshoot-investigator`** agent (foreground) with this prompt:
+Spawn a **`troubleshoot-investigator`** agent (foreground, model: `opus`) with this prompt:
 
 > **Investigation request — Iteration 1 (fresh)**
 >
@@ -104,7 +104,7 @@ Wait for the agent to return. Append the findings to `tasks/troubleshoot-active.
 
 Think of it like peer review, not demolition. If previous iterations are on the right track, **build on that direction** — go deeper into the code path, check more edge cases, verify with more evidence. If something doesn't add up, challenge it and propose a correction. The goal is convergence toward truth, not skepticism for its own sake.
 
-Spawn the **same `troubleshoot-investigator`** agent with this prompt:
+Spawn the **same `troubleshoot-investigator`** agent (foreground, model: `opus`) with this prompt:
 
 > **Investigation request — Iteration [N] (deepening pass)**
 >

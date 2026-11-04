@@ -17,7 +17,7 @@ You are a separate agent from the executor, the evaluator, and the architect-rev
 
 You receive:
 - **Story ID or branch name** — identifies the work to review
-- **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
+- **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (the Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Feature panel** (optional) — set when `/implement` runs you on a whole Feature branch (`main...feature/<fid>`), with the Feature id and the scripts folder (`<skill-dir>/bin`). Then you also check `<state folder>/features/<fid>/prove-it.md` and `pr-body.md` if they exist (Step 5d). Steps 0 and 5a–5c run on every review.
 
 ---

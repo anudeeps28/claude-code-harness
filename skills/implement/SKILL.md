@@ -145,7 +145,7 @@ Parse `$ARGUMENTS`:
      - Plain text description → **no ID given.** Offer to register it first so the work lands in the local task registry:
        > "No task ID given. Create a local task for this so it's tracked? (I'll have tracker-helper run `create-issue.sh` and use the new ID — say "yes", or "skip" to build it ad-hoc without a registry entry.)"
 
-       If YOUR_NAME says **yes**: tracker-helper runs `TRACKER_ITEM_TYPE=<Story|Bug> bash trackers/active/create-issue.sh "<description>" "" ""` (`Bug` when the description is a defect) → capture the new numeric ID from the helper's report and treat it as the task ID from here on. If YOUR_NAME says **skip**: proceed with the plain description and no registry entry — the zero-tracker escape hatch, still fully supported.
+       If YOUR_NAME says **yes**: tracker-helper runs `TRACKER_ITEM_TYPE=<Story|Bug> bash trackers/active/create-issue.sh <title from the description> <empty body> <empty labels>` (`Bug` when the description is a defect), with the description written to a temp file and passed through a single-quoted heredoc, never inside double quotes (`agents/tracker-helper.md`) → capture the new numeric ID from the helper's report and treat it as the task ID from here on. If YOUR_NAME says **skip**: proceed with the plain description and no registry entry — the zero-tracker escape hatch, still fully supported.
    - If the active tracker is `todoist`:
      - Quoted strings or task titles → it's a **Todoist task title** — search for it using `trackers/active/get-sprint-issues.sh` and match by title
      - Numeric IDs without `#` → it's a **Todoist task ID** — fetch via `trackers/active/get-issue.sh <ID>`
@@ -281,9 +281,9 @@ it; it reads each write back and reports it. The same goes for every deferral `c
 | Phase 3, as the reviews start | `bash trackers/active/set-status.sh <id> in-review` |
 | the PR is opened | `bash trackers/active/set-status.sh <id> done` — or `needs-person` when a criterion proven by a sign-off has not been signed (Phase 1c) |
 | the run stops for a person — a pause-anyway trigger, the 3-attempt rule, a FAIL or BLOCKED it cannot pass | `bash trackers/active/set-status.sh <id> needs-person` |
-| Feature mode: a story starts (step 1 of **Run the stories**) | `bash trackers/active/set-status.sh <sid> in-progress` |
-| Feature mode: a story is committed (step 7) | `bash trackers/active/set-status.sh <sid> done` |
-| Feature mode: a story is stuck | `bash trackers/active/set-status.sh <sid> needs-person`; the stories held behind it are not moved |
+| Feature mode: the first story starts (step 1 of **Run the stories**), its own call | `bash trackers/active/set-status.sh <sid> in-progress` |
+| Feature mode: a story is committed (step 7), one call that also starts the next story, if `next` hands one out | `bash trackers/active/set-status.sh <sid> done`, then `bash trackers/active/set-status.sh <next sid> in-progress` for the next story |
+| Feature mode: a story is stuck, its own call | `bash trackers/active/set-status.sh <sid> needs-person`; the stories held behind it are not moved |
 
 **A failed status write never stops the run.** The card is a mirror of the run, not part of the work:
 when the helper reports a failed write, or the helper itself fails, print `event=tracker-error` with the script's error as the detail, and carry on. On ADO a status with no
@@ -326,6 +326,7 @@ names an agent or adapter script that is not listed here. Format: `- <kind> \`<n
 - agent `story-executor-agent` — Phase 2 · build
 - agent `coverage-auditor-agent` — the closing check, via `/coverage-audit` · build
 - agent `debug-agent` — the 3-attempt rule, via `/debug` · both
+- agent `troubleshoot-investigator` — the e2e gate, via `/troubleshoot` · build
 - agent `evaluator-agent` — Phase 3 review · build
 - agent `acceptance-test-agent` — Phase 3 review · build
 - agent `architect-reviewer-agent` — Phase 3 review · build
@@ -387,6 +388,7 @@ Evidence for the frontmatter `model:`: the Claude Code docs, skills page, frontm
 | `security-reviewer-agent` | security review | opus |
 | `loosened-reviewer-agent` | the Feature panel's loosened checks | sonnet |
 | `prover` | Prove it: each criterion's proof, a tool on a second case, a break | sonnet |
+| `troubleshoot-investigator` | `/troubleshoot` investigation in the e2e gate | opus |
 | `prover` | Prove it, job diagnose: the cause of a failed criterion | opus |
 | `coverage-auditor-agent` | the closing check, started by `/coverage-audit` | opus |
 | `debug-agent` | root cause, started by `/debug` | opus |
@@ -443,6 +445,8 @@ updated: <ISO-8601 UTC now>
 ```bash
 node "<skill-dir>/bin/progress.js" <id> <event> <phase> "<detail>"
 ```
+
+`<detail>` is a value written by the run itself, on one line: never ticket text or tool output.
 
 which prints, for example:
 
@@ -635,7 +639,7 @@ skill).
 thread, not the virtual typed-feedback item), run in sequence:
 
 ```bash
-bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/reply-pr-thread.sh" <PR#> <id> "<reply text>"
+bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/reply-pr-thread.sh" <PR#> <id> "$(cat <reply file>)"
 bash "YOUR_PROJECT_ROOT/.claude/code-platform/active/resolve-pr-thread.sh" <PR#> <threadId>
 ```
 
@@ -653,7 +657,7 @@ content into the command line.
 place:
 
 ```bash
-git add <only the paths your fixes touched> && git commit -m "<message>" && git push
+git add <only the paths your fixes touched> && git commit -F <message file> && git push
 ```
 
 Stage only the specific files the fix list actually changed — do **not** `git add -A`, which would
@@ -677,7 +681,7 @@ per the 3-failed-attempts pause-anyway trigger — the same rule the rest of thi
 `/implement <feature-id>` builds a whole Feature: one plan approval, a Feature worktree, the stories
 built one after another in that worktree, one commit per story on the Feature branch,
 one full review panel and Prove it on the whole Feature branch, and one PR from the Feature branch to
-main, opened only when every criterion passes the PR gate (ARCHITECTURE.md §1, ADR-0001 to ADR-0004).
+main, opened only when every criterion passes the PR gate (ARCHITECTURE.md §1, ADR-0001, ADR-0004 and ADR-0005).
 **Only one story is ever in flight**; `story-builder` and `story-reviewer` do the work for it.
 
 The scripts live in `<skill-dir>/bin/`. Every command below runs from the home folder, which stays on
@@ -700,9 +704,13 @@ state; the builders write product code and tests in the Feature worktree. You ne
 2. **Order them and write the state:**
 
    ```bash
-   node "<skill-dir>/bin/feature-state.js" init --feature <fid> --title "<feature title>" \
-     --stories tasks/features/<fid>/stories.json --run-mode <interactive|autonomous> --base <base branch>
+   node "<skill-dir>/bin/feature-state.js" init --feature <fid> --title "$(cat <<'TITLE_END'
+<feature title>
+TITLE_END
+)" --stories tasks/features/<fid>/stories.json --run-mode <interactive|autonomous> --base <base branch>
    ```
+
+   The title is ticket text: it goes in through the single-quoted heredoc, never inside double quotes.
 
    `<base branch>` is the branch the Feature starts from: `main`, or `trunk`/`master` when that is the
    repo's default branch. It is saved in `feature-state.md` as `base:`, and the Feature worktree and
@@ -818,16 +826,21 @@ Then loop on `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`:
 
 - `story <sid>` → build it, steps 1–7 below;
 - `running <sid>` → a story is already in flight (a resumed run): carry on with it from its saved
-  `executor-state.md`;
+  `executor-state.md` (**Resume a Feature** has already run the hang check);
 - `done` → every story is committed: go to **The Feature panel** (after the sequence check below);
 - `held: ...` → a story is stuck and nothing else can run: go to **Stuck stories**.
+
+**There is no hang check in this loop.** Agents run in the foreground, so a live session cannot see a
+hung one (a hung call never returns), and checking between calls only misfires on a slow agent: a hang
+ends with the person stopping the session and resuming, and **Resume a Feature** runs the hang check.
 
 **Build one story:**
 
 1. **Start it.** `feature-state.js set --feature <fid> --story <sid> status=running step=tests
-   base=<git rev-parse HEAD in the Feature worktree> started=<now>`; its own `tracker-helper`
-   call (model: `haiku`) moves its card to `in-progress` — never batched with another move
-   (**Moving the card**); print `event=story-started`. Before each subagent boundary below, overwrite
+   base=<git rev-parse HEAD in the Feature worktree> started=<now>`. For the first story of the run
+   (or a resumed one), its own call: one `tracker-helper` call (model: `haiku`) moves its card to `in-progress`
+   (**Moving the card**); every later story's card was already moved by the previous story's step 7.
+   Print `event=story-started`. Before each subagent boundary below, overwrite
    `tasks/stories/<sid>/phase.md` per `rules/phase-markers.md` (with the `feature` and `story` keys),
    with the phase named in the step.
 2. **Tests first.** Write `phase: coding`, then spawn `story-builder` (job `tests`, model: `sonnet`) in
@@ -873,12 +886,17 @@ Then loop on `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`:
    (`event=run-paused`). A fix is followed by a green scoped run before the next round. When the
    review is clean, set `step=commit`.
 7. **Commit.** Stage the union of the paths the builders reported, by path, never `git add -A` (a
-   dirty tree holds work that is not this story's). Commit only when the scoped set is green on the
+   dirty tree holds work that is not this story's). Before the commit, `git diff --cached --name-only`
+   must hold only that story's paths: anything else in the index (a stuck story's leftovers, someone
+   else's staging) is a stop, never committed. Commit only when the scoped set is green on the
    final state, **never on red**. The message is `<type>: <title>`, then `Acceptance criteria covered:` with one
-   line per criterion and its test, then the trailer `Story: #<sid>`. Then:
+   line per criterion and its test, then the trailer `Story: #<sid>`. Write it to a file under the
+   system temp directory and run `git commit -F <file>`: never message text inside double quotes on the
+   command line. Then:
    `feature-state.js set --feature <fid> --story <sid> status=committed commit=<sha> finished=<now>
-   step=done`, print `event=story-committed`, and its own `tracker-helper` call (model: `haiku`) moves the
-   card to `done`, not batched with the next story's move. Back to the loop.
+   step=done`, print `event=story-committed`, run `feature-state.js next --feature <fid>`, and make one `tracker-helper` call
+   (model: `haiku`) that moves this story's card to `done` and, when `next` printed `story <next sid>`, the next story's card to
+   `in-progress` (**Moving the card**). Back to the loop.
 
 **Per story, record** `agents=<n> tokens=<n> models=sonnet:<n>,opus:<n>,haiku:<n>` with
 `feature-state.js set`, summed from each agent result's usage (`not measured` stays unset, never a
@@ -912,13 +930,20 @@ person says to stop on it after round 5 of its review:
 node "<skill-dir>/bin/feature-state.js" stuck --feature <fid> --story <sid> --reason "<why, one line>"
 ```
 
+The reason is a value written by the run itself, on one line: never ticket text or tool output.
+
 It marks the story stuck and every story that depends on it, directly or not, held, and prints
 `needs-person: <sid>` and, on its own line, `held: <ids>` (when any story depends on it). Move only the
 stuck story's card to `needs-person`
 (`tracker-helper`, model: `haiku`) and print `event=story-stuck`. The held dependents' cards are left
-untouched: they stay where they are, and the state file says they are held. Save the story's `git diff`
-to `tasks/stories/<sid>/stuck.diff`, then put back only that story's own paths (`rules/wave-execution.md`,
-"restore before retrying"), so the next story starts from a clean tree.
+untouched: they stay where they are, and the state file says they are held. First run `git add -N` on the
+story's new files, so the diff includes them (a plain diff skips untracked files and `stuck.diff` would
+lose them). Then save the story's `git diff HEAD -- <paths>` (staged and unstaged together) to
+`tasks/stories/<sid>/stuck.diff`. Then put back only that story's own
+paths, new ones included, in one call: `git restore --staged --worktree --source=HEAD -- <all the story's paths>`.
+A new file is not in HEAD, so this drops its index entry and deletes it. Restoring from the index
+would keep the staged copy, and the next story's `git commit` would take the stuck code. Index and tree must match HEAD for those paths
+before the next story starts (`rules/wave-execution.md`, "restore before retrying").
 
 Independent stories still run and commit: `next` keeps handing them out. When `next` prints `held: ...`,
 nothing else can run: **pause** with a report (what is committed, what is stuck and why, what is
@@ -952,6 +977,14 @@ one line per story: `skip` (committed: never redone), `restart <sid>: from step 
 When the Feature worktree folder is gone, the command cannot read the branch: it prints `warn: no Feature
 worktree at <path>; committed stories are taken from the state file` first and trusts the state file's
 committed stories. Tell the person, and recreate the worktree before building anything.
+Then run the hang check, here and only here (a live loop cannot see a hung foreground agent; the session
+was stopped mid-step and this is the resume): `node "<skill-dir>/bin/feature-state.js" hung --feature <fid>`.
+Act on what it prints: nothing, or `relaunch <sid>`, means carry on with the restart below (the relaunch
+*is* that restart: start the step once, never twice); `ask <sid>` means the same step has stopped twice
+with no progress: **pause** and ask the person whether to retry the step or mark the story stuck (then
+**Stuck stories**). It never marks a story stuck by itself: nothing is running on a resume, so an old
+`phase.md` says only that the session stopped (a crash, a closed laptop, the usage limit). Setting a new
+`step=` clears the story's count.
 A running story re-enters **Build one story** at the `step=` saved in `feature-state.md`, reading
 `tasks/stories/<sid>/executor-state.md` for what is already done:
 
@@ -992,7 +1025,7 @@ The one full review, run once on the whole Feature branch after every story is c
    |---|---|---|
    | `security-reviewer-agent` | `opus` | — (it runs the built-in `/security-review` from the Feature worktree) |
    | `architect-reviewer-agent` | `opus` | — |
-   | `acceptance-test-agent` | `opus` | the Feature `tasks/features/<fid>/plan.md` and `F.<n>`, every committed story's `test-strategy.md` and `tasks/features/<fid>/test-strategy.md` (Feature-level and carried-over criteria) |
+   | `acceptance-test-agent` | `opus` | the `## Story #<sid>` sections of `tasks/features/<fid>/plan.md` (each story's criteria, `<sid>.<n>`), and its Feature-level criteria, `F.<n>`, from `tasks/features/<fid>/test-strategy.md`, with the carried-over ones |
    | `evaluator-agent`, part `made-false` | `opus` | — |
    | `evaluator-agent`, part `complexity` | `sonnet` | `tasks/features/<fid>/plan.md` |
    | `evaluator-agent`, part `dead-code` | `sonnet` | — |
@@ -1062,7 +1095,8 @@ it proves each criterion, tries a tool on a second case, and breaks each main te
    is started in the foreground with the scratch copy's path, the Feature's `plan.md` path (where each
    criterion's **Proof**, **Seen by** and **Would lie if** lines live), the state folder, the Feature
    id and the Observe section of lessons/notes, and it takes every criterion: each committed story's
-   (`<sid>.<n>`, from its `test-strategy.md`) and the Feature's (`F.<n>`). It runs each **Proof** from
+   (`<sid>.<n>`, from the `## Story #<sid>` section of that `plan.md`) and the Feature's (`F.<n>`, from
+   `tasks/features/<fid>/test-strategy.md`). It runs each **Proof** from
    the plan, seeing the result the way its **Seen by** line says — start the app, the e2e command, the
    read-only API or database, the screenshot — **test environment only**, and records **intended**
    (the criterion), **built** (what the branch changed for it) and **observed** (what happened). A
@@ -1141,8 +1175,9 @@ node "<skill-dir>/bin/pr-gate.js" --feature <fid>
 and why: fix it (the fix loop, then Prove it for that criterion), or, for a criterion that cannot be
 met in this Feature, **ask the person** whether to defer it. Only a person defers a criterion — it
 changes what the Feature delivers, so under `--autonomous` too this is a stop (scope change). On a
-yes: register it through tracker-helper (`TRACKER_ITEM_TYPE=<Bug|Task> bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "deferred"`,
-`rules/deferrals.md`), write `deferred #<id>` on its gate line, link `#<id>` in the PR body, and run the
+yes: register it through tracker-helper (`TRACKER_ITEM_TYPE=<Bug|Task> bash .claude/trackers/active/create-issue.sh <title> <body> deferred`,
+the title and body written to temp files and passed through single-quoted heredocs, never inside double quotes,
+`agents/tracker-helper.md`; `rules/deferrals.md`), write `deferred #<id>` on its gate line, link `#<id>` in the PR body, and run the
 gate again. The gate also refuses raw evidence in `prove-it.md` or `pr-body.md`, naming the line and
 the kind, never the value. A lying test, a claim with nothing behind it and a relaxed check with no
 reason are fixed before the PR, not listed.
@@ -1156,8 +1191,8 @@ When the gate is open (`feature-state.js set --feature <fid> phase=shipping`):
 2. **Build the PR body** (`tasks/features/<fid>/pr-body.md`, written before the gate): the Feature's
    summary and Demo, then
    `node "<skill-dir>/bin/run-report.js" --feature <fid>` — the run report (time, attempts, findings,
-   agents and tokens per story, and in total) and **"Decisions made on your behalf"**, combined from
-   every story's own `decisions-log.md`, each line prefixed with its story id. Then a **Review**
+   agents and tokens per story, and in total) and **"Decisions made on your behalf"**, from the Feature's
+   one `tasks/features/<fid>/decisions-log.md`, each line prefixed `#<sid>:`. Then a **Review**
    section: one line per panel reviewer with its finding count, the findings fixed, any not fixed with
    the reason, follow-up Features by id, and every person's choice; a **Prove it** section: per
    criterion its status and break result, shape only; **"Costs money or changes operations"** from the
@@ -1168,8 +1203,13 @@ When the gate is open (`feature-state.js set --feature <fid> phase=shipping`):
 
    ```bash
    git -C "<feature-worktree>" push -u origin "<feature-branch>"
-   gh pr create --base <base> --head feature/<fid>-<slug> --title "<feature title>" --body-file tasks/features/<fid>/pr-body.md
+   gh pr create --base <base> --head feature/<fid>-<slug> --title "$(cat <<'TITLE_END'
+<feature title>
+TITLE_END
+)" --body-file tasks/features/<fid>/pr-body.md
    ```
+
+   The title is ticket text: it goes in through the single-quoted heredoc, never inside double quotes.
 
    That is the only push in a Feature run: **no story branch is ever pushed**. Under `--no-ship`, stop
    before the push and leave the Feature branch ready.
@@ -1607,8 +1647,9 @@ configured inputs) is a **blocker: fix it in-run**, never a deferral. "Survives 
 sentence below means *survived the fix-or-defer decision as a deferral* — i.e. a No.
 
 **Every deferred finding is registered before the PR is opened**, through tracker-helper —
-`TRACKER_ITEM_TYPE=<Bug|Task> bash .claude/trackers/active/create-issue.sh "<title>" "<body>" "deferred"`
-(`Bug` for a defect, `Task` otherwise — `rules/deferrals.md`) — and the PR's
+`TRACKER_ITEM_TYPE=<Bug|Task> bash .claude/trackers/active/create-issue.sh <title> <body> deferred`
+(`Bug` for a defect, `Task` otherwise — `rules/deferrals.md`; the title and body go to temp files and
+through single-quoted heredocs, never inside double quotes — `agents/tracker-helper.md`) — and the PR's
 "Deferred / follow-ups" section references it **by its tracker id**. A deferral bullet with no id is a
 defect in the run, not a record.
 
@@ -1662,8 +1703,14 @@ or any history rewrite is NOT, and remains a pause-anyway trigger.
 **STOP 3 (`--step` only).** Instead, say "Review the commit messages and PR description above. Run the
 git commands shown, then say 'push' when ready," and wait for YOUR_NAME to commit and push. Then:
 
+Write the body from `story-pr-agent` to a temp file; the title is ticket text, so it goes in through the
+single-quoted heredoc, never inside double quotes:
+
 ```bash
-gh pr create --title "<title>" --body "<body from story-pr-agent>"
+gh pr create --title "$(cat <<'TITLE_END'
+<title>
+TITLE_END
+)" --body-file <temp file>
 ```
 
 ---

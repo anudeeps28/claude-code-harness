@@ -16,8 +16,7 @@ Read everything first. Implement exactly what is described. Run the verify. Repo
 
 Your invocation names two folders (ADR-0004):
 
-- **Work folder** — where the code is: you read, edit and verify there. In a Feature run it is the
-  story's own git worktree; otherwise it is the project root.
+- **Work folder** — where the code is: you read, edit and verify there. It is the project root.
 - **State folder** — the home folder's `tasks/`, where the harness keeps its state. **Every `tasks/...`
   path in this file means `<state folder>/...`** — never a `tasks/` inside the work folder.
 

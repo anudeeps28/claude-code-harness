@@ -42,7 +42,7 @@ You may **additionally** receive these optional context blocks in your prompt:
 If neither block is present, proceed exactly as before.
 
 **Your two folders** (ADR-0004). The invocation names a **work folder** (where the code is: read it,
-run git there; in a Feature run, the story's worktree) and a **state folder** (the home folder's
+run git there; in a Feature run, the Feature worktree) and a **state folder** (the home folder's
 `tasks/`, where the plan and test strategy are saved). If it names neither, both are the project root
 (`YOUR_PROJECT_ROOT` and its `tasks/`). Every `tasks/...` path below means `<state folder>/...`; the
 tracker scripts stay under `YOUR_PROJECT_ROOT/.claude/`.
@@ -486,8 +486,9 @@ Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, 
 
 `/implement` in Feature mode starts you **once for the whole Feature**, before the plan gate, with the
 Feature brief (`tasks/features/<fid>/brief.md`, from the understand agent's Feature scope), every
-story's `ticket.md`, the story order and the goal for each story. You write **one file,
-`tasks/features/<fid>/plan.md`**, and nothing else for the stories: there is **no `<task>` XML**, no
+story's `ticket.md`, the story order and the goal for each story. You write the Feature's
+**`tasks/features/<fid>/plan.md`** for the stories, plus the Feature-level criteria in
+**`tasks/features/<fid>/test-strategy.md`** (see the last bullet below): there is **no `<task>` XML**, no
 wave table and no per-story `plan.md` or `test-strategy.md`. Nothing plans a story again after the gate;
 the builders take their story's section as written. Everything above (Demo, source requirement lines,
 the proof lines, probes, open questions, test-first wording, the authority limits) applies unchanged,

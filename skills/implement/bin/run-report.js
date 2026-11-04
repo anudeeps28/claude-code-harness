@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // run-report.js — the run report and combined decisions log for a Feature's one PR (F4 #47;
-// ARCHITECTURE.md §7). Reads tasks/features/<fid>/feature-state.md and every story's own
-// tasks/stories/<sid>/decisions-log.md (one writer per file), and prints Markdown for the PR body.
+// ARCHITECTURE.md §7). Reads tasks/features/<fid>/feature-state.md and the Feature's one
+// tasks/features/<fid>/decisions-log.md (primary); each story's own tasks/stories/<sid>/decisions-log.md
+// is a fallback for single-story runs and older Feature runs. Prints Markdown for the PR body.
 //
 // Usage: node run-report.js --feature <fid> [--root <home folder>]
 //
@@ -32,6 +33,17 @@ function fmtDuration(s) {
 
 const num = (v) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
 const fmtNum = (n) => n.toLocaleString('en-US');
+
+// The "- " lines of a decisions log, without the dash; [] when the file does not exist.
+function logLines(file) {
+  if (!fs.existsSync(file)) return [];
+  const out = [];
+  for (const line of fs.readFileSync(file, 'utf8').replace(/\r/g, '').split('\n')) {
+    const m = line.match(/^\s*-\s+(.*\S)/);
+    if (m) out.push(m[1]);
+  }
+  return out;
+}
 
 function main() {
   const argv = process.argv.slice(2);
@@ -68,20 +80,11 @@ function main() {
   const decisions = [];
   // The Feature's own log first (since F72 the main session builds every story and writes here, each
   // line already prefixed "#<sid>:" when it is a story's), shown as written.
-  const featureLog = path.join(root, 'tasks', 'features', fid, 'decisions-log.md');
-  if (fs.existsSync(featureLog)) {
-    for (const line of fs.readFileSync(featureLog, 'utf8').replace(/\r/g, '').split('\n')) {
-      const m = line.match(/^\s*-\s+(.*\S)/);
-      if (m) decisions.push(`- ${m[1]}`);
-    }
-  }
+  for (const text of logLines(path.join(root, 'tasks', 'features', fid, 'decisions-log.md'))) decisions.push(`- ${text}`);
   // Then any per-story logs (older runs, and /implement's single-story runs).
   for (const s of state.stories) {
-    const file = path.join(root, 'tasks', 'stories', s.id, 'decisions-log.md');
-    if (!fs.existsSync(file)) continue;
-    for (const line of fs.readFileSync(file, 'utf8').replace(/\r/g, '').split('\n')) {
-      const m = line.match(/^\s*-\s+(.*\S)/);
-      if (m) decisions.push(m[1].startsWith(`#${s.id}:`) ? `- ${m[1]}` : `- #${s.id}: ${m[1]}`);
+    for (const text of logLines(path.join(root, 'tasks', 'stories', s.id, 'decisions-log.md'))) {
+      decisions.push(text.startsWith(`#${s.id}:`) ? `- ${text}` : `- #${s.id}: ${text}`);
     }
   }
   lines.push(...(decisions.length ? decisions : ['None.']));

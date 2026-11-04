@@ -28,8 +28,8 @@ was red. Three results are not a pass and look like one in a summary:
 | A suite that never started | A prerequisite this machine lacks: `did not run`, and name it |
 
 When the brief names an output file, save each command's complete output there (the calling skill may
-keep it as evidence), and still read the whole of it yourself. When the brief names a base ref to
-check out for a baseline run, do only what the brief says.
+keep it as evidence), and still read the whole of it yourself. When the brief names a base ref for a
+baseline run, the checkout happens only in a scratch copy made with `worktree.js scratch`, never in the work folder.
 
 When the brief gives a coverage command and a diff, run the coverage command and also report the share
 of the diff's changed lines the tests ran, and the uncovered lines as `file:line` ranges.

@@ -199,6 +199,7 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/architect-reviewer-agent.md',
     'agents/security-reviewer-agent.md',
     'agents/debug-agent.md',
+    'agents/troubleshoot-investigator.md',
     // The closing check /implement runs when a run completes a coverage table.
     'skills/coverage-audit/SKILL.md',
     'agents/coverage-auditor-agent.md',

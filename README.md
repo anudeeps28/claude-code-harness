@@ -110,7 +110,7 @@ e2e gate → PR, with one stop for you at the plan gate (a stop at every step wi
 - `--full` — sugar for `--discuss --research`; orthogonal to `--quick`
 - `--autonomous` — fully unattended: the plan gate approves itself when it has nothing to ask; with any question (a scope reading above all) it stops like any run. NOT `--quick`.
 - `--rework <PR#>` — mode selector (not additive): re-enter an already-open, rejected PR, merge its review comments with optional typed feedback, fix on the same branch, and push so the PR updates. Its own explicit autonomous entry point.
-- `--resume <id>` — carry on a stopped run from its saved state; a finished task or a merged story is never redone.
+- `--resume <id>` — carry on a stopped run from its saved state; a finished task or a committed story is never redone.
 - `--standalone` — build a story or bug that has no parent Feature.
 - `--tdd` — test-first: each slice is planned as empty shell → failing test → real code (always on for bug fixes).
 - `--no-ship` — run everything up to the PR, then stop before any git step.

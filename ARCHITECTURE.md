@@ -128,11 +128,11 @@ Everything is in the home folder's `tasks/` (gitignored), reached by absolute pa
 | `tasks/features/<fid>/phase.md` | orchestrator | Feature-level marker | kept |
 | `tasks/features/<fid>/progress.log` | orchestrator | progress lines, appended (§7) | kept |
 | `tasks/features/<fid>/review/*.md`, `prove-it.md`, `pr-body.md`, `decisions-log.md` | orchestrator | panel reports, proof results, PR body, and the one decisions log, each line starting `#<sid>:` | kept |
-| `tasks/stories/<sid>/` | orchestrator | brief, plan, test-strategy, `executor-state.md` (+ `feature: <fid>`), `phase.md`, `.tree-baseline`, `.verify.lock`, the red evidence | kept |
+| `tasks/stories/<sid>/` | orchestrator (`ticket.md`: `tracker-helper`) | `ticket.md`, `executor-state.md` (+ `feature: <fid>`, the red evidence and the review round), `phase.md`, `.tree-baseline`, `stuck.diff` when a story is stuck. The story's plan is its `## Story #<sid>` section of the Feature `plan.md`, so there is no per-story plan or test-strategy | kept |
 
 **One commit per story**, with the trailer `Story: #<sid>`, on the Feature branch. The Feature worktree is the only place story code lives.
 
-**One writer per file**, so nothing needs locking: only one story runs at a time, and the orchestrator writes every state file. The builders and reviewers write product code and tests, and report back. A Feature run keeps one decisions log, with each line prefixed by its story ([autonomous-mode.md](rules/autonomous-mode.md)).
+**One writer per file**, so nothing needs locking: only one story runs at a time, and the orchestrator writes every state file, except `ticket.md`, which `tracker-helper` writes. The builders and reviewers write product code and tests, and report back. A Feature run keeps one decisions log, with each line prefixed by its story ([autonomous-mode.md](rules/autonomous-mode.md)).
 
 **`phase.md`** gets two optional keys, `feature:` and `story:`. The contract already says unknown keys are ignored, so `schemaVersion` stays 1.
 
@@ -240,7 +240,7 @@ Claude Code behaviour this section relies on (Claude Code docs, sub-agents and h
 A fixed single line, printed in the terminal and appended to `tasks/features/<fid>/progress.log`:
 
 ```
-[harness] ts=2026-10-05T14:02:11Z feature=123 story=201 event=story-started phase=coding detail="wave 1/3"
+[harness] ts=2026-10-05T14:02:11Z feature=123 story=201 event=story-started phase=coding
 ```
 
 | Event | When |
@@ -257,7 +257,7 @@ The same safety rules as `phase.md` `detail` ([phase-markers.md](rules/phase-mar
 ### Markers and hang detection
 
 - `phase.md` per Feature and per story, overwritten each step, shows the current state.
-- **Hung story:** the orchestrator only wakes when an agent finishes. Each time it wakes, it checks every running story's `phase.md`. Not updated in **30 minutes** (the existing freshness rule) means `story-stuck reason="no progress 30m"`, and you're told.
+- **Hung story:** agents run in the foreground, so a live session cannot see one that has hung (the call never returns), and checking between calls would only misfire on slow agents. A hang ends with the person stopping the session; it is caught on `--resume`, by running `feature-state.js hung` on the running story's `phase.md`. Not updated in **30 minutes** (the existing freshness rule) means one relaunch of that step; the same step stopping a second time (a new step starts the count again) means the run pauses and asks you whether to retry it or mark the story stuck. It never marks a story stuck by itself: on a resume nothing is running, so an old `phase.md` only says the session stopped (a crash, a closed laptop, the usage limit).
 
 ### Run report
 
@@ -280,7 +280,7 @@ Not applicable beyond the progress lines. Each line carries `feature=` and `stor
 
 | Metric | Target | Current | Gap |
 |---|---|---|---|
-| **Point lost (RPO)** | at most the wave in flight; state saved after every step | met (F1): a step record after every step, re-read first after a compaction | none |
+| **Point lost (RPO)** | at most the step in flight; state saved after every step | met (F1): a step record after every step, re-read first after a compaction | none |
 | **Time to recover (RTO)** | minutes: `/implement --resume <fid>`, committed stories never redone | met (F1, F4, F72): `--resume` for a story and for a Feature; `/run-tasks` retired (F7) | none |
 
 ### Failure scenarios and recovery
@@ -289,17 +289,18 @@ Not applicable beyond the progress lines. Each line carries `feature=` and `stor
 |---|---|---|---|
 | Main session compacts | the conversation starts with a summary | re-read `feature-state.md` before anything else, print the current phase again, carry on | yes: `feature-mode.probe.test.js`, and lived through in every Feature's build |
 | Terminal closed, laptop asleep, session crash (background agents stop with it) | the developer runs `/implement --resume <fid>` | a resume: the `Story:` commits on the Feature branch are read first, and a story with its commit is skipped. The story in flight carries on from its saved `executor-state.md` step (tests, code, review round) | yes: `feature-state.test.js` (resume) |
-| A builder or reviewer crashes or hangs | an error result, or no progress for 30 minutes | the story's uncommitted edits are kept; one automatic restart from the saved step; a second failure means stuck | yes: `feature-state.test.js` (hung, stuck) |
+| A builder or reviewer crashes or hangs | an error result, or a hang (no progress for 30 minutes) caught on `--resume`, after the person stopped the session mid-step | the story's uncommitted edits are kept; one relaunch of that step from the saved step; the same step stopping a second time means the run asks you (retry, or mark it stuck) | yes: `feature-state.test.js` (hung, stuck) |
 | A story cannot go green or clean | the 3-attempt rule, or round 5 of review is still open | `/debug`, then stop and ask; the story is stuck and nothing is committed for it | yes: `feature-state.test.js` (stuck) |
 | Usage limit reached | agents return limit errors | `run-paused reason="usage limit"`, resume once the limit resets | no |
 | Tracker unreachable | an adapter error | at startup: stop. During the run: log it and carry on | partly: a failed status write is a `tracker-error` line (F2) |
 | Not enough disk | startup check: free space vs. the Feature worktree's estimated size | stop at startup with the number needed | yes: `disk-check.test.js` |
-| Branch moves in the Feature worktree | branch check before every story and every wave | stop; never decided automatically | yes: `worktree.test.js` (check-branch) |
+| Branch moves in the Feature worktree | branch check before every story | stop; never decided automatically | yes: `worktree.test.js` (check-branch) |
 
 **Stuck-story rule (from the grill, Q11):** a stuck story and its dependents are held at `needs-person`. Stories that do not depend on it are still built, in plan order. The run pauses before the Feature-level phases, and there is no PR while a story is stuck.
 
-The four probes this section once asked for (resume after compaction, resume after a crash, a merge
-conflict, a failing test after a merge) were built in F4; the table above names where each lives.
+The two probes that remain (resume after compaction, resume after a crash) were built in F4; the table
+above names where each lives. The other two this section once asked for, a merge conflict and a failing
+test after a merge, were retired with the merge step ([ADR-0003](docs/adr/0003-orchestrator-only-merger.md)).
 
 ---
 
@@ -329,10 +330,12 @@ runs showed that the design did not foresee, and what changed because of it:
 
 - **A subagent cannot wait for agents it starts in the background.** A story runner started its
   reviewers with `run_in_background`, ended its turn "waiting", and reported nothing; their results
-  went to the main session. Runners now start every agent in the foreground, several in one message
-  when they should run side by side (F5).
+  went to the main session. Runners started every agent in the foreground, several in one message
+  when they should run side by side (F5). The runners are gone (F72); the rule carries over to the main
+  session, which waits for each agent it starts.
 - **Paths relative to the current folder break inside a worktree.** `observe-check.js`'s default path
-  pointed at a `tasks/` only the home folder has; runners pass the state folder's file explicitly (F5).
+  pointed at a `tasks/` only the home folder has; runners passed the state folder's file explicitly (F5).
+  The main session does the same.
 - **The built-in `/security-review` can review a Feature branch** when run as `claude -p` from the
   Feature worktree (§2 #9, F6). A subagent cannot type a slash command, so this is the only way in.
 - **Agent definitions load when a session starts.** An agent added mid-session is "not found" until a

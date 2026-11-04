@@ -33,8 +33,9 @@ step.
 - **Resume reads the `Story:` commits.** A story with its commit is done and never redone.
 - **The sequence is proven** by `feature-state.js sequence`, which reads the Feature's progress
   log and reports any two stories that were in flight at the same time.
-- The wave-execution ban on `isolation: "worktree"` stays. Waves inside a story share the folder and use
-  the existing overlap check.
+- The wave-execution ban on `isolation: "worktree"` stays. A Feature's stories have no waves and no
+  executors; the wave rules apply to standalone single-story runs only. The Feature worktree still gets
+  the branch check, and restore-before-retry still applies to a failed job's files.
 
 ## Consequences
 

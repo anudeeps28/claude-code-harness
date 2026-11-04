@@ -80,7 +80,7 @@ const BUILT_IN = new Set(['Explore']);
 const JUDGEMENT = new Set([
   'story-understand-agent', 'implement-planner-agent', 'Explore', 'security-reviewer-agent',
   'architect-reviewer-agent', 'acceptance-test-agent', 'evaluator-agent', 'coverage-auditor-agent',
-  'debug-agent', 'prover',
+  'debug-agent', 'prover', 'troubleshoot-investigator',
 ]);
 const SONNET_ONLY = ['story-builder', 'suite-runner', 'story-reviewer', 'story-executor-agent', 'loosened-reviewer-agent', 'story-pr-agent'];
 
@@ -174,7 +174,7 @@ test('Model_SkillFrontmatterIsSonnet', () => {
 // /implement invokes spawns by name.
 function derivedAgents() {
   const names = new Set(readRequired().filter((r) => r.kind === 'agent').map((r) => r.name));
-  for (const skill of ['debug', 'coverage-audit']) {
+  for (const skill of ['debug', 'coverage-audit', 'troubleshoot']) {
     for (const m of read('skills', skill, 'SKILL.md').matchAll(/Spawn a \*\*`([a-z0-9-]+)`\*\*/g)) names.add(m[1]);
   }
   return names;
@@ -224,7 +224,7 @@ test('Model_EveryAgentCallPassesItsModel', () => {
   const bad = callsWithoutModel(outside, table.rows);
   assert.deepStrictEqual(bad, [], `AC2: every Agent call must pass its model explicitly; these sentences do not: ${bad.join(' // ')}`);
   // The other skills /implement hands off to spawn agents too.
-  for (const skill of ['debug', 'coverage-audit']) {
+  for (const skill of ['debug', 'coverage-audit', 'troubleshoot']) {
     const t = read('skills', skill, 'SKILL.md');
     assert.ok(spawnUnits(t).some((u) => SPAWN_VERB.test(u) && table.rows.some((r) => u.includes('`' + r.agent + '`'))), `companion: skills/${skill}/SKILL.md must spawn a table agent`);
     const b = callsWithoutModel(t, table.rows);

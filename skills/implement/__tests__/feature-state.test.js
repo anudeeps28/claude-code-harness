@@ -413,7 +413,10 @@ test('Hung_FreshStory_IsNotFlagged', () => {
   assert.equal(r.out, '');
 });
 
-test('Hung_FirstTime_RestartOnceThenStuckWithDependentsHeld', () => {
+// hung runs on --resume, when no agent is running: an old phase.md says the session stopped, not
+// that a job hung (a crash, a closed laptop and the usage limit all look the same). So it never
+// marks a story stuck by itself: the first time it relaunches the step, the second time it asks.
+test('Hung_FirstTimeRelaunches_SecondTimeAsks_NeverStuckByItself', () => {
   const dir = initWith([...indep(2), { id: '3', title: 'c', state: 'OPEN', blockers: ['1'] }]);
   run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
   phase(dir, '1', '2026-10-06T10:00:00Z');
@@ -421,11 +424,11 @@ test('Hung_FirstTime_RestartOnceThenStuckWithDependentsHeld', () => {
   assert.match(first.out, /^relaunch 1: no progress 31m \(phase\.md updated 2026-10-06T10:00:00Z\)/m);
   assert.equal(readState(dir, '123').stories[0].status, 'running');
   phase(dir, '1', '2026-10-06T10:40:00Z');
-  const second = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T11:15:00Z');
-  assert.match(second.out, /^stuck 1: no progress 35m, a second time$/m);
-  assert.match(second.out, /^needs-person: 1$/m);
-  assert.match(second.out, /^held: 3$/m);
-  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['stuck', 'pending', 'held']);
+  const second = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T14:00:00Z');
+  assert.match(second.out, /^ask 1: step stopped twice with no progress \(200m\)/m, second.out);
+  assert.doesNotMatch(second.out, /^(stuck|needs-person|held)\b/m, 'it never marks a story stuck by itself');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['running', 'pending', 'pending'],
+    'the story is still running and its dependent is not held');
 });
 
 test('Hung_OnlyTheStoryInFlight', () => {
@@ -449,6 +452,37 @@ test('Hung_NoPhaseFile_UsesTheStartTime', () => {
   const dir = initWith(indep(1));
   run(dir, 'set', '--feature', '123', '--story', '1', 'status=running', 'started=2026-10-06T09:00:00Z');
   assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:00:00Z').out, /^relaunch 1: no progress 60m/m);
+});
+
+test('Hung_ANewStep_ClearsTheCounter_TheSameStepTwiceAsks', () => {
+  // The counter counts relaunches of the same step only: a story that hung once and then moved on
+  // to its next step gets a fresh relaunch, not a question.
+  const dir = initWith(indep(1));
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=running', 'step=tests');
+  phase(dir, '1', '2026-10-06T10:00:00Z');
+  assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:31:00Z').out, /^relaunch 1:/m);
+  assert.equal(readState(dir, '123').stories[0].hangs, '1', 'companion: the first hang is counted');
+
+  run(dir, 'set', '--feature', '123', '--story', '1', 'step=tests');
+  assert.equal(readState(dir, '123').stories[0].hangs, '1', 'the same step set again keeps the count');
+
+  run(dir, 'set', '--feature', '123', '--story', '1', 'step=code');
+  assert.equal(readState(dir, '123').stories[0].hangs, undefined, 'a different step clears the count');
+  const next = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:45:00Z');
+  assert.match(next.out, /^relaunch 1:/m, `an old phase.md on the new step relaunches again: ${next.out}`);
+  assert.doesNotMatch(next.out, /^ask /m);
+
+  const again = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T11:15:00Z');
+  assert.match(again.out, /^ask 1: /m, `the same step stopping twice is asked about: ${again.out}`);
+});
+
+test('ReadState_DropsABadStoryId_AndSaysSo', () => {
+  const dir = initWith(indep(1));
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.appendFileSync(file, 'story a..b: status=pending title=x\n');
+  const r = run(dir, 'next', '--feature', '123');
+  assert.match(r.out, /^warn: dropped story row "a\.\.b": bad id$/m, r.out);
+  assert.match(r.out, /^story 1$/m, 'companion: the good row is still read');
 });
 
 // ── F72 #78: one story at a time, on the Feature branch ──────────────
@@ -526,4 +560,53 @@ test('Sequence_RestartOfTheSameStory_IsNotAnOverlap', () => {
   const r = run(dir, 'sequence', '--feature', '123');
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /^ok$/m);
+});
+
+// ── review panel: values read from the state file reach git as arguments, so they are checked ──
+
+test('Set_BaseThatLooksLikeAnOption_IsRefusedAndNotWritten', () => {
+  const dir = home(AB);
+  init(dir);
+  const r = run(dir, 'set', '--feature', '123', 'base=--output=x');
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /bad branch name for base: --output=x/);
+  assert.equal(readState(dir, '123').header.base, 'main', 'the refused value was not written');
+  assert.equal(run(dir, 'set', '--feature', '123', 'base=release/2026.11').code, 0, 'a real branch name is still accepted');
+});
+
+test('Resume_StateFileBaseThatLooksLikeAnOption_IsRefusedAndGitNeverSeesIt', () => {
+  const { wt } = featureRepo(['Add the orders table\n\nStory: #201']);
+  const dir = home(AB);
+  init(dir);
+  const planted = path.join(os.tmpdir(), `fstate-planted-${process.pid}.txt`);
+  fs.rmSync(planted, { force: true });
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^base: .*$/m, `base: --output=${planted.split(path.sep).join('/')}`));
+  const r = resume(dir, wt);
+  assert.notEqual(r.code, 0, r.out);
+  assert.match(r.out, /bad branch name for base/);
+  assert.equal(fs.existsSync(planted), false, 'git was never run with the planted option, so no file was created');
+});
+
+test('Resume_StoryIdWithARegexDot_DoesNotMatchAnotherStorysCommit', () => {
+  // Story 1.2 must not claim the commit "Story: #1x2": the id is matched as text, never as a pattern.
+  const { wt } = featureRepo(['Other work\n\nStory: #1x2']);
+  const dir = home([{ id: '1.2', title: 'Dotted', state: 'OPEN', blockers: [] }]);
+  init(dir);
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.doesNotMatch(r.out, /^skip 1\.2/m, 'a look-alike commit with x for the dot is not 1.2');
+  assert.match(r.out, /^story 1\.2$/m, 'it is still to build');
+  const own = featureRepo(['Real\n\nStory: #1.2']);
+  const dir2 = home([{ id: '1.2', title: 'Dotted', state: 'OPEN', blockers: [] }]);
+  init(dir2);
+  assert.match(resume(dir2, own.wt).out, /^skip 1\.2: committed/m, 'its own commit is still found');
+});
+
+test('ReadState_DropsAStoryRowWithABadId', () => {
+  const dir = home(AB);
+  init(dir);
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.appendFileSync(file, 'story ../evil: status=pending\nstory --all: status=pending\n');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.id), ['201', '202'], 'only well-formed ids survive; the two real stories prove the file was read');
 });

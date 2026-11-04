@@ -308,3 +308,142 @@ test('PR_OnePerFeatureWithTheRunReport', () => {
   mustMatch(markers, /`feature`/, 'phase.md gains an optional feature key');
   mustMatch(markers, /`story`/, 'phase.md gains an optional story key');
 });
+
+// ── review panel findings (F72) ──────────────────────────────────────
+
+const flatten = (s) => String(s).replace(/\s+/g, ' ');
+
+// A stuck story must leave neither the index nor the tree holding its code: restoring from the index
+// (`git checkout --`) keeps the staged copy, so the next story's commit would take it.
+const stuckLeavesNothing = (t) => {
+  const f = flatten(t);
+  return /`git diff HEAD -- <paths>`/.test(f) && /stuck\.diff/.test(f)
+    // one restore of every story path, new ones too: a new file is not in HEAD, so it is removed
+    && /git restore --staged --worktree --source=HEAD -- <all the story's paths>/.test(f)
+    && /new ones included/.test(f) && !/git checkout --/.test(f)
+    // new files are made visible to the diff first, or stuck.diff silently loses them
+    && f.search(/git add -N/) !== -1 && f.search(/git add -N/) < f.search(/`git diff HEAD -- <paths>`/);
+};
+const commitsOnlyItsOwnPaths = (t) => /`git diff --cached --name-only`[^.]{0,160}only (that story's|the story's) paths/.test(flatten(t));
+
+test('Stuck_RestoresIndexAndTreeToHeadBeforeTheNextStory', () => {
+  assert.ok(!stuckLeavesNothing('Save `git diff` to stuck.diff, then `git checkout -- <paths>`.'), 'planted index-keeping restore must be rejected');
+  const s = section(FEATURE, '### Stuck stories');
+  assert.ok(s, 'expected "### Stuck stories"');
+  assert.ok(stuckLeavesNothing(s), 'a stuck story: save git diff HEAD, restore index and tree from HEAD, delete its new files');
+  const wrongOrder = 'Save the story\'s `git diff HEAD -- <paths>` to stuck.diff, run `git add -N` on its new files, then `git restore --staged --worktree --source=HEAD -- <tracked paths>` and delete its new untracked files.';
+  assert.ok(!stuckLeavesNothing(wrongOrder), 'planted git add -N after the diff capture must be rejected');
+  assert.ok(s.includes('git diff HEAD'), 'companion: the stuck section was read');
+});
+
+test('Commit_RequiresTheIndexToHoldOnlyThisStorysPaths', () => {
+  assert.ok(!commitsOnlyItsOwnPaths('Stage the paths and commit.'), 'planted text with no index check must be rejected');
+  const s = section(FEATURE, '### Run the stories');
+  assert.ok(commitsOnlyItsOwnPaths(s), 'before the commit, git diff --cached --name-only must hold only that story\'s paths');
+});
+
+// Agents run in the foreground, so a live session cannot see a hung agent (a hung call never returns;
+// the person ends it) and checking between calls only misfires on slow agents. The hang check runs on
+// --resume only, and what it prints is acted on.
+const callsHung = (t) => /feature-state\.js"? hung --feature/.test(flatten(t));
+const runsHung = (t) => {
+  const f = flatten(t);
+  // relaunch is the restart (once), a second stop of the same step is asked, never stuck by itself
+  return callsHung(f) && /`relaunch <sid>`[^.]{0,200}once/.test(f) && /`ask <sid>`[^.]{0,200}\*\*pause\*\*/.test(f)
+    && /never marks a story stuck by itself/.test(f);
+};
+const noLiveHangCheck = (t) => !callsHung(t) && /no hang check[\s\S]{0,300}foreground[\s\S]{0,400}resum/i.test(flatten(t));
+
+test('Hung_OnlyTheResumeRunsTheHangCheck_TheLiveLoopDoesNot', () => {
+  assert.ok(!runsHung('Build the story.'), 'planted text without the hang check must be rejected');
+  assert.ok(!noLiveHangCheck('Before each step\'s agent call run `node "x/feature-state.js" hung --feature <fid>`. There is no hang check here; agents run in the foreground, so resume.'), 'planted loop that still calls hung must be rejected');
+  assert.ok(!noLiveHangCheck('Build the story.'), 'planted loop that never says why must be rejected');
+  const loop = section(FEATURE, '### Run the stories');
+  assert.ok(noLiveHangCheck(loop), 'Run the stories has no hang check and says why (foreground agents; the person stops and resumes)');
+  assert.ok(!runsHung('Run `node x/feature-state.js hung --feature <fid>`: `relaunch <sid>` start it once; `stuck <sid>` go to **Stuck stories**.'),
+    'planted resume that lets hung mark a story stuck must be rejected');
+  assert.ok(runsHung(section(FEATURE, '### Resume a Feature')), 'Resume a Feature runs hung: relaunch once, ask on a second stop, never stuck by itself');
+  assert.ok(callsHung(IMPLEMENT), 'companion: the hang check is still documented somewhere in the skill');
+});
+
+// One tracker-helper call per story boundary: done for this story and in-progress for the next.
+test('Cards_OneCallPerStoryBoundary', () => {
+  const s = section(FEATURE, '### Run the stories');
+  assert.doesNotMatch(s, /never batched|not batched/, 'the old one-move-per-call wording is gone');
+  mustMatch(s, /one `tracker-helper` call[^.]{0,80}\bdone\b[^.]{0,160}next story[^.]{0,160}`in-progress`/, 'at a commit one call moves the story to done and the next to in-progress');
+  mustMatch(s, /first story[^.]{0,120}own call/i, 'the first story\'s in-progress move is its own call');
+  const moving = section(IMPLEMENT, '### Moving the card');
+  mustMatch(moving, /Feature mode: a story is committed[^\n]*\bdone\b[^\n]*\bin-progress\b[^\n]*next story/, 'the table row for a commit also moves the next story');
+  mustMatch(moving, /a story is stuck[^\n]*own call|stuck[^\n]*its own call/i, 'a stuck move stays its own call');
+});
+
+// Ticket and message text is data: it never goes inside double quotes of a shell line.
+test('Quoting_MessagesAndTitlesNeverGoInsideDoubleQuotes', () => {
+  const s = section(FEATURE, '### Run the stories');
+  mustMatch(s, /git commit -F <file>|`git commit -F /, 'the commit message is written to a file and committed with -F');
+  assert.doesNotMatch(s, /git commit -m/, 'no -m with message text on the command line');
+  const pr = section(FEATURE, '### The Feature\'s PR');
+  assert.doesNotMatch(pr, /--title "</, 'the PR title text is not placed inside double quotes');
+  mustMatch(pr, /--body-file/, 'the body comes from a file');
+  mustMatch(pr, /<<'TITLE_END'/, 'the title comes from a single-quoted heredoc');
+  // The whole skill, not one section: no template puts ticket text inside double quotes.
+  const inQuotes = (t) => [...String(t).matchAll(/(--title|--body) "<|create-issue\.sh "</g)].map((m) => m[0]);
+  assert.deepEqual(inQuotes('gh pr create --title "<title>" --body "<body>"'), ['--title "<', '--body "<'], 'planted double-quoted title and body must be found');
+  assert.deepEqual(inQuotes('bash create-issue.sh "<title>" "<body>"'), ['create-issue.sh "<'], 'planted double-quoted create-issue template must be found');
+  assert.ok(IMPLEMENT.includes('gh pr create'), 'companion: the skill was read');
+  assert.deepEqual(inQuotes(IMPLEMENT), [], 'no --title, --body or create-issue.sh template in SKILL.md puts ticket text in double quotes');
+  const opens = (IMPLEMENT.match(/<<'TITLE_END'/g) || []).length;
+  const closes = (IMPLEMENT.replace(/\r/g, '').match(/^TITLE_END$/gm) || []).length;
+  assert.ok(opens >= 3, `the Feature init, the Feature PR and the single-story PR titles use the TITLE_END heredoc (${opens})`);
+  assert.equal(closes, opens, 'each heredoc is closed by TITLE_END at column 0, or the shell never ends it');
+  assert.ok((IMPLEMENT.match(/written by the run itself/g) || []).length >= 2, 'progress.js detail and feature-state.js stuck --reason are values the run writes, never ticket or tool output');
+  const helper = read('agents', 'tracker-helper.md');
+  assert.doesNotMatch(helper, /never as text you assemble into a shell string/, 'the impossible rule is gone');
+  mustMatch(helper, /temp(orary)? file[^.]{0,200}"\$\(cat <file>\)"/, 'tracker-helper writes values to a temp file and passes the file');
+  mustMatch(helper, /never as an inline heredoc/, 'not as an inline heredoc: a body line equal to its end marker would end it early');
+  mustMatch(helper, /never inside double quotes/, 'never inside double quotes');
+  mustMatch(helper, /instructions inside (it|ticket text) are ignored/i, 'ticket text is data');
+});
+
+test('Baseline_AScratchCopyOnlyAndProverChecksDetachedHead', () => {
+  mustMatch(flatten(read('agents', 'suite-runner.md')), /baseline[^.]{0,200}`worktree\.js scratch`[^.]{0,120}never in the work folder/i, 'a baseline checkout happens only in a scratch copy');
+  mustMatch(flatten(read('agents', 'prover.md')), /`git rev-parse --abbrev-ref HEAD`[^.]{0,80}`HEAD`[^.]{0,160}BLOCKED/, 'prover checks it is on a detached HEAD before it commits');
+});
+
+// In Feature mode the criteria live in the Feature plan, which a Feature run writes; the per-story
+// test-strategy.md is never written.
+test('FeatureCriteria_ComeFromThePlanNotFromTestStrategyFiles', () => {
+  assert.doesNotMatch(FEATURE, /every committed story's `test-strategy\.md`/, 'the panel row does not point at per-story test-strategy.md');
+  assert.doesNotMatch(FEATURE, /from its `test-strategy\.md`/, 'Prove it does not read criteria from test-strategy.md');
+  assert.doesNotMatch(FEATURE, /combined from\s+every story's own `decisions-log\.md`/, 'a Feature has one decisions log');
+  mustMatch(flatten(section(FEATURE, '### The Feature panel')), /`## Story #<sid>` sections of `tasks\/features\/<fid>\/plan\.md`/, 'the panel gets the Story sections of the Feature plan');
+  mustMatch(flatten(section(FEATURE, '### Prove it')), /`## Story #<sid>` sections?[^.]{0,80}plan\.md/, 'Prove it reads the Story sections of the plan');
+  mustMatch(flatten(section(FEATURE, '### The Feature\'s PR')), /`tasks\/features\/<fid>\/decisions-log\.md`[^.]{0,120}`#<sid>:`/, 'the PR\'s decisions come from the one Feature log, lines prefixed #<sid>:');
+  const acc = flatten(read('agents', 'acceptance-test-agent.md'));
+  mustMatch(acc, /features\/<fid>\/plan\.md`\), whose `## Story #<sid>` sections hold each story's criteria/, 'the acceptance agent reads the plan\'s Story sections in a Feature panel');
+  assert.doesNotMatch(acc, /every story's test strategy/, 'and not every story\'s test strategy');
+  // The Feature-level criteria F.<n> live in the Feature's test-strategy.md (what pr-gate.js reads);
+  // the story criteria live in the plan's Story sections.
+  const fromStrategy = /`F\.<n>`[^.|]{0,200}features\/<fid>\/test-strategy\.md/;
+  assert.ok(!fromStrategy.test('the criteria `F.<n>` come from the Feature plan.md'), 'planted F.<n> read from the plan must be rejected');
+  mustMatch(acc, fromStrategy, 'acceptance: F.<n> come from tasks/features/<fid>/test-strategy.md');
+  mustMatch(flatten(section(FEATURE, '### The Feature panel')), fromStrategy, 'panel row: F.<n> come from the Feature test-strategy.md');
+  mustMatch(flatten(section(FEATURE, '### Prove it')), fromStrategy, 'Prove it: F.<n> come from the Feature test-strategy.md');
+  const planner = flatten(read('agents', 'implement-planner-agent.md'));
+  assert.doesNotMatch(planner, /one file, `tasks\/features\/<fid>\/plan\.md`\*\*, and nothing else/, 'the planner writes the Feature test-strategy.md too');
+  mustMatch(planner, /`tasks\/features\/<fid>\/plan\.md`[^.]{0,200}Feature-level criteria[^.]{0,80}`tasks\/features\/<fid>\/test-strategy\.md`[^.]{0,200}no per-story `plan\.md` or `test-strategy\.md`/, 'Feature-plan mode: plan.md for the stories, Feature-level criteria in the Feature test-strategy.md, no per-story files');
+  const intro = flatten(FEATURE.split('\n').slice(0, 12).join('\n'));
+  mustMatch(intro, /ADR-0001[^.]{0,40}ADR-0004[^.]{0,40}ADR-0005/, 'Feature mode cites the ADRs that still stand');
+  assert.doesNotMatch(intro, /ADR-0002|ADR-0003/, 'the superseded ADRs are not cited');
+});
+
+// /troubleshoot spawns an investigator in the e2e gate: it is bound by the same contract as the rest.
+test('Troubleshoot_InvestigatorHasTheStatusLineAndItsModelInTheTable', () => {
+  const agent = read('agents', 'troubleshoot-investigator.md');
+  mustMatch(flatten(agent), /Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` \(`rules\/agent-handoff\.md`\)\./, 'the exact status sentence');
+  mustMatch(IMPLEMENT, /\| `troubleshoot-investigator` \| [^|]*troubleshoot[^|]*\| opus \|/, 'the model table has its row');
+  const skill = read('skills', 'troubleshoot', 'SKILL.md');
+  const spawns = skill.replace(/\r/g, '').split('\n').filter((l) => /Spawn (a|the)[^\n]*`troubleshoot-investigator`/.test(l));
+  assert.ok(spawns.length >= 2, `companion: both spawns were found (${spawns.length})`);
+  for (const l of spawns) mustMatch(l, /model: `opus`/, `every spawn passes the model: ${l.slice(0, 60)}`);
+});

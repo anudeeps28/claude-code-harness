@@ -147,7 +147,7 @@ test('Handoff_AgentsWithAResultBlockAreRoutedByIt', () => {
 // /implement invokes spawns by name.
 function buildAgentSet() {
   const names = new Set(readRequired().filter((r) => r.kind === 'agent').map((r) => r.name));
-  for (const skill of ['debug', 'coverage-audit']) {
+  for (const skill of ['debug', 'coverage-audit', 'troubleshoot']) {
     const text = read('skills', skill, 'SKILL.md');
     for (const m of text.matchAll(/Spawn a \*\*`([a-z0-9-]+)`\*\*/g)) names.add(m[1]);
   }
@@ -159,7 +159,7 @@ test('Handoff_EveryAgentImplementStartsSaysItsReportStartsWithTheStatusLine', ()
 
   const agents = buildAgentSet();
   assert.ok(agents.size >= 10, `the derived agent set must have at least 10 members (got ${agents.size}: ${[...agents].join(', ')})`);
-  for (const name of ['story-understand-agent', 'implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent', 'loosened-reviewer-agent', 'coverage-auditor-agent', 'story-pr-agent', 'debug-agent']) {
+  for (const name of ['story-understand-agent', 'implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent', 'loosened-reviewer-agent', 'coverage-auditor-agent', 'story-pr-agent', 'debug-agent', 'troubleshoot-investigator']) {
     assert.ok(agents.has(name), `the derived agent set must include ${name}`);
   }
 

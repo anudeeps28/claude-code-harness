@@ -21,7 +21,9 @@
 //          story-started #<b> while #<a> in flight" (exit 1) when a story started before the one
 //          in flight was committed or stuck
 //   hung   --feature <fid> [--now <iso>]   the one running story, when its phase.md is 30+ minutes old:
-//          "relaunch <sid>: ..." the first time, then "stuck <sid>: ..." and its dependents held (#51)
+//          "relaunch <sid>: ..." the first time, then "ask <sid>: ..." (never stuck by itself: on
+//          --resume nothing is running, so an old phase.md only says the session stopped).
+//          Run on --resume only; setting a story's step to a new value clears its hang count.
 //   resume --feature <fid> [--feature-worktree <p>]   prints what --resume does with each story. A
 //          commit on the Feature branch with the line "Story: #<sid>" means "skip <sid>: committed <sha>"
 //          (and the state is brought up to date); a running one with no commit is "restart <sid>: from
@@ -43,6 +45,8 @@ const HANG_MINUTES = 30;      // rules/phase-markers.md freshness
 
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const STATUSES = ['pending', 'running', 'committed', 'stuck', 'held', 'skipped'];
+// The base reaches git as an argument (`<base>..HEAD`), so it must look like a branch or a sha, never an option.
+const BASE_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 const CLOSED = /^(closed|done|removed|resolved|completed)$/i;
 const SOFT_LIMIT = 8;
 
@@ -69,6 +73,10 @@ function readState(root, fid) {
   for (const line of fs.readFileSync(file, 'utf8').replace(/\r/g, '').split('\n')) {
     const s = line.match(/^story ([^:\s]+): (.*)$/);
     if (s) {
+      if (!ID_RE.test(s[1]) || s[1].includes('..')) {   // a story id reaches paths and git: drop a bad row, and say so
+        process.stderr.write(`warn: dropped story row "${clean(s[1])}": bad id\n`);
+        continue;
+      }
       const story = { id: s[1] };
       // Values may contain spaces (a title, a reason): a value runs until the next " key=".
       for (const m of s[2].matchAll(/([a-z-]+)=(.*?)(?= [a-z-]+=|$)/g)) if (!(m[1] in story)) story[m[1]] = m[2];
@@ -145,8 +153,7 @@ function cmdInit(root, opts) {
   const result = order(stories);
   if (result.cycle) return fail(1, `dependency cycle: ${result.cycle.map((id) => `#${id}`).join(' → ')}. Nothing was written. Break the cycle in the tracker and run again.`);
 
-  // The base reaches git as an argument (`<base>..HEAD`), so it must look like a branch, never an option.
-  if (opts.base && !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(opts.base)) return fail(2, `bad branch name for --base: ${opts.base}`);
+  if (opts.base && !BASE_RE.test(opts.base)) return fail(2, `bad branch name for --base: ${opts.base}`);
 
   const repoName = opts['repo-name'] || path.basename(path.resolve(root));
   const parent = path.dirname(path.resolve(root));
@@ -181,6 +188,8 @@ function cmdInit(root, opts) {
 function load(root, fid) {
   const state = readState(root, fid);
   if (!state) fail(1, `no saved state for Feature #${fid} (tasks/features/${fid}/feature-state.md); nothing to resume, and a fresh run is never started from here`);
+  // A hand-edited or forged state file must never put an option in front of git.
+  if (state.header.base !== undefined && !BASE_RE.test(state.header.base)) fail(1, `bad branch name for base: ${state.header.base} (in feature-state.md); fix the file`);
   return state;
 }
 
@@ -195,6 +204,9 @@ function cmdSet(root, opts, pairs) {
     const m = pair.match(/^([a-z-]+)=([\s\S]*)$/);
     if (!m) return fail(2, `expected key=value, got ${JSON.stringify(pair)}`);
     if (opts.story && m[1] === 'status' && !STATUSES.includes(m[2])) return fail(1, `unknown status "${m[2]}" (one of ${STATUSES.join(', ')})`);
+    if (m[1] === 'base' && !BASE_RE.test(clean(m[2]))) return fail(1, `bad branch name for base: ${m[2]}`);
+    // The hang counter counts relaunches of the same step only: a new step starts it again.
+    if (opts.story && m[1] === 'step' && target.step !== clean(m[2])) delete target.hangs;
     target[m[1]] = clean(m[2]);
   }
   writeState(root, opts.feature, state);
@@ -221,7 +233,10 @@ function cmdNext(root, opts) {
 // only, never a longer id or prose), or '' when there is none or the worktree is not usable.
 function storyCommit(wt, sid, base) {
   if (!wt || !fs.existsSync(wt)) return '';
-  const r = spawnSync('git', ['-C', wt, 'log', '--format=%H', '--grep', `^Story: #${sid}$`, `${base || 'main'}..HEAD`], { encoding: 'utf8' });
+  if (!BASE_RE.test(base || 'main') || !ID_RE.test(sid)) return '';
+  // The id is matched as text: a "." in story 1.2 must not match "Story: #1x2".
+  const text = String(sid).replace(/[.[\]\\*^$]/g, '\\$&');
+  const r = spawnSync('git', ['-C', wt, 'log', '--format=%H', '--grep', `^Story: #${text}$`, '--end-of-options', `${base || 'main'}..HEAD`], { encoding: 'utf8' });
   if (r.status !== 0) return '';
   return (r.stdout || '').split('\n').map((l) => l.trim()).filter(Boolean)[0] || '';
 }
@@ -308,8 +323,9 @@ function cmdHung(root, opts) {
       writeState(root, opts.feature, state);
       out(`relaunch ${s.id}: no progress ${minutes}m (phase.md updated ${updated}); start its builder again once, from its saved step`);
     } else {
-      out(`stuck ${s.id}: no progress ${minutes}m, a second time`);
-      markStuck(root, opts.feature, state, s.id, `no progress ${minutes}m, a second time`);
+      // Run on --resume, with nothing running: a stale phase.md means the session stopped, not
+      // that a job hung, so a second stop is a question for the person, never "stuck" by itself.
+      out(`ask ${s.id}: step stopped twice with no progress (${minutes}m); ask the person: retry the step, or mark the story stuck`);
     }
   }
   return 0;
@@ -400,4 +416,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { readState, order, slug, STATUSES };
+module.exports = { readState };

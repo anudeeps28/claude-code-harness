@@ -9,8 +9,9 @@ triggers: /plan-features
 Turn whatever plan exists into Features and stories. Each story is an independently testable slice.
 One run can plan one Feature or several. Stories hang off their Feature; Features that genuinely block
 one another, and stories that genuinely block one another (in the same Feature or in different ones),
-are joined by a **blocked-by edge**. Anything with no edge is free to run at the same time, in its own
-worktree. Creates the items in the active tracker (ADO work items, GitHub issues, Todoist
+are joined by a **blocked-by edge**. Features with no edge between them are free to run at the same time,
+each in its own worktree; the stories inside a Feature are built one after another, and their edges set
+the order. Creates the items in the active tracker (ADO work items, GitHub issues, Todoist
 tasks or local task files), or hands a plan to the Scrum Master (Phase 6S).
 
 It is the one planning skill. It replaced `/to-issues` (claude-code-harness) and `prd-to-stories`
@@ -493,7 +494,8 @@ are written as predecessor links:
   shows on the board's Feature cards, so the order of Features is visible without opening a story.
 
 A Feature edge never replaces the story edges under it: a scheduler starts stories, so it needs the
-story edge. Anything with no edge, at either level, can run at the same time in its own worktree.
+story edge. Features with no edge between them can run at the same time, each in its own worktree;
+stories inside a Feature run in sequence, and their edges set the order.
 
 Write every edge as `blocked ← blocker`, and tag each with one of two reasons:
 
@@ -690,11 +692,11 @@ its own work meanwhile.
 >   S3 --> S4
 > ```
 >
-> **What runs in parallel**, in waves:
+> **What runs in parallel**: only Features run in parallel, each in its own worktree. Stories inside a
+> Feature run in sequence, in the order their edges allow:
 >
-> - **Wave 1 (start now):** story 1.
-> - **Wave 2 (after 1):** stories 2 and 3, in separate worktrees.
-> - **Wave 3 (after 2 and 3):** F2 (story 4).
+> - **F1:** story 1, then story 2, then story 3.
+> - **F2 (after F1):** story 4.
 >
 > **Finishable check:** [each Feature: "met by its own stories" or "met with F1 before it"; and every
 > fix Phase 3.8 made — a criterion moved, an edge added, Features re-cut]
