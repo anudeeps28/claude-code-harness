@@ -47,6 +47,20 @@ for (const a of BUILD_AGENTS) {
   });
 }
 
+// F72 #79: the agents that replace the story runner take the work folder; the ones that read plans
+// or notes also take the state folder (the suite-runner only runs commands, so it needs the work folder).
+for (const a of ['story-builder', 'story-reviewer', 'suite-runner']) {
+  test(`Folders_${a}_TakesTheWorkFolder`, () => {
+    mustMatch(read('agents', `${a}.md`), /\*\*work folder\*\*/i, `${a} must name the work folder`);
+  });
+}
+
+for (const a of ['story-builder']) {
+  test(`Folders_${a}_TakesAStateFolder`, () => {
+    mustMatch(read('agents', `${a}.md`), /\*\*state folder\*\*/i, `${a} must name the state folder`);
+  });
+}
+
 test('Folders_ReviewersDiffAgainstTheBaseRef', () => {
   for (const a of ['evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent']) {
     const text = read('agents', `${a}.md`);
@@ -95,7 +109,8 @@ test('Startup_DiskAndAllowlistAreCheckedBeforeTheFirstWorktree', () => {
   const s = section(FEATURE, '### Before the first story');
   assert.ok(s, 'expected "### Before the first story"');
   assert.ok(FEATURE.indexOf('### Before the first story') < FEATURE.indexOf('### Run the stories'), 'it runs before the stories');
-  mustMatch(s, /disk-check\.js"? --stories/, 'the disk check runs');
+  mustMatch(s, /disk-check\.js"?(?! --stories)/, 'the disk check runs');
+  assert.doesNotMatch(s, /disk-check\.js"? --stories/, 'with no story count: the worktrees are the Feature and the scratch copy');
   mustMatch(s, /allowlist-check\.js/, 'the allowlist check runs');
   mustMatch(s, /never (write|change|edit)s? (a )?settings|never writes/i, 'the check never writes settings');
   mustMatch(s, /plain "?Bash"?|allow all/i, 'it never recommends a blanket Bash rule');
@@ -107,9 +122,10 @@ for (const template of [['templates', 'tasks', 'lessons.md'], ['templates', 'tas
     const text = read(...template);
     const s = section(text, '## Feature runs');
     assert.ok(s, `${template.join('/')} must have a "## Feature runs" section`);
-    for (const key of ['max-parallel-stories', 'worktree-size-gb', 'verify-lock']) {
+    for (const key of ['worktree-size-gb', 'verify-lock']) {
       mustMatch(s, new RegExp(`^- ${key}:`, 'm'), `it must declare ${key}`);
     }
+    assert.doesNotMatch(s, /max-parallel-stories/, 'stories run one at a time: there is no width setting');
   });
 }
 
@@ -203,20 +219,63 @@ test('Stories_OneLoopPerStoryOnTheFeatureBranch', () => {
   mustMatch(s, /held dependents?[^.\n]{0,60}(untouched|left as they are|not moved)/i, 'held dependents\' cards are left untouched');
 });
 
-test('Rules_StoryWorktreesAllowedWaveIsolationStillForbidden', () => {
+test('Rules_WaveIsolationStillForbidden', () => {
+  // The "story worktree" text in the rules goes in #81; here only the wave rule is pinned.
   const wave = read('rules', 'wave-execution.md');
-  mustMatch(wave, /story worktree/i, 'wave-execution must cover story worktrees');
   mustMatch(wave, /isolation: "worktree"/, 'wave isolation is still named');
-  mustMatch(read('rules', 'git-worktrees.md'), /story worktree/i, 'git-worktrees must cover story worktrees');
+  mustMatch(wave, /Do not spawn them with `isolation: "worktree"`/, 'and still forbidden');
+});
+
+// ── F72 #79: no story worktree, story branch, story runner or width anywhere ──
+
+const NO_STORY_WORKTREE = [
+  // `remove-scratch` (the Prove-it copy) stays, so `remove` must not be followed by a hyphen.
+  ['a worktree add for a story', /worktree add[^\n]*\bstory\/|worktree\.js"? story|worktree\.js"? (merge|remove)\b(?!-)/i],
+  ['a story worktree path', /-f<fid>-s<sid>|-s<sid>\b/],
+  // [s] keeps this line clear of one-build-skill.probe's check for the retired skill's name.
+  ['a story/ branch pattern', /[s]tory\/<|[s]tory\/\$\{|'[s]tory\/'/],
+  ['the story runner', /story-runner/],
+  ['the width setting', /max-parallel-stories/],
+];
+
+function storyWorktreeProblems(files) {
+  const found = [];
+  for (const [file, text] of files) for (const [what, re] of NO_STORY_WORKTREE) if (re.test(text)) found.push(`${file}: ${what}`);
+  return found;
+}
+
+test('NoStoryWorktreeAnywhere', () => {
+  // The checker first, on planted text: each phrasing it must catch, and a clean line it must accept.
+  for (const bad of ['git worktree add ../x-s1 -b story/1-a feature/1-x', 'node worktree.js story --home h', 'branch `story/<sid>-<slug>`',
+    'const b = `story/${id}-x`', "'story/' + id", 'spawn the story-runner-agent', 'set max-parallel-stories: 3', 'path <repo>-f<fid>-s<sid>']) {
+    assert.notDeepEqual(storyWorktreeProblems([['planted', bad]]), [], `planted text must be caught: ${bad}`);
+  }
+  assert.deepEqual(storyWorktreeProblems([['clean', 'git worktree add ../x-f1 -b feature/1-x main; the story is built on feature/1-x']]), [],
+    'a Feature worktree and a Feature branch are fine');
+  assert.deepEqual(storyWorktreeProblems([['clean', 'node "<skill-dir>/bin/worktree.js" remove-scratch --path p']]), [],
+    'removing the Prove-it scratch copy is fine');
+  assert.notDeepEqual(storyWorktreeProblems([['planted', 'node "<skill-dir>/bin/worktree.js" remove --path p']]), [],
+    'but removing a story worktree is not');
+
+  // The set is derived: SKILL.md and every script in bin/, with a size companion so an empty read cannot pass.
+  const bin = path.join(REPO_ROOT, 'skills', 'implement', 'bin');
+  const scripts = fs.readdirSync(bin).filter((f) => f.endsWith('.js'));
+  assert.ok(scripts.length >= 15 && scripts.includes('worktree.js') && scripts.includes('feature-state.js'), `the scan found the scripts: ${scripts.length}`);
+  const files = [['SKILL.md', IMPLEMENT], ...scripts.map((f) => [`bin/${f}`, read('skills', 'implement', 'bin', f)])];
+  assert.ok(files.every(([, t]) => t.length > 100), 'every file was read');
+  assert.deepEqual(storyWorktreeProblems(files), []);
 });
 
 // ── #46 resume and stuck stories ─────────────────────────────────────
 
 test('Resume_AFeatureNeverRedoesACommittedStory', () => {
+  // (was ...AMergedStory; F72 #78 renamed it to committed and #79 drops the MERGE_HEAD check)
   const s = section(FEATURE, '### Resume a Feature');
   assert.ok(s, 'expected "### Resume a Feature"');
   mustMatch(s, /feature-state\.js"? resume/, 'resume reads feature-state.js resume');
   mustMatch(s, /`skip` \(committed: never redone\)/, 'a committed story is skipped, never redone');
+  mustMatch(s, /Story: #<sid>/, 'a story counts as committed when its commit is on the Feature branch');
+  assert.doesNotMatch(s, /MERGE_HEAD|half-done merge/, 'there is no per-story merge to be half done');
   mustMatch(IMPLEMENT, /compaction[\s\S]{0,400}feature-state\.md/, 'after a compaction the first read is feature-state.md');
 });
 
@@ -227,7 +286,7 @@ test('Stuck_HoldsDependentsAndOpensNoPR', () => {
   mustMatch(s, /needs-person/, 'stuck and dependents go to needs-person');
   mustMatch(s, /independent/i, 'independent stories still finish');
   mustMatch(s, /no PR/i, 'no PR while a story is stuck');
-  mustMatch(s, /twice|two/i, 'a story that fails twice is stuck');
+  mustMatch(s, /BLOCKED (twice|a second time)/, 'a story whose job is BLOCKED twice is stuck');
 });
 
 // ── #47 one PR ───────────────────────────────────────────────────────
@@ -235,8 +294,8 @@ test('Stuck_HoldsDependentsAndOpensNoPR', () => {
 test('PR_OnePerFeatureWithTheRunReport', () => {
   const s = section(FEATURE, '### The Feature\'s PR');
   assert.ok(s, 'expected "### The Feature\'s PR"');
-  mustMatch(s, /--base main --head feature\/<fid>-<slug>/, 'one PR from the Feature branch to main');
-  mustMatch(s, /no story branch is ever pushed|never push(es)? a story branch/i, 'story branches are never pushed');
+  mustMatch(s, /--base <base> --head feature\/<fid>-<slug>/, 'one PR from the Feature branch to its base');
+  mustMatch(s, /the only push/i, 'the Feature branch is the only push');
   mustMatch(s, /run-report\.js/, 'the PR body carries the run report');
   mustMatch(read('rules', 'autonomous-mode.md'), /Feature run[\s\S]{0,400}tasks\/stories\/<sid>\/decisions-log\.md/, 'Feature runs keep one decisions log per story');
   const markers = read('rules', 'phase-markers.md');

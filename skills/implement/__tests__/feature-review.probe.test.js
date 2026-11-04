@@ -121,7 +121,7 @@ test('Panel_FiveReviewersInOneMessageOnTheFeatureBranch', () => {
   const panel = section(IMPLEMENT, '### The Feature panel');
   assert.ok(panel, 'expected "### The Feature panel"');
   mustMatch(panel, /all five reviewers in one message, each in the foreground/, 'one message, foreground');
-  mustMatch(panel, /main\.\.\.feature\/<fid>/, 'on main...feature/<fid>');
+  mustMatch(panel, /<base>\.\.\.feature\/<fid>/, 'on <base>...feature/<fid>');
   mustMatch(panel, /Commit first, then leave the tree alone/, 'commit first');
   mustMatch(panel, /No file in the Feature worktree changes until the\s+last has returned/, 'hold edits while they read');
   mustMatch(panel, /panel-head/, 'the commit read is recorded and re-checked');

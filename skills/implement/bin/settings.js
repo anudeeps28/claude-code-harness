@@ -2,7 +2,6 @@
 // a "## Feature runs" section of "- key: value" lines, e.g.
 //
 //   ## Feature runs
-//   - max-parallel-stories: 5
 //   - worktree-size-gb: 3
 //   - verify-lock: per-story
 //

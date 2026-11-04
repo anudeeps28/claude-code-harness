@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 25 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 24 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -422,11 +422,9 @@ BEFORE THE FIRST STORY
   → Disk check for the worktrees; lists any command no allow rule covers
 
 RUN THE STORIES
-  → Each story in its own git worktree, branched from the Feature branch once its blockers merged
-  → Independent stories at the same time (max-parallel-stories, never over 20 agents)
-  → Each built by a story-runner-agent: plan, waves, light review (evaluator + acceptance), commit
-  → Merged one at a time: git merge --no-commit, the full tests, then commit or abort
-  → A story that fails twice is stuck: it and its dependents wait for a person, no PR
+  → One story at a time, on the Feature branch, once its blockers are committed
+  → Each built by story-builder and checked by story-reviewer, then one commit with a "Story: #<id>" line
+  → A story that is BLOCKED twice is stuck: it and its dependents wait for a person, no PR
 
 THE FEATURE PANEL
   → Five reviewers in one message on main...feature: security (with the built-in /security-review),
@@ -525,9 +523,8 @@ branch, and pushes so the PR updates in place.
 | Agent | Model | Used by | Role |
 |---|---|---|---|
 | `implement-planner-agent` | opus | `/implement` Phase 1c | Plans tasks from brief + goal — one pass |
-| `story-runner-agent` | opus | `/implement` Feature mode | Builds one story inside its own git worktree — plan, waves, light review, commit — and reports the commit sha; never merges or pushes |
 | `story-understand-agent` | opus | `/implement` Phase 1 | Reads the whole ticket + docs (and the sprint file on enterprise), produces the brief |
-| `story-executor-agent` | sonnet | `/implement` waves, in a story runner too | Writes code for one task |
+| `story-executor-agent` | sonnet | `/implement` waves | Writes code for one task |
 | `story-pr-agent` | sonnet | `/implement` PR step | Commit messages + PR description; the Master Status Table on enterprise |
 | `evaluator-agent` | opus (Feature panel: sonnet for the list part) | `/evaluate`, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
 | `acceptance-test-agent` | opus | `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
@@ -733,7 +730,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 33 skills
-├── agents/           ← 25 agents (22 sub-agents + 1 main-session operator + 2 role identities)
+├── agents/           ← 24 agents (21 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 14 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)

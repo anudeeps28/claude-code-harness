@@ -76,12 +76,11 @@ const realTable = () => parseTable(section(SKILL, TABLE_HEADING));
 const BUILT_IN = new Set(['Explore']);
 
 // Opus only where judgement is: understanding and researching, the Feature plan, the security,
-// architecture, acceptance and "made false" reviews, the coverage audit, debugging, and the story
-// runner until it is retired.
+// architecture, acceptance and "made false" reviews, the coverage audit, and debugging.
 const JUDGEMENT = new Set([
   'story-understand-agent', 'implement-planner-agent', 'Explore', 'security-reviewer-agent',
   'architect-reviewer-agent', 'acceptance-test-agent', 'evaluator-agent', 'coverage-auditor-agent',
-  'debug-agent', 'story-runner-agent',
+  'debug-agent',
 ]);
 const SONNET_ONLY = ['story-builder', 'suite-runner', 'story-reviewer', 'story-executor-agent', 'loosened-reviewer-agent', 'story-pr-agent'];
 

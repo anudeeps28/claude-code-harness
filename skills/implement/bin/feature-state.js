@@ -6,7 +6,7 @@
 // Only the orchestrator writes it. It is the source of truth for --resume.
 //
 // Usage (every command takes --root <home folder>, default the current directory):
-//   init   --feature <fid> --title <t> --stories <stories.json> [--repo-name <n>] [--story-cap <n>]
+//   init   --feature <fid> --title <t> --stories <stories.json> [--repo-name <n>] [--base <branch>]
 //          stories.json: [{"id","title","state","blockers":[ids of stories in this Feature]}]
 //          Orders the stories by dependency, rejects a cycle or a blocker outside the Feature, and
 //          writes the state. Closed stories are "skipped". Prints the order. Refuses to overwrite.
@@ -20,10 +20,13 @@
 //   sequence --feature <fid>   reads the Feature's progress.log: prints "ok", or "overlap:
 //          story-started #<b> while #<a> in flight" (exit 1) when a story started before the one
 //          in flight was committed or stuck
-//   hung   --feature <fid> [--now <iso>]   every running story whose phase.md is 30+ minutes old:
-//          "restart <sid>: ..." the first time, then "stuck <sid>: ..." and its dependents held (#51)
-//   resume --feature <fid>   prints what --resume does with each story (a running one:
-//          "restart <sid>: running, carry on at step <step> in the Feature worktree"); a first line "approve: ..."
+//   hung   --feature <fid> [--now <iso>]   the one running story, when its phase.md is 30+ minutes old:
+//          "relaunch <sid>: ..." the first time, then "stuck <sid>: ..." and its dependents held (#51)
+//   resume --feature <fid> [--feature-worktree <p>]   prints what --resume does with each story. A
+//          commit on the Feature branch with the line "Story: #<sid>" means "skip <sid>: committed <sha>"
+//          (and the state is brought up to date); a running one with no commit is "restart <sid>: from
+//          step <step>"; a committed one whose commit is gone is "redo <sid>: ..."; then next or
+//          done. A first line "approve: ..."
 //          when plan-approved is still no in phase planning and gate-shown is yes (the resume is the
 //          plan approval); "show-gate: ..." instead when gate-shown is absent or no
 //   stuck  --feature <fid> --story <sid> --reason <text>
@@ -34,10 +37,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { readSettings } = require('./settings.js');
+const { spawnSync } = require('node:child_process');
 
-const DEFAULT_CAP = 5;        // max-parallel-stories (ARCHITECTURE.md §5)
-const AGENT_LIMIT = 20;       // Claude Code's default limit on agents running at once
 const HANG_MINUTES = 30;      // rules/phase-markers.md freshness
 
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -80,7 +81,7 @@ function readState(root, fid) {
   return { header, stories };
 }
 
-const STORY_KEYS = ['status', 'step', 'title', 'blockers', 'worktree', 'branch', 'base', 'commit', 'merge', 'attempts',
+const STORY_KEYS = ['status', 'step', 'title', 'blockers', 'base', 'commit', 'attempts',
   'started', 'finished', 'findings', 'agents', 'tokens', 'models', 'reason'];
 
 function writeState(root, fid, state) {
@@ -144,6 +145,9 @@ function cmdInit(root, opts) {
   const result = order(stories);
   if (result.cycle) return fail(1, `dependency cycle: ${result.cycle.map((id) => `#${id}`).join(' → ')}. Nothing was written. Break the cycle in the tracker and run again.`);
 
+  // The base reaches git as an argument (`<base>..HEAD`), so it must look like a branch, never an option.
+  if (opts.base && !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(opts.base)) return fail(2, `bad branch name for --base: ${opts.base}`);
+
   const repoName = opts['repo-name'] || path.basename(path.resolve(root));
   const parent = path.dirname(path.resolve(root));
   const header = {
@@ -151,10 +155,9 @@ function cmdInit(root, opts) {
     title: opts.title || '',
     'run-mode': opts['run-mode'] || 'interactive',
     'plan-approved': 'no',
+    base: opts.base || 'main',
     'feature-branch': `feature/${fid}-${slug(opts.title || fid)}`,
     'feature-worktree': path.join(parent, `${repoName}-f${fid}`),
-    'story-cap': opts['story-cap'] || readSettings(root)['max-parallel-stories'] || String(DEFAULT_CAP),
-    'agent-limit': String(AGENT_LIMIT),
     phase: 'planning',
   };
   const rows = result.order.map((s) => ({
@@ -162,8 +165,6 @@ function cmdInit(root, opts) {
     status: CLOSED.test(s.state) ? 'skipped' : 'pending',
     title: s.title,
     blockers: s.blockers.join(','),
-    worktree: path.join(parent, `${repoName}-f${fid}-s${s.id}`),
-    branch: `story/${s.id}-${slug(s.title || s.id)}`,
     attempts: '0',
   }));
   writeState(root, fid, { header, stories: rows });
@@ -216,8 +217,36 @@ function cmdNext(root, opts) {
   return 0;
 }
 
+// The sha of the commit on the Feature branch whose message has the line "Story: #<sid>" (the line
+// only, never a longer id or prose), or '' when there is none or the worktree is not usable.
+function storyCommit(wt, sid, base) {
+  if (!wt || !fs.existsSync(wt)) return '';
+  const r = spawnSync('git', ['-C', wt, 'log', '--format=%H', '--grep', `^Story: #${sid}$`, `${base || 'main'}..HEAD`], { encoding: 'utf8' });
+  if (r.status !== 0) return '';
+  return (r.stdout || '').split('\n').map((l) => l.trim()).filter(Boolean)[0] || '';
+}
+
+// Where a running story stopped: the saved step, else the "next:" line of its executor-state.md.
+function savedStep(root, s) {
+  if (s.step) return s.step;
+  const file = path.join(root, 'tasks', 'stories', s.id, 'executor-state.md');
+  if (fs.existsSync(file)) {
+    const m = fs.readFileSync(file, 'utf8').match(/^next:\s*(.+)$/m);
+    if (m) return m[1].trim();
+  }
+  return 'tests';
+}
+
 function cmdResume(root, opts) {
-  const { header, stories } = load(root, opts.feature);
+  const state = load(root, opts.feature);
+  const { header, stories } = state;
+  const wt = opts['feature-worktree'] || header['feature-worktree'];
+  const git = !!wt && fs.existsSync(wt);
+  let changed = false;
+  // Without the Feature worktree the branch cannot be read, so a committed story is taken on trust.
+  if (!git && stories.some((s) => s.status === 'committed')) {
+    out(`warn: no Feature worktree at ${wt || '(none recorded)'}; committed stories are taken from the state file`);
+  }
   // A plan gate that stops the run tells the person to approve by running --resume (a skill's
   // `model:` lasts one turn), so a resume of a Feature whose gate was SHOWN and not yet approved IS
   // the approval. A crash between init and printing the gate leaves nothing the person saw: show it.
@@ -229,13 +258,26 @@ function cmdResume(root, opts) {
     }
   }
   for (const s of stories) {
+    // The Feature branch's own commits are the truth about a finished story; the state may lag.
+    const sha = ['pending', 'running', 'committed'].includes(s.status) ? storyCommit(wt, s.id, header.base) : '';
+    if (sha) {
+      if (s.status !== 'committed') { s.status = 'committed'; s.commit = sha; changed = true; }
+      out(`skip ${s.id}: committed ${sha.slice(0, 7)}`);
+      continue;
+    }
     switch (s.status) {
       case 'committed':
+        if (git) {
+          out(`redo ${s.id}: commit ${s.commit ? s.commit.slice(0, 7) : '(none recorded)'} not on ${header['feature-branch'] || 'the Feature branch'}`);
+          s.status = 'pending';
+          changed = true;
+        } else out(`skip ${s.id}: committed`);
+        break;
       case 'skipped':
-        out(`skip ${s.id}: ${s.status}`);
+        out(`skip ${s.id}: skipped`);
         break;
       case 'running':
-        out(`restart ${s.id}: running, carry on at step ${s.step || 'tests'} in the Feature worktree`);
+        out(`restart ${s.id}: from step ${savedStep(root, s)}`);
         break;
       case 'stuck':
         out(`stuck ${s.id}: ${s.reason || 'no reason recorded'} (its diff is in tasks/stories/${s.id}/stuck.diff)`);
@@ -244,6 +286,7 @@ function cmdResume(root, opts) {
         out(`${s.status} ${s.id}`);
     }
   }
+  if (changed) writeState(root, opts.feature, state);
   return cmdNext(root, opts);
 }
 
@@ -263,7 +306,7 @@ function cmdHung(root, opts) {
     if ((Number(s.hangs) || 0) === 0) {
       s.hangs = '1';
       writeState(root, opts.feature, state);
-      out(`restart ${s.id}: no progress ${minutes}m (phase.md updated ${updated}); carry on once at its saved step, in the Feature worktree`);
+      out(`relaunch ${s.id}: no progress ${minutes}m (phase.md updated ${updated}); start its builder again once, from its saved step`);
     } else {
       out(`stuck ${s.id}: no progress ${minutes}m, a second time`);
       markStuck(root, opts.feature, state, s.id, `no progress ${minutes}m, a second time`);

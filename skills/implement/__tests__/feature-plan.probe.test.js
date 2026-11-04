@@ -155,8 +155,8 @@ test('FeaturePlan_NoPlannerAfterTheGate', () => {
   const runText = afterGate.join('\n');
   assert.ok(/node "<skill-dir>\/bin\/worktree\.js" feature/.test(runText), 'companion: the slice really holds Run the stories');
 
-  const others = ['story-runner-agent.md', 'story-builder.md', 'story-reviewer.md', 'suite-runner.md'].map((f) => read('agents', f));
-  assert.ok(others.every((t) => t.length > 200), 'companion: the four agent files were read');
+  const others = ['story-builder.md', 'story-reviewer.md', 'suite-runner.md'].map((f) => read('agents', f));
+  assert.ok(others.length === 3 && others.every((t) => t.length > 200), 'companion: the three agent files were read');
 
   // The agent by name, or "a runner's planner" in prose: either starts a plan after the gate.
   const plans = (t) => /implement-planner-agent|\bplanner\b/i.test(t);
@@ -164,7 +164,7 @@ test('FeaturePlan_NoPlannerAfterTheGate', () => {
   assert.ok(plans("Once a runner's planner has saved its plan"), 'planted prose planner mention must be detected');
   assert.ok(!plans('Start the story-builder for the story.'), 'companion: text with no planner is accepted');
   const hits = [runText, ...others].filter(plans).length;
-  assert.strictEqual(hits, 0, `AC5: no planner call after the plan gate (found in ${hits} of the Feature run text, story-builder, story-reviewer, suite-runner, story-runner-agent)`);
+  assert.strictEqual(hits, 0, `AC5: no planner call after the plan gate (found in ${hits} of the Feature run text, story-builder, story-reviewer, suite-runner)`);
 });
 
 // ── the understand agent's Feature scope ──────────────────────────────────────────────────────────

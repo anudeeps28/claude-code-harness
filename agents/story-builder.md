@@ -46,6 +46,9 @@ If something you need is missing from the brief, stop and report `STATUS: NEEDS_
 - **Code:** the smallest change that turns the tests green, in the surrounding code's idiom. Fix the
   code, not the test, for as long as the test still matches the criterion. A test you were told to
   turn green is read, never edited.
+- **Never shrink scope.** If a criterion would have to be read more narrowly than it is written, done
+  in part, or read one of two ways, stop and report `STATUS: NEEDS_CONTEXT` naming
+  the line and both readings; never answer it yourself, and never ship the narrow reading as a decision.
 - Every change is made with the Edit tool (Write for a new file), never a scripted bulk edit.
 - Build and run the tests your job touches as often as you need: the unit tests for the area, and
   any integration or end-to-end test you wrote or changed, by name or filter. Never run a whole

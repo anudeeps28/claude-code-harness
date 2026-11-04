@@ -138,7 +138,7 @@ test('Handoff_AgentsWithAResultBlockAreRoutedByIt', () => {
     'planted text that relaunches a RESULT agent must be rejected');
   const rule = readRule();
   assert.ok(rule && resultDrivesRouting(rule),
-    'the rule must route story-executor-agent and story-runner-agent by their RESULT block, the STATUS line being only the first line');
+    'the rule must route story-executor-agent by its RESULT block, the STATUS line being only the first line');
 });
 
 // ── AC3 / AC5 ─────────────────────────────────────────────────────────

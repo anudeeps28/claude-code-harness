@@ -41,13 +41,28 @@ test('Init_WritesStateWithBranchesAndSiblingWorktrees', () => {
   assert.equal(s.header['feature-branch'], 'feature/123-orders-page');
   assert.equal(s.header['feature-worktree'], path.join(path.dirname(dir), 'shop-f123'));
   assert.equal(s.header['plan-approved'], 'no');
-  assert.equal(s.header['story-cap'], '5');
   assert.deepEqual(s.stories.map((x) => x.id), ['201', '202']);
   const b = s.stories[1];
   assert.equal(b.status, 'pending');
   assert.equal(b.blockers, '201');
-  assert.equal(b.branch, 'story/202-show-orders-on-the-page');
-  assert.equal(b.worktree, path.join(path.dirname(dir), 'shop-f123-s202'));
+});
+
+test('Init_HasNoStoryCapOrStoryBranches', () => {
+  // AC5 of #79: one story at a time on the Feature branch, so no cap, no agent limit, and no
+  // per-story branch or worktree in the state file.
+  const dir = home(AB);
+  assert.equal(init(dir, ['--story-cap', '3']).code, 0);
+  const s = readState(dir, '123');
+  assert.equal(s.header['feature-branch'], 'feature/123-orders-page', 'companion: the Feature branch is still recorded');
+  assert.equal(s.stories.length, 2, 'companion: both stories are there');
+  assert.equal(s.header['story-cap'], undefined, 'no story-cap');
+  assert.equal(s.header['agent-limit'], undefined, 'no agent-limit');
+  for (const st of s.stories) {
+    assert.equal(st.branch, undefined, `story ${st.id} has no branch`);
+    assert.equal(st.worktree, undefined, `story ${st.id} has no worktree`);
+  }
+  const raw = fs.readFileSync(path.join(dir, 'tasks', 'features', '123', 'feature-state.md'), 'utf8').replace(/\r\n/g, '\n');
+  assert.doesNotMatch(raw, /story-cap|agent-limit|story\/\d|-s20\d/, 'nothing in the file names a story branch or a story worktree');
 });
 
 test('Init_OrdersStoriesByDependencyNotByListOrder', () => {
@@ -162,26 +177,168 @@ test('Stuck_HoldsDependentsAndLetsIndependentStoriesFinish', () => {
   assert.match(n.out, /^held: stuck #1; waiting on it #2 #3$/m, 'nothing left to run: pause, no PR');
 });
 
-test('Resume_SkipsCommittedRestartsRunningKeepsTheRest', () => {
+// ── F72 #79: resume reads the Feature branch's own commits, in a real git repository ──
+
+function git(cwd, ...args) {
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+  return r.stdout.trim();
+}
+
+// A real repo on main with the Feature branch checked out; `commits` are made on the Feature branch,
+// `onMain` are made on main before it. Returns the repo path and each commit's sha by message.
+function featureRepo(commits, onMain = []) {
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'fstate-git-'));
+  git(wt, 'init', '-q', '-b', 'main');
+  git(wt, 'config', 'user.email', 'test@example.com');
+  git(wt, 'config', 'user.name', 'Test');
+  git(wt, 'config', 'core.autocrlf', 'false');
+  const shas = {};
+  const commit = (msg, i) => {
+    fs.writeFileSync(path.join(wt, `f${i}.txt`), `${i}\n`);
+    git(wt, 'add', '.');
+    git(wt, 'commit', '-q', '-m', msg);
+    shas[msg] = git(wt, 'rev-parse', 'HEAD');
+  };
+  commit('init', 0);
+  onMain.forEach((m, i) => commit(m, 100 + i));
+  git(wt, 'checkout', '-q', '-b', 'feature/123-orders-page');
+  commits.forEach((m, i) => commit(m, i + 1));
+  return { wt, shas };
+}
+
+const resume = (dir, wt) => run(dir, 'resume', '--feature', '123', '--feature-worktree', wt);
+
+test('Resume_SkipsStoriesWhoseCommitIsOnTheFeatureBranch', () => {
+  // AC4 of #79. 201 has its commit although the state lagged (still pending). 202 only has look-alikes:
+  // a message that merely mentions it, a longer id, and a commit on main, before the Feature branch.
+  const { wt, shas } = featureRepo(
+    ['Add the orders table\n\nStory: #201', 'Tidy\n\nStory: #2020', 'Notes about Story: #202 in prose'],
+    ['Old work\n\nStory: #202']);
+  const dir = home([...AB, { id: '203', title: 'Export orders', state: 'OPEN', blockers: [] }]);
+  init(dir);
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  const sha = shas['Add the orders table\n\nStory: #201'];
+  assert.ok(sha, 'fixture: the 201 commit exists');
+  assert.match(r.out, new RegExp(`^skip 201: committed ${sha.slice(0, 7)}[0-9a-f]*$`, 'm'));
+  assert.equal(readState(dir, '123').stories[0].status, 'committed', 'the lagging state is brought up to date');
+  assert.doesNotMatch(r.out, /^skip 202/m, 'look-alike messages and a commit on main are not 202\'s commit');
+  assert.doesNotMatch(r.out, /^skip 203/m);
+  assert.equal(readState(dir, '123').stories[1].status, 'pending');
+  assert.match(r.out, /^story 202$/m, 'the next story is handed out');
+});
+
+test('Resume_RunningStoryRestartsFromItsSavedStep', () => {
+  const { wt } = featureRepo(['Add the orders table\n\nStory: #201']);
   const dir = home([...AB, { id: '203', title: 'Export orders', state: 'OPEN', blockers: [] }]);
   init(dir);
   run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed');
-  run(dir, 'set', '--feature', '123', '--story', '203', 'status=running', 'step=code');
-  const r = run(dir, 'resume', '--feature', '123');
+  run(dir, 'set', '--feature', '123', '--story', '202', 'status=running', 'step=review');
+  let r = resume(dir, wt);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /^skip 201: committed$/m);
-  assert.match(r.out, /^restart 203: running, carry on at step code in the Feature worktree$/m);
-  assert.match(r.out, /^pending 202$/m);
+  assert.match(r.out, /^restart 202: from step review$/m);
+  run(dir, 'set', '--feature', '123', '--story', '202', 'step=green');
+  r = resume(dir, wt);
+  assert.match(r.out, /^restart 202: from step green$/m, 'it follows the saved step, whatever it is');
+  assert.doesNotMatch(r.out, /^restart 203/m, 'a pending story is not restarted');
   assert.doesNotMatch(r.out, /runner|per-story worktree|recreate/, 'no runner and no per-story worktree');
 });
 
-test('Resume_RunningStory_CarriesOnAtItsSavedStep', () => {
+test('Resume_AllCommitted_GoesToTheFeaturePhases', () => {
+  const { wt } = featureRepo(['One\n\nStory: #201', 'Two\n\nStory: #202']);
   const dir = home(AB);
   init(dir);
-  run(dir, 'set', '--feature', '123', '--story', '201', 'status=running', 'step=review');
-  assert.match(run(dir, 'resume', '--feature', '123').out, /^restart 201: running, carry on at step review in the Feature worktree$/m);
-  run(dir, 'set', '--feature', '123', '--story', '201', 'step=green');
-  assert.match(run(dir, 'resume', '--feature', '123').out, /at step green /, 'it follows the saved step, whatever it is');
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^skip 201: committed [0-9a-f]{7,40}$/m);
+  assert.match(r.out, /^skip 202: committed [0-9a-f]{7,40}$/m);
+  assert.match(r.out, /^done$/m, 'nothing left to build: on to the Feature phases');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['committed', 'committed']);
+});
+
+test('Resume_BaseBranchIsNotMain_StillSkipsTheCommittedStory', () => {
+  // A repo whose trunk is "trunk": main..HEAD would make git fail and redo every committed story.
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'fstate-trunk-'));
+  git(wt, 'init', '-q', '-b', 'trunk');
+  git(wt, 'config', 'user.email', 'test@example.com');
+  git(wt, 'config', 'user.name', 'Test');
+  fs.writeFileSync(path.join(wt, 'a.txt'), 'a\n');
+  git(wt, 'add', '.');
+  git(wt, 'commit', '-q', '-m', 'init');
+  git(wt, 'checkout', '-q', '-b', 'feature/123-orders-page');
+  fs.writeFileSync(path.join(wt, 'b.txt'), 'b\n');
+  git(wt, 'add', '.');
+  git(wt, 'commit', '-q', '-m', 'Add the orders table\n\nStory: #201');
+  const sha = git(wt, 'rev-parse', 'HEAD');
+  const dir = home(AB);
+  assert.equal(init(dir, ['--base', 'trunk']).code, 0);
+  assert.equal(readState(dir, '123').header.base, 'trunk', 'the base branch is recorded at init');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', `commit=${sha}`);
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, new RegExp(`^skip 201: committed ${sha.slice(0, 7)}`, 'm'));
+  assert.doesNotMatch(r.out, /^redo 201/m);
+  assert.equal(readState(dir, '123').stories[0].status, 'committed');
+});
+
+// The base is passed to git as an argument, so a value shaped like an option is refused at init.
+test('Init_BaseThatLooksLikeAnOption_IsRefused', () => {
+  const dir = home(AB);
+  const r = init(dir, ['--base', '--all']);
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /bad branch name for --base: --all/);
+  assert.equal(init(dir, ['--base', 'release/2026.11']).code, 0, 'a real branch name with a slash and dots is fine');
+});
+
+// A state file written before the base was recorded still resumes against main.
+test('Resume_StateWithNoBaseHeader_UsesMain', () => {
+  const { wt } = featureRepo(['Add the orders table\n\nStory: #201']);
+  const dir = home(AB);
+  init(dir);
+  const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/^base: main\r?\n/m, ''));
+  assert.equal(readState(dir, '123').header.base, undefined, 'the header really has no base now');
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', 'commit=x');
+  const r = resume(dir, wt);
+  assert.match(r.out, /^skip 201: committed/m, r.out);
+});
+
+test('Resume_CommittedStoryWhoseCommitIsNotOnTheBranch_IsRedoneAndPending', () => {
+  const { wt } = featureRepo(['Other work\n\nStory: #999']);
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', 'commit=deadbeefdeadbeef');
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^redo 201: commit deadbee not on feature\/123-orders-page$/m);
+  assert.equal(readState(dir, '123').stories[0].status, 'pending');
+});
+
+test('Resume_RunningStoryWithoutStep_ReadsNextFromItsExecutorState', () => {
+  const { wt } = featureRepo([]);
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=running');
+  const sdir = path.join(dir, 'tasks', 'stories', '201');
+  fs.mkdirSync(sdir, { recursive: true });
+  fs.writeFileSync(path.join(sdir, 'executor-state.md'), 'run-mode: autonomous\nnext: review\n');
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^restart 201: from step review$/m);
+});
+
+test('Resume_FeatureWorktreeMissing_WarnsAndTrustsTheStateFile', () => {
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed', 'commit=abc1234');
+  const gone = path.join(os.tmpdir(), 'fstate-no-such-worktree');
+  const r = resume(dir, gone);
+  assert.equal(r.code, 0, r.out);
+  const lines = r.out.split('\n');
+  assert.equal(lines[0], `warn: no Feature worktree at ${gone}; committed stories are taken from the state file`);
+  assert.match(r.out, /^skip 201: committed$/m, 'the committed story is still trusted');
+  assert.equal(readState(dir, '123').stories[0].status, 'committed');
 });
 
 test('Resume_GateNeverShown_ShowsTheGateAgain', () => {
@@ -261,7 +418,7 @@ test('Hung_FirstTime_RestartOnceThenStuckWithDependentsHeld', () => {
   run(dir, 'set', '--feature', '123', '--story', '1', 'status=running');
   phase(dir, '1', '2026-10-06T10:00:00Z');
   const first = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:31:00Z');
-  assert.match(first.out, /^restart 1: no progress 31m \(phase\.md updated 2026-10-06T10:00:00Z\); carry on once at its saved step, in the Feature worktree$/m);
+  assert.match(first.out, /^relaunch 1: no progress 31m \(phase\.md updated 2026-10-06T10:00:00Z\)/m);
   assert.equal(readState(dir, '123').stories[0].status, 'running');
   phase(dir, '1', '2026-10-06T10:40:00Z');
   const second = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T11:15:00Z');
@@ -271,10 +428,27 @@ test('Hung_FirstTime_RestartOnceThenStuckWithDependentsHeld', () => {
   assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['stuck', 'pending', 'held']);
 });
 
+test('Hung_OnlyTheStoryInFlight', () => {
+  // AC5 of #79: one story runs at a time, so only the running one can hang. Planted look-alikes: a
+  // pending story and a committed one both have a stale phase.md and must not be reported.
+  const dir = initWith(indep(3));
+  run(dir, 'set', '--feature', '123', '--story', '1', 'status=committed');
+  run(dir, 'set', '--feature', '123', '--story', '2', 'status=running');
+  phase(dir, '1', '2026-10-06T08:00:00Z');
+  phase(dir, '2', '2026-10-06T10:00:00Z');
+  phase(dir, '3', '2026-10-06T08:00:00Z');
+  const r = run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:45:00Z');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^relaunch 2: no progress 45m/m, 'the running story is reported');
+  assert.doesNotMatch(r.out, /^\S+ [13]:/m, 'the committed and the pending story are not');
+  assert.doesNotMatch(r.out, /^restart /m, 'the first hang is a relaunch, not a per-story restart');
+  assert.deepEqual(readState(dir, '123').stories.map((s) => s.status), ['committed', 'running', 'pending']);
+});
+
 test('Hung_NoPhaseFile_UsesTheStartTime', () => {
   const dir = initWith(indep(1));
   run(dir, 'set', '--feature', '123', '--story', '1', 'status=running', 'started=2026-10-06T09:00:00Z');
-  assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:00:00Z').out, /^restart 1: no progress 60m/m);
+  assert.match(run(dir, 'hung', '--feature', '123', '--now', '2026-10-06T10:00:00Z').out, /^relaunch 1: no progress 60m/m);
 });
 
 // ── F72 #78: one story at a time, on the Feature branch ──────────────

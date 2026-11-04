@@ -261,7 +261,7 @@ tasks/
 
 | You run | It builds |
 |---|---|
-| `/implement 40` on a **Feature** | every story, each in its own sibling git worktree (`<repo>-f40-s<sid>`), then one review panel, Prove it, and one PR from `feature/40-<slug>` |
+| `/implement 40` on a **Feature** | every story, one after another, in one Feature worktree (`<repo>-f40`) on the Feature branch, then one review panel, Prove it, and one PR from `feature/40-<slug>` |
 | `/implement 42` on a story or bug **with** a parent Feature | asks whether you meant the Feature |
 | `/implement 42 --standalone` on a story or bug **without** one | that one item, on its own branch |
 | `/implement --resume <id>` | carries on a stopped run from its saved state — a story, a Feature, or a plan `/troubleshoot` wrote |
@@ -278,8 +278,9 @@ Four sections of `tasks/lessons.md` (`tasks/notes.md` on the solo pack) drive it
 - **Observe** — how the Demo is seen: test environment only, the start and screenshot commands, the
   read-only API and database, the *names* of their credential variables (never the values), and the
   e2e command. `/implement` checks the item's Demo against it before planning.
-- **Feature runs** — `max-parallel-stories` (default 5), `worktree-size-gb` (default 3) and
-  `verify-lock` (`global` when worktrees share a port, database or cache).
+- **Feature runs** — `worktree-size-gb` (default 3, used for the disk check: the Feature
+  worktree plus the Prove-it copy) and `verify-lock` (`global` when worktrees share a port, database
+  or cache). Stories run one at a time, so there is no width setting.
 - **Worktree setup** — the gitignored files each new worktree needs, and its restore commands.
 
 On the **enterprise** pack (`workflowPack: enterprise` in `.claude/.harness-manifest.json`),

@@ -50,7 +50,10 @@ const ENTERPRISE_ONLY_SKILLS = new Set([
 // both packs, and says so (docs/story-retirement-inventory.md lists where each behaviour went).
 // /to-issues retired 2026-10-06: /plan-features replaced it (and ClaudeSkills' prd-to-stories).
 const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues'];
-const RETIRED_AGENTS = ['story-plan-agent.md'];
+const RETIRED_AGENTS = ['story-plan-agent.md', 'story-runner-agent.md'];
+// story-runner-agent retired with the per-story worktrees (F72 #79): stories are built one at a time
+// on the Feature branch by the main session. Only story-plan-agent marks an old install as enterprise.
+const ENTERPRISE_MARKER_AGENTS = new Set(['story-plan-agent.md']);
 
 // What took each retired skill's place, said when it is removed.
 const REPLACED_BY = { story: '/implement', 'run-tasks': '/implement --resume', 'to-issues': '/plan-features' };
@@ -179,8 +182,6 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/story-executor-agent.md',
     'agents/story-pr-agent.md',
     'agents/implement-planner-agent.md',
-    // Spawned by /implement's Feature mode (F4 #44).
-    'agents/story-runner-agent.md',
     // The Feature panel's fifth reviewer (F6 #58).
     'agents/loosened-reviewer-agent.md',
     // The story agents and their test rules (F72 #76).
@@ -862,7 +863,7 @@ function backfillManifest(target, opts = {}) {
   if (fs.existsSync(agentsDir)) {
     const agents = fs.readdirSync(agentsDir);
     // story-plan-agent is retired, but an old enterprise install still carries it.
-    if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a) || RETIRED_AGENTS.includes(a))) workflowPack = 'enterprise';
+    if (agents.some(a => ENTERPRISE_ONLY_AGENTS.has(a) || ENTERPRISE_MARKER_AGENTS.has(a))) workflowPack = 'enterprise';
   }
 
   let tracker = null;

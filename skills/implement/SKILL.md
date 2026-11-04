@@ -1,6 +1,6 @@
 ---
 name: implement
-description: The build skill. Builds a whole Feature (each story in its own worktree, one review panel, Prove it, one PR), a single story or bug, or a plain description — understand, plan, execute, evaluate, and PR — or loops back on a rejected PR with `--rework <PR#>`, or carries on a stopped run with `--resume <id>`. Works in both packs and on every tracker. Usage: /implement <feature-id, issue-id, task-title, or description> [--standalone] [--discuss] [--research] [--quick] [--step] [--auto] [--full] [--autonomous] [--tdd] [--no-ship] [--rework <PR#>] [--resume <id>]
+description: The build skill. Builds a whole Feature (its stories one after another on the Feature branch, one review panel, Prove it, one PR), a single story or bug, or a plain description — understand, plan, execute, evaluate, and PR — or loops back on a rejected PR with `--rework <PR#>`, or carries on a stopped run with `--resume <id>`. Works in both packs and on every tracker. Usage: /implement <feature-id, issue-id, task-title, or description> [--standalone] [--discuss] [--research] [--quick] [--step] [--auto] [--full] [--autonomous] [--tdd] [--no-ship] [--rework <PR#>] [--resume <id>]
 argument-hint: "#42, 'Build login flow', 'add dark mode to settings page', --rework 58 'also rename the flag', or --resume 42"
 model: sonnet
 ---
@@ -219,7 +219,7 @@ node "<skill-dir>/bin/source-lines.js" read tasks/stories/<id>/ticket.md
 The item's `**Type:**` line (every tracker reports it the same way) and its `**Parent:**` line decide
 how this run builds it:
 
-- **`**Type:** Feature`** → **Feature mode**: build the whole Feature, story by story, in worktrees,
+- **`**Type:** Feature`** → **Feature mode**: build the whole Feature, story by story, on one Feature branch,
   with one plan approval and one PR. Go to the **Feature mode** section now; the rest of "Before you
   start" and Phases 1–3 are the standalone flow: a Feature builds each story with the loop in
   **Run the stories**.
@@ -331,7 +331,6 @@ names an agent or adapter script that is not listed here. Format: `- <kind> \`<n
 - agent `architect-reviewer-agent` — Phase 3 review · build
 - agent `security-reviewer-agent` — Phase 3 review · build
 - agent `story-pr-agent` — Phase 3 PR · build
-- agent `story-runner-agent` — Feature mode, each story · build
 - agent `loosened-reviewer-agent` — Feature mode, the Feature panel · build
 - skill `local-test` — Phase 2.5 · build
 - skill `debug` — the 3-attempt rule · both
@@ -389,7 +388,6 @@ Evidence for the frontmatter `model:`: the Claude Code docs, skills page, frontm
 | `debug-agent` | root cause, started by `/debug` | opus |
 | `story-pr-agent` | commits and the PR body | sonnet |
 | `tracker-helper` | card moves, deferral items | haiku |
-| `story-runner-agent` | one story of a Feature (retired in #79) | opus |
 
 ---
 
@@ -672,8 +670,8 @@ per the 3-failed-attempts pause-anyway trigger — the same rule the rest of thi
 
 ## Feature mode
 
-`/implement <feature-id>` builds a whole Feature: one plan approval, a Feature worktree, each story in
-the stories built one after another in the Feature worktree, one commit per story on the Feature branch,
+`/implement <feature-id>` builds a whole Feature: one plan approval, a Feature worktree, the stories
+built one after another in that worktree, one commit per story on the Feature branch,
 one full review panel and Prove it on the whole Feature branch, and one PR from the Feature branch to
 main, opened only when every criterion passes the PR gate (ARCHITECTURE.md §1, ADR-0001 to ADR-0004).
 **Only one story is ever in flight**; `story-builder` and `story-reviewer` do the work for it.
@@ -699,8 +697,12 @@ state; the builders write product code and tests in the Feature worktree. You ne
 
    ```bash
    node "<skill-dir>/bin/feature-state.js" init --feature <fid> --title "<feature title>" \
-     --stories tasks/features/<fid>/stories.json --run-mode <interactive|autonomous>
+     --stories tasks/features/<fid>/stories.json --run-mode <interactive|autonomous> --base <base branch>
    ```
+
+   `<base branch>` is the branch the Feature starts from: `main`, or `trunk`/`master` when that is the
+   repo's default branch. It is saved in `feature-state.md` as `base:`, and the Feature worktree and
+   `--resume` both use it.
 
    It prints the stories in dependency order, rejects a cycle (naming it; nothing is written) and warns
    above 8 stories. It refuses if the state already exists — that is a `--resume`.
@@ -769,15 +771,15 @@ state; the builders write product code and tests in the Feature worktree. You ne
 After plan approval and before any worktree exists, two checks; each prints nothing when all is well.
 
 ```bash
-node "<skill-dir>/bin/disk-check.js" --stories <story-cap>
+node "<skill-dir>/bin/disk-check.js"
 node "<skill-dir>/bin/allowlist-check.js"
 ```
 
-- **Disk:** the worktrees need (stories at once + the Feature) × `worktree-size-gb` (default 3 GB).
+- **Disk:** two worktrees (the Feature and the Prove-it scratch copy) × `worktree-size-gb` (default 3 GB).
   `not enough disk: ...` → **stop** before creating anything, showing the space needed and free.
 - **Allowlist:** background agents show their permission prompts in this session, so one command
   nobody approved stalls the whole run. The script lists every command the run will use — the git
-  worktree and merge commands, the build, test and Observe commands from lessons/notes, the tracker
+  worktree, add, commit and push commands, the build, test and Observe commands from lessons/notes, the tracker
   scripts, `gh pr create` — that no allow rule covers, each with the exact rule that would cover it.
   Show that list in one block and **stop** until the person has added the rules (or says to go on and
   answer the prompts as they come). The check never writes settings — agents cannot raise their own
@@ -792,10 +794,10 @@ missing-dependency trigger.
 **Create the Feature worktree** — a sibling of the home folder, on the Feature branch from main:
 
 ```bash
-node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-worktree>" --branch "<feature-branch>"
+node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-worktree>" --branch "<feature-branch>" --base "<base>"
 ```
 
-(Both values are in `feature-state.md`.) Set it up from the lessons/notes **Worktree setup** section
+(All three values are in `feature-state.md`.) Set it up from the lessons/notes **Worktree setup** section
 (`rules/git-worktrees.md`): copy the listed gitignored config files from the home folder, and run the
 restore commands in it. If that section is missing, **stop** and ask for it once, then write it in: a
 story built without its config fails for reasons that have nothing to do with the code.
@@ -879,6 +881,11 @@ Then loop on `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`:
 guess), plus `attempts=` and `findings=`. The decisions you self-answered go to
 `tasks/features/<fid>/decisions-log.md`, each line prefixed `#<sid>:`.
 
+**A scope question met while building a story is a pause.** When a builder or reviewer reports that a
+requirement would have to be read more narrowly than written, done in part, or read one of two ways
+(`NEEDS_CONTEXT` or `BLOCKED`), **stop and ask the person** with a recommended answer
+(`rules/autonomous-mode.md`, "Never shrink scope"). It is never self-answered and never logged as a decision.
+
 **A blocked story.** When a job reports BLOCKED a second time, or the person ends it, the story is
 **stuck** (**Stuck stories**): its card goes to `needs-person`, and
 the held dependents' cards are left untouched. The loop carries on with the stories that do not depend on it.
@@ -920,7 +927,7 @@ and lets the Feature go ahead without it.
 `/implement --resume <fid>` on a Feature (it has `tasks/features/<fid>/feature-state.md`):
 
 ```bash
-node "<skill-dir>/bin/feature-state.js" resume --feature <fid>
+node "<skill-dir>/bin/feature-state.js" resume --feature <fid> --feature-worktree "<feature-worktree>"
 ```
 
 **The resume can be the plan approval.** The plan gate tells the person to approve by running
@@ -933,9 +940,14 @@ saying the plan was never approved. When `gate-shown` is absent or `no` the comm
 instead: the run stopped before the person saw the plan, so show the plan gate again (step 4 of **Plan
 the Feature**, setting `gate-shown=yes`) and approve nothing.
 
-It prints one line per story: `skip` (committed: never redone), `restart <sid>: running, carry on at
-step <step> in the Feature worktree` (no runner and no per-story worktree), `stuck` (held until a
-person acts; its diff is in `tasks/stories/<sid>/stuck.diff`), `pending`; then what runs next.
+It reads the Feature branch itself: a story whose commit is on it (a commit whose message has the line
+`Story: #<sid>`) is committed, even if the state lagged, and the state is brought up to date. It prints
+one line per story: `skip` (committed: never redone), `restart <sid>: from step <step>`, `redo <sid>:
+...` (the state says committed but the commit is not on the Feature branch: build it again), `stuck`
+(held until a person acts; its diff is in `tasks/stories/<sid>/stuck.diff`), `pending`; then what runs next.
+When the Feature worktree folder is gone, the command cannot read the branch: it prints `warn: no Feature
+worktree at <path>; committed stories are taken from the state file` first and trusts the state file's
+committed stories. Tell the person, and recreate the worktree before building anything.
 A running story re-enters **Build one story** at the `step=` saved in `feature-state.md`, reading
 `tasks/stories/<sid>/executor-state.md` for what is already done:
 
@@ -968,7 +980,7 @@ The one full review, run once on the whole Feature branch after every story is c
    `event=phase phase=reviewing`.
 3. **Start all five reviewers in one message, each in the foreground** — six calls, because the
    evaluator runs twice. Every one gets: **work folder** = the Feature worktree; **state folder** =
-   `<state>`; **base ref** = `main` (they diff `main...feature/<fid>`); the Feature id; **scripts
+   `<state>`; **base ref** = the `base:` in `feature-state.md`, normally `main` (they diff `<base>...feature/<fid>`); the Feature id; **scripts
    folder** = `<skill-dir>/bin`; "Feature panel"; and its **model, passed explicitly** on the Agent
    call — an answer that is a list goes on the faster model, an answer that is an argument never does:
 
@@ -1136,7 +1148,7 @@ When the gate is open (`feature-state.js set --feature <fid> phase=shipping`):
 
    ```bash
    git -C "<feature-worktree>" push -u origin "<feature-branch>"
-   gh pr create --base main --head feature/<fid>-<slug> --title "<feature title>" --body-file tasks/features/<fid>/pr-body.md
+   gh pr create --base <base> --head feature/<fid>-<slug> --title "<feature title>" --body-file tasks/features/<fid>/pr-body.md
    ```
 
    That is the only push in a Feature run: **no story branch is ever pushed**. Under `--no-ship`, stop
@@ -1719,7 +1731,7 @@ behind** in the working directory.
 - `/local-test e2e` reporting NOT SET UP is a red gate, never a skip
 - Follow the commit rules in `tasks/lessons.md` (or `tasks/notes.md`) for every commit; never auto-push from the default branch
 - The **enterprise only** steps (sprint file to Phase 1, one task per child task, the Master Status Table) run only when the manifest's `workflowPack` is `enterprise`; a solo run never reads or mentions a sprint file
-- In Feature mode the full panel runs once, after every story is committed: five reviewers (six calls) in one message, each with its model passed explicitly, on `main...feature/<fid>`, with the tree committed first and left untouched until the last one returns; only the reviewers whose areas a fix touched are re-run
+- In Feature mode the full panel runs once, after every story is committed: five reviewers (six calls) in one message, each with its model passed explicitly, on `<base>...feature/<fid>` (the base recorded in `feature-state.md`), with the tree committed first and left untouched until the last one returns; only the reviewers whose areas a fix touched are re-run
 - No Feature PR until `pr-gate.js` prints `gate: open`: every criterion met and its test turned red when its line was broken, or needs a person, or deferred by the person to a tracker item linked from the PR. Only a person defers a criterion, under `--autonomous` too
 - Prove it runs in a scratch copy (`worktree.js scratch`), never in the Feature worktree, and records evidence by shape only
 - Never build before the plan gate is approved (or, under `--autonomous`, approves itself because it has nothing to ask); after it, never stop except on a contradiction, an irreversible action, a scope change, scope narrowing, a missing dependency, the 3-attempt rule, or a FAIL/BLOCKED it cannot pass

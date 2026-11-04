@@ -26,7 +26,7 @@ const PLANNER = read('agents', 'implement-planner-agent.md');
 const UNDERSTAND = read('agents', 'story-understand-agent.md');
 const ACCEPTANCE = read('agents', 'acceptance-test-agent.md');
 const EVALUATOR = read('agents', 'evaluator-agent.md');
-const RUNNER = read('agents', 'story-runner-agent.md');
+const BUILDER = read('agents', 'story-builder.md');
 const AUDIT_SKILL = read('skills', 'coverage-audit', 'SKILL.md');
 const AUDITOR = read('agents', 'coverage-auditor-agent.md');
 const SYNC = read('skills', 'sync-tracker', 'SKILL.md');
@@ -113,7 +113,11 @@ test('NeverShrinkScope_IsNotSelfAnswerableAnywhere', () => {
   mustMatch(section(AUTONOMOUS, '## Pause-anyway triggers'), /\*\*Scope narrowing\*\*/, 'mid-build it is a pause-anyway trigger');
   mustMatch(DEFERRALS, /not the run's to defer/, 'deferrals.md: a requirement is never the run\'s to defer');
   mustMatch(IMPLEMENT, /\*\*Never shrink scope\.\*\*/, '/implement states it');
-  mustMatch(RUNNER, /Never shrink scope/, 'the story runner states it');
+  mustMatch(BUILDER, /Never shrink scope/, 'the story builder states it');
+  mustMatch(BUILDER, /Never shrink scope[\s\S]{0,500}?`STATUS: (NEEDS_CONTEXT|BLOCKED)`[\s\S]{0,200}?never (answer|settle|decide)/i,
+    'on a scope question the builder reports NEEDS_CONTEXT or BLOCKED and never answers it itself');
+  const scopeCheck = (t) => /Never shrink scope[\s\S]{0,500}?`STATUS: (NEEDS_CONTEXT|BLOCKED)`[\s\S]{0,200}?never (answer|settle|decide)/i.test(t);
+  assert.ok(!scopeCheck('Never shrink scope. When unsure which reading is meant, decide it yourself and carry on; report `STATUS: DONE`.'), 'planted opposite: a builder that settles the reading itself is rejected');
   mustMatch(PLANNER, /never plan the narrow\s+reading/, 'the planner asks instead of planning the narrow reading');
   mustMatch(UNDERSTAND, /Never settle a scope reading yourself/, 'the understand agent collects scope readings as questions');
 });
@@ -157,7 +161,9 @@ test('OneGate_FeatureModeUsesTheSameGateFormat', () => {
   mustMatch(plan, /\*\*coverage\*\*/, 'it shows coverage');
   mustMatch(plan, /\*\*scope readings\*\*/, 'it asks scope readings');
   mustMatch(plan, /a recommended answer/, 'each question has a recommended answer');
-  mustMatch(RUNNER, /Open questions\*\* hold anything[\s\S]{0,200}\*\*BLOCKED\*\*/, 'a runner never answers an open question itself');
+  const run = section(section(IMPLEMENT, '## Feature mode'), '### Run the stories');
+  mustMatch(run, /scope[\s\S]{0,300}?(pause|stop|ask the person)/i, 'a scope question met while building a story is a pause, not an answer');
+  assert.doesNotMatch(run, /self-answer[^.\n]{0,60}scope/i, 'and it is never self-answered');
 });
 
 // ── 5. the closing check ───────────────────────────────────────────────

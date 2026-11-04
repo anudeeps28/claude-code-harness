@@ -507,6 +507,27 @@ test('backfillManifest_DetectsEnterprisePackWhenEnterpriseAgentsPresent', () => 
   }
 });
 
+test('backfillManifest_SoloInstallWithStoryRunner_StaysSolo', () => {
+  // F72 #79: story-runner-agent is retired but was a solo agent too (/implement's Feature mode
+  // spawned it in both packs), so an old solo install that still carries it is not enterprise.
+  // Guards a regression: it passes today and must stay green when the retired list grows. The
+  // planted opposite is story-plan-agent, which really is an enterprise marker.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'agents', 'evaluator-agent.md'), '# test', 'utf8');
+    fs.writeFileSync(path.join(dir, 'agents', 'story-runner-agent.md'), '# test', 'utf8');
+    const { detected } = backfillManifest(dir, { harnessVersion: '2.0.0' });
+    assert.equal(detected.workflowPack, 'solo');
+    fs.writeFileSync(path.join(dir, 'agents', 'story-plan-agent.md'), '# test', 'utf8');
+    fs.rmSync(path.join(dir, '.harness-manifest.json'), { force: true });
+    assert.equal(backfillManifest(dir, { harnessVersion: '2.0.0' }).detected.workflowPack, 'enterprise',
+      'companion: the check can still say enterprise');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('backfillManifest_DetectsGitHubTrackerByDefault', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'backfill-test-'));
   try {

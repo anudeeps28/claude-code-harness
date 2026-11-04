@@ -4,7 +4,7 @@
 // prompts in the main session, so one unapproved command stalls an unattended run.
 //
 // Usage: node allowlist-check.js [--command <cmd>]... [--settings <file>]... [--user-settings <file>]
-//   The commands checked: the harness's own (git worktree and merge, git add/commit/push, gh pr create,
+//   The commands checked: the harness's own (git worktree add and remove, git add/commit/push, gh pr create,
 //   node for its scripts, bash for the tracker adapters), the build, test and Observe commands from
 //   tasks/lessons.md or tasks/notes.md, and any --command given.
 //   The rules read: .claude/settings.json, .claude/settings.local.json, --settings files, and the user's
@@ -24,8 +24,6 @@ const { lessonsFile } = require('./settings.js');
 const HARNESS = [
   ['git worktree add <path> -b <branch> <base>', 'git worktree add'],
   ['git worktree remove <path>', 'git worktree remove'],
-  ['git merge --no-ff --no-commit <story branch>', 'git merge'],
-  ['git branch -d <story branch>', 'git branch -d'],
   ['git add <files>', 'git add'],
   ['git commit -m <message>', 'git commit'],
   ['git push -u origin <feature branch>', 'git push'],

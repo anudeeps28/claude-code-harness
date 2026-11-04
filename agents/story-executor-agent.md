@@ -313,7 +313,7 @@ Do NOT retry automatically. Report:
 
 **Changes I made:** [List every change so the orchestrator can review]
 
-The orchestrator (`/implement`, or a story runner in a Feature) will decide whether to retry or invoke /debug.
+The orchestrator (`/implement`) will decide whether to retry or invoke /debug.
 
 ---
 
