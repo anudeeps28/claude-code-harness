@@ -7,8 +7,8 @@
 // Usage: node pr-gate.js --feature <fid> [--root <home>] [--tracker-dir <dir>]
 //
 // Reads:
-//   tasks/features/<fid>/feature-state.md      which stories merged
-//   tasks/features/<fid>/plan.md               each merged story's criteria, from its "## Story #<sid>" section, as <sid>.<n>
+//   tasks/features/<fid>/feature-state.md      which stories are committed
+//   tasks/features/<fid>/plan.md               each committed story's criteria, from its "## Story #<sid>" section, as <sid>.<n>
 //   tasks/stories/<sid>/test-strategy.md       the same, for a story with no section in the Feature plan
 //   tasks/features/<fid>/test-strategy.md      Feature-level and carried-over criteria, as F.<n> (optional)
 //   tasks/features/<fid>/prove-it.md           the "## Gate" list Prove it wrote, one line per criterion:
@@ -96,12 +96,12 @@ function gate(root, fid, trackerDir) {
     return list;
   };
   const criteria = [
-    ...state.stories.filter((s) => s.status === 'merged').flatMap(storyCriteria),
+    ...state.stories.filter((s) => s.status === 'committed').flatMap(storyCriteria),
     ...criteriaOf(path.join(dir, 'test-strategy.md'), 'F'),
   ];
 
-  const unfinished = state.stories.filter((s) => !['merged', 'skipped'].includes(s.status));
-  for (const s of unfinished) refuse(`story ${s.id} is ${s.status || 'pending'}, not merged; no PR while a story is unfinished`);
+  const unfinished = state.stories.filter((s) => !['committed', 'skipped'].includes(s.status));
+  for (const s of unfinished) refuse(`story ${s.id} is ${s.status || 'pending'}, not committed; no PR while a story is unfinished`);
 
   const proved = readGate(path.join(dir, 'prove-it.md'));
   if (proved === null) refuse('no prove-it.md: Prove it has not run');

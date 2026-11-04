@@ -6,8 +6,9 @@
 // Usage: node run-report.js --feature <fid> [--root <home folder>]
 //
 // Per story it shows time taken (started → finished), attempts, findings, and the measured agent
-// count and tokens the orchestrator recorded from its runner's result (agents=, tokens=). A story with
-// no measurement shows "not measured" rather than a guess.
+// count, tokens and agents per model the orchestrator recorded from each agent's result (agents=,
+// tokens=, models=sonnet:7,opus:2). A story with no measurement shows "not measured" rather than a
+// guess. Decisions come from the Feature's own decisions-log.md, then any per-story logs.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -41,9 +42,14 @@ function main() {
   const state = readState(root, fid);
   if (!state) { process.stderr.write(`no feature-state.md for Feature #${fid}\n`); process.exit(1); }
 
-  const lines = ['## Run report', '', '| Story | Status | Time | Attempts | Findings | Agents | Tokens |', '|---|---|---|---|---|---|---|'];
+  const lines = ['## Run report', '', '| Story | Status | Time | Attempts | Findings | Agents | Tokens | By model |', '|---|---|---|---|---|---|---|---|'];
   const total = { time: 0, attempts: 0, findings: 0, agents: 0, tokens: 0, noAgents: 0, noTokens: 0 };
+  const totalModels = new Map();
   for (const s of state.stories) {
+    // models=sonnet:7,opus:2 -> "sonnet 7, opus 2"
+    const models = (s.models || '').split(',').map((p) => p.split(':')).filter(([name, n]) => name && Number.isFinite(Number(n)) && n !== '');
+    for (const [name, n] of models) totalModels.set(name, (totalModels.get(name) || 0) + Number(n));
+    const byModel = models.length ? models.map(([name, n]) => `${name} ${Number(n)}`).join(', ') : 'not measured';
     const t = duration(s.started, s.finished);
     const agents = num(s.agents);
     const tokens = num(s.tokens);
@@ -52,19 +58,30 @@ function main() {
     total.findings += num(s.findings) || 0;
     if (agents === null) total.noAgents++; else total.agents += agents;
     if (tokens === null) total.noTokens++; else total.tokens += tokens;
-    lines.push(`| #${s.id} ${s.title || ''} | ${s.status} | ${fmtDuration(t)} | ${num(s.attempts) ?? 0} | ${num(s.findings) ?? 0} | ${agents === null ? 'not measured' : fmtNum(agents)} | ${tokens === null ? 'not measured' : fmtNum(tokens)} |`);
+    lines.push(`| #${s.id} ${s.title || ''} | ${s.status} | ${fmtDuration(t)} | ${num(s.attempts) ?? 0} | ${num(s.findings) ?? 0} | ${agents === null ? 'not measured' : fmtNum(agents)} | ${tokens === null ? 'not measured' : fmtNum(tokens)} | ${byModel} |`);
   }
+  const totalByModel = totalModels.size ? [...totalModels].map(([name, n]) => `${name} ${n}`).join(', ') : 'not measured';
   const missing = (n) => (n ? ` (${n} ${n === 1 ? 'story' : 'stories'} not measured)` : '');
-  lines.push(`| **Total** | | ${fmtDuration(total.time)} | ${total.attempts} | ${total.findings} | ${fmtNum(total.agents)}${missing(total.noAgents)} | ${fmtNum(total.tokens)}${missing(total.noTokens)} |`);
+  lines.push(`| **Total** | | ${fmtDuration(total.time)} | ${total.attempts} | ${total.findings} | ${fmtNum(total.agents)}${missing(total.noAgents)} | ${fmtNum(total.tokens)}${missing(total.noTokens)} | ${totalByModel} |`);
 
   lines.push('', '## Decisions made on your behalf', '');
   const decisions = [];
+  // The Feature's own log first (since F72 the main session builds every story and writes here, each
+  // line already prefixed "#<sid>:" when it is a story's), shown as written.
+  const featureLog = path.join(root, 'tasks', 'features', fid, 'decisions-log.md');
+  if (fs.existsSync(featureLog)) {
+    for (const line of fs.readFileSync(featureLog, 'utf8').replace(/\r/g, '').split('\n')) {
+      const m = line.match(/^\s*-\s+(.*\S)/);
+      if (m) decisions.push(`- ${m[1]}`);
+    }
+  }
+  // Then any per-story logs (older runs, and /implement's single-story runs).
   for (const s of state.stories) {
     const file = path.join(root, 'tasks', 'stories', s.id, 'decisions-log.md');
     if (!fs.existsSync(file)) continue;
     for (const line of fs.readFileSync(file, 'utf8').replace(/\r/g, '').split('\n')) {
       const m = line.match(/^\s*-\s+(.*\S)/);
-      if (m) decisions.push(`- #${s.id}: ${m[1]}`);
+      if (m) decisions.push(m[1].startsWith(`#${s.id}:`) ? `- ${m[1]}` : `- #${s.id}: ${m[1]}`);
     }
   }
   lines.push(...(decisions.length ? decisions : ['None.']));

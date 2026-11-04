@@ -85,7 +85,13 @@ const JUDGEMENT = new Set([
 ]);
 const SONNET_ONLY = ['story-builder', 'suite-runner', 'story-reviewer', 'story-executor-agent', 'loosened-reviewer-agent', 'story-pr-agent'];
 
-const opusOnlyWhereJudgementIs = (rows) => rows.filter((r) => r.model === 'opus').every((r) => JUDGEMENT.has(r.agent));
+// The one exception: the two story agents may run on opus for the last two review rounds only, as a
+// non-default row whose job says "rounds 4–5".
+const ESCALATION_AGENTS = new Set(['story-builder', 'story-reviewer']);
+const isEscalationRow = (r, rows) =>
+  ESCALATION_AGENTS.has(r.agent) && /rounds 4–5/.test(r.job) && rows.findIndex((x) => x.agent === r.agent) !== rows.indexOf(r);
+const opusOnlyWhereJudgementIs = (rows) =>
+  rows.filter((r) => r.model === 'opus').every((r) => JUDGEMENT.has(r.agent) || isEscalationRow(r, rows));
 const sonnetJobsStaySonnet = (rows) => {
   const d = defaultRows(rows);
   return SONNET_ONLY.every((a) => d.get(a) === 'sonnet') && d.get('tracker-helper') === 'haiku';
@@ -289,9 +295,21 @@ test('Model_OpusOnlyWhereJudgementIs', () => {
   assert.ok(!opusOnlyWhereJudgementIs(planted), 'planted "story-builder | opus" must be rejected');
   assert.ok(!sonnetJobsStaySonnet(planted), 'planted sonnet agents on opus and tracker-helper on sonnet must be rejected');
 
+  const esc = (rowsText) => parseTable('| Agent | Job | Model |\n|---|---|---|\n' + rowsText).rows;
+  assert.ok(opusOnlyWhereJudgementIs(esc('| `story-builder` | tests and code | sonnet |\n| `story-builder` | fix rounds 4–5 | opus |\n| `story-reviewer` | the reviews | sonnet |\n| `story-reviewer` | Re-review rounds 4–5 | opus |')), 'the two rounds 4–5 opus rows are allowed');
+  assert.ok(!opusOnlyWhereJudgementIs(esc('| `story-builder` | tests and code | opus |\n| `story-builder` | fix rounds 4–5 | opus |')), 'an opus default row for story-builder must be rejected');
+  assert.ok(!opusOnlyWhereJudgementIs(esc('| `story-builder` | tests and code | sonnet |\n| `story-builder` | fix rounds 1–3 | opus |')), 'an opus row whose job is not rounds 4–5 must be rejected');
+  assert.ok(!opusOnlyWhereJudgementIs(esc('| `suite-runner` | a suite | sonnet |\n| `suite-runner` | rounds 4–5 | opus |')), 'the exception covers only the builder and the reviewer');
+
   const rows = realTable().rows;
   assert.ok(rows.length > 0, 'the table must exist');
   assert.ok(rows.some((r) => r.model === 'opus'), 'companion: the table must have opus rows');
+  for (const a of ['story-builder', 'story-reviewer']) {
+    const mine = rows.filter((r) => r.agent === a);
+    assert.strictEqual(mine.length, 2, `${a} has a default row and one rounds 4–5 row`);
+    assert.strictEqual(mine[0].model, 'sonnet', `${a}'s first row stays sonnet`);
+    assert.ok(mine[1].model === 'opus' && /rounds 4–5/.test(mine[1].job), `${a}'s second row is opus for rounds 4–5`);
+  }
   assert.ok(opusOnlyWhereJudgementIs(rows), `only judgement jobs run on opus; opus rows: ${rows.filter((r) => r.model === 'opus').map((r) => r.agent).join(', ')}`);
   assert.ok(classifiedExactlyOnce(parseTable(PLANTED_TABLE.replace('story-pr-agent', '`story-pr-agent`')).rows.concat([{ agent: 'brand-new-agent', job: 'x', model: 'opus' }])).includes('brand-new-agent (0 lists)'), 'an agent in no list must be reported');
   assert.deepStrictEqual(classifiedExactlyOnce([{ agent: 'story-builder', job: 'x', model: 'sonnet' }], new Set(['story-builder']), ['story-builder']), ['story-builder (2 lists)'], 'an agent in two lists must be reported');

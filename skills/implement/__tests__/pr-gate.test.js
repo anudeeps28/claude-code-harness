@@ -23,15 +23,15 @@ const STRATEGY = (n) => [
   '',
 ].join('\n');
 
-// Feature 1 with stories 201 (two criteria) and 202 (one), both merged, plus a fake tracker in which
+// Feature 1 with stories 201 (two criteria) and 202 (one), both committed, plus a fake tracker in which
 // #90 is open and #91 is closed.
-function setup({ gate, body = '', stories = 'merged', feature } = {}) {
+function setup({ gate, body = '', stories = 'committed', feature } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gate-'));
   const fdir = path.join(root, 'tasks', 'features', '1');
   fs.mkdirSync(fdir, { recursive: true });
   fs.writeFileSync(path.join(fdir, 'feature-state.md'), [
     '# Feature state — 1', '', 'feature: 1', '', '## Stories', '',
-    `story 201: status=${stories} title=Orders`, 'story 202: status=merged title=Status', '',
+    `story 201: status=${stories} title=Orders`, 'story 202: status=committed title=Status', '',
   ].join('\n'));
   for (const [sid, n] of [['201', 2], ['202', 1]]) {
     fs.mkdirSync(path.join(root, 'tasks', 'stories', sid), { recursive: true });
@@ -123,10 +123,25 @@ test('Gate_FeatureLevelCriteriaAreGatedToo', () => {
   assert.match(r.out, /refused: F\.1 .* has no line/);
 });
 
-test('Gate_AStoryNotMerged_Closed', () => {
+test('Gate_CommittedStoriesCriteriaAreRead', () => {
+  const missing = run(setup({ gate: [ALL_MET[0], ALL_MET[2]] }));
+  assert.equal(missing.code, 1, missing.out);
+  assert.match(missing.out, /^refused: 201\.2 \("Criterion 2 holds"\) has no line in prove-it\.md's Gate list$/m, 'a committed story\'s criteria are gated');
+  assert.doesNotMatch(missing.out, /not (merged|committed)/, 'a committed story is finished');
+  const all = run(setup({ gate: ALL_MET }));
+  assert.equal(all.code, 0, all.out);
+  assert.match(all.out, /^gate: open$/m);
+  // An old state file still says status=merged: that is not a finished story.
+  const old = run(setup({ gate: ALL_MET, stories: 'merged' }));
+  assert.equal(old.code, 1, old.out);
+  assert.match(old.out, /story 201 is merged, not committed/, 'a story left at status=merged is refused, not counted as done');
+  assert.doesNotMatch(old.out, /^gate: open$/m);
+});
+
+test('Gate_AStoryNotCommitted_Closed', () => {
   const r = run(setup({ gate: ALL_MET, stories: 'stuck' }));
   assert.equal(r.code, 1);
-  assert.match(r.out, /story 201 is stuck, not merged/);
+  assert.match(r.out, /story 201 is stuck, not committed/);
 });
 
 test('Gate_NoProveIt_Closed', () => {

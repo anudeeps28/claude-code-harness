@@ -99,6 +99,14 @@ test('Progress_FeatureEvents_AreAccepted', () => withRoot((root) => {
   }
 }));
 
+test('Progress_StoryCommittedEvent_IsAccepted', () => withRoot((root) => {
+  const r = run(root, ['--feature', '1', '2', 'story-committed', 'coding', 'abc1234']);
+  assert.equal(r.code, 0, r.err);
+  assert.match(r.out.trimEnd(), FEATURE_LINE_RE);
+  assert.match(r.out, /event=story-committed /);
+  assert.notEqual(run(root, ['--feature', '1', '2', 'story-commited', 'coding', 'x']).code, 0, 'companion: a misspelt event is still refused');
+}));
+
 test('Progress_BadFeatureId_IsRefused', () => withRoot((root) => {
   assert.notEqual(run(root, ['--feature', '../x', '2', 'step', 'coding', 'x']).code, 0);
 }));

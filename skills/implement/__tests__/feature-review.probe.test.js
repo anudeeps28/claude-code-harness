@@ -129,7 +129,7 @@ test('Panel_FiveReviewersInOneMessageOnTheFeatureBranch', () => {
   mustMatch(panel, /independently[\s\S]{0,100}weight\s+it up/, 'two independent findings are weighted up');
   mustMatch(panel, /two defensible\s+forms[\s\S]{0,600}stops under `--autonomous` too/, 'a finding that is not ours goes to the person');
   mustMatch(panel, /test-first when test-first mode\s+is on/, 'fixes are test-first when the mode is on');
-  mustMatch(IMPLEMENT, /`done` → every story has merged: go to \*\*The Feature panel\*\*/, 'done leads to the panel');
+  mustMatch(IMPLEMENT, /`done` → every story is committed: go to \*\*The Feature panel\*\*/, 'done leads to the panel');
 });
 
 // ── #60 Prove it and the PR gate ─────────────────────────────────────

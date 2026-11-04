@@ -1,19 +1,19 @@
 // Doc-consistency probe for F4 #41 "Build a whole Feature, one story at a time": work and state
-// folders for every build agent (#42), Feature mode and its one approval (#43), story-runner-agent
-// (#44), worktrees and tested merges (#45), resume and stuck stories (#46), one PR (#47). The scripts
+// folders for every build agent (#42), Feature mode and its one approval (#43), resume and stuck
+// stories (#46), one PR (#47), and (F72 #78) one loop per story on the Feature branch. The scripts
 // these instructions call have their own behaviour tests (feature-state, worktree, run-report).
 
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8');
 
 const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
-const RUNNER = read('agents', 'story-runner-agent.md');
-const { readRequired } = require('../bin/startup-check.js');
+const { readSettings } = require('../bin/settings.js');
 
 function section(content, heading) {
   const lines = content.replace(/\r/g, '').split('\n');
@@ -89,37 +89,118 @@ test('Plan_OneApprovalWithTheINeedList', () => {
   mustMatch(plan, /only stop|one stop|stops once/i, 'there is one stop');
 });
 
-// ── #44 story-runner-agent ───────────────────────────────────────────
+// ── disk and allowlist checks before the first story (moved here from the retired parallel-stories probe) ──
 
-test('Runner_IsANamedAgentWithTheAgentTool', () => {
-  mustMatch(RUNNER, /^name: story-runner-agent$/m, 'agent name');
-  mustMatch(RUNNER, /^tools: .*\bAgent\b/m, 'it starts planner, executors and reviewers');
-  mustMatch(RUNNER, /never merge|Never merge/, 'it never merges');
-  mustMatch(RUNNER, /COMMIT: /, 'it reports the commit sha');
-  mustMatch(RUNNER, /BLOCKED[\s\S]{0,400}worktree exactly as/i, 'BLOCKED leaves the worktree as it is');
-  // F5 Demo: a runner that started its reviewers in the background ended its turn with no result.
-  mustMatch(RUNNER, /foreground — never with `run_in_background`/, 'the runner starts its agents in the foreground');
-  // F5 Demo: run from a worktree, observe-check.js's default path finds no lessons/notes file.
-  mustMatch(RUNNER, /--observe "<state folder>\/lessons\.md"/, 'the runner points observe-check.js at the state folder');
-  const required = readRequired().filter((r) => r.kind === 'agent').map((r) => r.name);
-  assert.ok(required.includes('story-runner-agent'), 'the startup check must name story-runner-agent');
-  mustMatch(read('install', 'lib', 'updater.js'), /'agents\/story-runner-agent\.md'/, 'the installer requires it');
+test('Startup_DiskAndAllowlistAreCheckedBeforeTheFirstWorktree', () => {
+  const s = section(FEATURE, '### Before the first story');
+  assert.ok(s, 'expected "### Before the first story"');
+  assert.ok(FEATURE.indexOf('### Before the first story') < FEATURE.indexOf('### Run the stories'), 'it runs before the stories');
+  mustMatch(s, /disk-check\.js"? --stories/, 'the disk check runs');
+  mustMatch(s, /allowlist-check\.js/, 'the allowlist check runs');
+  mustMatch(s, /never (write|change|edit)s? (a )?settings|never writes/i, 'the check never writes settings');
+  mustMatch(s, /plain "?Bash"?|allow all/i, 'it never recommends a blanket Bash rule');
+  mustMatch(s, /--autonomous[\s\S]{0,300}(stop|pause)/i, 'under --autonomous a missing permission still stops');
 });
 
-// ── #45 worktrees and tested merges ──────────────────────────────────
+for (const template of [['templates', 'tasks', 'lessons.md'], ['templates', 'tasks-solo', 'notes.md']]) {
+  test(`Settings_TemplateHasFeatureRuns_${template[1]}`, () => {
+    const text = read(...template);
+    const s = section(text, '## Feature runs');
+    assert.ok(s, `${template.join('/')} must have a "## Feature runs" section`);
+    for (const key of ['max-parallel-stories', 'worktree-size-gb', 'verify-lock']) {
+      mustMatch(s, new RegExp(`^- ${key}:`, 'm'), `it must declare ${key}`);
+    }
+  });
+}
 
-test('Stories_RunInWorktreesOneAtATimeAndMergeAfterTests', () => {
+test('Settings_TemplatePlaceholdersReadAsUnset', () => {
+  // An untouched template must not set anything: the defaults apply until the project chooses.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'settings-'));
+  fs.mkdirSync(path.join(dir, 'tasks'));
+  fs.copyFileSync(path.join(REPO_ROOT, 'templates', 'tasks', 'lessons.md'), path.join(dir, 'tasks', 'lessons.md'));
+  assert.deepEqual(readSettings(dir), {});
+});
+
+// ── F72 #78: one loop per story, on the Feature branch ───────────────
+// Each step is a pattern searched for after the previous one matched, so the loop's ORDER is checked,
+// not a bag of words. The checker is proven on planted text first: the same sentences in reverse order,
+// and the right order with the staging rule flipped, must both be rejected.
+
+const LOOP_STEPS = [
+  ['check-branch before each story, stop on a moved branch', /worktree\.js"? check-branch[\s\S]{0,200}?moved branch[\s\S]{0,120}?\bstop\b/i],
+  ['story-builder writes the tests', /`story-builder`[\s\S]{0,200}?\btests?\b[\s\S]{0,200}?model: `sonnet`/i],
+  ['suite-runner shows them red', /`suite-runner`[\s\S]{0,200}?\bred\b[\s\S]{0,200}?model: `sonnet`/i],
+  ['Red evidence is saved', /Red evidence/],
+  ['red-evidence.js check', /red-evidence\.js"? check/],
+  ['story-builder writes the code', /`story-builder`[\s\S]{0,200}?\bcode\b[\s\S]{0,200}?model: `sonnet`/i],
+  ['suite-runner shows green', /`suite-runner`[\s\S]{0,200}?\bgreen\b/i],
+  ['at most 5 rounds', /at most 5 rounds/i],
+  ['two story-reviewer in one message', /two `story-reviewer`[\s\S]{0,120}?in one message[\s\S]{0,200}?model: `sonnet`/i],
+  ['both reviewer modes named', /Correctness[\s\S]{0,40}?Rules and quality/],
+  ['rounds 2-3 re-review over the fix diff', /rounds? 2[–-]3[\s\S]{0,120}?re-review[\s\S]{0,80}?fix diff/i],
+  ['rounds 4-5 on opus', /rounds? 4[–-]5[\s\S]{0,200}?model: `opus`/i],
+  ['never git add -A', /never[^.\n]{0,40}`git add -A`/i],
+  ['never commit on red', /never on red/i],
+  ['Story trailer', /Story: #<sid>/],
+  ['tracker-helper moves the card', /`tracker-helper`[\s\S]{0,200}\bdone\b/i],
+  ['a blocked story is held while the rest go on', /blocked story[\s\S]{0,400}?carries on with the stories that do not depend on it/i],
+  ['sequence check', /feature-state\.js"? sequence/],
+];
+
+function loopProblems(text) {
+  if (!text) return ['no section'];
+  let from = 0;
+  for (const [name, re] of LOOP_STEPS) {
+    const m = re.exec(text.slice(from));
+    if (!m) return [`missing or out of order: ${name}`];
+    from += m.index + m[0].length;
+  }
+  return [];
+}
+
+const SAMPLE = [
+  'Run worktree.js check-branch before each story; a moved branch means stop.',
+  'Spawn `story-builder` for the tests, model: `sonnet`.',
+  'Then `suite-runner` shows them red, model: `sonnet`.',
+  'Save the Red evidence in executor-state.md.',
+  'Then node "<skill-dir>/bin/red-evidence.js" check --state s --criteria AC1.',
+  'Spawn `story-builder` for the code, model: `sonnet`.',
+  'Then `suite-runner` shows the scoped set green.',
+  'Run at most 5 rounds.',
+  'Send two `story-reviewer` calls in one message, model: `sonnet`: Correctness, and Rules and quality.',
+  'Rounds 2-3 re-review over the fix diff only.',
+  'Rounds 4-5 relaunch with model: `opus`.',
+  'Stage by path, never `git add -A`, and never on red.',
+  'Message ends Story: #<sid>.',
+  'One `tracker-helper` call moves the card to done.',
+  'A blocked story is marked and the loop carries on with the stories that do not depend on it.',
+  'Run node "<skill-dir>/bin/feature-state.js" sequence --feature <fid>.',
+];
+
+test('Stories_LoopCheckerCanFail_PlantedOppositesAreRejected', () => {
+  assert.deepEqual(loopProblems(SAMPLE.join('\n')), [], 'the checker accepts the right order');
+  assert.notDeepEqual(loopProblems([...SAMPLE].reverse().join('\n')), [], 'the same sentences in reverse order are rejected');
+  const flipped = SAMPLE.map((l) => l.replace('Stage by path, never `git add -A`, and never on red.', 'Always stage with `git add -A`, and commit whatever is red, never mind.'));
+  assert.notDeepEqual(loopProblems(flipped.join('\n')), [], 'a text that allows git add -A is rejected');
+
+  const swap = (from, to) => SAMPLE.map((l) => (l === from ? to : l)).join('\n');
+  const sampleLine = (prefix) => SAMPLE.find((l) => l.startsWith(prefix));
+  assert.notDeepEqual(loopProblems(swap(sampleLine('Run worktree.js'), 'Run worktree.js check-branch before each story; a moved branch is ignored.')), [], 'a moved branch that does not stop the run is rejected');
+  assert.notDeepEqual(loopProblems(swap(sampleLine('Send two'), 'Send two `story-reviewer` calls in one message, model: `sonnet`: both look at everything.')), [], 'reviewers with no named modes are rejected');
+  assert.notDeepEqual(loopProblems(swap(sampleLine('Rounds 2-3'), 'Rounds 2-3 review the whole story again.')), [], 'later rounds that re-review everything are rejected');
+  assert.notDeepEqual(loopProblems(swap(sampleLine('A blocked story'), 'A blocked story stops the whole Feature.')), [], 'a blocked story that stops the rest is rejected');
+});
+
+test('Stories_OneLoopPerStoryOnTheFeatureBranch', () => {
   const s = section(FEATURE, '### Run the stories');
   assert.ok(s, 'expected "### Run the stories"');
-  mustMatch(s, /worktree\.js"? feature/, 'the Feature worktree is created');
-  mustMatch(s, /worktree\.js"? story/, 'story worktrees come from the Feature branch');
+  assert.deepEqual(loopProblems(s), []);
+  assert.doesNotMatch(s, /story-runner-agent/, 'no per-story runner: the main session builds each story');
+  assert.doesNotMatch(s, /worktree\.js"? story/, 'no story worktrees');
+  mustMatch(s, /worktree\.js"? feature/, 'the Feature worktree is still created');
   mustMatch(s, /feature-state\.js"? next/, 'the next story comes from feature-state.js');
-  mustMatch(s, /Worktree setup/, 'gitignored config and restore commands come from Worktree setup');
-  mustMatch(s, /story-runner-agent/, 'each story runs in a story-runner-agent');
-  mustMatch(s, /worktree\.js"? merge/, 'the merge is tested before it is committed');
-  mustMatch(s, /worktree\.js"? remove/, 'a merged story\'s worktree and branch are removed');
-  mustMatch(s, /never forced|never force/i, 'cleanup is never forced');
-  mustMatch(s, /branch-moved[\s\S]{0,200}(contradiction|stop)/i, 'a moved branch stops the run');
+  mustMatch(s, /`needs-person`/, 'a blocked story\'s card moves to needs-person');
+  mustMatch(s, /held dependents?[^.\n]{0,60}(untouched|left as they are|not moved)/i, 'held dependents\' cards are left untouched');
 });
 
 test('Rules_StoryWorktreesAllowedWaveIsolationStillForbidden', () => {
@@ -131,11 +212,11 @@ test('Rules_StoryWorktreesAllowedWaveIsolationStillForbidden', () => {
 
 // ── #46 resume and stuck stories ─────────────────────────────────────
 
-test('Resume_AFeatureNeverRedoesAMergedStory', () => {
+test('Resume_AFeatureNeverRedoesACommittedStory', () => {
   const s = section(FEATURE, '### Resume a Feature');
   assert.ok(s, 'expected "### Resume a Feature"');
   mustMatch(s, /feature-state\.js"? resume/, 'resume reads feature-state.js resume');
-  mustMatch(s, /MERGE_HEAD|half-done merge/, 'a half-done merge is aborted and redone');
+  mustMatch(s, /`skip` \(committed: never redone\)/, 'a committed story is skipped, never redone');
   mustMatch(IMPLEMENT, /compaction[\s\S]{0,400}feature-state\.md/, 'after a compaction the first read is feature-state.md');
 });
 

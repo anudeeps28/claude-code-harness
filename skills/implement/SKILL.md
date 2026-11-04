@@ -221,7 +221,8 @@ how this run builds it:
 
 - **`**Type:** Feature`** → **Feature mode**: build the whole Feature, story by story, in worktrees,
   with one plan approval and one PR. Go to the **Feature mode** section now; the rest of "Before you
-  start" and Phases 1–3 run inside each story's runner, not here.
+  start" and Phases 1–3 are the standalone flow: a Feature builds each story with the loop in
+  **Run the stories**.
 - **A Story or Bug with a parent Feature** → **stop and ask**: "#<id> is part of Feature #<parent>
   "<title>". Did you mean to build the Feature (`/implement <parent>`), or only this story
   (`/implement <id> --standalone`)?" Do nothing until answered. Under `--autonomous` this is not
@@ -236,7 +237,7 @@ how this run builds it:
 **Work folder and state folder.** Every agent this skill starts takes a work folder (where the code
 is) and a state folder (the home folder's `tasks/`), per ADR-0004. A standalone run passes the project
 root and its `tasks/` for both — the same folder it has always used — so nothing about a standalone
-build changes. Feature mode passes each story's worktree as the work folder.
+build changes. Feature mode passes the Feature worktree as the work folder.
 
 ### Check the Demo against Observe
 
@@ -280,6 +281,9 @@ it; it reads each write back and reports it. The same goes for every deferral `c
 | Phase 3, as the reviews start | `bash trackers/active/set-status.sh <id> in-review` |
 | the PR is opened | `bash trackers/active/set-status.sh <id> done` — or `needs-person` when a criterion proven by a sign-off has not been signed (Phase 1c) |
 | the run stops for a person — a pause-anyway trigger, the 3-attempt rule, a FAIL or BLOCKED it cannot pass | `bash trackers/active/set-status.sh <id> needs-person` |
+| Feature mode: a story starts (step 1 of **Run the stories**) | `bash trackers/active/set-status.sh <sid> in-progress` |
+| Feature mode: a story is committed (step 7) | `bash trackers/active/set-status.sh <sid> done` |
+| Feature mode: a story is stuck | `bash trackers/active/set-status.sh <sid> needs-person`; the stories held behind it are not moved |
 
 **A failed status write never stops the run.** The card is a mirror of the run, not part of the work:
 when the helper reports a failed write, or the helper itself fails, print `event=tracker-error` with the script's error as the detail, and carry on. On ADO a status with no
@@ -370,8 +374,10 @@ Evidence for the frontmatter `model:`: the Claude Code docs, skills page, frontm
 | `implement-planner-agent` | Phase 1c: the plan | opus |
 | `Explore` | Phase 1b, `--research`: reusable code | opus |
 | `story-builder` | tests and code for a story or a fix | sonnet |
+| `story-builder` | fix rounds 4–5 | opus |
 | `suite-runner` | a whole suite, run once | sonnet |
 | `story-reviewer` | the reviews of one story | sonnet |
+| `story-reviewer` | Re-review rounds 4–5 | opus |
 | `story-executor-agent` | standalone Phase 2 waves, Feature fix waves | sonnet |
 | `evaluator-agent` | standalone Phase 3, and the panel's made-false part | opus |
 | `evaluator-agent` | the Feature panel's list part | sonnet |
@@ -667,18 +673,16 @@ per the 3-failed-attempts pause-anyway trigger — the same rule the rest of thi
 ## Feature mode
 
 `/implement <feature-id>` builds a whole Feature: one plan approval, a Feature worktree, each story in
-its own worktree by its own `story-runner-agent`, each merge tested before it is committed, one full review
-panel and Prove it on the whole Feature branch, and one PR from the Feature branch to main, opened only
-when every criterion passes the PR gate (ARCHITECTURE.md §1, ADR-0001 to ADR-0004). **Independent stories run at
-the same time**, up to `max-parallel-stories` and never over Claude Code's limit of 20 agents at once
-(ARCHITECTURE.md §5); merges stay one at a time.
+the stories built one after another in the Feature worktree, one commit per story on the Feature branch,
+one full review panel and Prove it on the whole Feature branch, and one PR from the Feature branch to
+main, opened only when every criterion passes the PR gate (ARCHITECTURE.md §1, ADR-0001 to ADR-0004).
+**Only one story is ever in flight**; `story-builder` and `story-reviewer` do the work for it.
 
 The scripts live in `<skill-dir>/bin/`. Every command below runs from the home folder, which stays on
 main the whole time: `<home>` is the project root, `<state>` its `tasks/` folder.
 
-**Who writes what.** You (the orchestrator) write only `tasks/features/<fid>/` and git state through
-`worktree.js`; each `story-runner-agent` writes only `tasks/stories/<sid>/` and its own worktree. You never edit
-story code.
+**Who writes what.** You (the main session) write `tasks/features/<fid>/`, `tasks/stories/<sid>/` and git
+state; the builders write product code and tests in the Feature worktree. You never edit story code.
 
 ### Plan the Feature
 
@@ -791,97 +795,122 @@ missing-dependency trigger.
 node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-worktree>" --branch "<feature-branch>"
 ```
 
-(Both values are in `feature-state.md`.) Then loop:
+(Both values are in `feature-state.md`.) Set it up from the lessons/notes **Worktree setup** section
+(`rules/git-worktrees.md`): copy the listed gitignored config files from the home folder, and run the
+restore commands in it. If that section is missing, **stop** and ask for it once, then write it in: a
+story built without its config fails for reasons that have nothing to do with the code.
 
-1. **Pick the stories to start:** `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`.
-   - one `story <sid>` line per story to start now → start **every `story <sid>` line** (steps 2–3),
-     all their runners in the **same message** so they run at once. `next` already applied the limits:
-     a story starts only once every blocker has merged, at most `max-parallel-stories` run at once
-     (from the **Feature runs** section of lessons/notes, default 5), and
-     `1 + Σ (1 + widest remaining wave)` over the running stories stays at or under 20 — Claude Code's
-     limit on agents running at once. A story that would go over waits and starts when one finishes;
-     approved plans are never re-split to make it fit;
-   - `wait` → stories are running and nothing else can start: wait for a runner to report;
-   - `done` → every story has merged: go to **The Feature panel**;
-   - `held: ...` → a story is stuck and nothing else can run: go to **Stuck stories**.
-2. **Create its worktree from the Feature branch**, which already holds every story merged so far:
+You build the stories yourself, **one after another, in plan order, in this worktree on the Feature
+branch**: no story worktree, no per-story runner and no per-story merge. Every agent below is given the
+Feature worktree as its **work folder** and `<state>` as its **state folder**, and every brief ends with
+"This is an autonomous run — self-answer your checkpoints per `rules/autonomous-mode.md` and append
+decisions to `tasks/features/<fid>/decisions-log.md`, each line starting `#<sid>:`." Before each
+story run `worktree.js check-branch --path "<feature-worktree>" --expect "<feature-branch>"`
+(a moved branch is a contradiction pause-anyway trigger: **stop**, never self-answered).
 
-   ```bash
-   node "<skill-dir>/bin/worktree.js" story --home "<home>" --path "<story worktree>" --branch "<story branch>" --from "<feature-branch>"
+Then loop on `node "<skill-dir>/bin/feature-state.js" next --feature <fid>`:
+
+- `story <sid>` → build it, steps 1–7 below;
+- `running <sid>` → a story is already in flight (a resumed run): carry on with it from its saved
+  `executor-state.md`;
+- `done` → every story is committed: go to **The Feature panel** (after the sequence check below);
+- `held: ...` → a story is stuck and nothing else can run: go to **Stuck stories**.
+
+**Build one story:**
+
+1. **Start it.** `feature-state.js set --feature <fid> --story <sid> status=running step=tests
+   base=<git rev-parse HEAD in the Feature worktree> started=<now>`; its own `tracker-helper`
+   call (model: `haiku`) moves its card to `in-progress` — never batched with another move
+   (**Moving the card**); print `event=story-started`. Before each subagent boundary below, overwrite
+   `tasks/stories/<sid>/phase.md` per `rules/phase-markers.md` (with the `feature` and `story` keys),
+   with the phase named in the step.
+2. **Tests first.** Write `phase: coding`, then spawn `story-builder` (job `tests`, model: `sonnet`) in
+   the foreground with the story's acceptance criteria as AC1, AC2, ..., its `## Story #<sid>` section
+   of `tasks/features/<fid>/plan.md`, the build and test commands, `reference/test-rules.md`, the base
+   ref and both folders. Its own rules are in `agents/story-builder.md`; do not restate them. It
+   writes the tests from the criteria alone. Set `step=red`.
+3. **See them red.** Write `phase: testing`. The `suite-runner` is started with the story's scoped
+   commands and must show the new tests **red** (model: `sonnet`). You build the `## Red evidence`
+   lines yourself in `tasks/stories/<sid>/executor-state.md`, one per test: the test name and
+   criterion id from the builder's report, the verbatim first error line from the `suite-runner`'s
+   report, and the shape, which you classify from that failure line. Then check it:
+
+   ```
+   - <test> | AC<n> | <verbatim failure line> | shape: assertion|not-implemented|compile|not-run
    ```
 
-   Then set it up from the lessons/notes **Worktree setup** section (`rules/git-worktrees.md`): copy
-   the listed gitignored config files from the home folder, and run the restore commands in the new
-   worktree. If that section is missing, **stop** and ask for it once, then write it in — a story built
-   without its config fails for reasons that have nothing to do with the code.
-3. **Start its runner.** `feature-state.js set --feature <fid> --story <sid> status=running started=<now>`,
-   move its card to `in-progress` (tracker-helper), print `event=story-started`, then spawn a **`story-runner-agent`**
-   (background, model: `opus`) with: the Feature id and story id; **work folder** = the story worktree; **state
-   folder** = `<state>`; **base ref** = the Feature branch's commit it started from
-   (`git -C "<feature-worktree>" rev-parse HEAD`); the ticket path; its `## Story #<sid>` section of
-   `tasks/features/<fid>/plan.md` (the plan it builds from, written before the gate); the
-   verify lock (`<state>/.verify.lock` when lessons/notes say `verify-lock: global`); and "This is an
-   autonomous run — self-answer your checkpoints per `rules/autonomous-mode.md` and append decisions to
-   `tasks/stories/<sid>/decisions-log.md`." Wait for it to report (`rules/background-work.md`).
-4. **When a runner reports, read its report.** You only wake when an agent finishes, so each wake
-   handles one runner while the others keep going. Record `commit=`, `attempts=`, `findings=`,
-   `agents=` and `tokens=` from its result block with `feature-state.js set`. `BLOCKED` → a failed attempt: restart it once from its
-   saved state; a second failure makes it **stuck** (below).
-5. **Merge it, tested before it is committed** (ADR-0003). Merges happen **one at a time**, here in
-   this session, whatever the number of stories running: two runners that finish together are merged
-   one after the other, each on a known state. The test command is the full build and test from
-   lessons/notes:
-
    ```bash
-   node "<skill-dir>/bin/worktree.js" merge --feature-worktree "<feature-worktree>" --branch "<story branch>" \
-     --expect "<feature-branch>" --test "<build && test command>" --message "Merge story #<sid>: <title>"
+   node "<skill-dir>/bin/red-evidence.js" check --state tasks/stories/<sid>/executor-state.md --criteria AC1,AC2
    ```
 
-   - exit 0, `merged <sha>` → `set ... status=merged merge=<sha> finished=<now>`, print
-     `event=merge-tested` (pass) and `event=story-merged`, then remove its worktree and branch:
-     `worktree.js remove --home "<home>" --feature-worktree "<feature-worktree>" --path "<story worktree>" --branch "<story branch>"`.
-     Both git steps refuse rather than lose work — cleanup is **never forced**; if one refuses, say so
-     and leave it.
-   - exit 3 (`conflict:` lines) or 4 (`tests-failed:`) → the merge was aborted and the Feature branch
-     is unchanged. Print `event=merge-tested` (fail). The story is **stuck**, with the conflict or test
-     output as its reason.
-   - exit 5, `branch-moved` → **stop the run**: another session is using that folder. This is a
-     contradiction pause-anyway trigger, never self-answered.
+   It must print `ok`: every criterion has a test that failed on its assertion (a compile error or a
+   test that never ran is not red). A test that passes before the code exists goes back to the builder.
+   Set `step=code`.
+4. **Code.** Write `phase: coding`, then spawn `story-builder` (job `code`, model: `sonnet`) to turn the
+   named tests green without editing them. Set `step=green`.
+5. **See them green.** Write `phase: testing`. The `suite-runner` (model: `sonnet`) is started on the
+   story's scoped set and must show it **green**. Red goes back to the builder (job `fix`, model:
+   `sonnet`) with the failing lines, under the 3-attempt rule (`/debug` after the third). Set `step=review`.
+6. **Review.** Write `phase: reviewing`. There are **at most 5 rounds**:
+   - Round 1, the full review: two `story-reviewer` calls in one message, each in the foreground
+     (model: `sonnet`): Correctness, and Rules and quality (given `reference/test-rules.md`).
+   - Rounds 2–3: one `story-reviewer` Re-review over the fix diff only (model: `sonnet`).
+   - Rounds 4–5: relaunch `story-builder` (job `fix`, model: `opus`) and a `story-reviewer` Re-review
+     (model: `opus`).
 
-   Then back to step 1.
+   Judge every finding; the right ones go to `story-builder` (job `fix`, model: `sonnet` in rounds 1–3),
+   verbatim. At the start of each round, write `round: <n>` into the story's `executor-state.md`, so
+   a resume at review starts at that round. The phase marker follows the agent: `phase: reviewing`
+   before a reviewer, `phase: coding` before a fix builder, `phase: testing` before the green run.
+   Before a round's fixes, stage the story's paths (`git add <paths>`, `git add -N` for new
+   files) so that `git diff` is exactly the fix diff. Still open after round 5: **stop and ask**
+   (`event=run-paused`). A fix is followed by a green scoped run before the next round. When the
+   review is clean, set `step=commit`.
+7. **Commit.** Stage the union of the paths the builders reported, by path, never `git add -A` (a
+   dirty tree holds work that is not this story's). Commit only when the scoped set is green on the
+   final state, **never on red**. The message is `<type>: <title>`, then `Acceptance criteria covered:` with one
+   line per criterion and its test, then the trailer `Story: #<sid>`. Then:
+   `feature-state.js set --feature <fid> --story <sid> status=committed commit=<sha> finished=<now>
+   step=done`, print `event=story-committed`, and its own `tracker-helper` call (model: `haiku`) moves the
+   card to `done`, not batched with the next story's move. Back to the loop.
 
-**Branch checks run in every worktree.** The runner checks its own branch around every wave;
-`worktree.js merge` checks the Feature worktree before every merge; and before starting each story,
-run `worktree.js check-branch --path "<feature-worktree>" --expect "<feature-branch>"`.
+**Per story, record** `agents=<n> tokens=<n> models=sonnet:<n>,opus:<n>,haiku:<n>` with
+`feature-state.js set`, summed from each agent result's usage (`not measured` stays unset, never a
+guess), plus `attempts=` and `findings=`. The decisions you self-answered go to
+`tasks/features/<fid>/decisions-log.md`, each line prefixed `#<sid>:`.
 
-**Every time you wake, before anything else:**
+**A blocked story.** When a job reports BLOCKED a second time, or the person ends it, the story is
+**stuck** (**Stuck stories**): its card goes to `needs-person`, and
+the held dependents' cards are left untouched. The loop carries on with the stories that do not depend on it.
 
-- **Record each running story's width.** Once the runner has saved its task list in
-  `tasks/stories/<sid>/plan.md`, count the tasks per `parallel_group` among those not yet done and set
-  `width=<the largest>` on that story. Until then `next` counts it as 5 wide. This is what keeps the
-  agent count honest as stories progress.
-- **Check for a hung story:** `node "<skill-dir>/bin/feature-state.js" hung --feature <fid>`. It reads
-  every running story's `phase.md`; one not updated in 30 minutes (`rules/phase-markers.md`) prints
-  `restart <sid>: ...` the first time — print `event=story-stuck` with `reason="no progress 30m"`, tell
-  the person, and restart its runner **once** from its saved state, in the same worktree. A second hang
-  prints `stuck <sid>: ...` and `needs-person: ...`: it is stuck, with its dependents held (**Stuck
-  stories**). You only wake when an agent finishes, so a hang is caught at the next wake, not at exactly
-  30 minutes.
+**Before the Feature panel** the one-at-a-time rule is checked on the real log:
+
+```bash
+node "<skill-dir>/bin/feature-state.js" sequence --feature <fid>
+```
+
+It must print `ok`. `overlap: story-started #<b> while #<a> in flight` means two stories were in flight
+at once: stop and report it, never go on to the panel.
 
 ### Stuck stories
 
-A story is **stuck** when its runner fails twice, or its merge has a conflict or red tests:
+A story is **stuck** when a job on it comes back BLOCKED twice (once, then after one fresh retry), or the
+person says to stop on it after round 5 of its review:
 
 ```bash
 node "<skill-dir>/bin/feature-state.js" stuck --feature <fid> --story <sid> --reason "<why, one line>"
 ```
 
 It marks the story stuck and every story that depends on it, directly or not, held, and prints
-`needs-person: <ids>`: move each of those cards to `needs-person` and print `event=story-stuck`. **Its
-worktree and branch are kept as evidence**, never removed.
+`needs-person: <sid>` and, on its own line, `held: <ids>` (when any story depends on it). Move only the
+stuck story's card to `needs-person`
+(`tracker-helper`, model: `haiku`) and print `event=story-stuck`. The held dependents' cards are left
+untouched: they stay where they are, and the state file says they are held. Save the story's `git diff`
+to `tasks/stories/<sid>/stuck.diff`, then put back only that story's own paths (`rules/wave-execution.md`,
+"restore before retrying"), so the next story starts from a clean tree.
 
-Independent stories still run, merge and finish — `next` keeps handing them out. When `next` prints
-`held: ...`, nothing else can run: **pause** with a report (what merged, what is stuck and why, what is
+Independent stories still run and commit: `next` keeps handing them out. When `next` prints `held: ...`,
+nothing else can run: **pause** with a report (what is committed, what is stuck and why, what is
 waiting on it) and `event=run-paused`. There is **no PR** while a story is stuck. To continue, a person
 either fixes the story and runs `/implement --resume <fid>`, or splits it out as its own tracker item
 and lets the Feature go ahead without it.
@@ -904,26 +933,35 @@ saying the plan was never approved. When `gate-shown` is absent or `no` the comm
 instead: the run stopped before the person saw the plan, so show the plan gate again (step 4 of **Plan
 the Feature**, setting `gate-shown=yes`) and approve nothing.
 
-It prints one line per story: `skip` (merged: never redone), `restart` (it was running: if its
-worktree is there, restart its runner from its saved `executor-state.md`; if not, recreate the
-worktree from the Feature branch first), `stuck` (held until a person acts), `pending`; then what runs
-next. A merge that was half done when the session died (`MERGE_HEAD` present) is aborted and redone by
-the next `worktree.js merge` on its own. No saved state means a stop, never a fresh run. Print
-`event=run-resumed` and carry on with **Run the stories**. When every story has already merged, carry
+It prints one line per story: `skip` (committed: never redone), `restart <sid>: running, carry on at
+step <step> in the Feature worktree` (no runner and no per-story worktree), `stuck` (held until a
+person acts; its diff is in `tasks/stories/<sid>/stuck.diff`), `pending`; then what runs next.
+A running story re-enters **Build one story** at the `step=` saved in `feature-state.md`, reading
+`tasks/stories/<sid>/executor-state.md` for what is already done:
+
+- `tests` → the tests are not finished: check what the builder left, then spawn the `tests` job (step 2).
+- `red` → the tests are written: run the `suite-runner` red run (model: `sonnet`) and save the `## Red evidence` (step 3).
+- `code` → the red evidence is checked: spawn the `code` job (step 4).
+- `green` → the code is written: run the `suite-runner` (model: `sonnet`) on the scoped set (step 5).
+- `review` → the set is green: start the review at the round `executor-state.md` records, round 1 if none (step 6).
+- `commit` → the review is clean: stage the story's paths and commit if the scoped set is green (step 7); if
+  `git log` already holds the story's commit, record it with `set` and move on.
+ No saved state means a stop, never a fresh run. Print
+`event=run-resumed` and carry on with **Run the stories**. When every story is already committed, carry
 on from the Feature's saved `phase`: `reviewing` → **The Feature panel** (re-run it whole: a panel
 interrupted part-way is never trusted), `testing` → **Prove it**, `shipping` → **The Feature's PR**.
 
 ### The Feature panel
 
-The one full review, run once on the whole Feature branch after every story has merged
-(ARCHITECTURE.md §1). The per-story light review stays in each runner; this is where the defects
+The one full review, run once on the whole Feature branch after every story is committed
+(ARCHITECTURE.md §1). The per-story review stays in the story loop; this is where the defects
 *between* stories are caught. From Hydra's work-feature Phase 6.
 
 1. **The Feature's checks first.** In the Feature worktree run the full build and tests, then
    `/local-test e2e` for the Feature's Demo (NOT SET UP is red). Red goes through the fix loop (step 6)
    before any reviewer starts: a panel on a red branch reviews code that is about to change.
 2. **Commit first, then leave the tree alone.** `git -C "<feature-worktree>" status --porcelain` must
-   be empty — the merges committed everything, and anything else there is not yours: **stop**
+   be empty — every story's commit is on the Feature branch, and anything else there is not yours: **stop**
    (contradiction). Record the commit the panel reads:
    `feature-state.js set --feature <fid> phase=reviewing panel-head=<git -C "<feature-worktree>" rev-parse HEAD>`.
    Write the Feature's phase marker (`phase: reviewing`, `feature: <fid>`) and print
@@ -938,7 +976,7 @@ The one full review, run once on the whole Feature branch after every story has 
    |---|---|---|
    | `security-reviewer-agent` | `opus` | — (it runs the built-in `/security-review` from the Feature worktree) |
    | `architect-reviewer-agent` | `opus` | — |
-   | `acceptance-test-agent` | `opus` | every merged story's `test-strategy.md` and `tasks/features/<fid>/test-strategy.md` (Feature-level and carried-over criteria) |
+   | `acceptance-test-agent` | `opus` | every committed story's `test-strategy.md` and `tasks/features/<fid>/test-strategy.md` (Feature-level and carried-over criteria) |
    | `evaluator-agent`, part `list` | `sonnet` | `tasks/features/<fid>/plan.md` |
    | `evaluator-agent`, part `made-false` | `opus` | — |
    | `loosened-reviewer-agent` | `sonnet` | — |
@@ -999,7 +1037,7 @@ real system**. Run it after the panel's fixes are committed. From Hydra's work-f
    ```
 
    A detached copy at the Feature branch's commit — no branch is created.
-2. **Run each criterion's proof against the real system.** Every criterion: each merged story's
+2. **Run each criterion's proof against the real system.** Every criterion: each committed story's
    (`<sid>.<n>`, from its `test-strategy.md`) and the Feature's (`F.<n>`). Run its **Proof** from the
    plan, seeing the result the way its **Seen by** line says, with the commands in the Observe section
    of lessons/notes — start the app, the e2e command, the read-only API or database, the screenshot —
@@ -1103,10 +1141,10 @@ When the gate is open (`feature-state.js set --feature <fid> phase=shipping`):
 
    That is the only push in a Feature run: **no story branch is ever pushed**. Under `--no-ship`, stop
    before the push and leave the Feature branch ready.
-4. Print `event=pr-opened`, move every merged story's card and the Feature's to `done` through tracker-helper (`needs-person`
+4. Print `event=pr-opened`, move every committed story's card and the Feature's to `done` through tracker-helper (`needs-person`
    for any with an unsigned sign-off criterion), and `event=run-finished`.
 5. **Enterprise only — the sprint file.** There is no per-story `story-pr-agent` step in a Feature, so update
-   the latest `tasks/sprint*.md` Master Status Table here, one row per merged story, the same way
+   the latest `tasks/sprint*.md` Master Status Table here, one row per committed story, the same way
    the `story-pr-agent`'s Step 6 does for a single story:
    Branch → `Pushed` (on the Feature branch), PR → the Feature PR's number, the tracker column left as
    it is. A story with no row is named in one line, never added. Solo: skip this step.
@@ -1681,7 +1719,7 @@ behind** in the working directory.
 - `/local-test e2e` reporting NOT SET UP is a red gate, never a skip
 - Follow the commit rules in `tasks/lessons.md` (or `tasks/notes.md`) for every commit; never auto-push from the default branch
 - The **enterprise only** steps (sprint file to Phase 1, one task per child task, the Master Status Table) run only when the manifest's `workflowPack` is `enterprise`; a solo run never reads or mentions a sprint file
-- In Feature mode the full panel runs once, after every story has merged: five reviewers (six calls) in one message, each with its model passed explicitly, on `main...feature/<fid>`, with the tree committed first and left untouched until the last one returns; only the reviewers whose areas a fix touched are re-run
+- In Feature mode the full panel runs once, after every story is committed: five reviewers (six calls) in one message, each with its model passed explicitly, on `main...feature/<fid>`, with the tree committed first and left untouched until the last one returns; only the reviewers whose areas a fix touched are re-run
 - No Feature PR until `pr-gate.js` prints `gate: open`: every criterion met and its test turned red when its line was broken, or needs a person, or deferred by the person to a tracker item linked from the PR. Only a person defers a criterion, under `--autonomous` too
 - Prove it runs in a scratch copy (`worktree.js scratch`), never in the Feature worktree, and records evidence by shape only
 - Never build before the plan gate is approved (or, under `--autonomous`, approves itself because it has nothing to ask); after it, never stop except on a contradiction, an irreversible action, a scope change, scope narrowing, a missing dependency, the 3-attempt rule, or a FAIL/BLOCKED it cannot pass
