@@ -8,7 +8,8 @@
 //
 // Reads:
 //   tasks/features/<fid>/feature-state.md      which stories merged
-//   tasks/stories/<sid>/test-strategy.md       each merged story's criteria, as <sid>.<n>
+//   tasks/features/<fid>/plan.md               each merged story's criteria, from its "## Story #<sid>" section, as <sid>.<n>
+//   tasks/stories/<sid>/test-strategy.md       the same, for a story with no section in the Feature plan
 //   tasks/features/<fid>/test-strategy.md      Feature-level and carried-over criteria, as F.<n> (optional)
 //   tasks/features/<fid>/prove-it.md           the "## Gate" list Prove it wrote, one line per criterion:
 //       - <ref>: met | partly | not-met | needs-person | deferred #<id>  [; broke: red|green|n/a]  [— <note>]
@@ -24,7 +25,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { readState } = require('./feature-state.js');
-const { parseCriteria } = require('./proof-check.js');
+const { parseCriteria, storySections } = require('./proof-check.js');
 
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const GATE_LINE = /^-\s+([A-Za-z0-9]+\.\d+):\s+(met|partly|not-met|needs-person|deferred)(?:\s+#([A-Za-z0-9._-]+))?\s*(?:;\s*broke:\s*(red|green|n\/a))?\s*(?:[—–-]\s+(.*))?$/i;
@@ -80,13 +81,24 @@ function gate(root, fid, trackerDir) {
   const state = readState(root, fid);
   if (!state) return { lines: [`refused: no feature-state.md for Feature ${fid}`], bad: 1 };
   const dir = path.join(root, 'tasks', 'features', fid);
-  const criteria = [
-    ...state.stories.filter((s) => s.status === 'merged').flatMap((s) => criteriaOf(path.join(root, 'tasks', 'stories', s.id, 'test-strategy.md'), s.id)),
-    ...criteriaOf(path.join(dir, 'test-strategy.md'), 'F'),
-  ];
+  const planFile = path.join(dir, 'plan.md');
+  const sections = fs.existsSync(planFile) ? storySections(fs.readFileSync(planFile, 'utf8')) : [];
+  // A story's criteria come from its section of the Feature plan when there is one; standalone and
+  // older runs fall back to the story's own test-strategy.md.
   const lines = [];
   let bad = 0;
   const refuse = (l) => { lines.push(`refused: ${l}`); bad++; };
+  const storyCriteria = (s) => {
+    const sec = sections.find((x) => x.sid === s.id);
+    if (!sec) return criteriaOf(path.join(root, 'tasks', 'stories', s.id, 'test-strategy.md'), s.id);
+    const list = (parseCriteria(sec.text) || []).map((c) => ({ ref: `${s.id}.${c.n}`, text: c.text }));
+    if (!list.length) refuse(`no criteria for story ${s.id}`);
+    return list;
+  };
+  const criteria = [
+    ...state.stories.filter((s) => s.status === 'merged').flatMap(storyCriteria),
+    ...criteriaOf(path.join(dir, 'test-strategy.md'), 'F'),
+  ];
 
   const unfinished = state.stories.filter((s) => !['merged', 'skipped'].includes(s.status));
   for (const s of unfinished) refuse(`story ${s.id} is ${s.status || 'pending'}, not merged; no PR while a story is unfinished`);

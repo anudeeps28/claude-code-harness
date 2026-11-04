@@ -66,7 +66,10 @@ function defaultObserveFile() {
 }
 
 function planTaskNames(planText) {
-  return [...planText.matchAll(/<name>\s*([\s\S]*?)\s*<\/name>/g)].map((m) => m[1].trim().toLowerCase());
+  const tags = [...planText.matchAll(/<name>\s*([\s\S]*?)\s*<\/name>/g)].map((m) => m[1].trim().toLowerCase());
+  // A Feature plan lists its probes as "- Build the probe: <entry>" lines.
+  const listed = [...planText.matchAll(/^\s*[-*]\s+(Build the probe:\s*\S.*?)\s*$/gim)].map((m) => m[1].toLowerCase());
+  return [...tags, ...listed];
 }
 
 /** @returns {{stops: string[], notes: string[]}} */

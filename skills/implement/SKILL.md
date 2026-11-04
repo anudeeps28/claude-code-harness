@@ -682,11 +682,14 @@ story code.
 
 ### Plan the Feature
 
-1. **Read the stories.** The whole-ticket read above gave you the Feature's children. For each child
-   run `get-issue.sh` (title, `**State:**`) and `get-blockers.sh`, and save every child's ticket as
-   `tasks/stories/<sid>/ticket.md` exactly as **Read the whole ticket** describes. A blocker that is not
-   a story of this Feature must be closed; if it is open, **stop** (the open-blocker rule). Write the
-   graph, with only in-Feature blockers, to `tasks/features/<fid>/stories.json`:
+1. **Read the stories through `tracker-helper`** (model: `haiku`), which keeps whole tickets out of this
+   session: give it the Feature id and the state folder, and it runs `get-issue-children.sh` for the Feature, then
+   `get-issue.sh` (title, `**State:**`) and `get-blockers.sh` for each child, and writes every child's
+   ticket as `tasks/stories/<sid>/ticket.md` exactly as **Read the whole ticket** describes (the only
+   files it may write). Ask for its report as one line per story: the `ticket.md` path, the story's
+   title and state, and each blocker's id with its state. Never the tickets. A blocker that is not a story of this Feature
+   must be closed; if it is open, **stop** (the open-blocker rule). Write the graph, with only
+   in-Feature blockers, to `tasks/features/<fid>/stories.json`:
    `[{"id": "201", "title": "...", "state": "OPEN", "blockers": []}, ...]`.
 2. **Order them and write the state:**
 
@@ -697,18 +700,37 @@ story code.
 
    It prints the stories in dependency order, rejects a cycle (naming it; nothing is written) and warns
    above 8 stories. It refuses if the state already exists — that is a `--resume`.
-3. **Write `tasks/features/<fid>/plan.md`:** the story order and why, the Feature's Demo (from its
-   ticket; the Observe check above ran on it), and per story its acceptance criteria and its source
-   requirement lines (`source-lines.js read` on each story's `ticket.md`, as in **Read the whole
-   ticket**). Each story's task plan is made by its runner's planner when the story starts, and
-   checked then. When the Feature's body names a coverage table (`## Coverage`), check it:
+3. **Understand the whole Feature, once.** Write the phase marker (`phase: planning`, `detail: Feature
+   plan - story-understand-agent`), then spawn **one** `story-understand-agent` (foreground, model:
+   `opus`) in its **Feature scope** (the agent file has the full text): give it the Feature id, every
+   `ticket.md`, the story order and the Observe result; it writes `tasks/features/<fid>/brief.md`. When the Feature's body names a coverage table (`## Coverage`), check it:
    `node "<skill-dir>/bin/source-lines.js" coverage <its coverage file>` — an unmapped line is a
    question for the gate, never something to build around.
-4. **The one stop — the plan gate**, in the same format as a single story's (**The plan gate**, Phase
+4. **Plan the whole Feature, once.** Define the goal of every story first, as Phase 1.5 does: the plan
+   turns each into criteria with proofs. Then spawn **one** `implement-planner-agent` (foreground,
+   model: `opus`) in its **Feature-plan mode**. Give it the goals, the brief, the tickets, the story
+   order, the Feature's Demo, the `Probes to build:` lines from the Observe check and both folders; it
+   writes `tasks/features/<fid>/plan.md` and no other plan. Its format is in the planner's Feature-plan
+   mode.
+5. **Check the plan, before the gate.** The four plan checks run on the Feature plan; each prints
+   nothing when all is well:
+
+   ```bash
+   node "<skill-dir>/bin/demo.js" compare tasks/stories/<fid>/ticket.md tasks/features/<fid>/plan.md
+   node "<skill-dir>/bin/proof-check.js" tasks/features/<fid>/plan.md --story <sid>
+   node "<skill-dir>/bin/observe-check.js" --demo tasks/features/<fid>/plan.md --plan tasks/features/<fid>/plan.md
+   node "<skill-dir>/bin/source-lines.js" compare tasks/stories/<sid>/ticket.md tasks/features/<fid>/plan.md --story <sid>
+   ```
+
+   Run `proof-check.js` and `source-lines.js` once for every story in `stories.json`, so a mistyped
+   heading cannot drop a story silently. A failure goes back to the planner with the printed lines, as a
+   fresh call with the plan's own text, up to 3 times; the stall detection of **The plan gate** applies
+   (no fewer problems between two rounds means stop and ask).
+6. **The one stop — the plan gate**, in the same format as a single story's (**The plan gate**, Phase
    1c). Show the plan, the **coverage** (each source line of these stories → the story and criterion
-   that carries it), and under the heading **"Before I finalize this plan I need"** every question that
-   would otherwise make the build guess, each with **a recommended answer** (from Hydra's
-   work-feature):
+   that carries it), and under the heading **"Before I finalize this plan I need"** every open question
+   of every story, plus anything else that would otherwise make the build guess, each with
+   **a recommended answer** (from Hydra's work-feature):
    - **missing material** — a design, a sample file, data the stories refer to but nobody attached;
    - **untestable criteria** — a criterion no proof could check;
    - **decisions that are not ours** — product, legal or another team's calls;
@@ -726,8 +748,9 @@ story code.
    `node "<skill-dir>/bin/feature-state.js" set --feature <fid> gate-shown=yes`: a resume approves only a
    plan that was shown. This is the run's **only stop**: after it, the run goes to the PR under
    `rules/autonomous-mode.md`, self-answering what is reversible and logging it, and pausing only on a
-   pause-anyway trigger. Each runner's planner may still raise a scope question about its own story:
-   the runner reports it as BLOCKED and you put it to the person, never answer it yourself.
+   pause-anyway trigger. After approval nothing re-plans a story: a scope question found while a story is
+   built is a pause-anyway trigger, reported as BLOCKED and put to the person, never re-planned and never
+   answered by you.
 
    *(In `--autonomous`: when the "I need" list is empty and every line is mapped, skip the stop and
    log "Feature plan self-approved: [N] stories" in `tasks/features/<fid>/decisions-log.md`. When it
@@ -795,7 +818,8 @@ node "<skill-dir>/bin/worktree.js" feature --home "<home>" --path "<feature-work
    move its card to `in-progress` (tracker-helper), print `event=story-started`, then spawn a **`story-runner-agent`**
    (background, model: `opus`) with: the Feature id and story id; **work folder** = the story worktree; **state
    folder** = `<state>`; **base ref** = the Feature branch's commit it started from
-   (`git -C "<feature-worktree>" rev-parse HEAD`); the ticket path; its plan slice from `plan.md`; the
+   (`git -C "<feature-worktree>" rev-parse HEAD`); the ticket path; its `## Story #<sid>` section of
+   `tasks/features/<fid>/plan.md` (the plan it builds from, written before the gate); the
    verify lock (`<state>/.verify.lock` when lessons/notes say `verify-lock: global`); and "This is an
    autonomous run — self-answer your checkpoints per `rules/autonomous-mode.md` and append decisions to
    `tasks/stories/<sid>/decisions-log.md`." Wait for it to report (`rules/background-work.md`).
@@ -832,7 +856,7 @@ run `worktree.js check-branch --path "<feature-worktree>" --expect "<feature-bra
 
 **Every time you wake, before anything else:**
 
-- **Record each running story's width.** Once a runner's planner has saved
+- **Record each running story's width.** Once the runner has saved its task list in
   `tasks/stories/<sid>/plan.md`, count the tasks per `parallel_group` among those not yet done and set
   `width=<the largest>` on that story. Until then `next` counts it as 5 wide. This is what keeps the
   agent count honest as stories progress.

@@ -176,3 +176,19 @@ test('ObserveCheck_DefaultObserveFile_FallsBackToNotes', () => {
   const r = spawnSync(process.execPath, [SCRIPT, '--demo', 'ticket.md'], { cwd: dir, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
+
+test('ObserveCheck_ProbeListedInFeaturePlan_IsSatisfied', () => {
+  const observe = FULL_OBSERVE.replace(/^- Screenshot:.*$/m, '');
+  const f = files(observe, demo('screenshot'));
+  const plan = path.join(f.dir, 'plan.md');
+  fs.writeFileSync(plan, '## Probes\n- Build the probe: Screenshot\n\n## Story #201 — Orders\n');
+  const r = run(f, ['--plan', plan]);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(r.out, '');
+
+  // Companion: a Feature plan whose Probes list names a different probe still stops.
+  fs.writeFileSync(plan, '## Probes\n- Build the probe: Database\n\n## Story #201 — Orders\n');
+  const other = run(f, ['--plan', plan]);
+  assert.equal(other.code, 1, other.out);
+  assert.match(other.out, /^missing probe task: Build the probe: Screenshot/m);
+});

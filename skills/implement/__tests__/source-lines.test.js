@@ -243,3 +243,46 @@ test('Usage_UnknownCommand_ExitsTwo', () => {
   assert.equal(r.code, 2, r.out);
   assert.match(r.out, /usage:/);
 });
+
+// ── Feature plan (F72 #77): compare reads only the named story's section ────────────────────────
+
+const FEATURE_PLAN = [
+  '## Story order',
+  '1. #205 then #206',
+  '',
+  '## Story #205 — Weekly review panel',
+  '',
+  '**Acceptance criteria and their proofs:**',
+  '1. [D-5b.3] who engages: change from last month',
+  '   - Proof: integration — Review_Engagers_ShowsMonthOverMonth',
+  '   - Seen by: GET /api/review',
+  '   - Would lie if: one month seeded',
+  '2. [D-5b.4] goal not reached → goal-hitters side by side',
+  '   - Proof: e2e — review.spec.ts',
+  '   - Seen by: screenshot',
+  '   - Would lie if: goal always reached',
+  '',
+  '## Story #206 — Scripting',
+  '',
+  '**Acceptance criteria and their proofs:**',
+  '1. [D-6] scripting reads past logs',
+  '   - Proof: unit — Scripting_ReadsLogs',
+  '   - Seen by: test output',
+  '   - Would lie if: the log is empty',
+  '',
+].join('\n');
+
+test('Compare_FeaturePlanStorySection_OnlyThatStory', () => {
+  const f = tmp({ 'ticket.md': TICKET, 'plan.md': FEATURE_PLAN });
+  const ok = run(['compare', f['ticket.md'], f['plan.md'], '--story', '205']);
+  assert.equal(ok.code, 0, ok.out);
+  assert.equal(ok.out, '');
+
+  // The line sits in another story's section only: story 205's section must be reported as dropping it.
+  const moved = FEATURE_PLAN.replace(/2\. \[D-5b\.4\][\s\S]*?(?=\n## Story #206)/, '')
+    .replace('1. [D-6] scripting reads past logs', '1. [D-6] scripting reads past logs\n2. [D-5b.4] goal not reached → goal-hitters side by side');
+  const g = tmp({ 'ticket.md': TICKET, 'plan.md': moved });
+  const bad = run(['compare', g['ticket.md'], g['plan.md'], '--story', '205']);
+  assert.equal(bad.code, 1, bad.out);
+  assert.match(bad.out, /^missing \[D-5b\.4\]/m);
+});

@@ -148,3 +148,45 @@ test('Gate_RawEvidence_RefusedWithoutEchoingTheValue', () => {
   assert.ok(!r.out.includes(email) && !r.out.includes('Pat Doe'), 'the value itself is never printed');
   assert.doesNotMatch(r.out, /rows: 3/, 'counts and status codes are shape, and fine');
 });
+
+test('Gate_CriteriaFromTheFeaturePlanSections', () => {
+  const plan = (s, text) => fs.writeFileSync(path.join(s.root, 'tasks', 'features', '1', 'plan.md'), text);
+  const sections = (a, b) => ['## Story order', '1. 201 then 202', '', '## Story #201 — Orders', '', STRATEGY(a), '## Story #202 — Status', '', STRATEGY(b)].join('\n');
+  // The criteria live only in the Feature plan sections; no per-story strategy files exist.
+  const fresh = (gate) => {
+    const s = setup({ gate });
+    for (const sid of ['201', '202']) fs.rmSync(path.join(s.root, 'tasks', 'stories', sid, 'test-strategy.md'));
+    return s;
+  };
+
+  const notMet = fresh([ALL_MET[0], ALL_MET[1], '- 202.1: not-met — no status column']);
+  plan(notMet, sections(2, 1));
+  const r = run(notMet);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^refused: 202\.1 \("Criterion 1 holds"\) is not met: no status column$/m);
+
+  const allMet = fresh(ALL_MET);
+  plan(allMet, sections(2, 1));
+  const ok = run(allMet);
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /^gate: open$/m);
+
+  // Companion: a criterion in the plan with no gate line is refused, so the sections really are read.
+  plan(allMet, sections(3, 1));
+  const missing = run(allMet);
+  assert.equal(missing.code, 1, missing.out);
+  assert.match(missing.out, /201\.3/);
+});
+
+test('Gate_StorySectionWithNoCriteriaList_Refused', () => {
+  const s = setup({ gate: ALL_MET });
+  for (const sid of ['201', '202']) fs.rmSync(path.join(s.root, 'tasks', 'stories', sid, 'test-strategy.md'));
+  fs.writeFileSync(path.join(s.root, 'tasks', 'features', '1', 'plan.md'), [
+    '## Story #201 — Orders', '', STRATEGY(2),
+    '## Story #202 — Status', '', '**Files:**', '- a.js', '',
+  ].join('\n'));
+  const r = run(s);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^refused: no criteria for story 202$/m);
+  assert.doesNotMatch(r.out, /for 201/, 'companion: the story with criteria is not refused');
+});
