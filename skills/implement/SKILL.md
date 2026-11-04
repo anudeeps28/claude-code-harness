@@ -332,6 +332,7 @@ names an agent or adapter script that is not listed here. Format: `- <kind> \`<n
 - agent `security-reviewer-agent` — Phase 3 review · build
 - agent `story-pr-agent` — Phase 3 PR · build
 - agent `loosened-reviewer-agent` — Feature mode, the Feature panel · build
+- agent `prover` — Feature mode, Prove it · build
 - skill `local-test` — Phase 2.5 · build
 - skill `debug` — the 3-attempt rule · both
 - skill `troubleshoot` — Phase 3 e2e gate · build
@@ -379,11 +380,14 @@ Evidence for the frontmatter `model:`: the Claude Code docs, skills page, frontm
 | `story-reviewer` | Re-review rounds 4–5 | opus |
 | `story-executor-agent` | standalone Phase 2 waves, Feature fix waves | sonnet |
 | `evaluator-agent` | standalone Phase 3, and the panel's made-false part | opus |
-| `evaluator-agent` | the Feature panel's list part | sonnet |
+| `evaluator-agent` | the Feature panel's complexity part | sonnet |
+| `evaluator-agent` | the Feature panel's dead-code part | sonnet |
 | `acceptance-test-agent` | acceptance review | opus |
 | `architect-reviewer-agent` | architecture review | opus |
 | `security-reviewer-agent` | security review | opus |
 | `loosened-reviewer-agent` | the Feature panel's loosened checks | sonnet |
+| `prover` | Prove it: each criterion's proof, a tool on a second case, a break | sonnet |
+| `prover` | Prove it, job diagnose: the cause of a failed criterion | opus |
 | `coverage-auditor-agent` | the closing check, started by `/coverage-audit` | opus |
 | `debug-agent` | root cause, started by `/debug` | opus |
 | `story-pr-agent` | commits and the PR body | sonnet |
@@ -969,8 +973,8 @@ The one full review, run once on the whole Feature branch after every story is c
 (ARCHITECTURE.md §1). The per-story review stays in the story loop; this is where the defects
 *between* stories are caught. From Hydra's work-feature Phase 6.
 
-1. **The Feature's checks first.** In the Feature worktree run the full build and tests, then
-   `/local-test e2e` for the Feature's Demo (NOT SET UP is red). Red goes through the fix loop (step 6)
+1. **The Feature's checks first.** In the Feature worktree the full build and tests run through
+   `suite-runner` (model: `sonnet`, with the commands from lessons/notes), then `/local-test e2e` for the Feature's Demo (NOT SET UP is red). Red goes through the fix loop (step 6)
    before any reviewer starts: a panel on a red branch reviews code that is about to change.
 2. **Commit first, then leave the tree alone.** `git -C "<feature-worktree>" status --porcelain` must
    be empty — every story's commit is on the Feature branch, and anything else there is not yours: **stop**
@@ -978,8 +982,8 @@ The one full review, run once on the whole Feature branch after every story is c
    `feature-state.js set --feature <fid> phase=reviewing panel-head=<git -C "<feature-worktree>" rev-parse HEAD>`.
    Write the Feature's phase marker (`phase: reviewing`, `feature: <fid>`) and print
    `event=phase phase=reviewing`.
-3. **Start all five reviewers in one message, each in the foreground** — six calls, because the
-   evaluator runs twice. Every one gets: **work folder** = the Feature worktree; **state folder** =
+3. **Start all seven checks in one message, each in the foreground** — seven calls, because the
+   evaluator is called three times, one per part. Every one gets: **work folder** = the Feature worktree; **state folder** =
    `<state>`; **base ref** = the `base:` in `feature-state.md`, normally `main` (they diff `<base>...feature/<fid>`); the Feature id; **scripts
    folder** = `<skill-dir>/bin`; "Feature panel"; and its **model, passed explicitly** on the Agent
    call — an answer that is a list goes on the faster model, an answer that is an argument never does:
@@ -988,9 +992,10 @@ The one full review, run once on the whole Feature branch after every story is c
    |---|---|---|
    | `security-reviewer-agent` | `opus` | — (it runs the built-in `/security-review` from the Feature worktree) |
    | `architect-reviewer-agent` | `opus` | — |
-   | `acceptance-test-agent` | `opus` | every committed story's `test-strategy.md` and `tasks/features/<fid>/test-strategy.md` (Feature-level and carried-over criteria) |
-   | `evaluator-agent`, part `list` | `sonnet` | `tasks/features/<fid>/plan.md` |
+   | `acceptance-test-agent` | `opus` | the Feature `tasks/features/<fid>/plan.md` and `F.<n>`, every committed story's `test-strategy.md` and `tasks/features/<fid>/test-strategy.md` (Feature-level and carried-over criteria) |
    | `evaluator-agent`, part `made-false` | `opus` | — |
+   | `evaluator-agent`, part `complexity` | `sonnet` | `tasks/features/<fid>/plan.md` |
+   | `evaluator-agent`, part `dead-code` | `sonnet` | — |
    | `loosened-reviewer-agent` | `sonnet` | — |
 
    Wait for every one (`rules/background-work.md`). **No file in the Feature worktree changes until the
@@ -999,7 +1004,8 @@ The one full review, run once on the whole Feature branch after every story is c
    When they are all back, `rev-parse HEAD` must still equal `panel-head` and the status must still be
    empty; if not, something wrote during the reviews: **stop** (contradiction).
 4. **Save the reports** to `tasks/features/<fid>/review/` (`security.md`, `architecture.md`,
-   `acceptance.md`, `evaluator-list.md`, `evaluator-made-false.md`, `loosened.md`) and print one
+   `acceptance.md`, `evaluator-complexity.md`, `evaluator-dead-code.md`, `evaluator-made-false.md`,
+   `loosened.md`) and print one
    `event=review-done` line per report with its finding count.
 5. **Judge every finding against the criteria.** The criteria are the scope.
    - **In scope — fix it here:** the branch fails a criterion, breaks something that worked, or does
@@ -1021,18 +1027,18 @@ The one full review, run once on the whole Feature branch after every story is c
    why. This **stops under `--autonomous` too**: it is a decision that is not ours. Apply the choice,
    record it in `tasks/features/<fid>/decisions-log.md` and in the ADR it belongs to, and say so in
    the PR.
-6. **The fix loop.** You never edit code yourself. Write the fixes as tasks in
-   `tasks/features/<fid>/fix-plan.md` (the same `<task>` XML), run them as `story-executor-agent` (model: `sonnet`)
-   waves in the Feature worktree under `rules/wave-execution.md` — **test-first when test-first mode
-   is on**: the failing test that reproduces the finding comes first. Then re-run the Feature's
-   integration and e2e suites, and commit the fixes on their own:
+6. **The fix loop.** You never edit code yourself. The findings go, word for word, to `story-builder`
+   (job `fix`, model: `sonnet`) in the Feature worktree, with the Feature's criteria, the Feature
+   `plan.md` path and the path of `reference/test-rules.md`, **test-first when test-first mode is on**: the failing
+   test that reproduces the finding comes first. Then `suite-runner` (model: `sonnet`) re-checks the
+   Feature's build, integration and e2e suites, and the fixes are committed on their own:
    `refactor: address review findings for Feature #<fid>`, never folded into a story's commit.
-   **Re-review only what changed:** re-run, under the same rules (commit first, one message, hold
-   edits), only the reviewers whose areas the fixes touched — an endpoint, auth or config →
-   security; a migration, a boundary → architect; a test or a criterion → acceptance; any code →
-   evaluator `list`; a doc, comment or label → evaluator `made-false`; a skip, a gate or a baseline →
-   loosened. Repeat until no new in-scope finding. A third round that still finds new ones is the
-   3-attempt rule: stop and ask.
+   **Re-review only what changed:** the same checks again, under the same rules (commit first, one
+   message, hold edits), only for the dimensions the fixes touched — an endpoint, auth or config →
+   security; a migration, a boundary → architect; a test or a criterion → acceptance; code shape →
+   complexity; any code → dead-code; a doc, comment or label → made-false; a skip, a gate or a
+   baseline → loosened. Repeat until no new in-scope finding. A third round that still finds new ones
+   is the 3-attempt rule: stop and ask.
 
 ### Prove it
 
@@ -1042,6 +1048,9 @@ real system**. Run it after the panel's fixes are committed. From Hydra's work-f
 `feature-state.js set --feature <fid> phase=testing`, the Feature's phase marker `phase: testing`
 (detail `Prove it`), and `event=phase phase=testing`.
 
+The main session owns the scratch copy and `prove-it.md`; the `prover` (model: `sonnet`) does steps 2 to 4:
+it proves each criterion, tries a tool on a second case, and breaks each main test once.
+
 1. **A scratch copy.** Prove it never touches the Feature worktree:
 
    ```bash
@@ -1049,44 +1058,55 @@ real system**. Run it after the panel's fixes are committed. From Hydra's work-f
    ```
 
    A detached copy at the Feature branch's commit — no branch is created.
-2. **Run each criterion's proof against the real system.** Every criterion: each committed story's
-   (`<sid>.<n>`, from its `test-strategy.md`) and the Feature's (`F.<n>`). Run its **Proof** from the
-   plan, seeing the result the way its **Seen by** line says, with the commands in the Observe section
-   of lessons/notes — start the app, the e2e command, the read-only API or database, the screenshot —
-   **test environment only**. Record **intended** (the criterion), **built** (what the branch changed
-   for it) and **observed** (what happened). A `sign-off` criterion is shown, not run: record the
-   evidence the person will need; it becomes `needs-person`.
-3. **If the Feature makes a tool** — a generator, scaffolder, migrator or script — run it once in the
-   scratch copy on a case the Feature did not build for (a made-up second product, a database already
-   at main), then build and test what it produced. Commit that output on the scratch copy's detached
-   commit (`git -C "<scratch>" add -A` and `git -C "<scratch>" commit -m "prove-it scratch"`): never
-   pushed, no branch, so the copy is clean again.
-4. **Break it once.** For each criterion's main test, in the scratch copy: change the **one line** that
-   makes the criterion true (with the Edit tool, not a script), run that test, and confirm it goes
-   **red**. Put the line back and confirm it is green again. A test that stays green when its line is
-   broken is **a proof that lies**: record `broke: green`.
+2. **Run each criterion's proof against the real system.** The `prover` (job `prove`, model: `sonnet`)
+   is started in the foreground with the scratch copy's path, the Feature's `plan.md` path (where each
+   criterion's **Proof**, **Seen by** and **Would lie if** lines live), the state folder, the Feature
+   id and the Observe section of lessons/notes, and it takes every criterion: each committed story's
+   (`<sid>.<n>`, from its `test-strategy.md`) and the Feature's (`F.<n>`). It runs each **Proof** from
+   the plan, seeing the result the way its **Seen by** line says — start the app, the e2e command, the
+   read-only API or database, the screenshot — **test environment only**, and records **intended**
+   (the criterion), **built** (what the branch changed for it) and **observed** (what happened). A
+   `sign-off` criterion is shown, not run: it records the evidence the person will need, and the
+   criterion becomes `needs-person`.
+3. **If the Feature makes a tool** — a generator, scaffolder, migrator or script — the prover runs it
+   once in the scratch copy on a case the Feature did not build for (a made-up second product, a
+   database already at main), then builds and tests what it produced. It commits that output on the
+   scratch copy's detached commit: never pushed, no branch, so the copy is clean again.
+4. **Break it once.** For each criterion's main test, in the scratch copy, the prover changes the
+   **one line** that makes the criterion true (with the Edit tool, not a script), runs that test, which
+   must go **red**, then puts the line back and runs it green again. A test that stays green
+   when its line is broken is **a proof that lies**: it records `broke: green`. The prover fixes
+   nothing; its report is one line per criterion.
 5. **Remove the scratch copy:**
    `node "<skill-dir>/bin/worktree.js" remove-scratch --home "<home>" --path "<repo>-f<fid>-prove"`.
    It refuses while any broken line is still there — that refusal is the clean-tree check. Never
    forced; put the line back and run it again.
 6. **Write `tasks/features/<fid>/prove-it.md`:** per criterion, intended / built / observed and the
-   break result; then the gate list the PR gate reads, one line per criterion:
+   break result; then the gate list the PR gate reads, one line per criterion. The prover's lines go
+   into the gate list as they are: it reports in the gate's own words (`met`, `partly`, `not-met`,
+   `needs-person`; `broke: red`, `green` or `n/a`). Only `deferred #<id>` is yours to add, after a
+   person's choice.
 
    ```
    ## Gate
 
    - 201.1: met; broke: red — Orders_Total_AddsLines
    - 201.2: not-met — the export has no header row
-   - 202.1: needs-person — finance signs off the wording
+   - 202.1: needs-person; broke: n/a — finance signs off the wording
    - F.1: deferred #88 — rounding on refunds, the user chose to defer
    ```
 
    **Shape only** (ARCHITECTURE.md §4): counts, ids, field names, status codes, pass/fail — never a
    row's contents, a response body, a name or any personal or health data. Screenshots stay local and
    are named, never pasted.
-7. **On a failure, diagnose from evidence.** Compare intended, built and observed; find the cause; fix
-   it through the fix loop (a lying test is fixed too, then broken again to prove the fix); and re-run
-   that criterion alone. **No blind re-runs.** Three evidence-based attempts that do not go green:
+7. **On a failure, diagnose from evidence.** Judging a failure is a call to the `prover` in
+   job `diagnose` (model: `opus`), briefed with the failed criterion's id, its three records
+   (intended, built, observed) and what was seen; it compares them and names the cause. The
+   fix goes through `story-builder` (job `fix`, model: `sonnet`), the fix loop, with the cause, the
+   criteria, the Feature plan path and `reference/test-rules.md`; a lying test is fixed too, then
+   broken again to prove the fix. Then that criterion alone is proven again, in job `prove`
+   (model: `sonnet`).
+   **No blind re-runs.** Three evidence-based attempts that do not go green:
    **stop** and put it to the person (`/debug` for a build or runtime failure).
 
 ### The closing check
@@ -1731,7 +1751,7 @@ behind** in the working directory.
 - `/local-test e2e` reporting NOT SET UP is a red gate, never a skip
 - Follow the commit rules in `tasks/lessons.md` (or `tasks/notes.md`) for every commit; never auto-push from the default branch
 - The **enterprise only** steps (sprint file to Phase 1, one task per child task, the Master Status Table) run only when the manifest's `workflowPack` is `enterprise`; a solo run never reads or mentions a sprint file
-- In Feature mode the full panel runs once, after every story is committed: five reviewers (six calls) in one message, each with its model passed explicitly, on `<base>...feature/<fid>` (the base recorded in `feature-state.md`), with the tree committed first and left untouched until the last one returns; only the reviewers whose areas a fix touched are re-run
+- In Feature mode the full panel runs once, after every story is committed: seven calls in one message, each with its model passed explicitly, on `<base>...feature/<fid>` (the base recorded in `feature-state.md`), with the tree committed first and left untouched until the last one returns; only the reviewers whose areas a fix touched are re-run
 - No Feature PR until `pr-gate.js` prints `gate: open`: every criterion met and its test turned red when its line was broken, or needs a person, or deferred by the person to a tracker item linked from the PR. Only a person defers a criterion, under `--autonomous` too
 - Prove it runs in a scratch copy (`worktree.js scratch`), never in the Feature worktree, and records evidence by shape only
 - Never build before the plan gate is approved (or, under `--autonomous`, approves itself because it has nothing to ask); after it, never stop except on a contradiction, an irreversible action, a scope change, scope narrowing, a missing dependency, the 3-attempt rule, or a FAIL/BLOCKED it cannot pass

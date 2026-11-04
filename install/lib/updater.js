@@ -184,6 +184,8 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/implement-planner-agent.md',
     // The Feature panel's fifth reviewer (F6 #58).
     'agents/loosened-reviewer-agent.md',
+    // Proves each Feature criterion on the real system, in the scratch copy (F72 #80).
+    'agents/prover.md',
     // The story agents and their test rules (F72 #76).
     'agents/story-builder.md',
     'agents/story-reviewer.md',

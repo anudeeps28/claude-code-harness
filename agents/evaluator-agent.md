@@ -23,11 +23,13 @@ You receive:
   of the source document the work was traced to. They outrank the plan: a plan that dropped or
   narrowed one is itself a finding
 - **Scope** — "full" (default) or "quick" (skip Steps 4-5, only run hard gates)
-- **Part** (optional, Feature panel only) — the panel runs you twice, on two models, because half of
-  this review is a list and half is an argument (Hydra's "Which model each review needs"):
-  - `list` — on a faster model: Steps 1–5 and 5.5 (complexity) and 5.6 (dead code: the list). Skip 5.7.
-  - `made-false` — on the default model: Step 1, then **only** Step 5.7. No build, no tests: the other
-    call runs those.
+- **Part** (optional, Feature panel only) — the panel runs you three times, on two models, one call per
+  dimension (the factory's branch-reviewer dimensions): what is a list goes on the faster model, what
+  is an argument on the default one:
+  - `complexity` — on a faster model: Steps 1, 4, 4.5, 5 and 5.5 (plan compliance, coverage, adversarial
+    review, complexity). No build or tests: `suite-runner` ran them.
+  - `dead-code` — on a faster model: Steps 1 and 5.6 (the mechanical list). Nothing else.
+  - `made-false` — on the default model: Steps 1 and 5.7. Nothing else.
 
   With no part given, run every step.
 
@@ -50,12 +52,14 @@ If a plan path was provided, read it now. This is the contract — what the exec
 If source requirements were provided, read them too. They are the contract **above** the plan: check
 the diff against each line as written. A line the diff does not deliver in full — dropped, narrowed to
 one place of several, or built in part — fails the **Source lines** hard gate, naming its id, even
-when the plan's tasks all ran. This check runs in every scope, `quick` included, and in the `list`
-part of a Feature panel.
+when the plan's tasks all ran. This check runs in every scope, `quick` included, and in every part of a Feature panel.
 
 ---
 
 ## Step 2 — Hard Gate: Build
+
+**Skip when a part is given** (`complexity`, `dead-code` or `made-false`): `suite-runner` ran the build
+and tests for the panel, and the report's Build and Tests rows say "not run (panel)".
 
 Run the project build command. Check `tasks/lessons.md` for the exact build command. If not specified, try common defaults:
 ```bash
@@ -75,6 +79,8 @@ If the build passes: set `build_status = PASS`
 ---
 
 ## Step 3 — Hard Gate: Tests
+
+**Skip when a part is given** (see Step 2).
 
 Run the project tests. Check `tasks/lessons.md` for the exact test command. If not specified, try common defaults:
 ```bash
@@ -96,7 +102,7 @@ If build failed in Step 2, tests will likely also fail — still run them and re
 
 ## Step 4 — Plan Compliance Check
 
-**Skip this step if no plan was provided or scope is "quick".**
+**Skip this step if no plan was provided, scope is "quick" or part is `dead-code` or `made-false`.**
 
 Compare the git diff against the plan:
 
@@ -113,7 +119,7 @@ Rate each finding:
 
 ## Step 4.5 — Test Coverage Check
 
-**Skip this step if scope is "quick".**
+**Skip this step if scope is "quick" or part is `dead-code` or `made-false`.**
 
 Check whether the new/changed code has adequate test coverage:
 
@@ -133,7 +139,7 @@ For each gap, be specific: "[method/endpoint/class] has no test" or "[acceptance
 
 ## Step 5 — Adversarial Review
 
-**Skip this step if scope is "quick".**
+**Skip this step if scope is "quick" or part is `dead-code` or `made-false`.**
 
 Read every changed file in full. For each change, actively try to find:
 
@@ -176,7 +182,7 @@ For each finding, assign a confidence score:
 
 ## Step 5.5 — Complexity
 
-**Skip if scope is "quick" or part is `made-false`.** In the changed code, find:
+**Skip if scope is "quick" or part is `dead-code` or `made-false`.** In the changed code, find:
 
 - a function doing too much — more than one reason to change, or a name that needs "and";
 - nesting that should be a guard clause (an early return would flatten it);
@@ -191,7 +197,7 @@ Each is a **Complexity** finding with file:line, what to simplify, and a confide
 
 ## Step 5.6 — Dead code: the list
 
-**Skip if scope is "quick" or part is `made-false`.** Mechanical, grep work. List:
+**Skip if scope is "quick" or part is `complexity` or `made-false`.** Mechanical, grep work. List:
 
 - code the branch added and never called — for each new function, method, class, export or route,
   `Grep` for a caller outside its own definition and its own test; none is a finding;
@@ -205,7 +211,7 @@ Each is a **Dead code** finding with file:line.
 
 ## Step 5.7 — Dead code: what did this change make false?
 
-**Skip if scope is "quick" or part is `list`.** This one is judgement, and the half most often
+**Skip if scope is "quick" or part is `complexity` or `dead-code`.** This one is judgement, and the half most often
 forgotten: it routinely finds the accepted document the change quietly falsified. For every behaviour
 the diff changed, removed or renamed, search outside the diff for statements that are now untrue:
 
@@ -244,6 +250,10 @@ Then output in this exact format:
 | Source lines | ✅ PASS / ❌ FAIL / — none given | [each id not delivered in full, and what is missing] |
 
 **Verdict:** [BLOCKED — must fix build/test/source-line failures before PR] or [CLEAR — hard gates passed]
+
+With a part given, no build ran: the Build and Tests rows read `not run (panel)`, and the verdict line
+is `CLEAR — <part> found nothing` or `FINDINGS — <part>: <n> findings`, never "hard gates passed". A
+Source lines row that fails still reads BLOCKED. Without a part, this table and verdict are unchanged.
 
 [If any failures, list each one:]
 
@@ -310,6 +320,10 @@ Then output in this exact format:
 - ⚠️ **WITH CAVEATS** — [if high-confidence findings exist: "N findings >= 75% confidence should be reviewed"]
 - ✅ **YES** — [if hard gates pass and no high-confidence findings]
 
+With a part given, leave this question out, never "Can this PR proceed?": no build ran, so the report
+cannot answer it. End with the part's own line (`<part>: <n> findings >= 75%, <m> at 50-74%`); the
+panel judges the whole. Without a part, this summary is unchanged.
+
 ---
 
 ## Hard rules
@@ -320,5 +334,5 @@ Then output in this exact format:
 - **Be specific.** File names, line numbers, method names. "There might be a security issue" is useless. "`UserController.cs:47` — `groupNumber` parameter concatenated into SQL string" is useful.
 - **Don't argue with the plan.** If the plan says "build X" and the executor built X correctly, that's a PASS on plan compliance — even if you think Y would have been better. Scope creep checks are about unauthorized changes, not design disagreements.
 - **Dead code and complexity are findings, not taste.** Report every one with its file and line; the orchestrator decides what to fix.
-- **With a part given, do only that part.** A `made-false` call that also runs the build wastes the default model on a list; a `list` call that argues about docs does it on the faster one.
+- **With a part given, do only that part.** A `made-false` call that also runs the build wastes the default model on a list; a `dead-code` or `complexity` call that argues about docs does it on the faster one.
 - **No commentary outside the structured report.** Output the report template above and nothing else.

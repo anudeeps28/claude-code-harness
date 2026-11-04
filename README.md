@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 24 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 25 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -526,12 +526,13 @@ branch, and pushes so the PR updates in place.
 | `story-understand-agent` | opus | `/implement` Phase 1 | Reads the whole ticket + docs (and the sprint file on enterprise), produces the brief |
 | `story-executor-agent` | sonnet | `/implement` waves | Writes code for one task |
 | `story-pr-agent` | sonnet | `/implement` PR step | Commit messages + PR description; the Master Status Table on enterprise |
-| `evaluator-agent` | opus (Feature panel: sonnet for the list part) | `/evaluate`, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
+| `evaluator-agent` | opus (Feature panel: sonnet for the complexity and dead-code parts) | `/evaluate`, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
 | `acceptance-test-agent` | opus | `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
 | `architect-reviewer-agent` | opus | `/implement` 3 and Feature panel | Architecture drift, NFR compliance, data-flow integrity, migrations on a database that already exists |
 | `security-reviewer-agent` | opus | `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
 | `coverage-auditor-agent` | opus | `/coverage-audit` | The closing check's reader — every requirement line of a document vs the code, Built / Partly / Missing with file evidence; never reads the plans |
 | `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
+| `prover` | sonnet | `/implement` Prove it | Runs each criterion's proof on the real system in a scratch copy, a tool on a second case, breaks each main test once; one line per criterion; fixes nothing. Job `diagnose` (the cause of a failed criterion) is called on opus |
 | `story-builder` | sonnet | `/implement` | Writes the tests first from the criteria, the code that turns them green, or a fix; never stages, commits or pushes |
 | `story-reviewer` | sonnet | `/implement` | Reviews in one named mode (Correctness, Rules and quality, Re-review, Cross-story); findings only, edits nothing |
 | `suite-runner` | sonnet | `/implement` | Runs the build and test commands and returns only exit codes, counts and each failing test's first error line |
@@ -730,7 +731,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 33 skills
-├── agents/           ← 24 agents (21 sub-agents + 1 main-session operator + 2 role identities)
+├── agents/           ← 25 agents (22 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 14 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)

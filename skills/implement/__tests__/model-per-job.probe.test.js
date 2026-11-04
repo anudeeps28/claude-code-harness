@@ -80,7 +80,7 @@ const BUILT_IN = new Set(['Explore']);
 const JUDGEMENT = new Set([
   'story-understand-agent', 'implement-planner-agent', 'Explore', 'security-reviewer-agent',
   'architect-reviewer-agent', 'acceptance-test-agent', 'evaluator-agent', 'coverage-auditor-agent',
-  'debug-agent',
+  'debug-agent', 'prover',
 ]);
 const SONNET_ONLY = ['story-builder', 'suite-runner', 'story-reviewer', 'story-executor-agent', 'loosened-reviewer-agent', 'story-pr-agent'];
 
