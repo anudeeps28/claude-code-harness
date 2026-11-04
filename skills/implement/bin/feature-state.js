@@ -18,7 +18,9 @@
 //          A story's width= is its widest remaining wave; unplanned stories count as 5 (F5 #49).
 //   hung   --feature <fid> [--now <iso>]   every running story whose phase.md is 30+ minutes old:
 //          "restart <sid>: ..." the first time, then "stuck <sid>: ..." and its dependents held (#51)
-//   resume --feature <fid>   prints what --resume does with each story
+//   resume --feature <fid>   prints what --resume does with each story; a first line "approve: ..."
+//          when plan-approved is still no in phase planning and gate-shown is yes (the resume is the
+//          plan approval); "show-gate: ..." instead when gate-shown is absent or no
 //   stuck  --feature <fid> --story <sid> --reason <text>
 //          marks the story stuck and every story that depends on it, directly or not, held; prints
 //          "needs-person: <ids>" for the card moves
@@ -228,7 +230,17 @@ function cmdNext(root, opts) {
 }
 
 function cmdResume(root, opts) {
-  const { stories } = load(root, opts.feature);
+  const { header, stories } = load(root, opts.feature);
+  // A plan gate that stops the run tells the person to approve by running --resume (a skill's
+  // `model:` lasts one turn), so a resume of a Feature whose gate was SHOWN and not yet approved IS
+  // the approval. A crash between init and printing the gate leaves nothing the person saw: show it.
+  if (header['plan-approved'] === 'no' && header.phase === 'planning') {
+    if (header['gate-shown'] === 'yes') {
+      out('approve: the plan was not approved yet; this resume is the approval. Run the approval step (plan-approved=yes phase=coding, the Feature card to in-progress, event=run-started) first');
+    } else {
+      out('show-gate: the plan gate was never shown, so there is nothing to approve. Show the plan gate again (gate-shown=yes once it is printed)');
+    }
+  }
   for (const s of stories) {
     switch (s.status) {
       case 'merged':

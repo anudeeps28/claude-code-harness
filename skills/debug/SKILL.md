@@ -108,7 +108,7 @@ Gather everything needed for diagnosis. Do all of these in parallel:
 
 ## Step 3 — Spawn the debug agent
 
-Spawn a **`debug-agent`** (foreground) with:
+Spawn a **`debug-agent`** (foreground, model: `opus`) with:
 - The feedback loop command and its current output
 - What was being attempted (from task files + conversation context)
 - The exact error message(s) from the 3 failed attempts

@@ -183,6 +183,38 @@ test('Resume_RunningStoryWithWorktree_RestartsFromSavedState', () => {
   } finally { fs.rmSync(s.stories[0].worktree, { recursive: true, force: true }); }
 });
 
+test('Resume_GateNeverShown_ShowsTheGateAgain', () => {
+  const dir = home(AB);
+  init(dir);
+  const r = run(dir, 'resume', '--feature', '123');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^show-gate: the plan gate was never shown/m);
+  assert.doesNotMatch(r.out, /^approve:/m, 'a plan nobody saw is never approved by a resume');
+  run(dir, 'set', '--feature', '123', 'gate-shown=no');
+  assert.match(run(dir, 'resume', '--feature', '123').out, /^show-gate:/m, 'gate-shown=no is the same as absent');
+});
+
+test('Resume_PlanningButApproved_NoApproveLine', () => {
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', 'gate-shown=yes', 'plan-approved=yes');
+  const r = run(dir, 'resume', '--feature', '123');
+  assert.doesNotMatch(r.out, /^approve:/m);
+  assert.doesNotMatch(r.out, /^show-gate:/m);
+});
+
+test('Resume_GateShownUnapproved_PrintsApproveFirst', () => {
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', 'gate-shown=yes');
+  const r = run(dir, 'resume', '--feature', '123');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^approve: the plan was not approved yet; this resume is the approval/m);
+  assert.equal(r.out.split('\n')[0].startsWith('approve:'), true, 'approve comes before the story lines');
+  run(dir, 'set', '--feature', '123', 'plan-approved=yes', 'phase=coding');
+  assert.doesNotMatch(run(dir, 'resume', '--feature', '123').out, /^approve:/m, 'an approved plan prints no approve line');
+});
+
 test('Resume_NoState_StopsAndNeverStartsFresh', () => {
   const dir = home(AB);
   const r = run(dir, 'resume', '--feature', '123');

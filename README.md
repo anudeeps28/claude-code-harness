@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 24 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 25 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -538,6 +538,7 @@ branch, and pushes so the PR updates in place.
 | `story-builder` | sonnet | `/implement` | Writes the tests first from the criteria, the code that turns them green, or a fix; never stages, commits or pushes |
 | `story-reviewer` | sonnet | `/implement` | Reviews in one named mode (Correctness, Rules and quality, Re-review, Cross-story); findings only, edits nothing |
 | `suite-runner` | sonnet | `/implement` | Runs the build and test commands and returns only exit codes, counts and each failing test's first error line |
+| `tracker-helper` | haiku | `/implement` | Runs the given tracker adapter commands (card moves, deferral items), reads each write back and reports it; never improvises another command |
 | `babysit-pr-analyst` | sonnet | `/babysit-pr` | Categorizes threads as fix/reply |
 | `babysit-pr-fixer` | sonnet | `/babysit-pr` | Applies code fixes |
 | `sprint-plan-tracker-reader` | haiku | `/sprint-plan` | Calls tracker CLI |
@@ -732,7 +733,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 33 skills
-├── agents/           ← 24 agents (21 sub-agents + 1 main-session operator + 2 role identities)
+├── agents/           ← 25 agents (22 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 14 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)

@@ -187,6 +187,8 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/story-builder.md',
     'agents/story-reviewer.md',
     'agents/suite-runner.md',
+    // Runs every card move and deferral item on Haiku (F72 #75).
+    'agents/tracker-helper.md',
     'skills/implement/reference/test-rules.md',
     // The closing check /implement runs when a run completes a coverage table.
     'skills/coverage-audit/SKILL.md',

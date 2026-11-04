@@ -11,6 +11,7 @@ plan gate** (every run, from that moment to the PR), `--autonomous` on an orches
 forward flow), and `--rework <PR#>` on `/implement` (the reject-loop that re-enters an open PR). Each
 is a direct human act whose presence *is* the signal, so each runs under the self-answer rule
 without contradicting "autonomy is only ever inherited from a signal" — the approval or the flag is that signal.
+For a Feature, approving the plan gate means either a reply to it or `/implement --resume <fid>` run after the gate was shown (`gate-shown: yes` in `feature-state.md`); a resume of a Feature whose gate was never shown approves nothing, and a single story's plan is never approved by a resume.
 `--rework` is **not** a second `--autonomous`-style flag on sub-skills; it is a mode selector on the
 orchestrator that happens to imply autonomous semantics. A rework run is keyed by PR number and has no
 story workspace, so its decisions log stays inline (see the decisions-log section).
