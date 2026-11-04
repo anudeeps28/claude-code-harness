@@ -4,8 +4,7 @@ This file is the **single source of truth** for how a skill runs a wave of execu
 run, what must be checked before and after each wave, and what happens to a failed task's edits.
 
 **Location:** `rules/wave-execution.md` (installed alongside `.claude/skills/`).
-**Referenced by:** `skills/implement/SKILL.md`, `agents/story-runner-agent.md`,
-`agents/story-executor-agent.md`.
+**Referenced by:** `skills/implement/SKILL.md`, `agents/story-executor-agent.md`.
 
 ---
 
@@ -25,20 +24,10 @@ nothing to do with the code. Worktrees also stranded the failed agents' work in 
 The protection worktrees were meant to provide — two agents never clobbering the same file — is
 provided by the **pre-wave overlap check** below, which holds regardless of isolation.
 
-### Story worktrees are different, and allowed
-
-In `/implement`'s Feature mode each **story** runs in its own git worktree (ADR-0002), and that does
-not contradict the rule above. The difference is who creates the worktree and from what:
-
-| | Story worktree (allowed) | Wave isolation (still forbidden) |
-|---|---|---|
-| Created by | the orchestrator, with `git worktree add <path> -b story/<sid>-slug feature/<fid>-slug` | the agent tool's `isolation: "worktree"` |
-| Starts from | the Feature branch, after every story it depends on has merged | the default branch, committed state only |
-| Holds | one whole story; its waves share it | one task, cut off from its own wave's earlier work |
-| Ends | committed, then merged by the orchestrator after testing, then removed | stranded under `.claude/worktrees/` |
-
-Inside a story worktree everything in this file applies unchanged: that worktree is the "working
-directory" the wave agents share, and they are spawned with no isolation.
+In `/implement`'s Feature mode the "working directory" is the one Feature worktree, which the
+orchestrator creates (`rules/git-worktrees.md`). Stories are built in it one after another, and
+everything in this file applies there unchanged: the wave agents share that folder and are spawned
+with no isolation.
 
 ---
 

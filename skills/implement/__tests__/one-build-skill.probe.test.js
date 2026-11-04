@@ -113,8 +113,14 @@ test('Replacements_RosterAndInstallerKnowTheOneBuildSkill', () => {
 // ── #65 rules and docs ───────────────────────────────────────────────
 
 test('Docs_AdrsAcceptedAndReadmeHasBothExamples', () => {
-  for (const f of fs.readdirSync(path.join(REPO_ROOT, 'docs', 'adr')).filter((x) => /^000[1-4]-/.test(x))) {
-    mustMatch(read('docs', 'adr', f), /^- \*\*Status:\*\* accepted/m, `${f} is accepted`);
+  // ADR-0005 (F72 #81) supersedes 0002 and 0003; the files and their bodies stay.
+  const adrs = fs.readdirSync(path.join(REPO_ROOT, 'docs', 'adr')).filter((x) => /^000[1-5]-/.test(x));
+  assert.equal(adrs.length, 5, `ADRs 0001-0005 all exist: ${adrs.join(', ')}`);
+  for (const f of adrs) {
+    const superseded = /^000[23]-/.test(f);
+    mustMatch(read('docs', 'adr', f),
+      superseded ? /^- \*\*Status:\*\* superseded by ADR-0005/m : /^- \*\*Status:\*\* accepted/m,
+      superseded ? `${f} is superseded by ADR-0005` : `${f} is accepted`);
   }
   const readme = read('README.md');
   mustMatch(readme, /\*\*Building a Feature\.\*\*/, 'README shows a Feature build');

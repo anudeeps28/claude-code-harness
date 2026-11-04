@@ -220,10 +220,13 @@ test('Stories_OneLoopPerStoryOnTheFeatureBranch', () => {
 });
 
 test('Rules_WaveIsolationStillForbidden', () => {
-  // The "story worktree" text in the rules goes in #81; here only the wave rule is pinned.
+  // F72 #81: the wave rule is kept and the "story worktree" text is gone from it.
   const wave = read('rules', 'wave-execution.md');
   mustMatch(wave, /isolation: "worktree"/, 'wave isolation is still named');
   mustMatch(wave, /Do not spawn them with `isolation: "worktree"`/, 'and still forbidden');
+  // [s]tory keeps these lines clear of one-build-skill.probe's check for the retired skill's name.
+  assert.doesNotMatch(wave, /[s]tory[- ]worktrees?/i, 'wave-execution.md has no story worktree');
+  assert.doesNotMatch(read('rules', 'git-worktrees.md'), /[s]tory[- ]worktrees?/i, 'git-worktrees.md has no story worktree');
 });
 
 // ── F72 #79: no story worktree, story branch, story runner or width anywhere ──
@@ -297,7 +300,10 @@ test('PR_OnePerFeatureWithTheRunReport', () => {
   mustMatch(s, /--base <base> --head feature\/<fid>-<slug>/, 'one PR from the Feature branch to its base');
   mustMatch(s, /the only push/i, 'the Feature branch is the only push');
   mustMatch(s, /run-report\.js/, 'the PR body carries the run report');
-  mustMatch(read('rules', 'autonomous-mode.md'), /Feature run[\s\S]{0,400}tasks\/stories\/<sid>\/decisions-log\.md/, 'Feature runs keep one decisions log per story');
+  const auto = read('rules', 'autonomous-mode.md').replace(/\r\n/g, '\n');
+  mustMatch(auto, /Feature run[\s\S]{0,500}tasks\/features\/<fid>\/decisions-log\.md/, 'Feature runs keep one decisions log, in the Feature folder');
+  mustMatch(auto, /#<sid>:/, 'each line is prefixed with #<sid>:');
+  assert.doesNotMatch(auto, /tasks\/stories\/<sid>\/decisions-log/, 'no per-story decisions log in a Feature run');
   const markers = read('rules', 'phase-markers.md');
   mustMatch(markers, /`feature`/, 'phase.md gains an optional feature key');
   mustMatch(markers, /`story`/, 'phase.md gains an optional story key');

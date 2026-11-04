@@ -7,8 +7,7 @@ internals.
 
 **Location:** `rules/phase-markers.md` (installed alongside `.claude/skills/`; the `.claude/` copy is a
 symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md`, `agents/story-runner-agent.md`,
-`skills/evaluate/SKILL.md`.
+**Referenced by:** `skills/implement/SKILL.md`, `skills/evaluate/SKILL.md`.
 
 ---
 

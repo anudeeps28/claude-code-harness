@@ -18,9 +18,9 @@ flowchart TB
     subgraph F["/implement &lt;feature-id&gt; — a whole Feature, one PR"]
         direction LR
         F1["Read the Feature<br/>stories, links, Demo"] --> F2{{"Plan gate — plan, coverage,<br/>every question at once"}}
-        F2 --> F3["Each story in its own worktree<br/>independent ones at once<br/>plan · waves · light review"]
-        F3 --> F4["Merge one at a time<br/>tests pass, or abort"]
-        F4 --> F5["Feature panel<br/>5 reviewers on the whole branch"]
+        F2 --> F3["One story at a time, in order<br/>tests · red · code · green · 2 reviews"]
+        F3 --> F4["One commit per story<br/>on the Feature branch"]
+        F4 --> F5["Feature panel<br/>seven checks on the whole branch"]
         F5 --> F6["Prove it + closing check<br/>real system · every doc line"]
         F6 --> F7{{"PR gate<br/>every criterion met"}}
         F7 --> F8(["One PR"])
@@ -68,17 +68,18 @@ AI coding tools are powerful — but unstructured. You start a task, the model e
 `/implement` is the one build skill (ADR-0001). What it builds depends on what you hand it:
 
 ```
-/implement 40                     ← a Feature: one plan for all its stories, each story built in its own
-                                    git worktree (independent ones at the same time), one review panel
-                                    and Prove it on the whole Feature, then one PR
+/implement 40                     ← a Feature: one plan for all its stories, built one after another on
+                                    the Feature branch, one review panel and Prove it on the whole
+                                    Feature, then one PR
 /implement 42 --standalone        ← a single story or bug with no parent Feature
 ```
 
 **Building a Feature.** `/plan-features` breaks the work into a Feature with stories and the links
 between them. `/implement 40` shows you one plan — the stories in dependency order, the Feature's
-Demo, and anything it needs from you — and that is the only stop. Then it builds every story, merges
-each into the Feature branch only after its tests pass, runs the five-reviewer panel and **Prove it**
-on the whole branch, and opens one PR — only when every acceptance criterion is met.
+Demo, and anything it needs from you — and that is the only stop. Then it builds the stories one
+after another, committing each to the Feature branch only after its tests pass, runs the seven-check
+panel and **Prove it** on the whole branch, and opens one PR — only when every acceptance criterion
+is met.
 
 **Building a standalone item.** `/implement 42 --standalone` builds one story or bug on its own
 branch: understand → goal → plan → **plan gate** → build in waves → local tests → four reviewers →
@@ -351,7 +352,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 ### Build (both packs)
 | Skill | Usage | What it does |
 |---|---|---|
-| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story in its own worktree, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run, `--tdd` builds test-first. On the enterprise pack it also keeps the sprint file in step |
+| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story one after another on the Feature branch, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run, `--tdd` builds test-first. On the enterprise pack it also keeps the sprint file in step |
 
 ### Solo workflow
 | Skill | Usage | What it does |
@@ -419,7 +420,7 @@ PLAN THE FEATURE
     access, contradictions, scope readings), each with a recommended answer
 
 BEFORE THE FIRST STORY
-  → Disk check for the worktrees; lists any command no allow rule covers
+  → Disk check for the Feature worktree; lists any command no allow rule covers
 
 RUN THE STORIES
   → One story at a time, on the Feature branch, once its blockers are committed
@@ -427,9 +428,9 @@ RUN THE STORIES
   → A story that is BLOCKED twice is stuck: it and its dependents wait for a person, no PR
 
 THE FEATURE PANEL
-  → Five reviewers in one message on main...feature: security (with the built-in /security-review),
-    architect, acceptance, evaluator (two calls), loosened — each on its own model
-  → Fixes go through executors; only the reviewers whose areas changed run again
+  → Seven checks on main...feature: security (with the built-in /security-review), architecture,
+    acceptance, made-false, complexity, dead code, loosened — each on its own model
+  → Fixes go to `story-builder` (job fix); only the reviewers whose areas changed run again
 
 PROVE IT, THE PR GATE, ONE PR
   → Each criterion's proof on the real system; any tool the Feature makes run on a second case

@@ -378,7 +378,7 @@ Evidence for the frontmatter `model:`: the Claude Code docs, skills page, frontm
 | `suite-runner` | a whole suite, run once | sonnet |
 | `story-reviewer` | the reviews of one story | sonnet |
 | `story-reviewer` | Re-review rounds 4–5 | opus |
-| `story-executor-agent` | standalone Phase 2 waves, Feature fix waves | sonnet |
+| `story-executor-agent` | standalone Phase 2 waves and their fix waves | sonnet |
 | `evaluator-agent` | standalone Phase 3, and the panel's made-false part | opus |
 | `evaluator-agent` | the Feature panel's complexity part | sonnet |
 | `evaluator-agent` | the Feature panel's dead-code part | sonnet |

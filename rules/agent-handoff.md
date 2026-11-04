@@ -32,7 +32,7 @@ that failed when it was meant to fail, is `STATUS: DONE`.
 ## What the main session does
 
 Route on the status line before reading the rest of the report. An agent whose own file defines a
-`RESULT:` block (`story-executor-agent`, `story-runner-agent`) is routed by that `RESULT:` under the
+`RESULT:` block (`story-executor-agent`) is routed by that `RESULT:` under the
 existing rules (`skills/implement/SKILL.md`, `rules/wave-execution.md`, `rules/autonomous-mode.md`);
 its `STATUS:` line is only the first line of its report. The relaunch rows below apply to every other
 agent.

@@ -193,6 +193,12 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     // Runs every card move and deferral item on Haiku (F72 #75).
     'agents/tracker-helper.md',
     'skills/implement/reference/test-rules.md',
+    // The reviewers and the diagnosis agent in SKILL.md's model table (F72 #81); none is enterprise-only.
+    'agents/evaluator-agent.md',
+    'agents/acceptance-test-agent.md',
+    'agents/architect-reviewer-agent.md',
+    'agents/security-reviewer-agent.md',
+    'agents/debug-agent.md',
     // The closing check /implement runs when a run completes a coverage table.
     'skills/coverage-audit/SKILL.md',
     'agents/coverage-auditor-agent.md',
