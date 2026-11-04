@@ -36,6 +36,9 @@ const SOLO_REQUIRED_AGENTS = [
   'story-understand-agent.md',
   'story-executor-agent.md',
   'story-pr-agent.md',
+  'story-builder.md',
+  'story-reviewer.md',
+  'suite-runner.md',
 ];
 
 const REMOVED_ROLE_AGENTS = ['navigator.md', 'shipwright.md', 'lookout.md', 'warden.md', 'harbormaster.md'];

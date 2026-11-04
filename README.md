@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 21 agents, 7 cross-platform Node hooks, 13 rules (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 24 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -535,6 +535,9 @@ branch, and pushes so the PR updates in place.
 | `security-reviewer-agent` | opus | `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
 | `coverage-auditor-agent` | opus | `/coverage-audit` | The closing check's reader — every requirement line of a document vs the code, Built / Partly / Missing with file evidence; never reads the plans |
 | `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
+| `story-builder` | sonnet | `/implement` | Writes the tests first from the criteria, the code that turns them green, or a fix; never stages, commits or pushes |
+| `story-reviewer` | sonnet | `/implement` | Reviews in one named mode (Correctness, Rules and quality, Re-review, Cross-story); findings only, edits nothing |
+| `suite-runner` | sonnet | `/implement` | Runs the build and test commands and returns only exit codes, counts and each failing test's first error line |
 | `babysit-pr-analyst` | sonnet | `/babysit-pr` | Categorizes threads as fix/reply |
 | `babysit-pr-fixer` | sonnet | `/babysit-pr` | Applies code fixes |
 | `sprint-plan-tracker-reader` | haiku | `/sprint-plan` | Calls tracker CLI |
@@ -729,9 +732,9 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 33 skills
-├── agents/           ← 21 agents (18 sub-agents + 1 main-session operator + 2 role identities)
+├── agents/           ← 24 agents (21 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
-├── rules/            ← 11 rules (5 path-scoped)
+├── rules/            ← 14 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
 ├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects
