@@ -109,7 +109,8 @@ attempt changed (found with the comparison above), and only those:
 node "<skill-dir>/bin/worktree.js" git -- [-C "<feature-worktree>"] restore --worktree -- <the tracked paths>
 ```
 
-(Revert modifications; `-C` names the Feature worktree in a Feature, a standalone run leaves it out.)
+(Revert modifications; `-C` names the Feature worktree in a Feature, a standalone run leaves it out.
+`<skill-dir>` is the /implement skill folder, `.claude/skills/implement` in an installed project.)
 
 and delete any untracked files that attempt created. **Never put back a test file the red step
 recorded as evidence**, and never use a blanket `git checkout .` or `git stash`, which would destroy

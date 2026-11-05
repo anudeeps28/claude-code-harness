@@ -18,7 +18,9 @@
 //        [--source=HEAD] -- <paths> | push -u origin <branch>
 //       One of those git commands (the story commit and staging, the restore, the push), retried when
 //       another session holds a lock file. add and restore take named files only (no `.`, `..`, `:`
-//       pathspec, glob or folder); push takes only a feature/... or implement/... branch. Any other command or flag: exit 2, "refused", git not run.
+//       pathspec, glob or folder, a tracked folder missing from disk included); push takes only the branch
+//       checked out in the folder git runs in, never main, master, HEAD or a ref (so a feature/, implement/,
+//       fix/ or chore/ branch of the run, or a --rework head). Any other command or flag: exit 2, "refused", git not run.
 //       A git failure exits 1 with git's message.
 //
 // Output and exit codes:
@@ -142,7 +144,7 @@ const NEEDS = {
 // `git -- <args...>` runs only the run's own fixed shapes, each optionally preceded by `-C <dir>`:
 //   add [-N] -- <paths>            commit -F <file>
 //   restore [--staged] [--worktree] [--source=HEAD] -- <paths>
-//   push -u origin <branch>        (branch matches BRANCH_RE)
+//   push -u origin <branch>        (the checked-out branch; see pushableBranch)
 // Everything else is refused (exit 2) before git runs, so this wrapper cannot carry a force push, a
 // config override or any other command past the safety hook, which judges it as the git command it runs.
 const REFUSED_FLAG = /^(--force(-with-lease|-if-includes)?(=.*)?|-f|\+.*|--mirror|--delete|-d|-c|--upload-pack(=.*)?|--receive-pack(=.*)?|--exec(=.*)?)$/;
@@ -155,12 +157,25 @@ function broadPath(p, base) {
   if (/[*?[]/.test(p)) return `${p} has a glob character; name the files`;
   try {
     if (fs.statSync(path.resolve(base, p)).isDirectory()) return `${p} is a folder; name the files in it`;
-  } catch { /* not there: a deleted or new file, which git judges itself */ }
+  } catch {
+    // Not on disk: a deleted or new file, which git judges itself, unless git tracks files under it (a moved-away folder).
+    const dir = p.replace(/\/+$/, '');
+    if (git(base, ['ls-files', '--', `${dir}/`]).out) return `${p} is a tracked folder; name the files in it`;
+  }
   return null;
 }
 
-// The run's own branches only: never main, master, HEAD or a full ref.
-const OWN_BRANCH_RE = /^(feature|implement)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+// A branch may be pushed only when it is the one checked out in the folder git runs in, and is not
+// main, master, HEAD, a full ref, or a refspec (`:`, `@{`, `..`).
+function pushableBranch(b, base) {
+  if (!BRANCH_RE.test(b)) return `${b} is not a plain branch name`;
+  if (['main', 'master', 'HEAD'].includes(b) || b.startsWith('refs/') || b.includes(':') || b.includes('@{') || b.includes('..')) {
+    return `${b} is never pushed through this command`;
+  }
+  const here = currentBranch(base);
+  if (here !== b) return `${b} is not the branch checked out in ${base} (${here || 'detached'}); only the checked-out branch is pushed`;
+  return null;
+}
 
 function refusal(args) {
   let rest = args;
@@ -190,7 +205,7 @@ function refusal(args) {
   if (sub === 'commit') return rest.length === 3 && rest[1] === '-F' && !rest[2].startsWith('-') ? null : shape;
   if (sub === 'push') {
     if (!(rest.length === 4 && rest[1] === '-u' && rest[2] === 'origin' && BRANCH_RE.test(rest[3]))) return shape;
-    return OWN_BRANCH_RE.test(rest[3]) ? null : `${rest[3]} is not one of the run's own branches (feature/... or implement/...)`;
+    return pushableBranch(rest[3], base);
   }
   return shape;
 }

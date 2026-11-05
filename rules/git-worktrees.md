@@ -87,6 +87,7 @@ After the standard `git fetch --prune` at session start:
    is opened, so "gone from origin" is the normal state of a live one. For a worktree named
    `<repo>-f<fid>` on a branch `feature/<fid>-…` (or its `<repo>-f<fid>-prove` scratch copy), run
    `node "<skill-dir>/bin/feature-state.js" live --feature <fid>` against the home folder (it reads `tasks/features/<fid>/`).
+   `<skill-dir>` is the /implement skill folder, `.claude/skills/implement` in an installed project.
    When it prints `live` (activity within 30 minutes), say "Worktree `<path>`: Feature <fid> is in progress in another session, left alone",
    and go to the next one. It is never offered for removal while it is live. A Feature that is not live
    (it printed `idle`) is offered like any other worktree below.

@@ -341,6 +341,89 @@ test('Git_PushOfABranchThatIsNotTheRunsOwn_RefusedAndNothingPushed', () => {
   assert.match(git(r.root, '--git-dir', bare, 'branch', '--list'), /implement\/42-x/);
 });
 
+// Round 5, item 2: push takes only the branch that is checked out in the folder git runs in.
+function withOrigin(r) {
+  const bare = path.join(r.root, 'origin.git');
+  git(r.root, 'init', '-q', '--bare', '-b', 'main', bare);
+  git(r.home, 'remote', 'add', 'origin', bare);
+  return bare;
+}
+
+test('Git_PushOfTheCheckedOutFixBranch_Runs', () => {
+  const r = repo();
+  const bare = withOrigin(r);
+  git(r.home, 'checkout', '-q', '-b', 'fix/x');
+  const p = runIn(r.home, 'git', '--', 'push', '-u', 'origin', 'fix/x');
+  assert.equal(p.code, 0, p.out);
+  assert.match(git(r.root, '--git-dir', bare, 'branch', '--list'), /fix\/x/);
+  // with -C, "checked out" is read in that folder, not in the caller's
+  git(r.home, 'checkout', '-q', '-b', 'chore/y');
+  const c = runIn(r.root, 'git', '--', '-C', r.home, 'push', '-u', 'origin', 'chore/y');
+  assert.equal(c.code, 0, c.out);
+});
+
+test('Git_PushOfABranchThatIsNotTheCheckedOutOne_Refused', () => {
+  const r = repo();
+  const bare = withOrigin(r);
+  git(r.home, 'branch', 'fix/other');
+  git(r.home, 'checkout', '-q', '-b', 'fix/x');
+  for (const b of ['fix/other', 'feature/x', 'fix/x2']) {
+    const s = runIn(r.home, 'git', '--', 'push', '-u', 'origin', b);
+    assert.equal(s.code, 2, `${b}: ${s.out}`);
+    assert.match(s.out, /refused/, b);
+  }
+  assert.equal(git(r.root, '--git-dir', bare, 'branch', '--list'), '', 'nothing was pushed');
+});
+
+test('Git_PushOfMainOrMasterEvenWhenCheckedOut_Refused', () => {
+  const r = repo();
+  const bare = withOrigin(r);
+  assert.equal(runIn(r.home, 'git', '--', 'push', '-u', 'origin', 'main').code, 2, 'main is checked out here');
+  git(r.home, 'checkout', '-q', '-b', 'master');
+  const s = runIn(r.home, 'git', '--', 'push', '-u', 'origin', 'master');
+  assert.equal(s.code, 2, s.out);
+  assert.match(s.out, /refused/);
+  assert.equal(git(r.root, '--git-dir', bare, 'branch', '--list'), '', 'nothing was pushed');
+});
+
+// The push line the SKILL's Rework mode tells the run to type must be one the wrapper accepts for a
+// head branch that is not feature/ or implement/ (pins the two together).
+test('Git_ReworkPushLineInTheSkill_AcceptedForAFixHead', () => {
+  const skill = fs.readFileSync(path.join(__dirname, '..', 'SKILL.md'), 'utf8');
+  const section = skill.match(/## Rework mode[\s\S]*?(?=\n## )/)[0];
+  const line = section.split('\n').find((l) => /worktree\.js" git -- push -u origin /.test(l));
+  assert.ok(line, 'the Rework mode section has a push line through worktree.js');
+  const m = line.match(/git -- push -u origin "<[^>]*>"/);
+  assert.ok(m, `the push line names the branch as a quoted placeholder: ${line}`);
+  const r = repo();
+  const bare = withOrigin(r);
+  git(r.home, 'checkout', '-q', '-b', 'fix/x');
+  const p = runIn(r.home, 'git', '--', 'push', '-u', 'origin', 'fix/x'); // "<head branch>" := fix/x
+  assert.equal(p.code, 0, p.out);
+  assert.match(git(r.root, '--git-dir', bare, 'branch', '--list'), /fix\/x/);
+});
+
+// Round 5, item 3: a tracked folder moved away from disk is still a folder.
+test('Git_AddAndRestoreOfATrackedFolderMissingFromDisk_Refused', () => {
+  const r = repo();
+  fs.mkdirSync(path.join(r.home, 'sub'));
+  fs.writeFileSync(path.join(r.home, 'sub', 'in.txt'), 'x\n');
+  git(r.home, 'add', '.');
+  git(r.home, 'commit', '-q', '-m', 'sub');
+  fs.renameSync(path.join(r.home, 'sub'), path.join(r.root, 'moved-away'));
+  for (const sub of [['add'], ['restore', '--worktree'], ['restore', '--staged', '--worktree', '--source=HEAD']]) {
+    for (const p of ['sub', 'sub/']) {
+      const s = runIn(r.home, 'git', '--', ...sub, '--', p);
+      assert.equal(s.code, 2, `${sub.join(' ')} -- ${p}: ${s.out}`);
+      assert.match(s.out, /refused/);
+    }
+  }
+  // companion: a deleted tracked FILE is still restorable
+  fs.rmSync(path.join(r.home, 'app.txt'));
+  assert.equal(runIn(r.home, 'git', '--', 'restore', '--worktree', '--', 'app.txt').code, 0);
+  assert.equal(fs.existsSync(path.join(r.home, 'app.txt')), true);
+});
+
 test('CheckBranch_ReportsAMovedBranch', () => {
   const r = repo();
   feature(r);

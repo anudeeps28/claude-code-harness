@@ -170,6 +170,18 @@ for (const [name, cmd, reason] of [
   });
 }
 
+// Round 5: the same dropped option value must not hide a commit or push from the ask rules either.
+for (const [name, cmd, reason] of [
+  ['C_subshell_push', 'git -C "$(git push --force origin main)" status', /^ask:git push/],
+  ['C_subshell_commit', 'git -C "$(git commit -am x)" status', /^ask:git commit/],
+  ['c_alias_push_double', 'git -c "alias.st=!git push --force origin main" st', /^ask:git push/],
+  ['c_alias_push_single', "git -c 'alias.p=!git push -f origin main' p", /^ask:git push/],
+]) {
+  test(`Bash_GitGlobalOptionHidesAskedCommand_${name}_Asks`, () => {
+    assert.match(decisionOf(bash(cmd)), reason);
+  });
+}
+
 // Round 4: the wrapper path is matched without regard to case, and `git` and `--` may be quoted.
 for (const [name, cmd] of [
   ['upper_case_path', 'node "/h/skills/implement/bin/WORKTREE.JS" git -- push -u origin feature/x'],

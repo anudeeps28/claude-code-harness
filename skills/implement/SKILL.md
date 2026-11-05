@@ -638,6 +638,11 @@ git checkout "$HEAD_BRANCH"
 
 Never create a new branch with `checkout` for this step — this is the same branch the open PR already tracks, not a new one.
 
+When the PR's head branch is already checked out in a Feature worktree (git refuses the checkout: "already
+used by worktree"), do the rework in that worktree instead: use `-C "<that worktree>"` on every git command
+of this mode (the checks, `worktree.js git -- -C "<that worktree>" add/commit/push`), and do not check the
+branch out in the home folder.
+
 **c. Fetch unresolved review threads.**
 
 ```bash
@@ -799,7 +804,10 @@ Who tunes the waits: the person who owns the project's test setup, through `TEST
    `- <path>` line each under `## Red files` in `executor-state.md` (replace the section), so a resume at
    `code` can tell it from half-done code (**Resume mode**, d). Also stage them by path unless the run is
    `--no-ship`: `node "<skill-dir>/bin/worktree.js" git -- [-C "<feature-worktree>"] add [-N] -- <paths>`
-   (`-N` for new files; the `-C` in a Feature, none in a standalone run); the list, not the index, is what the resume
+   (`-N` for new files; the `-C` in a Feature, none in a standalone run). Stage file paths: a folder the
+   builder reported is expanded to its files first (`git ls-files -o --exclude-standard -- <dir>` for new
+   files, `git ls-files -m -- <dir>` for changed ones). A `refused:` from `worktree.js git` is a stop to
+   report, never worked around. The list, not the index, is what the resume
    trusts, because `git diff --name-only` still lists a `-N` file.
    Set `step=code`.
 4. **Code.** Write `phase: coding`, then spawn `story-builder` (job `code`, model: `sonnet`) to turn the
@@ -822,11 +830,15 @@ Who tunes the waits: the person who owns the project's test setup, through `TEST
    a resume at review starts at that round. The phase marker follows the agent: `phase: reviewing`
    before a reviewer, `phase: coding` before a fix builder, `phase: testing` before the green run.
    Before a round's fixes, stage the story's paths (`node "<skill-dir>/bin/worktree.js" git -- -C "<feature-worktree>" add -- <paths>`,
-   with `add -N --` for new files; a standalone run leaves the `-C` out) so that `git -C "<feature-worktree>" diff` is exactly the fix diff. Still open after round 5: **stop and ask**
+   with `add -N --` for new files; a standalone run leaves the `-C` out; file paths only, a folder expanded
+   as in step 3; a `refused:` is a stop to report, never worked around) so that `git -C "<feature-worktree>" diff` is exactly the fix diff. Still open after round 5: **stop and ask**
    (`event=run-paused`). A fix is followed by a green scoped run before the next round. When the
    review is clean, set `step=commit`.
 7. **Commit.** Stage the union of the paths the builders reported, by path, never `git add -A` (a
-   dirty tree holds work that is not this story's), with `worktree.js git -- -C "<feature-worktree>" add -- <paths>`.
+   dirty tree holds work that is not this story's), with `worktree.js git -- -C "<feature-worktree>" add -- <paths>`
+   (file paths; a reported folder is expanded to its files first with `git ls-files -o --exclude-standard -- <dir>`
+   for new files and `git ls-files -m -- <dir>` for changed ones; a `refused:` from `worktree.js git` is a stop
+   to report, never worked around).
    Before the commit, `git -C "<feature-worktree>" diff --cached --name-only`
    must hold only that story's paths: anything else in the index (a stuck story's leftovers, someone
    else's staging) is a stop, never committed. Commit only when the scoped set is green on the

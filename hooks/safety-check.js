@@ -119,8 +119,8 @@ function asksDisabled() {
   return process.env.SAFETY_ALLOW_GIT_COMMIT_PUSH === '1';
 }
 
-// `text` is what the ask rules and the deny rules read; `alsoDeny` is further text the deny rules
-// read too (the raw command, when `text` is a rewrite of it).
+// `text` is what the rules read; `alsoDeny` is further text the deny and ask rules read too (the raw
+// command, when `text` is a rewrite of it).
 function checkRules(rules, text, alsoDeny = []) {
   // Destructive denials take precedence: a command that both matches an ask rule
   // and a deny rule (e.g. "git commit && rm -rf") must be hard-blocked, not merely
@@ -132,9 +132,12 @@ function checkRules(rules, text, alsoDeny = []) {
     }
   }
   if (asksDisabled()) return;
-  for (const rule of rules) {
-    if (rule.action !== 'ask') continue;
-    if (rule.re.test(text)) ask(rule.reason, rule.id);
+  // The ask rules read the raw text too: a commit or push hidden in a dropped option value still asks.
+  for (const t of [text, ...alsoDeny]) {
+    for (const rule of rules) {
+      if (rule.action !== 'ask') continue;
+      if (rule.re.test(t)) ask(rule.reason, rule.id);
+    }
   }
 }
 
@@ -142,7 +145,8 @@ function checkRules(rules, text, alsoDeny = []) {
 // command it runs, so commit and push still ask and a denied form still denies. Global git options
 // that sit before the subcommand (`-C <dir>`, `-c <k=v>`) are dropped for the judgement too, so
 // `git -C <dir> commit` is a commit whether or not the wrapper carries it. The deny rules also read
-// the raw command, because the dropped option value is text a shell may run (`git -C "$(rm -rf ~)"`).
+// the raw command, and so do the ask rules, because the dropped option value is text a shell may run
+// (`git -C "$(rm -rf ~)"`, `git -C "$(git push --force origin main)"`).
 const WRAPPER_RE = /worktree\.js["']?\s+["']?git["']?\s+["']?--["']?\s+/gi;
 const GIT_GLOBAL_OPTS_RE = /\bgit((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))+)\s+(?=\S)/g;
 
