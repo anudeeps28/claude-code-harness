@@ -289,6 +289,58 @@ test('Git_RefusedFlagsAndSubcommands_Exit2_AndGitNeverRuns', () => {
   assert.match(runIn(r.home, 'git', '--', 'reset', '--hard').out, /reset/);
 });
 
+// Round 4, item 3: add and restore take only named files; push takes only the run's own branches.
+test('Git_AddAndRestoreWithABroadPath_RefusedAndGitNeverRuns', () => {
+  const r = repo();
+  fs.mkdirSync(path.join(r.home, 'sub'));
+  fs.writeFileSync(path.join(r.home, 'sub', 'in.txt'), 'x\n');
+  fs.writeFileSync(path.join(r.home, 'app.txt'), 'dirty\n');
+  const broad = ['.', '..', ':/', ':(top)app.txt', ':!app.txt', '*', 'a?.txt', 'f[ab].txt', 'sub', './sub', 'sub/'];
+  for (const sub of [['add'], ['add', '-N'], ['restore', '--worktree'], ['restore', '--staged', '--worktree', '--source=HEAD']]) {
+    for (const p of broad) {
+      const s = runIn(r.home, 'git', '--', ...sub, '--', p);
+      assert.equal(s.code, 2, `${sub.join(' ')} -- ${p}: ${s.out}`);
+      assert.match(s.out, /refused/, `${sub.join(' ')} -- ${p}`);
+    }
+    // a named file beside a broad one is still refused
+    assert.equal(runIn(r.home, 'git', '--', ...sub, '--', 'app.txt', '.').code, 2);
+  }
+  // With -C the directory is looked up in that folder, not in the caller's.
+  assert.equal(runIn(r.root, 'git', '--', '-C', r.home, 'add', '--', 'sub').code, 2);
+  // Companions: git never ran.
+  assert.equal(fs.readFileSync(path.join(r.home, 'app.txt'), 'utf8'), 'dirty\n');
+  assert.doesNotMatch(git(r.home, 'status', '--porcelain'), /^A/m);
+});
+
+test('Git_AddAndRestoreWithNamedFiles_StillRun', () => {
+  const r = repo();
+  fs.mkdirSync(path.join(r.home, 'sub'));
+  fs.writeFileSync(path.join(r.home, 'sub', 'in.txt'), 'x\n');
+  fs.writeFileSync(path.join(r.home, 'app.txt'), 'dirty\n');
+  const a = runIn(r.home, 'git', '--', 'add', '--', 'sub/in.txt', 'app.txt');
+  assert.equal(a.code, 0, a.out);
+  assert.match(git(r.home, 'status', '--porcelain'), /A {2}sub\/in\.txt/);
+  const re = runIn(r.root, 'git', '--', '-C', r.home, 'restore', '--staged', '--worktree', '--source=HEAD', '--', 'sub/in.txt', 'app.txt');
+  assert.equal(re.code, 0, re.out);
+  assert.equal(fs.readFileSync(path.join(r.home, 'app.txt'), 'utf8'), 'line 1\n');
+});
+
+test('Git_PushOfABranchThatIsNotTheRunsOwn_RefusedAndNothingPushed', () => {
+  const r = repo();
+  const bare = path.join(r.root, 'origin.git');
+  git(r.root, 'init', '-q', '--bare', '-b', 'main', bare);
+  git(r.home, 'remote', 'add', 'origin', bare);
+  for (const b of ['main', 'master', 'HEAD', 'refs/heads/main', 'refs/tags/v1', 'develop', 'release/1']) {
+    const s = runIn(r.home, 'git', '--', 'push', '-u', 'origin', b);
+    assert.equal(s.code, 2, `${b}: ${s.out}`);
+    assert.match(s.out, /refused/, b);
+  }
+  assert.equal(git(r.root, '--git-dir', bare, 'branch', '--list'), '', 'nothing was pushed');
+  git(r.home, 'checkout', '-q', '-b', 'implement/42-x');
+  assert.equal(runIn(r.home, 'git', '--', 'push', '-u', 'origin', 'implement/42-x').code, 0, 'the run\'s own implement/ branch is pushed');
+  assert.match(git(r.root, '--git-dir', bare, 'branch', '--list'), /implement\/42-x/);
+});
+
 test('CheckBranch_ReportsAMovedBranch', () => {
   const r = repo();
   feature(r);

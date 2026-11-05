@@ -625,7 +625,11 @@ gh pr view <PR#> --json isCrossRepository,headRefName,headRepositoryOwner
 ```
 
 If `isCrossRepository` is `true`, **treat it as a pause-anyway trigger and stop** — you cannot safely
-push to a fork's branch from here; ask the human. Otherwise check out the head branch:
+push to a fork's branch from here; ask the human. Otherwise, before the checkout, make the same ask a
+standalone run makes before it moves the home folder off `main` (Before you start: run
+`node "<skill-dir>/bin/feature-state.js" live --feature <fid>` for each folder `tasks/features/<fid>/`; any
+`live` Feature gets the (A) stop / (B) continue here question, never self-answered, so an autonomous run
+pauses). Only then check out the head branch:
 
 ```bash
 HEAD_BRANCH=$(gh pr view <PR#> --json headRefName -q .headRefName)
@@ -793,8 +797,9 @@ Who tunes the waits: the person who owns the project's test setup, through `TEST
    the builder. The test stays as a regression test.
    Once it prints `ok`, record the red set, the tests and any stub the builder reported, as one
    `- <path>` line each under `## Red files` in `executor-state.md` (replace the section), so a resume at
-   `code` can tell it from half-done code (**Resume mode**, d). Also stage them by path (`git add <paths>`,
-   `git add -N` for new files) unless the run is `--no-ship`; the list, not the index, is what the resume
+   `code` can tell it from half-done code (**Resume mode**, d). Also stage them by path unless the run is
+   `--no-ship`: `node "<skill-dir>/bin/worktree.js" git -- [-C "<feature-worktree>"] add [-N] -- <paths>`
+   (`-N` for new files; the `-C` in a Feature, none in a standalone run); the list, not the index, is what the resume
    trusts, because `git diff --name-only` still lists a `-N` file.
    Set `step=code`.
 4. **Code.** Write `phase: coding`, then spawn `story-builder` (job `code`, model: `sonnet`) to turn the
@@ -827,7 +832,7 @@ Who tunes the waits: the person who owns the project's test setup, through `TEST
    else's staging) is a stop, never committed. Commit only when the scoped set is green on the
    final state, **never on red**. The message is `<type>: <title>`, then `Acceptance criteria covered:` with one
    line per criterion and its test, then the trailer `Story: #<sid>`. Write it to a file under the
-   system temp directory and run `git commit -F <file>` through `worktree.js` (in a Feature, naming the Feature worktree, like the push:
+   system temp directory and run the commit (`commit -F <file>`) through `worktree.js` (in a Feature, naming the Feature worktree, like the push:
    `node "<skill-dir>/bin/worktree.js" git -- -C "<feature-worktree>" commit -F <file>`; a standalone run leaves the `-C` out:
    the same git, retried when another session holds a lock file in the shared `.git`; it never deletes one):
    never message text inside double quotes on the command line. Then, in a Feature:
@@ -885,8 +890,9 @@ Edit is re-read and redone, never written over. These git writes in the shared `
 `worktree.js`: the story staging and commit, the restores (stuck story, resume, retry), the rework commit and push, the PR
 `push -u` (all `worktree.js git -- <args>`, which runs only `add`, `commit -F`, `restore` and `push -u origin <branch>`),
 and the worktree commands (`feature`, `scratch`, `remove-scratch`). A command that meets another session's lock
-file is retried 3 times, and `worktree.js` never deletes a lock. The one exception is branch creation
-(`git checkout -b implement/<id>` in "Before you start"), which stays plain git and is not retried.
+file is retried 3 times, and `worktree.js` never deletes a lock. The two exceptions are branch creation
+(`git checkout -b implement/<id>` in "Before you start") and the rework checkout of the PR's head branch
+(`git checkout "$HEAD_BRANCH"`); both stay plain git and are not retried.
 Stories inside a Feature still go one at a time.
 
 ### Another session on the same Feature
@@ -1097,13 +1103,13 @@ It marks the story stuck and every story that depends on it, directly or not, he
 `needs-person: <sid>` and, on its own line, `held: <ids>` (when any story depends on it). Move only the
 stuck story's card to `needs-person`
 (`tracker-helper`, model: `haiku`) and print `event=story-stuck`. The held dependents' cards are left
-untouched: they stay where they are, and the state file says they are held. First run `git add -N` on the
-story's new files (`worktree.js git -- -C "<feature-worktree>" add -N -- <paths>`), so the diff includes them (a plain diff skips untracked files and `stuck.diff` would
+untouched: they stay where they are, and the state file says they are held. First mark the
+story's new files intent-to-add (`worktree.js git -- -C "<feature-worktree>" add -N -- <paths>`), so the diff includes them (a plain diff skips untracked files and `stuck.diff` would
 lose them). Then save the story's `git -C "<feature-worktree>" diff HEAD -- <paths>` (staged and unstaged together) to
 `tasks/stories/<sid>/stuck.diff`. Then put back only that story's own
-paths, new ones included, in one call: `git restore --staged --worktree --source=HEAD -- <all the story's paths>`, run through `worktree.js` (`node "<skill-dir>/bin/worktree.js" git -- -C "<feature-worktree>" restore --staged --worktree --source=HEAD -- <paths>`), which retries when another session holds a lock file in the shared `.git`.
+paths, new ones included, in one call (`restore --staged --worktree --source=HEAD -- <all the story's paths>`), run through `worktree.js` (`node "<skill-dir>/bin/worktree.js" git -- -C "<feature-worktree>" restore --staged --worktree --source=HEAD -- <paths>`), which retries when another session holds a lock file in the shared `.git`.
 A new file is not in HEAD, so this drops its index entry and deletes it. Restoring from the index
-would keep the staged copy, and the next story's `git commit` would take the stuck code. Index and tree must match HEAD for those paths
+would keep the staged copy, and the next story's commit would take the stuck code. Index and tree must match HEAD for those paths
 before the next story starts (`rules/wave-execution.md`, "restore before retrying").
 
 Independent stories still run and commit: `next` keeps handing them out. When `next` prints `held: ...`,

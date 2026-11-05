@@ -224,3 +224,46 @@ test('Skill_WrittenReasons_LockTimeoutsOwnerAndRoot', () => {
   assert.match(flat(SKILL), /`--root` is always passed by the main session/);
   assert.match(read('skills', 'implement', 'bin', 'test-lock.js'), /Who tunes them:[\s\S]*TEST_LOCK_TIMEOUT_MS/);
 });
+
+// ── Round 4: the plain-git writes that stay are exactly the ones the "go through worktree.js" paragraph lists ──
+
+const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five'];
+// Every line that runs a git write itself (a command line, so not prose and not a prohibition), found by a scan.
+const plainGitWriteLines = (t) => t.split('\n').map((l) => l.trim()).filter((l) => /^git\s+(checkout|switch|add|commit|push|restore)\b/.test(l));
+// The paragraph that says which writes go through the wrapper must name each of them as an exception, by its
+// first three words, and say how many there are.
+function exceptionsListed(skill, derived) {
+  const para = skill.split(/\n\s*\n/).find((p) => /go through\s+`worktree\.js`/.test(p) && /shared `\.git`/.test(p));
+  if (!para) return { ok: false, why: 'no paragraph' };
+  const f = flat(para);
+  const named = derived.every((l) => f.includes('`' + l.split(/\s+/).slice(0, 3).join(' ')));
+  const listed = (f.match(/`git (?:checkout|switch|add|commit|push|restore)\b/g) || []).length;
+  const counted = new RegExp(`The ${NUMBER_WORDS[derived.length]} exceptions`).test(f);
+  return { ok: named && listed === derived.length && counted, named, listed, counted };
+}
+
+test('Skill_PlainGitWritesThatRemain_AreExactlyTheOnesTheWorktreeParagraphNames', () => {
+  const para = 'These git writes in the shared `.git` go through `worktree.js`: the staging. The two exceptions are branch creation (`git checkout -b implement/<id>`) and the rework checkout (`git checkout "$HEAD_BRANCH"`).';
+  const plantedThird = 'x\n```bash\ngit checkout -b implement/a\n```\n```bash\ngit checkout "$HEAD_BRANCH"\n```\n```bash\ngit switch main\n```';
+  assert.equal(plainGitWriteLines(plantedThird).length, 3, 'the scan finds a planted third plain-git line');
+  assert.equal(plainGitWriteLines('Never a blanket `git checkout .` or `git add -A`; run `node worktree.js git -- add -- a`.').length, 0, 'prose and prohibitions are not runs');
+  assert.ok(!exceptionsListed(para, plainGitWriteLines(plantedThird)).ok, 'planted: a third plain-git write the paragraph does not list is rejected');
+  assert.ok(!exceptionsListed(para.replace('The two exceptions', 'The one exception'), plainGitWriteLines(plantedThird.replace(/```bash\ngit switch main\n```/, ''))).ok, 'planted: a wrong count is rejected');
+  assert.ok(exceptionsListed(para, plainGitWriteLines(plantedThird.replace(/```bash\ngit switch main\n```/, ''))).ok, 'the check accepts a paragraph that matches');
+
+  const derived = plainGitWriteLines(SKILL);
+  assert.ok(derived.length >= 2, 'companion: the scan found the branch creation and the rework checkout');
+  assert.ok(derived.some((l) => /^git checkout -b implement\//.test(l)) && derived.some((l) => /^git checkout "\$HEAD_BRANCH"/.test(l)));
+  const r = exceptionsListed(SKILL, derived);
+  assert.ok(r.ok, `the paragraph names every plain-git write that remains, and how many: ${JSON.stringify(r)}`);
+});
+
+test('Skill_ReworkCheckout_AsksLikeAStandaloneRunWhenAFeatureIsLive', () => {
+  const asks = (t) => /feature-state\.js"? live --feature[\s\S]{0,300}\(A\) stop[\s\S]{0,40}\(B\) continue[\s\S]{0,200}never self-answered/.test(flat(t));
+  assert.ok(!asks('Check out the head branch: `git checkout "$HEAD_BRANCH"`.'), 'planted rework with no live check is rejected');
+  const rework = slice(SKILL, '## Rework mode');
+  assert.ok(rework, 'the rework section was found');
+  const at = rework.indexOf('feature-state.js');
+  assert.ok(at !== -1 && at < rework.indexOf('git checkout "$HEAD_BRANCH"'), 'the live check comes before the checkout');
+  assert.ok(asks(rework), 'the rework checkout asks (A) stop / (B) continue when a Feature is live, and that is never self-answered');
+});

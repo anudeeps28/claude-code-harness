@@ -318,10 +318,10 @@ const stuckLeavesNothing = (t) => {
   // The git calls name the Feature worktree (`git -C "<feature-worktree>" ...`), as the push line does.
   return /`git (?:-C "<feature-worktree>" )?diff HEAD -- <paths>`/.test(f) && /stuck\.diff/.test(f)
     // one restore of every story path, new ones too: a new file is not in HEAD, so it is removed
-    && /git restore --staged --worktree --source=HEAD -- <all the story's paths>/.test(f)
+    && /`restore --staged --worktree --source=HEAD -- <all the story's paths>`/.test(f)
     && /new ones included/.test(f) && !/git checkout --/.test(f)
     // new files are made visible to the diff first, or stuck.diff silently loses them
-    && f.search(/git add -N/) !== -1 && f.search(/git add -N/) < f.search(/diff HEAD -- <paths>`/);
+    && f.search(/git -- (?:-C "<feature-worktree>" )?add -N --/) !== -1 && f.search(/git -- (?:-C "<feature-worktree>" )?add -N --/) < f.search(/diff HEAD -- <paths>`/);
 };
 const commitsOnlyItsOwnPaths = (t) => /`git (?:-C "<feature-worktree>" )?diff --cached --name-only`[^.]{0,160}only (that story's|the story's) paths/.test(flatten(t));
 // Round 2 (item 5): in a Feature the story's staging, commit and restore name the Feature worktree.
@@ -334,14 +334,43 @@ test('Stuck_RestoresIndexAndTreeToHeadBeforeTheNextStory', () => {
   const s = section(FEATURE, '### Stuck stories');
   assert.ok(s, 'expected "### Stuck stories"');
   assert.ok(stuckLeavesNothing(s), 'a stuck story: save git diff HEAD, restore index and tree from HEAD, delete its new files');
-  const wrongOrder = 'Save the story\'s `git diff HEAD -- <paths>` to stuck.diff, run `git add -N` on its new files, then `git restore --staged --worktree --source=HEAD -- <tracked paths>` and delete its new untracked files.';
+  const wrongOrder = 'Save the story\'s `git diff HEAD -- <paths>` to stuck.diff, then run `node "x/worktree.js" git -- add -N -- <paths>` on its new files, then put back (`restore --staged --worktree --source=HEAD -- <all the story\'s paths>`), new ones included, and delete its new untracked files.';
   assert.ok(!stuckLeavesNothing(wrongOrder), 'planted git add -N after the diff capture must be rejected');
   assert.ok(s.includes('diff HEAD'), 'companion: the stuck section was read');
 });
 
+// Round 4 (item 4): EVERY git add / commit / restore in the story loop and the Feature section goes through
+// worktree.js, with the Feature worktree named (`-C "<feature-worktree>"`, or `[-C "<feature-worktree>"]` where a
+// standalone run shares the line), and the red step's staging is one of them. A bare `git add|commit|restore`
+// is allowed only as a prohibition (`never git add -A`, `no git add`).
+const GIT_WRITE = /\bgit\s+(?:-C\s+(?:"[^"]*"|\S+)\s+)?(?:add|commit|restore)\b/g;
+const WRAPPED_WRITE = /worktree\.js"? git -- ((?:\[?-C "<feature-worktree>"\]? )?)(add|commit|restore)\b/g;
+function gitWritesAllThroughTheWrapper(t) {
+  const f = flatten(t).replace(/\*\*/g, '');
+  const bare = [...f.matchAll(GIT_WRITE)].filter((m) => !/\b(?:never|not|no)\W+(?:a\W+)?$/i.test(f.slice(Math.max(0, m.index - 16), m.index)));
+  const wrapped = [...f.matchAll(WRAPPED_WRITE)];
+  return { bare: bare.map((m) => f.slice(m.index, m.index + 40)), unnamed: wrapped.filter((m) => !m[1]).map((m) => f.slice(m.index, m.index + 60)), wrapped: wrapped.length };
+}
+const redStepStagesThroughTheWrapper = (t) => /git -- \[-C "<feature-worktree>"\] add \[-N\] -- <paths>/.test(flatten(t));
+
 test('Commit_StagingCommitAndStuckRestoreNameTheFeatureWorktree', () => {
   assert.ok(!namesTheFeatureWorktree('Run `node "<skill-dir>/bin/worktree.js" git -- commit -F <file>`.'), 'planted commit with no -C is rejected');
   assert.ok(namesTheFeatureWorktree(IMPLEMENT),'the story commit, its git add staging and the stuck restore carry -C "<feature-worktree>"');
+  // The opposite, planted: a plain `git add` (the red step as it used to read), a plain commit, a wrapper without -C.
+  assert.equal(gitWritesAllThroughTheWrapper('Also stage them by path (`git add <paths>`, `git add -N` for new files).').bare.length, 2, 'planted plain git add is found');
+  assert.equal(gitWritesAllThroughTheWrapper('Run `git -C "<feature-worktree>" commit -F <file>`.').bare.length, 1, 'planted plain git -C commit is found');
+  assert.equal(gitWritesAllThroughTheWrapper('Run `node "<skill-dir>/bin/worktree.js" git -- add -- <paths>`.').unnamed.length, 1, 'planted wrapper without -C is found');
+  assert.equal(gitWritesAllThroughTheWrapper('Stage by path, never `git add -A`.').bare.length, 0, 'a prohibition is not a use');
+  assert.ok(!redStepStagesThroughTheWrapper('Also stage them by path (`git add <paths>`, `git add -N` for new files).'), 'planted red step with plain git add is rejected');
+  // The real text: every occurrence, in both sections.
+  for (const [name, text] of [['the story loop', section(IMPLEMENT, '## The story loop')], ['Feature mode', FEATURE]]) {
+    assert.ok(text, `${name} was found`);
+    const r = gitWritesAllThroughTheWrapper(text);
+    assert.deepEqual(r.bare, [], `${name}: no plain git add/commit/restore`);
+    assert.deepEqual(r.unnamed, [], `${name}: every wrapped add/commit/restore names the Feature worktree`);
+    assert.ok(r.wrapped >= (name === 'Feature mode' ? 2 : 3),`${name}: companion, the wrapped forms were found (${r.wrapped})`);
+  }
+  assert.ok(redStepStagesThroughTheWrapper(section(IMPLEMENT, '## The story loop')), 'the red step stages through worktree.js git -- [-C "<feature-worktree>"] add [-N] -- <paths>');
 });
 
 test('Commit_RequiresTheIndexToHoldOnlyThisStorysPaths', () => {
@@ -388,7 +417,7 @@ test('Cards_OneCallPerStoryBoundary', () => {
 // Ticket and message text is data: it never goes inside double quotes of a shell line.
 test('Quoting_MessagesAndTitlesNeverGoInsideDoubleQuotes', () => {
   const s = STORY_RUN;
-  mustMatch(s, /git commit -F <file>|`git commit -F /, 'the commit message is written to a file and committed with -F');
+  mustMatch(s, /worktree\.js"? git -- (?:-C "<feature-worktree>" )?commit -F <file>/, 'the commit message is written to a file and committed with -F');
   assert.doesNotMatch(s, /git commit -m/, 'no -m with message text on the command line');
   const pr = section(FEATURE, '### The Feature\'s PR');
   assert.doesNotMatch(pr, /--title "</, 'the PR title text is not placed inside double quotes');

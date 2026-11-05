@@ -124,6 +124,7 @@ Spawn a **`debug-agent`** (foreground, model: `opus`) with:
 - The exact error message(s) from the 3 failed attempts
 - The full git diff
 - Relevant file paths
+- Test lock: [the caller's `Test lock:` line, only under `verify-lock: global`]
 
 Wait for the debug agent to return its diagnosis.
 

@@ -83,7 +83,7 @@ const LOOP_STEPS = [
   ['builder writes the code', /story-builder[\s\S]{0,80}job `code`/],
   ['runner shows them green', /suite-runner[\s\S]{0,300}?\bgreen\b/],
   ['two reviewers', /two `story-reviewer`/],
-  ['commit', /git commit -F/],
+  ['commit', /commit -F/],
 ];
 function loopProblems(text) {
   const problems = [];
@@ -241,7 +241,7 @@ function waveRuleProblems(text) {
   if (/must_fail|parallel_group|\bwaves?\b/i.test(t)) problems.push('still talks of must_fail, parallel_group or waves');
   if (!/Do not spawn them with `isolation: "worktree"`/.test(t)) problems.push('no longer forbids isolation: "worktree"');
   if (!/git branch --show-current/.test(t)) problems.push('lost the branch check');
-  if (!/restore/i.test(f) || !/git checkout --|git restore/.test(t)) problems.push('lost restore before retrying');
+  if (!/restore/i.test(f) || !/git checkout --|git restore|worktree\.js"? git -- (?:\[?-C [^\]]*\]? )?restore/.test(t)) problems.push('lost restore before retrying');
   if (!/git status --porcelain/.test(t)) problems.push('lost the run\'s starting tree');
   if (!/git diff --cached --name-only/.test(t)) problems.push('lost the index check at commit');
   if (!/^## At skill startup/m.test(t)) problems.push('lost foreign work at startup');

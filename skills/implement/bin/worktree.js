@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-// worktree.js — the git side of a Feature run (F4 #45, #46; F72 #79). Only the orchestrator runs
+// worktree.js — the git side of a run, Feature or single story (F4 #45, #46; F72 #79). Only the orchestrator runs
 // it. Its own commands (feature, scratch, ...) never force, delete a branch or reset. The `git`
 // command runs a small fixed set of the run's own git commands (add, commit -F, restore, push -u
-// origin <branch>) and refuses everything else; the safety hook judges it as the git command it runs.
-// Stories are built one after another on the Feature branch, so there is no story worktree, story
+// origin <branch>) and refuses everything else; the safety hook judges it as the git command it runs.// Stories are built one after another on the Feature branch, so there is no story worktree, story
 // merge or story removal.
 //
 // Usage:
@@ -18,12 +17,13 @@
 //   git -- [-C <dir>] add [-N] -- <paths> | commit -F <file> | restore [--staged] [--worktree]
 //        [--source=HEAD] -- <paths> | push -u origin <branch>
 //       One of those git commands (the story commit and staging, the restore, the push), retried when
-//       another session holds a lock file. Any other command or flag: exit 2, "refused", git not run.
+//       another session holds a lock file. add and restore take named files only (no `.`, `..`, `:`
+//       pathspec, glob or folder); push takes only a feature/... or implement/... branch. Any other command or flag: exit 2, "refused", git not run.
 //       A git failure exits 1 with git's message.
 //
 // Output and exit codes:
 //   0 ok
-//   1 a git command refused (message printed)
+//   1 a git command failed (git's message printed)
 //   2 usage error, or a git command refused
 //   5 "branch-moved: ..." (contradiction: the run stops)
 
@@ -148,10 +148,26 @@ const NEEDS = {
 const REFUSED_FLAG = /^(--force(-with-lease|-if-includes)?(=.*)?|-f|\+.*|--mirror|--delete|-d|-c|--upload-pack(=.*)?|--receive-pack(=.*)?|--exec(=.*)?)$/;
 const RESTORE_OPTS = new Set(['--staged', '--worktree', '--source=HEAD']);
 
+// A path for add/restore must name a file: not a pathspec that sweeps (`.`, `..`, `:/`, `:(magic)`, a glob)
+// and not a folder, which would stage or restore everything under it. `base` is where git runs.
+function broadPath(p, base) {
+  if (p === '.' || p === '..' || p === ':/' || p.startsWith(':')) return `${p} is a pathspec that names more than a file`;
+  if (/[*?[]/.test(p)) return `${p} has a glob character; name the files`;
+  try {
+    if (fs.statSync(path.resolve(base, p)).isDirectory()) return `${p} is a folder; name the files in it`;
+  } catch { /* not there: a deleted or new file, which git judges itself */ }
+  return null;
+}
+
+// The run's own branches only: never main, master, HEAD or a full ref.
+const OWN_BRANCH_RE = /^(feature|implement)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+
 function refusal(args) {
   let rest = args;
+  let base = process.cwd();
   if (rest[0] === '-C') {
     if (!rest[1] || rest[1].startsWith('-')) return '-C needs a folder';
+    base = path.resolve(base, rest[1]);
     rest = rest.slice(2);
   }
   const sub = rest[0];
@@ -163,15 +179,18 @@ function refusal(args) {
   const shape = `git ${sub || '(nothing)'}${rest.slice(1, 2).length ? ' ' + rest[1] : ''} is not one of the run's own shapes (add [-N] -- <paths>, commit -F <file>, restore [--staged] [--worktree] [--source=HEAD] -- <paths>, push -u origin <branch>)`;
   if (sub === 'add') {
     const opts = rest.slice(1, dd);
-    return dd !== -1 && rest.length > dd + 1 && opts.every((o) => o === '-N') && opts.length <= 1 ? null : shape;
+    if (!(dd !== -1 && rest.length > dd + 1 && opts.every((o) => o === '-N') && opts.length <= 1)) return shape;
+    return rest.slice(dd + 1).map((p) => broadPath(p, base)).find(Boolean) || null;
   }
   if (sub === 'restore') {
     const opts = rest.slice(1, dd);
-    return dd !== -1 && rest.length > dd + 1 && opts.every((o) => RESTORE_OPTS.has(o)) ? null : shape;
+    if (!(dd !== -1 && rest.length > dd + 1 && opts.every((o) => RESTORE_OPTS.has(o)))) return shape;
+    return rest.slice(dd + 1).map((p) => broadPath(p, base)).find(Boolean) || null;
   }
   if (sub === 'commit') return rest.length === 3 && rest[1] === '-F' && !rest[2].startsWith('-') ? null : shape;
   if (sub === 'push') {
-    return rest.length === 4 && rest[1] === '-u' && rest[2] === 'origin' && BRANCH_RE.test(rest[3]) ? null : shape;
+    if (!(rest.length === 4 && rest[1] === '-u' && rest[2] === 'origin' && BRANCH_RE.test(rest[3]))) return shape;
+    return OWN_BRANCH_RE.test(rest[3]) ? null : `${rest[3]} is not one of the run's own branches (feature/... or implement/...)`;
   }
   return shape;
 }

@@ -154,6 +154,34 @@ test('Bash_WorktreeGitWrapperThenRmRf_Denied', () => {
   assert.match(r.json.reason, /rm -rf/);
 });
 
+// Round 4: dropping the token after `git -C` / `git -c` for the judgement must never hide a command
+// that sits in that token, so a deny rule runs on the raw command as well as the judged one.
+for (const [name, cmd, reason] of [
+  ['C_subshell_quoted', 'git -C "$(rm -rf ~)" status', /rm -rf/],
+  ['C_subshell_bare', 'git -C $(rm -rf ~) status', /rm -rf/],
+  ['c_semicolon_rm', 'git -c x;rm -rf /tmp/a', /rm -rf/],
+  ['c_and_publish', 'git -c x&&npm publish', /npm publish/],
+  ['c_semicolon_az', 'git -C x;az group delete -n p', /group delete/],
+]) {
+  test(`Bash_GitGlobalOptionHidesCommand_${name}_Denied`, () => {
+    const r = bash(cmd);
+    assert.equal(r.exitCode, 2, `expected deny, got ${decisionOf(r)}`);
+    assert.match(r.json.reason, reason);
+  });
+}
+
+// Round 4: the wrapper path is matched without regard to case, and `git` and `--` may be quoted.
+for (const [name, cmd] of [
+  ['upper_case_path', 'node "/h/skills/implement/bin/WORKTREE.JS" git -- push -u origin feature/x'],
+  ['quoted_git', 'node "/h/skills/implement/bin/worktree.js" "git" -- push -u origin feature/x'],
+  ['quoted_dashes', 'node "/h/skills/implement/bin/worktree.js" git "--" push -u origin feature/x'],
+  ['all_three', 'node "/h/skills/implement/bin/WORKTREE.JS" "git" -- push -u origin feature/x'],
+]) {
+  test(`Bash_WorktreeGitWrapperVariant_${name}_PushAsks`, () => {
+    assert.match(decisionOf(bash(cmd)), /^ask:git push/);
+  });
+}
+
 test('Bash_WorktreeGitWrapperCommit_OptOutSet_AllowedWithoutPrompt', () => {
   const r = runHook('Bash', { command: WRAP + 'commit -F msg.txt' }, { SAFETY_ALLOW_GIT_COMMIT_PUSH: '1' });
   assert.equal(r.exitCode, 0);

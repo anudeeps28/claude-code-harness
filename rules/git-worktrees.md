@@ -95,7 +95,8 @@ After the standard `git fetch --prune` at session start:
 
    When it is a Feature worktree whose `tasks/features/<fid>/progress.log` has no `event=pr-opened` line (its
    PR was never opened, so the branch was never pushed and removing it loses the only copy of its commits), say
-   "unfinished Feature, idle <n>m" in the question, with the `<n>` that `live` printed.
+   "unfinished Feature, idle <n>m" in the question, with the `<n>` that `live` printed; when `live` printed
+   "no activity recorded" instead (no `<n>`), say "unfinished Feature, no activity recorded".
 5. On `y`: run `git worktree remove <path>` then `git branch -d <name>`.
 6. On `n`: leave it — ask again next session.
 

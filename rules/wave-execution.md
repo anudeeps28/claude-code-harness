@@ -106,8 +106,10 @@ started again, put its files back the way they were.** For the story's own paths
 attempt changed (found with the comparison above), and only those:
 
 ```bash
-git checkout -- <the tracked paths>     # revert modifications; git restore does the same
+node "<skill-dir>/bin/worktree.js" git -- [-C "<feature-worktree>"] restore --worktree -- <the tracked paths>
 ```
+
+(Revert modifications; `-C` names the Feature worktree in a Feature, a standalone run leaves it out.)
 
 and delete any untracked files that attempt created. **Never put back a test file the red step
 recorded as evidence**, and never use a blanket `git checkout .` or `git stash`, which would destroy

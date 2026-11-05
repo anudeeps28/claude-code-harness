@@ -714,6 +714,21 @@ test('Live_HeartbeatCountsAsActivity', () => {
   assert.equal(live(dir).code, 1);
 });
 
+// The claim's own time is activity: a Feature whose only record is a claim made 10 minutes ago is live.
+test('Live_OnlyTheClaimItself10mOld_IsLive', () => {
+  const dir = home([]);
+  featureDir(dir, '123');
+  fs.writeFileSync(claimFile(dir), 'session: s1\nclaimed: 2026-11-04T09:50:00Z\n');
+  const r = live(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^live 123: idle 10m$/m);
+  // Companion: the same lone claim, 40 minutes old, is idle (so it is the claim's time that decides).
+  fs.writeFileSync(claimFile(dir), 'session: s1\nclaimed: 2026-11-04T09:20:00Z\n');
+  const old = live(dir);
+  assert.equal(old.code, 1, old.out);
+  assert.match(old.out, /^idle 123: 40m$/m);
+});
+
 test('Claim_OtherSessionIdle30m_FreeAndTakesIt', () => {
   const dir = home([]);
   claimed(dir, 's1');
