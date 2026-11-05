@@ -79,23 +79,23 @@ Review the brief. Say **yes**.
 
 **Phase 1.5 (Goal):** Claude defines how "done" will be checked end to end — each acceptance criterion with its proof — and stops for you to approve it.
 
-**Phase 1c (Plan):** Claude decomposes the story into an XML task plan with parallel groups. It writes `tasks/stories/42/plan.md` and stops:
+**Phase 1c (Plan):** Claude plans the story as one section: the files, the tests to write first, each criterion with its proof, and the commands. It writes `tasks/stories/42/plan.md` and stops:
 
 > "Approve the plan to begin execution, or request changes."
 
-Review the tasks, parallel grouping, and verify commands. Say **go**.
+Review the criteria, their proofs and the tests to write first. Say **go**.
 
-**Phase 2 (Execute):** Claude works through the task plan wave by wave, the tasks in a wave running side by side in your working folder. After each wave:
+**Phase 2 (Build the story):** Claude builds the story test first, in your working folder: a builder writes the tests, the test runner shows them red, a second builder writes the code, the runner shows them green, two reviewers check it, and the story is committed. With `--step` it stops once, when the tests are green:
 
-> "Wave 1 complete (3/3 tasks passed). Continue to wave 2?"
+> "The tests are green. Continue to the review?"
 
-Say **yes** to continue. If a task fails 3 times, `/debug` is invoked automatically.
+Say **yes** to continue. If a job fails 3 times, `/debug` is invoked automatically.
 
 **Phase 2.5 (Verify):** Claude runs `/local-test` to confirm the build passes and tests are green.
 
-**Phase 3 (Review, e2e gate, PR):** Four review agents (evaluator, acceptance, architect, security) check the change; for each finding you say **fix** or **skip**. Then the end-to-end gate runs, and Claude drafts the commit messages and PR description and stops:
+**Phase 3 (Review, e2e gate, PR):** Four review agents (evaluator, acceptance, architect, security) check the change; for each finding you say **fix** or **skip**. Then the end-to-end gate runs, and Claude drafts the PR description and stops (with `--step`; otherwise it pushes and opens the PR itself):
 
-> "Review the commit messages and PR description above. Run the git commands shown, then say 'push' when ready."
+> "Review the commits and PR description above. Push the branch and open the PR with the commands shown, then say 'push' when ready."
 
 You run `git push` and create the PR. On the Enterprise pack, the sprint file's Master Status Table is updated too.
 

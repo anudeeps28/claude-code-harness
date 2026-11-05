@@ -147,6 +147,109 @@ test('Red_CriterionIdsMatchCaseInsensitively', () => {
   assert.equal(check(file2, 'ac2').code, 0, 'a lower-case id in --criteria still matches');
 });
 
+// A criterion whose behaviour already exists cannot be seen red. It is recorded as shape already-met,
+// and only when the failure field names the existing code as path:line.
+test('Red_AlreadyMetNamingPathAndLine_Ok', () => {
+  const file = state([
+    '- Total_Empty_IsZero | AC1 | src/total.js:12 already returns 0 for no lines | shape: already-met',
+    '- Total_TwoLines_SumsThem | AC2 | AssertionError: expected 5 to equal 0 | shape: assertion',
+  ]);
+  const r = check(file, 'AC1,AC2');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^ok$/m);
+});
+
+test('Red_AlreadyMetWithoutPathAndLine_IsRefused', () => {
+  for (const line of ['it already works', 'see src/total.js', 'total.js line 12', 'line 12']) {
+    const r = check(state([`- Total_Empty_IsZero | AC1 | ${line} | shape: already-met`]), 'AC1');
+    assert.equal(r.code, 1, `${line}: ${r.out}`);
+    assert.match(r.out, /^refused: AC1 .*already-met/m, line);
+  }
+});
+
+test('Red_AlreadyMetOnOneCriterion_DoesNotCoverAnother', () => {
+  const file = state(['- Total_Empty_IsZero | AC1 | src/total.js:12 | shape: already-met']);
+  const r = check(file, 'AC1,AC2');
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^refused: AC2 has no red test$/m);
+  assert.doesNotMatch(r.out, /AC1/, 'companion: the already-met criterion is not refused');
+});
+
+// With --root, an already-met row must name real product code: the path exists under the root and is
+// not a test file.
+function withRoot(files, fn) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'red-root-'));
+  for (const f of files) {
+    fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true });
+    fs.writeFileSync(path.join(root, f), 'module.exports = 1;\n');
+  }
+  try { return fn(root); } finally { fs.rmSync(root, { recursive: true, force: true }); }
+}
+function checkRoot(file, criteria, root) {
+  const r = spawnSync(process.execPath, [SCRIPT, 'check', '--state', file, '--criteria', criteria, '--root', root], { encoding: 'utf8' });
+  return { code: r.status, out: r.stdout + r.stderr };
+}
+
+test('Red_AlreadyMetExistingProductFileUnderRoot_Ok', () => {
+  withRoot(['src/total.js'], (root) => {
+    const file = state(['- Total_Empty_IsZero | AC1 | src/total.js:12 already returns 0 | shape: already-met']);
+    const r = checkRoot(file, 'AC1', root);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /^ok$/m);
+  });
+});
+
+test('Red_AlreadyMetMissingPathUnderRoot_IsRefused', () => {
+  withRoot(['src/other.js'], (root) => {
+    const file = state(['- Total_Empty_IsZero | AC1 | src/total.js:12 already returns 0 | shape: already-met']);
+    const r = checkRoot(file, 'AC1', root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /^refused: AC1 .*already-met.*does not exist/m);
+  });
+});
+
+test('Red_AlreadyMetNamingATestFile_IsRefused', () => {
+  const paths = ['src/__tests__/total.js', 'test/total.js', 'tests/total.js', 'src/total.test.js', 'src/total.spec.ts'];
+  withRoot(paths, (root) => {
+    for (const p of paths) {
+      const file = state([`- Total_Empty_IsZero | AC1 | ${p}:3 | shape: already-met`]);
+      const r = checkRoot(file, 'AC1', root);
+      assert.equal(r.code, 1, `${p}: ${r.out}`);
+      assert.match(r.out, /^refused: AC1 .*already-met.*test file/m, p);
+    }
+  });
+});
+
+test('Red_AlreadyMetNamingATestFileInOtherStacks_IsRefused', () => {
+  const paths = ['spec/total_spec.rb', 'src/Shop.Tests/TotalCase.cs', 'src/TotalTests.cs', 'pkg/total_test.go', 'app/test_total.py'];
+  withRoot([...paths, 'src/Testing/total.go'], (root) => {
+    for (const p of paths) {
+      const file = state([`- Total_Empty_IsZero | AC1 | ${p}:3 | shape: already-met`]);
+      const r = checkRoot(file, 'AC1', root);
+      assert.equal(r.code, 1, `${p}: ${r.out}`);
+      assert.match(r.out, /^refused: AC1 .*already-met.*test file/m, p);
+    }
+    // Planted opposite: product code whose name only contains "test" is not a test file.
+    const ok = state(['- Total_Empty_IsZero | AC1 | src/Testing/total.go:3 | shape: already-met']);
+    assert.equal(checkRoot(ok, 'AC1', root).code, 0, 'src/Testing/total.go is product code');
+  });
+});
+
+test('Red_AlreadyMetWithoutRoot_KeepsTheOldBehaviour', () => {
+  const file = state(['- Total_Empty_IsZero | AC1 | src/missing.js:12 | shape: already-met']);
+  assert.equal(check(file, 'AC1').code, 0, 'no --root: only the path:line shape is checked');
+});
+
+test('Red_AlreadyMetRefusedRow_DoesNotBlockARealRedForTheSameCriterion', () => {
+  withRoot(['src/total.js'], (root) => {
+    const file = state([
+      '- Total_A | AC1 | src/total.test.js:3 | shape: already-met',
+      '- Total_B | AC1 | AssertionError: expected 5 to equal 0 | shape: assertion',
+    ]);
+    assert.equal(checkRoot(file, 'AC1', root).code, 0);
+  });
+});
+
 test('Red_EmptyCriteriaList_IsAUsageError', () => {
   const file = state(['- Total_Sums | AC1 | AssertionError: x | shape: assertion']);
   for (const list of ['', ' , ,']) {

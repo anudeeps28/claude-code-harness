@@ -34,8 +34,8 @@ const envMs = (name, dflt) => {
   const v = Number(process.env[name]);
   return Number.isFinite(v) && v > 0 ? v : dflt;
 };
-// A lock dir with no owner file is the story-executor's shell lock (same <state>/.verify.lock under
-// `global`, until #83 deletes that agent) or one left by a crash; the executor breaks its own at 20 minutes.
+// A lock dir with no owner file is one left by a crash, or by a lock made by hand (a plain `mkdir`):
+// it is broken once it is older than the grace below (20 minutes).
 const maxWaitMs = () => envMs('TEST_LOCK_TIMEOUT_MS', 60 * 60 * 1000);
 const noOwnerGraceMs = () => envMs('TEST_LOCK_GRACE_MS', 20 * 60 * 1000);
 const beatMs = () => envMs('TEST_LOCK_BEAT_MS', 60 * 1000);
@@ -92,8 +92,8 @@ function breakJudged(lock, judged) {
 // while the lock exists (a non-empty directory), so a lock never exists without its owner and a waiter
 // can never judge a half-made lock ownerless.
 function tryTake(lock) {
-  // On POSIX a rename can replace an EMPTY directory (the executor's shell lock just after its mkdir).
-  // This check narrows that window but does not close it; it goes when #83 retires the executor.
+  // On POSIX a rename can replace an EMPTY directory (a lock made by hand, just after its mkdir).
+  // This check narrows that window but does not close it; every lock this harness takes goes through here.
   if (fs.existsSync(lock)) return false;
   const tmp = `${lock}.${process.pid}.tmp`;
   fs.rmSync(tmp, { recursive: true, force: true });

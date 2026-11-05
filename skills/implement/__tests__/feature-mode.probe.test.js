@@ -36,7 +36,7 @@ function mustMatch(content, re, message) { assert.ok(content && re.test(content)
 
 // ── #42 work folder and state folder ─────────────────────────────────
 
-const BUILD_AGENTS = ['story-executor-agent', 'implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent'];
+const BUILD_AGENTS = ['implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent'];
 
 for (const a of BUILD_AGENTS) {
   test(`Folders_${a}_TakesAWorkFolderAndAStateFolder`, () => {
@@ -69,16 +69,14 @@ test('Folders_ReviewersDiffAgainstTheBaseRef', () => {
   }
 });
 
-test('Folders_ExecutorLockIsPerStoryWithAGlobalSetting', () => {
-  const text = read('agents', 'story-executor-agent.md');
-  mustMatch(text, /LOCK="<state folder>\/stories\/<story id>\/\.verify\.lock"/, 'the lock lives in the story\'s state folder');
-  mustMatch(text, /verify-lock: global/, 'a project can make the lock global');
-  assert.ok(!/may NOT access files outside `YOUR_PROJECT_ROOT`/.test(text), 'the old single-root rule must be gone');
-});
-
 // ── #43 Feature mode and its one approval ────────────────────────────
 
 const FEATURE = section(IMPLEMENT, '## Feature mode');
+
+// F73 #83: steps 1-7 of building a story moved out of "### Run the stories" into the shared
+// "## The story loop", which a standalone run uses too. Until the move the loop is still in "Run the
+// stories", so the probes below read both and are true on either side of it.
+const STORY_RUN = [section(FEATURE, '### Run the stories'), section(IMPLEMENT, '## The story loop')].filter(Boolean).join('\n');
 
 test('Mode_ChosenFromTheItemType', () => {
   mustMatch(IMPLEMENT, /--standalone/, '--standalone must be a documented flag');
@@ -208,8 +206,8 @@ test('Stories_LoopCheckerCanFail_PlantedOppositesAreRejected', () => {
 });
 
 test('Stories_OneLoopPerStoryOnTheFeatureBranch', () => {
-  const s = section(FEATURE, '### Run the stories');
-  assert.ok(s, 'expected "### Run the stories"');
+  const s = STORY_RUN;
+  assert.ok(section(FEATURE, '### Run the stories'), 'expected "### Run the stories"');
   assert.deepEqual(loopProblems(s), []);
   assert.doesNotMatch(s, /story-runner-agent/, 'no per-story runner: the main session builds each story');
   assert.doesNotMatch(s, /worktree\.js"? story/, 'no story worktrees');
@@ -338,7 +336,7 @@ test('Stuck_RestoresIndexAndTreeToHeadBeforeTheNextStory', () => {
 
 test('Commit_RequiresTheIndexToHoldOnlyThisStorysPaths', () => {
   assert.ok(!commitsOnlyItsOwnPaths('Stage the paths and commit.'), 'planted text with no index check must be rejected');
-  const s = section(FEATURE, '### Run the stories');
+  const s = STORY_RUN;
   assert.ok(commitsOnlyItsOwnPaths(s), 'before the commit, git diff --cached --name-only must hold only that story\'s paths');
 });
 
@@ -368,7 +366,7 @@ test('Hung_OnlyTheResumeRunsTheHangCheck_TheLiveLoopDoesNot', () => {
 
 // One tracker-helper call per story boundary: done for this story and in-progress for the next.
 test('Cards_OneCallPerStoryBoundary', () => {
-  const s = section(FEATURE, '### Run the stories');
+  const s = STORY_RUN;
   assert.doesNotMatch(s, /never batched|not batched/, 'the old one-move-per-call wording is gone');
   mustMatch(s, /one `tracker-helper` call[^.]{0,80}\bdone\b[^.]{0,160}next story[^.]{0,160}`in-progress`/, 'at a commit one call moves the story to done and the next to in-progress');
   mustMatch(s, /first story[^.]{0,120}own call/i, 'the first story\'s in-progress move is its own call');
@@ -379,7 +377,7 @@ test('Cards_OneCallPerStoryBoundary', () => {
 
 // Ticket and message text is data: it never goes inside double quotes of a shell line.
 test('Quoting_MessagesAndTitlesNeverGoInsideDoubleQuotes', () => {
-  const s = section(FEATURE, '### Run the stories');
+  const s = STORY_RUN;
   mustMatch(s, /git commit -F <file>|`git commit -F /, 'the commit message is written to a file and committed with -F');
   assert.doesNotMatch(s, /git commit -m/, 'no -m with message text on the command line');
   const pr = section(FEATURE, '### The Feature\'s PR');
@@ -437,13 +435,10 @@ test('FeatureCriteria_ComeFromThePlanNotFromTestStrategyFiles', () => {
   assert.doesNotMatch(intro, /ADR-0002|ADR-0003/, 'the superseded ADRs are not cited');
 });
 
-// /troubleshoot spawns an investigator in the e2e gate: it is bound by the same contract as the rest.
-test('Troubleshoot_InvestigatorHasTheStatusLineAndItsModelInTheTable', () => {
-  const agent = read('agents', 'troubleshoot-investigator.md');
-  mustMatch(flatten(agent), /Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` \(`rules\/agent-handoff\.md`\)\./, 'the exact status sentence');
-  mustMatch(IMPLEMENT, /\| `troubleshoot-investigator` \| [^|]*troubleshoot[^|]*\| opus \|/, 'the model table has its row');
-  const skill = read('skills', 'troubleshoot', 'SKILL.md');
-  const spawns = skill.replace(/\r/g, '').split('\n').filter((l) => /Spawn (a|the)[^\n]*`troubleshoot-investigator`/.test(l));
-  assert.ok(spawns.length >= 2, `companion: both spawns were found (${spawns.length})`);
-  for (const l of spawns) mustMatch(l, /model: `opus`/, `every spawn passes the model: ${l.slice(0, 60)}`);
+// F73 #83: /troubleshoot and its investigator are retired (one-loop.probe.test.js checks they are gone
+// and that the e2e gate goes to /debug and the prover's diagnose job). What this probe still checks is
+// the job that took over its place: the prover's diagnose row is in the model table.
+test('Troubleshoot_Retired_DiagnoseIsAProverJobInTheModelTable', () => {
+  mustMatch(IMPLEMENT, /\| `prover` \| Prove it, job diagnose[^|]*\| opus \|/, 'the model table has the prover diagnose row');
+  assert.ok(!IMPLEMENT.includes('troubleshoot-investigator'), 'the model table has no troubleshoot-investigator row');
 });

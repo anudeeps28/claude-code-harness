@@ -323,7 +323,7 @@
         <div class="demo-step on" id="step-1">
           <div class="phase-line">Phase 1 · UNDERSTAND · GOAL · PLAN</div>
           <div class="out">reading issue #42 — “add dark mode toggle”</div>
-          <div class="out">brief <span class="ok">✓</span> &nbsp;goal defined <span class="ok">✓</span> &nbsp;task plan <span class="ok">✓</span> (3 tasks · 2 waves) &nbsp;test strategy <span class="ok">✓</span></div>
+          <div class="out">brief <span class="ok">✓</span> &nbsp;goal defined <span class="ok">✓</span> &nbsp;story plan <span class="ok">✓</span> (1 story section · 3 tests to write first) &nbsp;proofs <span class="ok">✓</span></div>
           <div class="out">coverage: 4/4 source lines → criteria <span class="ok">✓</span> &nbsp;open questions: 1, with a recommended answer</div>
           <div class="gate" id="gate-1">
             <span class="glabel">THE PLAN GATE · plan, coverage, every question at once. say go to build through to the PR.</span>
@@ -333,10 +333,10 @@
 
         <div class="demo-step" id="step-2">
           <div class="you">you: go</div>
-          <div class="phase-line">Phase 2 · EXECUTE — waves back to back</div>
-          <div class="out">T1 ThemeContext.tsx — build + tests <span class="ok">✓</span></div>
-          <div class="out">T2 useTheme hook — build + tests <span class="ok">✓</span></div>
-          <div class="out">T3 settings toggle — build + tests <span class="ok">✓</span></div>
+          <div class="phase-line">Phase 2 · BUILD THE STORY — tests first, then the code</div>
+          <div class="out">tests written, run <span class="ok">red</span> on their assertions — recorded</div>
+          <div class="out">code written, tests <span class="ok">green</span> — build + relevant tests</div>
+          <div class="out">two story reviewers <span class="ok">✓</span> — the story is committed</div>
         </div>
 
         <div class="demo-step" id="step-3">
@@ -402,14 +402,14 @@
       <div class="phase">
         <span class="node">2</span>
         <h3>Plan</h3>
-        <p>Produces an XML task plan — tasks grouped into waves — and a test strategy in one pass.</p>
+        <p>Produces the plan in one pass: the Demo, and one story section with its files, the tests to write first, and each criterion with its proof.</p>
       </div>
       <div class="rail-gate">■ THE PLAN GATE — the plan, coverage of every source line, every open question with a recommended answer. say go.</div>
 
       <div class="phase">
         <span class="node">3</span>
-        <h3>Execute, waves back to back</h3>
-        <p>Executors share the working folder, with overlap and branch checks around every wave. Every verify step runs build + relevant tests — a task is only ✓ when tests pass. Three failures on anything stops the retries and auto-invokes <span class="mono">/debug</span> for root-cause diagnosis.</p>
+        <h3>Build the story, test first</h3>
+        <p>The same loop a Feature's story uses: a builder writes the tests, a test runner shows them red, a second builder writes the code, the runner shows them green, two reviewers check it, and the story is committed. A story is done only after the review and the e2e gate. Three failures on anything stops the retries and auto-invokes <span class="mono">/debug</span> for root-cause diagnosis.</p>
       </div>
 
       <div class="phase">
@@ -425,7 +425,7 @@
       </div>
     </div>
 
-    <p class="rail-note">Every <span class="mono">/implement</span> run writes handoff contracts to disk at every step — <span class="mono">brief.md → plan.md → test-strategy.md → executor-state.md → evaluation.md → acceptance.md</span> (plus <span class="mono">architecture-review.md</span> and <span class="mono">security-review.md</span>) — so the evaluator can check work against the original plan, and anyone can audit what was approved, when, and by whom.</p>
+    <p class="rail-note">Every <span class="mono">/implement</span> run writes handoff contracts to disk at every step — <span class="mono">brief.md → plan.md → executor-state.md → evaluation.md → acceptance.md</span> (plus <span class="mono">architecture-review.md</span> and <span class="mono">security-review.md</span>) — so the evaluator can check work against the original plan, and anyone can audit what was approved, when, and by whom.</p>
   </div>
 </section>
 
@@ -438,8 +438,8 @@
     </div>
 
     <div class="plates">
-      <div class="plate"><div class="num">33</div><div class="what">Skills</div><p>Slash commands from <span class="mono">/implement</span> to <span class="mono">/improve-harness</span> — each a folder you can read, edit, and extend.</p></div>
-      <div class="plate"><div class="num">25</div><div class="what">Agents</div><p>Purpose-built sub-agents: planners, executors, an adversarial evaluator, architecture and security reviewers, PR analysts, debuggers — plus the two role identities a session orchestrator spawns.</p></div>
+      <div class="plate"><div class="num">32</div><div class="what">Skills</div><p>Slash commands from <span class="mono">/implement</span> to <span class="mono">/improve-harness</span> — each a folder you can read, edit, and extend.</p></div>
+      <div class="plate"><div class="num">23</div><div class="what">Agents</div><p>Purpose-built sub-agents: planners, builders, an adversarial evaluator, architecture and security reviewers, PR analysts, debuggers — plus the two role identities a session orchestrator spawns.</p></div>
       <div class="plate"><div class="num">5</div><div class="what">Hook events</div><p>Cross-platform Node hooks across 5 lifecycle events (12 scripts): safety checks on destructive ops, drift detection, session logs, pre-compact state saves.</p></div>
       <div class="plate"><div class="num">5</div><div class="what">Path-scoped rules</div><p>Rules that activate only when matching files are touched — code style, testing, security, docs. Five path-scoped of ten total.</p></div>
       <div class="plate"><div class="num">4</div><div class="what">Tracker adapters</div><p>Azure DevOps, GitHub, Todoist, and a local file-based backend behind one 8-script interface. PR review threads run through a separate 3-script <span class="mono">code-platform</span> layer (GitHub, Azure Repos, or none).</p></div>
@@ -492,7 +492,7 @@
     </div>
     <div class="shared">
       <span class="s-label">Build / verify</span>
-      <code>/evaluate</code><code>/tdd</code><code>/hackathon</code><code>/debug</code><code>/troubleshoot</code><code>/local-test</code><code>/deploy</code>
+      <code>/evaluate</code><code>/tdd</code><code>/hackathon</code><code>/debug</code><code>/local-test</code><code>/deploy</code>
     </div>
     <div class="shared">
       <span class="s-label">Assist / sync / learn</span>

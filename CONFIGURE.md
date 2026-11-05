@@ -264,7 +264,7 @@ tasks/
 | `/implement 40` on a **Feature** | every story, one after another, in one Feature worktree (`<repo>-f40`) on the Feature branch, then one review panel, Prove it, and one PR from `feature/40-<slug>` |
 | `/implement 42` on a story or bug **with** a parent Feature | asks whether you meant the Feature |
 | `/implement 42 --standalone` on a story or bug **without** one | that one item, on its own branch |
-| `/implement --resume <id>` | carries on a stopped run from its saved state — a story, a Feature, or a plan `/troubleshoot` wrote |
+| `/implement --resume <id>` | carries on a stopped run from its saved step — a story or a Feature |
 
 Every build stops once, at its **plan gate** — the plan, how each requirement line of the source
 document is covered, and every open question with a recommended answer — then runs straight to the

@@ -154,3 +154,35 @@ test('ProofCheck_StoryPlanMd_IsNotTakenForAFeaturePlan', () => {
   assert.equal(r.code, 1, r.out);
   assert.doesNotMatch(r.out, /no "## Story #<sid>" sections/);
 });
+
+// ── Standalone story (F73 #83, AC1): the story folder's plan.md is one "## Story #<id>" section ──
+// storySections already reads this shape, so this guards a regression and does not go red today.
+
+const SINGLE_STORY_PLAN = [
+  '## Demo',
+  'Run the app; the page shows the new button.',
+  '',
+  '## Story #42 — Add the button',
+  '',
+  '**Acceptance criteria and their proofs:**',
+  '1. The button shows on the page',
+  '   - Proof: unit — Button_Renders_OnThePage',
+  '   - Seen by: the rendered HTML holds the button',
+  '   - Would lie if: the test renders an empty page',
+  '',
+].join('\n');
+
+test('ProofCheck_SingleStoryPlanSection_IsChecked', () => {
+  const file = path.join('stories', '42', 'plan.md');
+  const ok = run(SINGLE_STORY_PLAN, ['--story', '42'], file);
+  assert.equal(ok.code, 0, ok.out);
+  assert.equal(ok.out, '', 'a complete one-section plan is silent (companion: the section is readable)');
+
+  const broken = run(SINGLE_STORY_PLAN.replace(/\n {3}- Would lie if:[^\n]*/, ''), ['--story', '42'], file);
+  assert.equal(broken.code, 1, broken.out);
+  assert.match(broken.out, /^#42 criterion 1 \("The button shows on the page"\): no "Would lie if:" line/m);
+
+  const wrongId = run(SINGLE_STORY_PLAN, ['--story', '43'], file);
+  assert.equal(wrongId.code, 1, wrongId.out);
+  assert.match(wrongId.out, /no "## Story #43" section/);
+});

@@ -29,7 +29,7 @@ These rules apply when reading or modifying test files.
 ## What NOT to do in unit tests
 - Don't mock internal project classes — only mock external boundaries
 - Don't test trivial getters/setters or auto-generated code
-- Don't add tests for code you didn't change (unless the task specifically asks)
+- Don't add tests for code you didn't change (unless the story specifically asks)
 - Don't use sleep/delay in tests — use async patterns or test clocks
 - Don't skip flaky tests — fix them or delete them
 
@@ -62,11 +62,11 @@ Integration tests verify that components work together through real interactions
 
 ## Acceptance Tests
 
-Acceptance tests verify the feature works as the user expects — derived from acceptance criteria in the test strategy.
+Acceptance tests verify the feature works as the user expects — derived from the story's acceptance criteria and their proofs.
 
 ### When to write acceptance tests
 - Every user-facing feature gets acceptance tests
-- Every acceptance criterion in the test strategy must map to at least one test
+- Every acceptance criterion of the story must map to at least one test
 - API features: test the endpoint with real request/response payloads
 - UI features: test the user interaction flow
 

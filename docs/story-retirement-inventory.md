@@ -31,13 +31,13 @@ sprint file.
 | Phase 3: seed TodoWrite before Wave 1 | | Covered, and stricter since F1: a task is `completed` only after review |
 | Phase 3: mark ✅ in `plan.md` when a wave passes | | Covered differently on purpose: since F1 a task is ✅ only after the review and e2e gate pass (`/implement` **Marking tasks done**) |
 | Phase 3: `executor-state.md` after every wave | | Covered: the step record |
-| Phase 3: STOP 3 after each wave in mode A, with the "deliberately red" note for a `must_fail` wave | | Covered: `/implement` Phase 2 F |
+| Phase 3: STOP 3 after each wave in mode A, with the "deliberately red" note for a `must_fail` wave | | Dropped in #83: there are no waves or `must_fail` tasks; `--step` stops once in the build, at STOP 2 (the tests green) |
 | Phase 3.5: `/local-test 2`, falling back to `1` without Docker | | Covered: `/implement` Phase 2.5 |
 | Phase 3.6: four reviewers in parallel; reports saved; STOP 3.6 fix or skip; the ship test; deferrals registered | | Covered: `/implement` Phase 3. In a Feature, the full panel (F6) adds a fifth reviewer |
 | Phase 3.7: the e2e goal gate; evidence-driven re-approach; `/troubleshoot` and `/debug`; blocks the PR | | Covered: `/implement` Phase 3 e2e gate, where NOT SET UP is also red (F3) |
 | Phase 4: `story-pr-agent`; STOP 4 | | Covered: `/implement` Phase 3 PR step, same agent |
 | Phase 4 under `--autonomous`: never auto-push from the default branch | `/story` could run on whatever branch was checked out | **Moved (#63)** to `/implement`'s PR step, both packs. `/implement` creates its own branch, but the check is cheap and a resumed run may not have |
-| Test-first mode: waves, `must_fail` never restored, BLOCKED handling, `--autonomous` carve-out | | Covered: `/implement` Test-first mode (identical text) |
+| Test-first mode: waves, `must_fail` never restored, BLOCKED handling, `--autonomous` carve-out | | Dropped in #83: waves and `must_fail` are gone; `/implement` Test-first mode now covers the red evidence, and an already-met criterion is recorded as `shape: already-met` |
 | Hard rule: follow the commit format in `tasks/lessons.md` | Includes the template's "never add Co-Authored-By" line | **Moved (#63):** `/implement` hard rule "follow the commit rules in lessons/notes". The co-author rule lives in those commit rules (`templates/tasks/lessons.md`), not hard-coded in the skill |
 | Hard rule: "Never add Co-Authored-By: Claude Sonnet 4.6" | | Covered by the line above, through the lessons file |
 | Every other hard rule | | Covered: `/implement` Hard rules |
@@ -49,7 +49,7 @@ sprint file.
 | Find the plan in `tasks/stories/<id>/plan.md` | Covered: `/implement --resume <id>` (`bin/resume-point.js` reads `executor-state.md` and the plan) |
 | Check git state and the goal; inherit `run-mode: autonomous` | Covered: `--resume` steps c and f |
 | Group pending tasks into waves; run them with every wave rule | Covered: `--resume` re-enters Phase 2 with only the `to-run:` tasks |
-| Restore half-done tasks first; never a `must_fail` task | Covered: `--resume` step d |
+| Restore half-done tasks first; never a `must_fail` task | Dropped in #83: there are no tasks; `--resume` step d restores the step in flight (unstaged changes only, at `code`) |
 | Local verification, then the goal gate if one was defined | Covered: `--resume` continues through Phase 2.5 and Phase 3 |
 | Stop after execution: no review, no PR | **Dropped.** `--resume` carries the run to the end, because a run that skips the review has not finished. For "build without shipping", `--no-ship` stops before any git step |
 

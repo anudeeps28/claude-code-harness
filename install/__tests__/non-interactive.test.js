@@ -25,8 +25,13 @@ const ENTERPRISE_ONLY_SKILLS = ['sprint-plan'];
 
 // Retired by F7 #64 (and /to-issues on 2026-10-06, replaced by /plan-features): installed by no
 // pack, removed by an upgrade.
-const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues'];
-const RETIRED_AGENTS = ['story-plan-agent.md', 'story-runner-agent.md'];
+// F73 #83 retired /troubleshoot with its investigator, the story executor, and the plan-lint hook
+// (hooks/plan-lint-check.js and hooks/lib/plan-lint.js).
+const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues', 'troubleshoot'];
+const RETIRED_AGENTS = [
+  'story-plan-agent.md', 'story-runner-agent.md', 'story-executor-agent.md', 'troubleshoot-investigator.md',
+];
+const RETIRED_HOOKS = ['plan-lint-check.js', path.join('lib', 'plan-lint.js')];
 
 // Agents that /implement (in both packs) spawns by name. Skipping
 // any of these in the solo pack leaves those skills pointing at agents that were
@@ -34,7 +39,6 @@ const RETIRED_AGENTS = ['story-plan-agent.md', 'story-runner-agent.md'];
 const SOLO_REQUIRED_AGENTS = [
   'implement-planner-agent.md',
   'story-understand-agent.md',
-  'story-executor-agent.md',
   'story-pr-agent.md',
   'story-builder.md',
   'story-reviewer.md',
@@ -438,6 +442,8 @@ test('update migrates a pre-pack-filter solo install: prunes enterprise skills, 
     for (const skill of ENTERPRISE_ONLY_SKILLS) {
       fs.cpSync(path.join(REPO, 'skills', skill), path.join(claudeDir, 'skills', skill), { recursive: true });
     }
+    // The executor is in the dropped list too (F73 #83): it shows an old install, but unlike the other
+    // two it is retired, so the update must not bring it back.
     const dropped = ['story-understand-agent.md', 'story-executor-agent.md', 'story-pr-agent.md'];
     for (const agent of dropped) fs.rmSync(path.join(claudeDir, 'agents', agent), { force: true });
 
@@ -456,9 +462,10 @@ test('update migrates a pre-pack-filter solo install: prunes enterprise skills, 
       assert.ok(!skills.includes(skill), `update should prune enterprise skill /${skill} from a solo install`);
     }
     const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
-    for (const agent of dropped) {
+    for (const agent of dropped.filter((a) => !RETIRED_AGENTS.includes(a))) {
       assert.ok(agents.includes(agent), `update should restore ${agent} to a solo install`);
     }
+    assert.ok(!agents.includes('story-executor-agent.md'), 'update must not re-add the retired story-executor-agent.md');
     assert.equal(
       JSON.parse(fs.readFileSync(manifestPath, 'utf8')).workflowPack, 'solo',
       'pack must stay solo across the migration',
@@ -480,6 +487,12 @@ test('fresh installs of both packs ship neither retired skill nor story-plan-age
       const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
       for (const s of RETIRED_SKILLS) assert.ok(!skills.includes(s), `${pack}: /${s} must not be installed`);
       for (const a of RETIRED_AGENTS) assert.ok(!agents.includes(a), `${pack}: ${a} must not be installed`);
+      for (const h of RETIRED_HOOKS) {
+        assert.ok(!fs.existsSync(path.join(claudeDir, 'hooks', h)), `${pack}: hooks/${h} must not be installed`);
+      }
+      const settings = fs.readFileSync(path.join(claudeDir, 'settings.json'), 'utf8');
+      assert.ok(settings.includes('catalog-trigger.js'), `${pack}: companion: the generated settings were read`);
+      assert.ok(!settings.includes('plan-lint'), `${pack}: settings.json must not register the plan-lint hook`);
       assert.ok(skills.includes('implement'), `${pack}: /implement is the build skill`);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -499,6 +512,17 @@ test('update removes the retired skills and agent from an old install of either 
         fs.writeFileSync(path.join(claudeDir, 'skills', s, 'SKILL.md'), `---\nname: ${s}\n---\nold\n`);
       }
       for (const a of RETIRED_AGENTS) fs.writeFileSync(path.join(claudeDir, 'agents', a), '---\nname: old\n---\n');
+      // F73 #83: the plan-lint hook and its lib are still on disk, and the old settings.json still runs it
+      // on every Write or Edit, so removing the file alone would leave a broken hook.
+      for (const h of RETIRED_HOOKS) {
+        fs.mkdirSync(path.dirname(path.join(claudeDir, 'hooks', h)), { recursive: true });
+        fs.writeFileSync(path.join(claudeDir, 'hooks', h), '// old\n');
+      }
+      const settingsFile = path.join(claudeDir, 'settings.json');
+      const old = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+      old.hooks.PostToolUse[0].hooks.push({ type: 'command', command: `node "${claudeDir.replace(/\\/g, '/')}/hooks/plan-lint-check.js"` });
+      fs.writeFileSync(settingsFile, JSON.stringify(old, null, 2));
+      assert.ok(fs.readFileSync(settingsFile, 'utf8').includes('plan-lint-check.js'), `${pack}: companion: the old settings run the hook`);
 
       const out = runInstallJs(['--update', '--project', dir, ...LOCAL], { encoding: 'utf8' });
 
@@ -506,8 +530,15 @@ test('update removes the retired skills and agent from an old install of either 
       const agents = fs.readdirSync(path.join(claudeDir, 'agents'));
       for (const s of RETIRED_SKILLS) assert.ok(!skills.includes(s), `${pack}: update must remove /${s}`);
       for (const a of RETIRED_AGENTS) assert.ok(!agents.includes(a), `${pack}: update must remove ${a}`);
-      assert.match(out, /Retired: removed \/story, \/run-tasks, \/to-issues, story-plan-agent, story-runner-agent/, `${pack}: the person is told`);
+      for (const h of RETIRED_HOOKS) assert.ok(!fs.existsSync(path.join(claudeDir, 'hooks', h)), `${pack}: update must remove hooks/${h}`);
+      assert.ok(!fs.readFileSync(settingsFile, 'utf8').includes('plan-lint'), `${pack}: the reconciled settings.json runs no plan-lint hook`);
+      const retiredLine = out.split('\n').find((l) => /Retired: removed/.test(l)) || '';
+      assert.match(retiredLine, /Retired: removed \/story, \/run-tasks, \/to-issues/, `${pack}: the person is told what went (the earlier retirements stay first)`);
+      for (const name of ['/troubleshoot', 'story-plan-agent', 'story-runner-agent', 'story-executor-agent', 'troubleshoot-investigator', 'plan-lint-check.js']) {
+        assert.ok(retiredLine.includes(name), `${pack}: the Retired line names ${name}: ${retiredLine}`);
+      }
       assert.match(out, /\/to-issues → \/plan-features/, `${pack}: and what replaced each`);
+      assert.match(out, /\/troubleshoot → \/debug/, `${pack}: /troubleshoot's failures go to /debug`);
       assert.ok(skills.includes('implement'), `${pack}: /implement stays`);
       assert.ok(skills.includes('plan-features'), `${pack}: /plan-features replaces /to-issues`);
     } finally {
@@ -856,7 +887,8 @@ test('install.js --yes --pack enterprise installs enterprise agents', () => {
   try {
     runInstallJs(['--yes', '--project', dir, '--pack', 'enterprise']);
     const agents = fs.readdirSync(path.join(dir, '.claude', 'agents'));
-    assert.ok(agents.includes('story-executor-agent.md'), 'enterprise agents should be installed');
+    assert.ok(agents.includes('sprint-plan-gap-analyzer.md'), 'enterprise agents should be installed');
+    assert.ok(!agents.includes('story-executor-agent.md'), 'the retired executor is not installed in the enterprise pack either');
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, '.claude', '.harness-manifest.json'), 'utf8'));
     assert.equal(manifest.workflowPack, 'enterprise');
   } finally {

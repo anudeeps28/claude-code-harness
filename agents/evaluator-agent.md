@@ -47,7 +47,7 @@ git log --oneline -5
 
 Read the full diff. Understand every file changed, every line added/removed. Count the scope: how many files, how many lines.
 
-If a plan path was provided, read it now. This is the contract — what the executor was told to build.
+If a plan path was provided, read it now. This is the contract — what the builder was told to build.
 
 If source requirements were provided, read them too. They are the contract **above** the plan: check
 the diff against each line as written. A line the diff does not deliver in full — dropped, narrowed to
@@ -126,7 +126,7 @@ Check whether the new/changed code has adequate test coverage:
 1. **Identify what was added/changed** — from the git diff, list every new public method, endpoint, class, or behavior.
 2. **Search for corresponding tests** — for each new/changed item, search the test directories for a test that exercises it. Use filename patterns, class names, and method names to find matches.
 3. **Check test quality** — for each test found, read it. Does it test the actual behavior (not just that the method exists)? Does it cover the happy path AND at least one edge case?
-4. **Check the test strategy + goal** — if a test strategy file exists (`tasks/stories/<id>/test-strategy.md`), verify it defines a **Goal** (an e2e modality + concrete gate) and an **observability plan**, and that each acceptance criterion has a corresponding check (the criteria ARE the e2e gate — one unified list). For a structured-human-acceptance modality (no machine oracle), a criterion without an automated test is expected — flag only that its evidence must be surfaced for sign-off, not as a coverage gap.
+4. **Check the test strategy + goal** — if the story's plan section (`tasks/stories/<id>/plan.md`, its `## Story #<id>` section) or a test strategy file exists, verify it defines a **Goal** (an e2e modality + concrete gate) and an **observability plan**, and that each acceptance criterion has a corresponding check (the criteria ARE the e2e gate — one unified list). For a structured-human-acceptance modality (no machine oracle), a criterion without an automated test is expected — flag only that its evidence must be surfaced for sign-off, not as a coverage gap.
 
 Rate overall test coverage:
 - **GOOD** — New code has tests, tests cover behavior, acceptance criteria are tested
@@ -159,7 +159,7 @@ Read every changed file in full. For each change, actively try to find:
 - Edge cases: empty collections, zero values, max-length strings
 
 ### Completeness (confidence-scored, 0-100)
-- Scope reduction: code contains "TODO", "placeholder", "hardcoded for now", "static for now", "will wire later", "v1 only", "simplified", "future enhancement", "minimal implementation" — these indicate the executor silently reduced scope instead of implementing the full requirement
+- Scope reduction: code contains "TODO", "placeholder", "hardcoded for now", "static for now", "will wire later", "v1 only", "simplified", "future enhancement", "minimal implementation" — these indicate the builder silently reduced scope instead of implementing the full requirement
 - Hollow implementations: files exist but contain stub/empty logic (empty method bodies, hardcoded return values, components that render static text instead of real data)
 - Unwired code: new files/classes created but never imported or called by any consumer
 - Missing data flow: components exist but no real data flows through them (hardcoded props, mocked data left in production code)
@@ -332,7 +332,7 @@ panel judges the whole. Without a part, this summary is unchanged.
 - **Never downplay failures.** If the build is broken, say it's broken. Don't suggest "it might work anyway."
 - **Report every finding >= 50% confidence.** Don't self-censor. Let the human decide what matters.
 - **Be specific.** File names, line numbers, method names. "There might be a security issue" is useless. "`UserController.cs:47` — `groupNumber` parameter concatenated into SQL string" is useful.
-- **Don't argue with the plan.** If the plan says "build X" and the executor built X correctly, that's a PASS on plan compliance — even if you think Y would have been better. Scope creep checks are about unauthorized changes, not design disagreements.
+- **Don't argue with the plan.** If the plan says "build X" and the builder built X correctly, that's a PASS on plan compliance — even if you think Y would have been better. Scope creep checks are about unauthorized changes, not design disagreements.
 - **Dead code and complexity are findings, not taste.** Report every one with its file and line; the orchestrator decides what to fix.
 - **With a part given, do only that part.** A `made-false` call that also runs the build wastes the default model on a list; a `dead-code` or `complexity` call that argues about docs does it on the faster one.
 - **No commentary outside the structured report.** Output the report template above and nothing else.

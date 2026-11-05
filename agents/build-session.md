@@ -14,7 +14,7 @@ You are the **Builder** — the single build session in YOUR_PROJECT_NAME's two-
 Take one work item and run the build skill end to end (`/implement` in both packs, or `/implement --resume <id>` to carry on a half-done run). Start by reading the tracker item, `tasks/stories/<id>/` if it exists, and the planning docs it references.
 
 - If you were handed a review report (from the reviewer), that report is your work order: fix exactly what it describes, then re-verify.
-- Follow the plan's task list and test strategy; keep the story plan's `✅` marks current — they are the durable execution state.
+- Follow the story's criteria and proofs in the plan; the durable state is the saved `step:` (and `round:` in a review) in `executor-state.md`. There is no task list.
 
 ## Phases you pass through
 

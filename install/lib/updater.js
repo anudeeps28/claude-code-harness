@@ -49,14 +49,19 @@ const ENTERPRISE_ONLY_SKILLS = new Set([
 // replaced /run-tasks. An upgrade removes them from an install that still has them, in
 // both packs, and says so (docs/story-retirement-inventory.md lists where each behaviour went).
 // /to-issues retired 2026-10-06: /plan-features replaced it (and ClaudeSkills' prd-to-stories).
-const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues'];
-const RETIRED_AGENTS = ['story-plan-agent.md', 'story-runner-agent.md'];
+// F73 #83 retired the story executor with its waves, /troubleshoot with its investigator (a failed e2e
+// gate goes to /debug and the prover's diagnose job), and the plan-lint hook, which checked executor waves.
+const RETIRED_SKILLS = ['story', 'run-tasks', 'to-issues', 'troubleshoot'];
+const RETIRED_AGENTS = ['story-plan-agent.md', 'story-runner-agent.md', 'story-executor-agent.md', 'troubleshoot-investigator.md'];
+// Hook files (paths under hooks/) removed from an old install. plan-lint-check.js stays in
+// HARNESS_HOOK_SCRIPTS so reconcileSettings strips it from an installed settings.json.
+const RETIRED_HOOKS = ['plan-lint-check.js', 'lib/plan-lint.js'];
 // story-runner-agent retired with the per-story worktrees (F72 #79): stories are built one at a time
 // on the Feature branch by the main session. Only story-plan-agent marks an old install as enterprise.
 const ENTERPRISE_MARKER_AGENTS = new Set(['story-plan-agent.md']);
 
 // What took each retired skill's place, said when it is removed.
-const REPLACED_BY = { story: '/implement', 'run-tasks': '/implement --resume', 'to-issues': '/plan-features' };
+const REPLACED_BY = { story: '/implement', 'run-tasks': '/implement --resume', 'to-issues': '/plan-features', troubleshoot: '/debug' };
 
 /**
  * Remove retired skills and agents from an install. Only paths inside the target are touched,
@@ -80,9 +85,10 @@ function removeRetired(target) {
   };
   for (const skill of RETIRED_SKILLS) drop(path.join(target, 'skills', skill), `/${skill}`);
   for (const agent of RETIRED_AGENTS) drop(path.join(target, 'agents', agent), agent.replace(/\.md$/, ''));
+  for (const hook of RETIRED_HOOKS) drop(path.join(target, 'hooks', ...hook.split('/')), hook);
   if (removed.length) {
     const replaced = RETIRED_SKILLS.filter((s) => removed.includes(`/${s}`)).map((s) => `/${s} → ${REPLACED_BY[s]}`);
-    console.log(`    Retired: removed ${removed.join(', ')} (${replaced.join(', ')})`);
+    console.log(`    Retired: removed ${removed.join(', ')}${replaced.length ? ` (${replaced.join(', ')})` : ''}`);
   }
   return removed;
 }
@@ -179,7 +185,6 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     ...(workflowPack === 'enterprise' ? ['skills/sprint-plan/SKILL.md'] : []),
     // Spawned by /implement, so required in BOTH packs.
     'agents/story-understand-agent.md',
-    'agents/story-executor-agent.md',
     'agents/story-pr-agent.md',
     'agents/implement-planner-agent.md',
     // The Feature panel's fifth reviewer (F6 #58).
@@ -199,7 +204,6 @@ function verifyInstall(target, sedDirs, workflowPack = 'enterprise') {
     'agents/architect-reviewer-agent.md',
     'agents/security-reviewer-agent.md',
     'agents/debug-agent.md',
-    'agents/troubleshoot-investigator.md',
     // The closing check /implement runs when a run completes a coverage table.
     'skills/coverage-audit/SKILL.md',
     'agents/coverage-auditor-agent.md',
@@ -943,5 +947,5 @@ module.exports = {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck, runUpdate, runSwitchTracker, backfillManifest,
   HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS,
-  RETIRED_SKILLS, RETIRED_AGENTS, removeRetired, warnRetiredElsewhere,
+  RETIRED_SKILLS, RETIRED_AGENTS, RETIRED_HOOKS, removeRetired, warnRetiredElsewhere,
 };

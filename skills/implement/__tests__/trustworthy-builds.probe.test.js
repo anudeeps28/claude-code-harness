@@ -67,6 +67,16 @@ test('StartupCheck_EveryRequiredToolExistsInThisRepo', () => {
   }
 });
 
+// F73 #83: the executor and /troubleshoot (with its investigator) are retired, so the build skill no
+// longer requires them: a startup check that still wanted them would stop every run on a missing file.
+test('StartupCheck_RetiredAgentsAndSkillLeaveTheRequiredList', () => {
+  const required = readRequired();
+  assert.ok(required.length >= 20, `companion: the Required tools list was read (${required.length} entries)`);
+  assert.ok(required.some((r) => r.kind === 'agent' && r.name === 'story-builder'), 'companion: story-builder is still required');
+  const retired = required.filter((r) => ['story-executor-agent', 'troubleshoot-investigator', 'troubleshoot'].includes(r.name));
+  assert.deepEqual(retired.map((r) => `${r.kind} ${r.name}`), [], 'the retired executor, investigator and /troubleshoot are not required');
+});
+
 test('StartupCheck_RunsBeforePhase1AndAMissingToolIsAStop', () => {
   const before = IMPLEMENT.slice(0, IMPLEMENT.indexOf('## Phase 1 — Understand'));
   mustMatch(before, /bin\/startup-check\.js/, 'the startup check must run before Phase 1');
@@ -94,11 +104,16 @@ test('StartupCheck_NoChecklistTool_StopsAndSaysHowToSwitchItOn', () => {
 test('StateAndProgress_SectionDefinesTheStepRecordAndItsEvents', () => {
   const s = section(IMPLEMENT, '## State and progress');
   assert.ok(s, 'expected a "## State and progress" section');
-  for (const key of ['run-mode:', 'step:', 'next:', 'updated:']) {
+  for (const key of ['run-mode:', 'step:', 'updated:']) {
     assert.ok(s.includes(key), `the state contract must define ${key}`);
   }
-  for (const status of ['pending', 'running', 'verified', 'done', 'failed', 'reopened']) {
-    assert.ok(s.includes(`\`${status}\``), `the state contract must define status \`${status}\``);
+  // C6: `next:` is only the resume script's output line (the step to run), not a saved line.
+  assert.ok(!/^next:/m.test(s), 'the saved state template has no next: line');
+  // F73 #83: the position is the saved step and review round; there are no per-task statuses.
+  assert.ok(s.includes('round:'), 'the state contract must define round:');
+  assert.ok(!/\| Task \| Name \| Wave/.test(s), 'the state contract has no per-task Progress table');
+  for (const status of ['verified', 'reopened']) {
+    assert.ok(!s.includes(`\`${status}\``), `the state contract must not define the per-task status \`${status}\``);
   }
   mustMatch(s, /bin\/progress\.js/, 'the step record must print the line through bin/progress.js');
   mustMatch(s, /before the next step starts/i, 'state must be saved before the next step starts');
@@ -137,28 +152,40 @@ test('Resume_SectionReadsSavedStateAndCoversEveryCase', () => {
   assert.ok(s, 'expected a "## Resume mode" section');
   mustMatch(s, /bin\/resume-point\.js/, 'resume must use bin/resume-point.js');
   mustMatch(s, /no saved state[\s\S]{0,200}(stop|never start)/i, 'no saved state must stop, not start fresh');
-  mustMatch(s, /restore/i, 'resume must restore a half-done task');
-  mustMatch(s, /must_fail/, 'resume must keep the must_fail exemption');
+  mustMatch(s, /`step:?`|\bstep:/, 'resume must re-enter at the saved `step`');
+  mustMatch(s, /`round:?`|\bround:/, 'resume must re-enter a review at the saved `round`');
+  assert.ok(!/must_fail/.test(s), 'resume has no must_fail exemption: it is retired');
   mustMatch(s, /run-mode: autonomous/, 'a resumed autonomous run must stay autonomous');
   mustMatch(s, /branch/i, 'resume must check it is on the saved branch');
 });
 
 // ── #26 done only after tests and review ─────────────────────────────
 
-test('DoneAfterReview_WavePassRecordsVerifiedNotDone', () => {
-  assert.ok(!/mark each PASSed task `completed`/.test(IMPLEMENT), 'a passing wave still marks tasks completed');
-  mustMatch(IMPLEMENT, /PASS[\s\S]{0,200}`verified`/, 'a passing task must be recorded as `verified`');
+// F73 #83: the unit of "done" is the story. There are no per-task `verified`, `done` or `reopened`
+// statuses: a story is done after its review and the e2e gate.
+
+test('DoneAfterReview_AStoryWhoseSuiteIsGreenIsNotDoneYet', () => {
+  const doneAfterReview = (t) => /\bstory is done[^.]{0,80}after the review[^.]{0,120}e2e gate/i.test(String(t).replace(/[*`]/g, '').replace(/\s+/g, ' '));
+  assert.ok(!doneAfterReview('A story is done when its tests pass.'), 'planted text that completes a story on green must be rejected');
+  assert.ok(!/mark each PASSed task `completed`/.test(IMPLEMENT), 'a passing run still marks tasks completed');
+  assert.ok(doneAfterReview(IMPLEMENT), 'the skill must say a story is done after the review and the e2e gate pass');
 });
 
-test('DoneAfterReview_ReviewPassMarksVerifiedTasksDone', () => {
+test('DoneAfterReview_Phase3HasNoPerTaskStatuses', () => {
   const s = section(IMPLEMENT, '## Phase 3 — Evaluate + PR');
-  mustMatch(s, /`verified`[\s\S]{0,400}`done`/, 'Phase 3 must turn verified tasks into done after the review passes');
-  mustMatch(s, /TodoWrite/, 'the done mark and TodoWrite must move together');
+  assert.ok(s, 'expected a Phase 3 section');
+  mustMatch(s, /evaluator-agent/, 'companion: the Phase 3 reviewers were read');
+  assert.ok(!/`verified`|`reopened`|Marking tasks done|task-done|task-reopened/.test(s), 'Phase 3 must not turn verified tasks into done or reopen tasks: the story is the unit');
 });
 
-test('DoneAfterReview_FindingOnATaskFileReopensIt', () => {
+test('DoneAfterReview_FindingsGoToTheBuilderTestFirstThenOnlyTheirReviewersRerun', () => {
   const s = section(IMPLEMENT, '## Phase 3 — Evaluate + PR');
-  mustMatch(s, /`reopened`/, 'a finding that names a task file must reopen that task');
+  assert.ok(s, 'expected a Phase 3 section');
+  const f = s.replace(/[*`]/g, '').replace(/\s+/g, ' ');
+  mustMatch(f, /story-builder[^.]{0,160}fix[^.]{0,160}test[- ]first|test[- ]first[^.]{0,160}story-builder/i, 'findings go to story-builder, job fix, test first');
+  mustMatch(f, /suite-runner[^.]{0,120}green/i, 'a fix is followed by a green suite-runner run');
+  mustMatch(f, /only the reviewers whose area/i, 'only the reviewers whose area the fix touched run again');
+  mustMatch(f, /refactor: address review findings/, 'the fixes are one commit named "refactor: address review findings"');
 });
 
 test('DoneAfterReview_ProgressRuleNoLongerCompletesOnVerify', () => {

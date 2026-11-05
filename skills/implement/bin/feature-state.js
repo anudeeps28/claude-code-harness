@@ -257,12 +257,14 @@ function storyCommit(wt, sid, base) {
   return (r.stdout || '').split('\n').map((l) => l.trim()).filter(Boolean)[0] || '';
 }
 
-// Where a running story stopped: the saved step, else the "next:" line of its executor-state.md.
+// Where a running story stopped: the saved step, else the "step:" line of its executor-state.md
+// (a state written before F73 #83 has a "next:" line instead).
 function savedStep(root, s) {
   if (s.step) return s.step;
   const file = path.join(root, 'tasks', 'stories', s.id, 'executor-state.md');
   if (fs.existsSync(file)) {
-    const m = fs.readFileSync(file, 'utf8').match(/^next:\s*(.+)$/m);
+    const text = fs.readFileSync(file, 'utf8');
+    const m = text.match(/^step:\s*(.+)$/m) || text.match(/^next:\s*(.+)$/m);
     if (m) return m[1].trim();
   }
   return 'tests';

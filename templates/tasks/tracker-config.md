@@ -1,7 +1,7 @@
 # Tracker Config
 
 > Configuration for your project tracker and environment URLs.
-> The /pa and /troubleshoot skills read this file to look up API endpoints and tracker details.
+> The /pa skill reads this file to look up API endpoints and tracker details.
 > Fill in the sections that apply to your stack. Delete sections that don't apply.
 
 ---

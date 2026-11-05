@@ -41,7 +41,8 @@ const PLANNER = read('agents', 'implement-planner-agent.md');
 // stories" section names whose file gives it Bash and talks of build and tests. Derived, so a new such
 // agent is found here instead of being forgotten by a hand-kept list.
 const AGENTS = (() => {
-  const run = slice(SKILL, '### Run the stories') || '';
+  // F73 #83: the story steps moved to "## The story loop", so the agents are named in either place.
+  const run = [slice(SKILL, '### Run the stories'), slice(SKILL, '## The story loop')].filter(Boolean).join('\n');
   const named = [...new Set([...run.matchAll(/`([a-z][a-z-]+)`/g)].map((m) => m[1]))]
     .filter((n) => fs.existsSync(path.join(REPO_ROOT, 'agents', `${n}.md`)));
   return named.filter((n) => {
@@ -133,8 +134,8 @@ test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
   const prefixed = (t) => /run every build, test and Observe command with it in front/i.test(flat(t));
   assert.ok(!prefixed('run every build, test and Observe command without it in front'), 'the opposite claim is rejected');
   assert.ok(prefixed('run every build, test and Observe command with it in front'), 'the claim itself is accepted');
-  const run = slice(SKILL, '### Run the stories');
-  assert.ok(run, 'SKILL has "Run the stories"');
+  const run = [slice(SKILL, '### Run the stories'), slice(SKILL, '## The story loop')].filter(Boolean).join('\n');
+  assert.ok(slice(SKILL, '### Run the stories'), 'SKILL has "Run the stories"');
   const flatRun = flat(run);
   assert.match(flatRun, /Shared test resources/);
   assert.match(flatRun, /`verify-lock: global`/);

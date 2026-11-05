@@ -82,7 +82,10 @@ test('Implement_SourceLinesAreReadAndBecomeCriteriaVerbatim', () => {
   const goal = section(IMPLEMENT, '### Phase 1.5');
   mustMatch(goal, /every one is an acceptance criterion, verbatim/i, 'Goal Definition makes every line a criterion verbatim');
   mustMatch(goal, /never drop, merge away or soften/i, 'the goal may add, never drop');
-  const plan = IMPLEMENT.slice(IMPLEMENT.indexOf('### Phase 1c — Plan'), IMPLEMENT.indexOf('## Phase 2 — Execute'));
+  // F73 #83: Phase 2 is "Build the story". A missing heading would make the slice run to the end of
+  // the file, so the heading must exist.
+  assert.ok(IMPLEMENT.includes('## Phase 2 — Build the story'), 'SKILL.md has "## Phase 2 — Build the story"');
+  const plan = IMPLEMENT.slice(IMPLEMENT.indexOf('### Phase 1c — Plan'), IMPLEMENT.indexOf('## Phase 2 — Build the story'));
   mustMatch(plan, /source-lines\.js"? compare/, 'the plan check compares the lines with the test strategy');
   mustMatch(PLANNER, /starts with its id and quotes the line verbatim/, 'the planner writes each line as an id-tagged criterion');
 });
@@ -161,7 +164,8 @@ test('OneGate_FeatureModeUsesTheSameGateFormat', () => {
   mustMatch(plan, /\*\*coverage\*\*/, 'it shows coverage');
   mustMatch(plan, /\*\*scope readings\*\*/, 'it asks scope readings');
   mustMatch(plan, /a recommended answer/, 'each question has a recommended answer');
-  const run = section(section(IMPLEMENT, '## Feature mode'), '### Run the stories');
+  // F73 #83: the story steps moved to "## The story loop"; the scope pause is read from both places.
+  const run = [section(section(IMPLEMENT, '## Feature mode'), '### Run the stories'), section(IMPLEMENT, '## The story loop')].filter(Boolean).join('\n');
   mustMatch(run, /scope[\s\S]{0,300}?(pause|stop|ask the person)/i, 'a scope question met while building a story is a pause, not an answer');
   assert.doesNotMatch(run, /self-answer[^.\n]{0,60}scope/i, 'and it is never self-answered');
 });

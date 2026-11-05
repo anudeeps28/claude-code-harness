@@ -401,7 +401,7 @@ test('ProveIt_ProverOnSonnet_DiagnosisOnOpus', () => {
   const readme = read('README.md');
   mustMatch(readme, /`prover` \| sonnet \|/, 'README lists prover on sonnet');
   const count = fs.readdirSync(path.join(REPO_ROOT, 'agents')).filter((n) => n.endsWith('.md')).length;
-  assert.ok(count >= 25, `companion: agents/ holds the new agent (got ${count})`);
+  assert.ok(fs.existsSync(path.join(REPO_ROOT, 'agents', 'prover.md')), 'companion: agents/ holds the new agent, prover.md');
   mustMatch(readme, new RegExp(`\\b${count} agents\\b`), `README states the agent count (${count})`);
 });
 

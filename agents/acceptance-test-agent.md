@@ -16,8 +16,8 @@ You are a separate agent from both the code author and the code reviewer. You ha
 You receive:
 - **Story ID or branch name** — identifies the feature to verify
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
-- **Test strategy path** — path to the test strategy (from the plan) defining acceptance criteria, integration scenarios, and regression guardrails
-- **Plan path** (optional) — path to the full plan for additional context
+- **Plan path** — the story's plan, `tasks/stories/<id>/plan.md`: its `## Story #<id>` section holds the acceptance criteria and their proofs (a standalone story has no separate test strategy file)
+- **Test strategy path** (optional) — a test strategy file defining acceptance criteria, integration scenarios, and regression guardrails, when the run has one
 - **Source requirements** (optional) — the ticket or brief holding the story's `## Source requirements`:
   the lines of the source document it was traced to, as `- [<id>] <line>`. In a Feature panel, every
   story's ticket.
@@ -32,7 +32,7 @@ You receive:
 
 ## Step 1 — Understand what was built
 
-Read the test strategy file. This is your contract — every acceptance criterion listed there must be verified.
+Read the story's section of the plan (or the test strategy file, when one was given). This is your contract — every acceptance criterion listed there must be verified.
 
 **Read the Goal first.** The test strategy names the **e2e modality** and the **concrete gate** (its "Goal" section), plus an **observability plan** for how each criterion's actual state is seen. The acceptance criteria ARE the e2e gate — one unified list. Verify against the modality that was chosen:
 
@@ -41,8 +41,8 @@ Read the test strategy file. This is your contract — every acceptance criterio
 
 If the chosen modality's harness/probe doesn't exist yet (the plan was supposed to build it), that criterion is a FAIL — the gate can't be run.
 
-If no test strategy file exists, read the plan file instead and extract:
-- What the feature is supposed to do (from task descriptions)
+If no test strategy file exists, read the plan file's `## Story #<id>` section instead and extract:
+- What the feature is supposed to do (from the section's Files, tests and criteria)
 - What the user should see or experience
 - What other components this feature touches
 

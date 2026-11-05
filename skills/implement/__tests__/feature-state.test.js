@@ -328,6 +328,20 @@ test('Resume_RunningStoryWithoutStep_ReadsNextFromItsExecutorState', () => {
   assert.match(r.out, /^restart 201: from step review$/m);
 });
 
+test('Resume_RunningStoryWithoutStep_ReadsTheSavedStepFromItsExecutorState', () => {
+  // F73 #83: executor-state.md saves `step:` and no longer writes `next:`.
+  const { wt } = featureRepo([]);
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=running');
+  const sdir = path.join(dir, 'tasks', 'stories', '201');
+  fs.mkdirSync(sdir, { recursive: true });
+  fs.writeFileSync(path.join(sdir, 'executor-state.md'), 'run-mode: autonomous\nstep: code\nupdated: 2026-11-04T00:00:00Z\n');
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^restart 201: from step code$/m);
+});
+
 test('Resume_FeatureWorktreeMissing_WarnsAndTrustsTheStateFile', () => {
   const dir = home(AB);
   init(dir);
