@@ -1,117 +1,63 @@
-# Wave Execution — Harness Rule
+# Shared working directory — Harness Rule
 
-This file is the **single source of truth** for how a skill runs a wave of executor agents: where they
-run, what must be checked before and after each wave, and what happens to a failed task's edits.
+This file is the **single source of truth** for how a build run shares its working directory with
+everything else that writes to it: where the build agents run, what is checked before each story, what
+the run's starting tree is, and what happens to a failed attempt's edits. (The file keeps its old name,
+`rules/wave-execution.md`, from before the story executor was retired; nothing in it concerns that
+executor any more.)
 
 **Location:** `rules/wave-execution.md` (installed alongside `.claude/skills/`).
-**Referenced by:** `skills/implement/SKILL.md`, `agents/story-executor-agent.md`.
+**Referenced by:** `skills/implement/SKILL.md`.
 
 ---
 
-## Executor agents run in the orchestrator's working directory
+## Build agents run in the orchestrator's working directory
 
-Wave tasks are spawned as **background agents with no isolation** — they run directly in the
-orchestrator's working directory, on its feature branch, alongside each other.
+The agents that build a story (`story-builder`, `suite-runner`) are spawned in the **foreground with no
+isolation** — they run directly in the orchestrator's working directory, on its branch: the project root
+on `implement/<id>` for a standalone story, the Feature worktree for a Feature's stories. One story is
+in flight at a time, so nothing in the directory is written by two agents at once.
 
-**Do not spawn them with `isolation: "worktree"`.** That was the previous design and it cannot work
-here. An isolated worktree is created from the **default branch** and can only ever see **committed**
-state, while these skills deliberately commit nothing until the PR phase. So every wave after the
-first was given a copy of the project that lacked the very files its own plan ordered to be written
-first: the task's `<verify>` failed on missing modules, and the run halted for a reason that had
-nothing to do with the code. Worktrees also stranded the failed agents' work in hidden
-`.claude/worktrees/` directories that nothing collected.
+**Do not spawn them with `isolation: "worktree"`.** An isolated worktree is created from the **default
+branch** and can only ever see **committed** state, while a story's tests and code are written step
+by step and committed only when the story's review is clean. So a later step would be given a copy of
+the project that lacked the very files the earlier step wrote: the run would halt for a reason that had
+nothing to do with the code. Worktrees also strand a failed agent's work in hidden
+`.claude/worktrees/` directories that nothing collects. The protection worktrees were meant to
+provide is provided by the story loop itself: one story at a time, with the checks below.
 
-The protection worktrees were meant to provide — two agents never clobbering the same file — is
-provided by the **pre-wave overlap check** below, which holds regardless of isolation.
-
-A Feature's stories have no waves and no executors: they are built one after another in the one
-Feature worktree, by `story-builder` jobs. This file applies to standalone single-story runs. The
-Feature worktree still gets the branch-drift check before every story, and the `isolation: "worktree"`
-ban holds there too (`rules/git-worktrees.md`).
+A Feature's stories are built one after another in the one Feature worktree, and the
+`isolation: "worktree"` ban holds there too (`rules/git-worktrees.md`).
 
 ---
 
-## Before each wave
+## Before each story
 
-### 1. Branch-drift check (every wave, no exceptions)
+### Branch-drift check (before the loop and before every story, no exceptions)
 
 ```bash
 git branch --show-current
 ```
 
-If this is not the branch the run created, **stop immediately** — do not launch the wave. Another
-session sharing this working directory has switched the branch, and every task you launch now writes
+If this is not the branch the run created, **stop immediately** — do not start the story. Another
+session sharing this working directory has switched the branch, and every step you start now writes
 feature work onto someone else's branch. Report the expected branch, the actual branch, and stop.
 
 This is never ambiguous and is never self-answered, including under `rules/autonomous-mode.md`: a
 branch changing mid-run is a **contradiction** pause-anyway trigger.
 
-### 2. Overlap check (waves with 2+ tasks)
-
-Agents in a wave share one working directory, so this check is what keeps them off each other's files.
-Compare, across every pair of tasks in the wave:
-
-- task A's `<files>` against task B's `<files>` — **two writers**, the classic clobber; and
-- task A's `<read_first>` against task B's `<files>` — **a reader against a writer**. A reads the file
-  for context while B is rewriting it, so A works from a half-written version. This is silent and does
-  not announce itself in any build output.
-
-On any overlap, auto-split: move the higher-id task into a new wave immediately after this one,
-renumber the rest, and show the updated wave table, naming the file and both tasks. If there is no
-overlap, proceed silently.
-
-### 2b. `must_fail` isolation check (every wave, regardless of task count)
-
-**A wave containing a `must_fail="true"` task must contain nothing else.** If it does, auto-split on
-that ground alone: move every other task in the wave to **after the wave that closes the red window**
-— never into the wave immediately following the `must_fail` task. That wave belongs to the
-implementation and nothing else (see "The red window" in the planner agents), so parking a displaced
-sibling there swaps one violation for another: the sibling's verify runs against a deliberately red
-tree and fails through no fault of its own, which is the exact failure this whole section exists to
-prevent. Renumber,
-and show the updated table naming the `must_fail` task.
-
-This is a **separate** check from the overlap test above, and it must be, for two reasons. The overlap
-test only runs on waves with 2+ tasks and only fires on shared files — so a `must_fail` task grouped
-with a **file-disjoint** sibling passes it silently, which is exactly the dangerous case: the sibling
-touches different files but can still create the behaviour the test is proving absent, turning a
-genuine red green for a reason unrelated to the test. Stating "runs alone" without a step that enforces
-it leaves the guarantee resting on the planner having got it right.
-
 ---
 
-## Launching the wave
-
-A `type="test"` task carrying **`must_fail="true"`** is a test written before the code exists. It runs
-**alone in its wave** — never alongside another task. Waves share one working directory, so a sibling
-agent can create the very behaviour the test is meant to prove missing, turning a genuine failing test
-green for a reason that has nothing to do with the test. A task **without** `must_fail` is ordinary and
-waves as it always has. The executor's inverted verdict for these tasks is defined in Step 3.5 of
-`agents/story-executor-agent.md`.
-
-Spawn each `type="auto"` / `type="test"` task as a **background** `story-executor-agent`, all in the
-same message so they run concurrently. Pass the single `<task>` XML block and the story id.
-
-Agents **edit in parallel**; they **serialize only on the `<verify>` step**, via the lock defined in
-`agents/story-executor-agent.md` Step 3. Editing is where the wall-clock goes, so parallelism is
-preserved; builds queue because concurrent builds corrupt each other's shared scratch state
-(`node_modules/.cache`, `.next`, `tsconfig.tsbuildinfo`, `obj/`, `target/`, `__pycache__`) and produce
-failures unrelated to the code.
-
----
-
-## After each wave
-
-### 1. Stray-file check
+## The run's starting tree
 
 **Compare against the run's own starting state, not against a clean tree.** At startup, before the
-first wave, record the dirty tree:
+first builder, record the dirty tree:
 
 ```bash
 git status --porcelain > "$RUN_BASELINE"     # e.g. tasks/stories/<id>/.tree-baseline
 ```
 
-Then after each wave, compare:
+Then after the code step and after every fix, compare:
 
 ```bash
 git status --porcelain | grep -Fxv -f "$RUN_BASELINE"
@@ -131,65 +77,60 @@ an evaluator attributed a pre-existing edit to the story on exactly this basis. 
 dirty, the diff of an already-dirty file is not evidence about this run either way — say so rather
 than reasoning from it.
 
-This baseline is not a nicety. The startup check one section down deliberately allows a dirty tree —
-"a dirty tree is often YOUR_NAME's own scratch work, so the call is theirs" — and a run legitimately
-proceeds with dozens of pre-existing modified files. Comparing the raw `git status` against the wave's
-`<files>` then flags every one of them, so a rule meant to catch a rare scope violation instead orders
-a **stop after every wave of every run in a dirty tree**. Observed twice in one real run: an executor
-reported a pre-existing modified file as "a sibling agent's concurrent change" when nothing else was
-running, and an acceptance agent marked regression guardrails BROKEN for files the story never touched.
+This baseline is not a nicety. The startup check below deliberately allows a dirty tree — "a dirty
+tree is often YOUR_NAME's own scratch work, so the call is theirs" — and a run legitimately proceeds
+with dozens of pre-existing modified files. Comparing the raw `git status` against the story's files
+then flags every one of them, so a rule meant to catch a rare scope violation instead orders a
+**stop after every step of every run in a dirty tree**.
 
-Every *newly* changed path should appear in the `<files>` of some task in this wave (or an earlier
-completed wave). A path that appears here but was declared by **no** task means an agent edited outside
-its scope — the one failure the overlap check cannot prevent, because it assumes the plan's file lists
-are accurate.
+Every *newly* changed path should be one a builder reported or the story's `**Files:**` names. A path
+that appears here but is named by **neither** means an agent edited outside its scope. Surface it
+loudly, name the file, and **stop**: it will otherwise ship inside the story's diff unnoticed. Ignore
+paths that are gitignored and the story workspace (`tasks/stories/<id>/`); a leftover lock directory
+under `verify-lock: global` is not a stray edit: do not report it, and **never remove the global lock by
+hand**. `test-lock.js` breaks a dead owner's lock itself (same host and platform, owner pid gone) and an
+empty ownerless one; a lock held by a live owner is waited on.
 
-Surface it loudly, name the file, and **stop** — do not roll into the next wave. An undeclared edit
-may be a sibling agent's work being silently overwritten, and it will otherwise ship inside the story's
-diff unnoticed. Ignore paths that are gitignored, the story workspace (`tasks/stories/<id>/`, which
-holds the verify lock), and `tasks/.verify.lock` under `verify-lock: global` — a leftover lock directory means an agent died mid-verify, which its own BLOCKED
-report already covers; `rmdir` it and carry on rather than reporting it as a stray edit.
+### The index at commit
 
-### 2. Branch-drift check again
-
-Re-run the branch check from "Before each wave". Running it on both sides of a wave means a hijack is
-caught within one wave instead of at the end of the run.
+The loop commits by path, never `git add -A`. Before every commit, `git diff --cached --name-only`
+must hold only that story's paths: anything else in the index (a stuck story's leftovers, someone
+else's staging) is a stop, never committed.
 
 ---
 
-## When a task fails: restore before retrying
+## When a job fails: restore before retrying
 
-**Exception first: a task carrying `must_fail="true"` is never restored.** For an ordinary task a
-failure means wreckage, and the rule below is right. For a `must_fail` task a failure usually means the
-test passed when it should not have — the test file is intact and is the exact artifact that has to be
-inspected to work out why. Deleting it retries from nothing and throws away the evidence. Leave its
-files alone, and follow Step 3.5 of `agents/story-executor-agent.md` instead. Everything below applies
-to tasks without the attribute.
-
-A failed agent leaves partially-applied edits in the shared working directory. **Before re-spawning
-the task, put its files back the way they were.** For that task's `<files>` only:
+A failed agent leaves partially-applied edits in the shared working directory. **Before the job is
+started again, put its files back the way they were.** For the story's own paths that the failed
+attempt changed (found with the comparison above), and only those:
 
 ```bash
-git checkout -- <that task's tracked files>     # revert modifications
+node "<skill-dir>/bin/worktree.js" git -- [-C "<feature-worktree>"] restore --worktree -- <the tracked paths>
 ```
 
-and delete any untracked files that task created. Because the overlap check guarantees waves are
-file-disjoint, this can never touch another task's work — but restore **only** that task's declared
-files, never a blanket `git checkout .` or `git stash`, which would destroy sibling agents' in-flight
-work.
+(Revert modifications; `-C` names the Feature worktree in a Feature, a standalone run leaves it out.
+`<skill-dir>` is the /implement skill folder, `.claude/skills/implement` in an installed project.)
+
+and delete any untracked files that attempt created. **Never put back a test file the red step
+recorded as evidence**, and never use a blanket `git checkout .` or `git stash`, which would destroy
+work that is not this story's.
+
+The same holds for a **stuck** story: its own paths, new ones included, go back to `HEAD` in the index
+and the tree before the next story starts (`skills/implement/SKILL.md`, **Stuck stories**).
 
 Three reasons this is not optional:
 
 1. **The retry gets a fair attempt.** A retry agent reading half-modified files has no way to know the
-   damage is wreckage rather than existing code, so it works *around* it — producing a task that
+   damage is wreckage rather than existing code, so it works *around* it — producing a result that
    eventually passes while leaving dead half-code behind.
 2. **The 3-attempt rule becomes meaningful.** Without a restore, attempt 3 is debugging attempts 1 and
-   2 as much as the task, and what reaches `/debug` is three failures layered together.
-3. **Nothing broken leaks into the branch.** If the run stops, a failed task's fragments sit in the
-   working directory beside the passing tasks' work and have to be picked out of the diff by hand.
+   2 as much as the story, and what reaches `/debug` is three failures layered together.
+3. **Nothing broken leaks into the branch.** If the run stops, a failed attempt's fragments sit in the
+   working directory beside the good work and have to be picked out of the diff by hand.
 
 This restores the one genuinely useful property worktrees had — a failed attempt vanishing instead of
-accumulating — without the part that broke dependent waves.
+accumulating — without the part that broke later steps.
 
 ---
 
@@ -207,6 +148,14 @@ foreign work when the tree is dirty **and** any of these hold:
   `updated` timestamp;
 - another story's `tasks/stories/<other-id>/phase.md` is fresh (see `rules/phase-markers.md` — freshness
   comes from `updated`, never from the file merely existing).
+
+A marker with a `feature:` key is a Feature run in its own worktree, not foreign work here: such a run
+writes only `tasks/` in this folder, and paths under `tasks/` are not counted as dirty for this check.
+The same Feature open in two sessions is a different check, the claim (`feature-state.js claim`,
+ADR-0006). A standalone run still builds in the folder it runs in, so the bullets above hold for it, and
+it asks one more thing first: `feature-state.js live --feature <fid>` for each Feature in `tasks/features/`;
+any that prints `live` means a Feature session is open in this home folder, and the run asks before it
+checks out a branch here (`skills/implement/SKILL.md`, "Before you start"; not self-answerable).
 
 **Show what was found and ask** — do not refuse outright and do not proceed silently. Dirty state is
 often the human's own scratch work, so the decision is theirs:
@@ -233,9 +182,8 @@ run's uncommitted work, which fails the reversibility test. An autonomous run **
 
 ## One-line pattern for skills
 
-> Wave agents run in the orchestrator's working directory with **no** `isolation` — check the branch
-> hasn't drifted and that no two tasks in the wave share a file (`<files>` vs `<files>` **and**
-> `<read_first>` vs `<files>`) before launching; after the wave, check the branch again and that
-> nothing changed outside the wave's declared files; on task failure, restore that task's files before
+> Build agents run in the orchestrator's working directory with **no** `isolation` — check the branch
+> hasn't drifted before every story; compare changes against the run's starting tree, never a clean
+> one, and commit only the story's own paths; on a failed attempt, restore that attempt's files before
 > retrying. At startup, if the tree is dirty with another story's work, show it and ask
 > (`rules/wave-execution.md`).

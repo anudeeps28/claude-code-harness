@@ -39,7 +39,7 @@ const REQUIRED = readRequired();
 test('readRequired_ListsTheAgentsSkillsAndScriptsImplementNames', () => {
   const names = REQUIRED.map((r) => `${r.kind}:${r.name}`);
   for (const expected of [
-    'agent:story-understand-agent', 'agent:implement-planner-agent', 'agent:story-executor-agent',
+    'agent:story-understand-agent', 'agent:implement-planner-agent', 'agent:story-builder',
     'agent:evaluator-agent', 'agent:story-pr-agent', 'skill:local-test', 'skill:debug',
     'tracker-script:get-issue.sh',
   ]) {

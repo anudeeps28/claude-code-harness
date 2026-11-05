@@ -8,58 +8,46 @@
 
 ## Decisions
 
-[Key technical decisions made during planning — these are the contracts the executor must honor]
+[Key technical decisions made during planning — these are the contracts the builders must honor]
 
 - **Approach:** [what approach was chosen and why]
 - **Not doing:** [what was explicitly scoped out]
 
-## Task Plan
+## Demo
+Seen through: [screenshot, api, database, test, log, person]
+1. [where you look, and exactly what you see there]
 
-```xml
-<tasks story="STORY_ID">
+## Probes
+- Build the probe: [entry]
 
-  <task id="1" parallel_group="1" type="auto">
-    <name>Task name</name>
-    <files>src/File1.cs, src/File2.cs</files>
-    <action>Precise implementation instruction...</action>
-    <verify>dotnet build src/Project/Project.csproj</verify>
-    <done>Measurable success criteria</done>
-  </task>
+## Story #STORY_ID — [title]
 
-  <!-- Test-first (--tdd, and always for bug fixes): each behaviour slice is ordered
-       empty shell -> failing test -> real code, as three separate tasks in three
-       consecutive waves. A bug fix has no shell step. The test task carries
-       must_fail="true", runs alone in its wave, and passes only when the test fails
-       on an assertion. The implementation task reads the test via <read_first> and
-       must never list it in <files>. See rules/test-philosophy.md. -->
+**Files:**
+- [path] — [create or modify, and what for]
 
-  <task id="2" parallel_group="2" type="test" must_fail="true">
-    <name>Failing test for the behaviour</name>
-    <read_first>src/File1.cs</read_first>
-    <files>tests/Project.Tests/File1Tests.cs</files>
-    <action>Assert a concrete value the empty shell cannot return — never null, empty or zero.</action>
-    <verify>dotnet build tests/Project.Tests/Project.Tests.csproj &amp;&amp; dotnet test tests/Project.Tests/Project.Tests.csproj --filter "FullyQualifiedName~TheTestName"</verify>
-    <done>Exactly one test ran, it was this one, and it failed on the assertion — not a compile error, not skipped.</done>
-  </task>
+**Tests to write first:**
+- AC1 → [test name]: [the assertion it fails on before the code exists]
 
-  <!-- more tasks -->
+**Acceptance criteria and their proofs:**
+1. [source requirement line, verbatim, or your own criterion]
+   - Proof: [unit | integration | e2e | ui-automation | graded-eval | sign-off] — [the exact test or check]
+   - Seen by: [how the real result is seen]
+   - Would lie if: [what would let this proof pass while the criterion is unmet]
 
-</tasks>
-```
+**Source requirements:**
+Source: [path of the source document, or "none"]
+- [id] [the line, verbatim]
 
-## Wave Summary
+**Commands:**
+- [the build command, and the scoped test command for this story]
 
-| Wave | Task IDs | Names | Type | Dependencies |
-|---|---|---|---|---|
-| 1 | 1, 2 | "...", "..." | auto, auto | None |
-| 2 | 3 | "..." | auto | Wave 1 must pass |
+**Open questions:**
+1. [question] — Recommended: [answer, and why in one line]
 
-## Rationale
-
-| Task | Why this order | Why this grouping |
-|---|---|---|
-| 1 | [reason] | [why it can run in parallel with task 2] |
+<!-- One story section, no task XML. Every story is test first: the story loop writes the tests
+     from the criteria, sees them fail, then writes the code (see skills/implement/SKILL.md,
+     "The story loop", and rules/test-philosophy.md). A bug's first test reproduces the bug. -->
 
 ## Corrections from YOUR_NAME
 
-[filled in after STOP 2 — any changes to the plan requested during review]
+[filled in after the plan gate — any changes to the plan requested during review]

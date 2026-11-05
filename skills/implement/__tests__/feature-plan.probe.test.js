@@ -70,11 +70,13 @@ test('FeaturePlan_UnderstandAndPlannerOncePerFeatureOnOpus', () => {
 
 const PARTS = ['Files', 'Tests to write first', 'Acceptance criteria and their proofs', 'Source requirements', 'Commands', 'Open questions'];
 const hasAllParts = (t) => PARTS.every((p) => t.includes(`**${p}:**`));
-const noTaskXml = (t) => /\bno `?<task>`?/i.test(flat(t)) || /\bno <task> (xml|blocks?)/i.test(flat(t)) || /never[^.]*`?<task>`?/i.test(flat(t));
+const noTaskXml = (t) => /\bno task XML\b/i.test(flat(t)) || /\bno `?<task>`?/i.test(flat(t)) || /\bno <task> (xml|blocks?)/i.test(flat(t)) || /never[^.]*`?<task>`?/i.test(flat(t));
 
 test('FeaturePlan_PlanHoldsTheFivePartsPerStory', () => {
-  const mode = section(PLANNER, '## Feature-plan mode') || section(PLANNER, '### Feature-plan mode');
-  assert.ok(mode, 'AC2: agents/implement-planner-agent.md must have a "Feature-plan mode" section');
+  // F73 #83: "Feature-plan mode" became "Plan format", used for a Feature (many story sections) and
+  // for a single story (one section).
+  const mode = section(PLANNER, '## Plan format') || section(PLANNER, '## Feature-plan mode') || section(PLANNER, '### Feature-plan mode');
+  assert.ok(mode, 'AC2: agents/implement-planner-agent.md must have a "Plan format" (formerly "Feature-plan mode") section');
 
   const plantedMissing = '## Story #<sid>\n**Files:**\n**Tests to write first:**\n**Commands:**\nWrite a `<task>` block per story.';
   assert.ok(!hasAllParts(plantedMissing), 'planted section lacking proofs/source/questions must be rejected');
@@ -152,7 +154,8 @@ test('FeaturePlan_NoPlannerAfterTheGate', () => {
     section(SKILL, "### The Feature's PR"),
   ];
   assert.ok(afterGate.every(Boolean), 'companion: every Feature-mode section after the plan gate exists, from Before the first story to The Feature\'s PR');
-  const runText = afterGate.join('\n');
+  // F73 #83: the story steps moved to "## The story loop"; it is read too once it exists.
+  const runText = [...afterGate, section(SKILL, '## The story loop') || ''].join('\n');
   assert.ok(/node "<skill-dir>\/bin\/worktree\.js" feature/.test(runText), 'companion: the slice really holds Run the stories');
 
   const others = ['story-builder.md', 'story-reviewer.md', 'suite-runner.md'].map((f) => read('agents', f));

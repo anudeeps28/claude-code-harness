@@ -11,9 +11,11 @@ This file teaches the AI harness (Claude Code, Cursor, Aider, Cline, Continue, e
 
 ## Core Principle
 
-**1 worktree = 1 folder = 1 branch = 1 AI terminal context.**
+**1 worktree = 1 folder = 1 branch = 1 AI terminal context.** For a Feature run this reads: **one Feature = one worktree = one branch = one session** (ADR-0006).
 
-The home folder is pinned to `main` (or the project's default branch). Every feature, fix, or PR-review lives in its own sibling folder named `<repo>-<short-name>`. Each worktree gets its own AI terminal — no stash/checkout dance, no cross-contamination between in-flight work.
+A Feature session runs from the home folder (as the factory's `work-feature` runs from its clone), never edits code there, and writes only its own `tasks/` folders, so several Feature sessions may share the home folder. A standalone run builds in the folder it runs in, so it is still one per folder.
+
+The home folder is pinned to `main` (or the project's default branch). Every feature, fix, or PR-review lives in its own sibling folder named `<repo>-<short-name>`. A standalone branch's worktree gets its own terminal; a Feature worktree is driven from a session in the home folder and has no terminal of its own. Either way: no stash/checkout dance, no cross-contamination between in-flight work.
 
 ---
 
@@ -67,7 +69,7 @@ git worktree add <sibling-path> <existing-branch-name>
 **After creating, do these steps in the new folder:**
 1. Copy gitignored config files from the home folder (the list lives in `tasks/lessons.md` under "Worktree setup" — if that section is absent, ask the user).
 2. Run package restore so the project builds. The exact commands also live in `tasks/lessons.md` (e.g., `npm install`, `dotnet restore`, `pip install -r requirements.txt`, `go mod download`, `bundle install`). If `lessons.md` doesn't list them, ask the user once and then add the answer to `lessons.md`.
-3. The user opens a NEW AI terminal in the new folder — that terminal becomes the dedicated context for this branch.
+3. For a standalone branch, the user opens a NEW AI terminal in the new folder — that terminal becomes the dedicated context for this branch. A Feature worktree (made by `/implement <fid>`) gets none: its session stays in the home folder.
 
 ---
 
@@ -81,10 +83,23 @@ After the standard `git fetch --prune` at session start:
    git ls-remote --exit-code --heads origin <branch>
    ```
    Exit code 2 (or non-zero) means the branch is gone from origin — typically because the PR merged and the source branch was deleted.
-3. For each worktree whose remote branch is gone, prompt the user:
+3. **Skip a Feature worktree that is being built right now.** A Feature's branch is pushed only when its PR
+   is opened, so "gone from origin" is the normal state of a live one. For a worktree named
+   `<repo>-f<fid>` on a branch `feature/<fid>-…` (or its `<repo>-f<fid>-prove` scratch copy), run
+   `node "<skill-dir>/bin/feature-state.js" live --feature <fid>` against the home folder (it reads `tasks/features/<fid>/`).
+   `<skill-dir>` is the /implement skill folder, `.claude/skills/implement` in an installed project.
+   When it prints `live` (activity within 30 minutes), say "Worktree `<path>`: Feature <fid> is in progress in another session, left alone",
+   and go to the next one. It is never offered for removal while it is live. A Feature that is not live
+   (it printed `idle`) is offered like any other worktree below.
+4. For each remaining worktree whose remote branch is gone, prompt the user:
    > "Worktree `<path>` is on branch `<name>` which no longer exists on origin (likely merged). Remove it? [y/n]"
-4. On `y`: run `git worktree remove <path>` then `git branch -d <name>`.
-5. On `n`: leave it — ask again next session.
+
+   When it is a Feature worktree whose `tasks/features/<fid>/progress.log` has no `event=pr-opened` line (its
+   PR was never opened, so the branch was never pushed and removing it loses the only copy of its commits), say
+   "unfinished Feature, idle <n>m" in the question, with the `<n>` that `live` printed; when `live` printed
+   "no activity recorded" instead (no `<n>`), say "unfinished Feature, no activity recorded".
+5. On `y`: run `git worktree remove <path>` then `git branch -d <name>`.
+6. On `n`: leave it — ask again next session.
 
 **Never use `--force`.** If the worktree has uncommitted changes, git refuses to remove it. Surface that error and let the user decide; do not bypass.
 
@@ -124,7 +139,7 @@ confirmation: the person approved it when they approved the Feature plan (ADR-00
   folder**, ADR-0004).
 
 It is a sibling of the home folder, never nested in it, and the session-start cleanup above applies to
-it like any other worktree. Parallel work is one worktree per Feature, never per story.
+it like any other worktree. Parallel work is one worktree per Feature, never per story. A second session on the same Feature is refused (`feature-state.js claim`, ADR-0006).
 
 ---
 

@@ -86,7 +86,7 @@ When adding gates to a new skill, classify each one in your SKILL.md so reviewer
 - Reference `tasks/lessons.md` for project-specific conventions — don't hardcode stack-specific patterns
 - Read test commands from the "Test Commands" section of `tasks/lessons.md` — never hardcode test runners like `dotnet test` or `npm test`
 - If the skill spawns agents, list which agents and in what order
-- If the skill produces code, it must gate progress on `<verify>` commands that include tests — not just builds
+- If the skill produces code, it must gate progress on the story's test command, which includes tests — not just builds
 
 ---
 
@@ -114,8 +114,8 @@ Your agent instructions here...
 - End with a structured output format so the orchestrating skill can parse results
 - Include a `## Hard rules` section at the bottom
 - Don't hardcode stack-specific conventions — reference `tasks/lessons.md`
-- **Planning agents** (agents that produce execution plans): must output a test strategy with acceptance criteria, integration scenarios, and regression guardrails. Must include `type="test"` tasks. Verify commands must include running tests. Under `--tdd` — and always for bug fixes — the test task carries `must_fail="true"` and is planned in the wave **before** the code it tests; see `rules/test-philosophy.md`.
-- **Executor agents** (agents that write code): must run `<verify>` which includes tests, not just builds
+- **Planning agents** (agents that produce plans): must output, per story, the acceptance criteria with their proofs, the tests to write first and the build and test commands, which must include running tests. Every story is test first; see `rules/test-philosophy.md`.
+- **Builder agents** (agents that write code): run the story's tests, not just a build, and never edit a test they were told to turn green
 
 ---
 
@@ -131,20 +131,21 @@ Your agent instructions here...
 
 ## Changing test-first (`--tdd`) behaviour
 
-Nothing in this repo parses the task XML, so `--tdd` lives entirely in instruction prose spread over
-twelve files. Two files disagreeing does not throw — it makes Claude pick one, and the mode works on
-some runs and not others. So:
+Every story is test first, built by the story loop in `skills/implement/SKILL.md` (`--tdd` is kept and
+changes nothing). The order lives entirely in instruction prose spread over several files: the skill,
+the planner, `agents/story-builder.md`, `agents/suite-runner.md`, `rules/test-philosophy.md` and
+`skills/implement/reference/test-rules.md`. Two files disagreeing does not throw — it makes Claude pick
+one, and the loop works on some runs and not others. So:
 
-1. **Change the probe first.** `skills/implement/__tests__/tdd-mode.probe.test.js` encodes the
-   decisions in `tasks/tdd/findings.md` section 10. Edit it, watch it fail, then change the files.
-2. **Keep every file in step.** The probe lists which ones. Qualify the default-path rules rather
-   than deleting them — runs without `--tdd` still need them.
-3. **Re-run the rig if you touched the executor contract.** `node scripts/tdd-rig.js <dir>` outside
-   this repo, then `node traps/run-traps.js` inside it. That proves the signals the executor is told
-   to look for genuinely appear in real `dotnet test` output. Free — no agents.
-4. **Layer B before shipping.** Install the harness into the rig and actually run
-   `/implement --tdd 1` and `/implement 2`. This costs real agent time, so it is a pre-ship step, not
-   a per-commit one — but nothing else proves an agent reads the prose the way it was meant.
+1. **Change the probes first.** `skills/implement/__tests__/one-loop.probe.test.js` pins the loop's
+   order and `tdd-mode.probe.test.js` the guarantees it keeps (a bug is test first, the red is
+   recorded, a fix after the build is test first). Edit them, watch them fail, then change the files.
+2. **Keep every file in step.** The probes list which ones.
+3. **`bin/red-evidence.js` is the one mechanical check.** Its tests (`red-evidence.test.js`) prove it
+   rejects a compile error and a test that never ran; run them when you touch the red-evidence format.
+4. **Run the loop on a throwaway project before shipping.** Install the harness into one and run
+   `/implement <bug> --standalone`. This costs real agent time, so it is a pre-ship step, not a
+   per-commit one — but nothing else proves an agent reads the prose the way it was meant.
 
 ---
 
@@ -161,17 +162,21 @@ some runs and not others. So:
 
 ### Agents with `bypassPermissions`
 
-Two agents run with `permissionMode: bypassPermissions`: `story-executor-agent` and `babysit-pr-fixer`. This means their tool calls execute without user approval prompts.
+Two agents run with `permissionMode: bypassPermissions`: `babysit-pr-fixer` and `sprint-plan-tracker-reader`. This means their tool calls execute without user approval prompts.
 
-**Why:** These agents run inside `/implement` and `/babysit-pr` loops where the user has already approved the plan at a gate checkpoint. Prompting for every Edit/Write/Bash call would make execution painfully slow.
+**Why:** These agents run inside `/babysit-pr` and `/sprint-plan` loops where the user has already approved the work at a gate checkpoint. Prompting for every Edit/Write/Bash call would make execution painfully slow.
 
-**Risk:** A poorly written `<action>` or fix description could cause the agent to modify files outside the intended scope. The safety hook (`safety-check.js`) blocks destructive Bash commands and Writes that look like hardcoded secrets, but direct `Edit` calls are not intercepted by hooks.
+**Risk:** A poorly written fix description could cause the agent to modify files outside the intended scope. The safety hook (`safety-check.js`) blocks destructive Bash commands and Writes that look like hardcoded secrets, but direct `Edit` calls are not intercepted by hooks.
 
-**Guardrails:** Both agents have explicit scope constraints in their instructions:
-- Only modify files listed in the task/fix input
-- Only run build/test commands (no arbitrary Bash)
-- No access outside the project root
-- No package installs, config changes, or infrastructure modifications
+**Guardrails:** The two agents are held differently.
+- `babysit-pr-fixer` has explicit scope constraints in its instructions:
+  - Only modify files listed in the task/fix input
+  - Only run build/test commands (no arbitrary Bash)
+  - No access outside the project root
+  - No package installs, config changes, or infrastructure modifications
+- `sprint-plan-tracker-reader` is limited by its instructions, not by its tools: it has `Bash` and `Read`
+  (and `bypassPermissions`), so Bash could in principle edit; its instructions allow exactly **one** command, the read-only tracker script `get-sprint-issues.sh <sprint number>`,
+  whose output it formats.
 
 **When to use `bypassPermissions` on a new agent:**
 - Only for agents that run inside a human-gated workflow (the user approved a plan before the agent executes)

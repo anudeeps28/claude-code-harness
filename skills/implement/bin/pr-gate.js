@@ -9,7 +9,7 @@
 // Reads:
 //   tasks/features/<fid>/feature-state.md      which stories are committed
 //   tasks/features/<fid>/plan.md               each committed story's criteria, from its "## Story #<sid>" section, as <sid>.<n>
-//   tasks/stories/<sid>/test-strategy.md       the same, for a story with no section in the Feature plan
+//                                              (a committed story with no section is refused by name)
 //   tasks/features/<fid>/test-strategy.md      Feature-level and carried-over criteria, as F.<n> (optional)
 //   tasks/features/<fid>/prove-it.md           the "## Gate" list Prove it wrote, one line per criterion:
 //       - <ref>: met | partly | not-met | needs-person | deferred #<id>  [; broke: red|green|n/a]  [— <note>]
@@ -83,14 +83,14 @@ function gate(root, fid, trackerDir) {
   const dir = path.join(root, 'tasks', 'features', fid);
   const planFile = path.join(dir, 'plan.md');
   const sections = fs.existsSync(planFile) ? storySections(fs.readFileSync(planFile, 'utf8')) : [];
-  // A story's criteria come from its section of the Feature plan when there is one; standalone and
-  // older runs fall back to the story's own test-strategy.md.
+  // A story's criteria come from its section of the Feature plan, and nowhere else: a committed story
+  // with no section is refused by name (there is no per-story test-strategy.md to fall back on).
   const lines = [];
   let bad = 0;
   const refuse = (l) => { lines.push(`refused: ${l}`); bad++; };
   const storyCriteria = (s) => {
     const sec = sections.find((x) => x.sid === s.id);
-    if (!sec) return criteriaOf(path.join(root, 'tasks', 'stories', s.id, 'test-strategy.md'), s.id);
+    if (!sec) { refuse(`story ${s.id} is committed but the Feature plan has no "## Story #${s.id}" section`); return []; }
     const list = (parseCriteria(sec.text) || []).map((c) => ({ ref: `${s.id}.${c.n}`, text: c.text }));
     if (!list.length) refuse(`no criteria for story ${s.id}`);
     return list;

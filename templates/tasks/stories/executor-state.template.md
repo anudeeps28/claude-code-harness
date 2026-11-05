@@ -1,46 +1,26 @@
-# Executor State — Story #STORY_ID
+# Executor state — story STORY_ID
 
-**Updated by:** story orchestrator (Phase 3, after each wave)
-**Last updated:** YYYY-MM-DD HH:MM
+run-mode: interactive
+skill: implement
+flags: [the flags this run was started with]
+branch: implement/STORY_ID
+base: [git rev-parse HEAD when the build began]
+step: tests
+updated: YYYY-MM-DDTHH:MM:SSZ
 
----
+<!-- `step` is the step in flight, the one `/implement --resume` starts again: understand, goal, plan,
+     tests, red, code, green, review, commit, local-test, panel, e2e-gate, pr, and done once the PR
+     is open. While `step` is review,
+     a `round: <n>` line says which review round (1 to 5). There is no per-task table: the story is
+     the unit. The orchestrator overwrites the header at every step boundary. -->
 
-## Progress
+## Red evidence
 
-| Task | Name | Wave | Attempts | Status | Summary |
-|---|---|---|---|---|---|
-| 1 | "..." | 1 | 1 | ✅ PASS | [one-line what changed] |
-| 2 | "..." | 1 | 2 | ✅ PASS | [passed on retry — first attempt had X error] |
-| 3 | "..." | 2 | 3 | ❌ ESCALATED | [3-attempt rule — sent to /debug] |
-| 4 | "..." | 2 | 0 | ⏳ PENDING | [not yet started] |
-| 5 | "..." | 3 | 1 | ⚠️ BLOCKED | [waiting on YOUR_INFRA_PERSON for X] |
+- [test name] | AC1 | [verbatim failure line from the test runner] | shape: assertion
 
-## Wave Log
+## Red files
 
-### Wave 1 — completed YYYY-MM-DD HH:MM
-- Task 1: PASS (attempt 1)
-- Task 2: FAIL (attempt 1 — missing using statement), PASS (attempt 2)
+<!-- The red set (the tests and any stub the tests builder wrote), saved at the red step: one path per
+     line. A resume at `code` restores nothing listed here. -->
 
-### Wave 2 — completed YYYY-MM-DD HH:MM
-- Task 3: FAIL (attempt 1 — null ref), FAIL (attempt 2 — wrong interface), FAIL (attempt 3 — same null ref) → ESCALATED to /debug
-- Task 4: PASS (attempt 1)
-
-### Wave 3 — in progress
-- Task 5: BLOCKED — waiting on DBA to run migration script
-
-## Debug Escalations
-
-### Task 3 — escalated YYYY-MM-DD HH:MM
-**Root cause (from /debug):** [what debug-agent found]
-**Chosen approach:** [which of the 2-3 approaches was picked]
-**Result:** [resolved / still blocked]
-
-## Local Test Result
-
-**Phase 3.5:** [NOT RUN / ✅ PASS / ❌ FAIL]
-**Command:** `/local-test 2`
-**Output summary:** [build OK, N tests passed, M failed]
-
-## Blockers
-
-- [list anything waiting on external action, with who and what]
+- [path/to/test-or-stub-file]

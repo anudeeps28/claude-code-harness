@@ -22,6 +22,8 @@ You receive:
 - **Source requirements** (optional) — the ticket or brief holding `## Source requirements`: the lines
   of the source document the work was traced to. They outrank the plan: a plan that dropped or
   narrowed one is itself a finding
+- **Goal** (optional) — where the story's Goal (e2e modality, concrete gate, observability) is written: a standalone story's `tasks/stories/<id>/brief.md` under "Goal", or a Feature's `<state folder>/features/<fid>/test-strategy.md`
+- **Test lock** (optional) — a `Test lock:` prefix, given under `verify-lock: global`. Run every build, test and Observe command with it in front (`<prefix> <command>`). A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the lock's owner. A compound command (`a && b`) is not wrapped by it: wrap each command on its own. Never wrap a long-running start command (the app's "Start the app"): it would hold the lock for the server's life. Start the app outside the lock and wrap each build, test and E2E command that uses it.
 - **Scope** — "full" (default) or "quick" (skip Steps 4-5, only run hard gates)
 - **Part** (optional, Feature panel only) — the panel runs you three times, on two models, one call per
   dimension (the factory's branch-reviewer dimensions): what is a list goes on the faster model, what
@@ -47,7 +49,7 @@ git log --oneline -5
 
 Read the full diff. Understand every file changed, every line added/removed. Count the scope: how many files, how many lines.
 
-If a plan path was provided, read it now. This is the contract — what the executor was told to build.
+If a plan path was provided, read it now. This is the contract — what the builder was told to build.
 
 If source requirements were provided, read them too. They are the contract **above** the plan: check
 the diff against each line as written. A line the diff does not deliver in full — dropped, narrowed to
@@ -126,7 +128,7 @@ Check whether the new/changed code has adequate test coverage:
 1. **Identify what was added/changed** — from the git diff, list every new public method, endpoint, class, or behavior.
 2. **Search for corresponding tests** — for each new/changed item, search the test directories for a test that exercises it. Use filename patterns, class names, and method names to find matches.
 3. **Check test quality** — for each test found, read it. Does it test the actual behavior (not just that the method exists)? Does it cover the happy path AND at least one edge case?
-4. **Check the test strategy + goal** — if a test strategy file exists (`tasks/stories/<id>/test-strategy.md`), verify it defines a **Goal** (an e2e modality + concrete gate) and an **observability plan**, and that each acceptance criterion has a corresponding check (the criteria ARE the e2e gate — one unified list). For a structured-human-acceptance modality (no machine oracle), a criterion without an automated test is expected — flag only that its evidence must be surfaced for sign-off, not as a coverage gap.
+4. **Check the test strategy + goal** — read the **Goal** from where it lives, never from the plan: for a standalone story `tasks/stories/<id>/brief.md` under its "Goal" heading, for a Feature `<state folder>/features/<fid>/test-strategy.md` (the path is in your brief). Verify it defines a **Goal** (an e2e modality + concrete gate) and an **observability plan**, and that each acceptance criterion has a corresponding check (the criteria ARE the e2e gate — one unified list). For a structured-human-acceptance modality (no machine oracle), a criterion without an automated test is expected — flag only that its evidence must be surfaced for sign-off, not as a coverage gap.
 
 Rate overall test coverage:
 - **GOOD** — New code has tests, tests cover behavior, acceptance criteria are tested
@@ -159,7 +161,7 @@ Read every changed file in full. For each change, actively try to find:
 - Edge cases: empty collections, zero values, max-length strings
 
 ### Completeness (confidence-scored, 0-100)
-- Scope reduction: code contains "TODO", "placeholder", "hardcoded for now", "static for now", "will wire later", "v1 only", "simplified", "future enhancement", "minimal implementation" — these indicate the executor silently reduced scope instead of implementing the full requirement
+- Scope reduction: code contains "TODO", "placeholder", "hardcoded for now", "static for now", "will wire later", "v1 only", "simplified", "future enhancement", "minimal implementation" — these indicate the builder silently reduced scope instead of implementing the full requirement
 - Hollow implementations: files exist but contain stub/empty logic (empty method bodies, hardcoded return values, components that render static text instead of real data)
 - Unwired code: new files/classes created but never imported or called by any consumer
 - Missing data flow: components exist but no real data flows through them (hardcoded props, mocked data left in production code)
@@ -332,7 +334,7 @@ panel judges the whole. Without a part, this summary is unchanged.
 - **Never downplay failures.** If the build is broken, say it's broken. Don't suggest "it might work anyway."
 - **Report every finding >= 50% confidence.** Don't self-censor. Let the human decide what matters.
 - **Be specific.** File names, line numbers, method names. "There might be a security issue" is useless. "`UserController.cs:47` — `groupNumber` parameter concatenated into SQL string" is useful.
-- **Don't argue with the plan.** If the plan says "build X" and the executor built X correctly, that's a PASS on plan compliance — even if you think Y would have been better. Scope creep checks are about unauthorized changes, not design disagreements.
+- **Don't argue with the plan.** If the plan says "build X" and the builder built X correctly, that's a PASS on plan compliance — even if you think Y would have been better. Scope creep checks are about unauthorized changes, not design disagreements.
 - **Dead code and complexity are findings, not taste.** Report every one with its file and line; the orchestrator decides what to fix.
 - **With a part given, do only that part.** A `made-false` call that also runs the build wastes the default model on a list; a `dead-code` or `complexity` call that argues about docs does it on the faster one.
 - **No commentary outside the structured report.** Output the report template above and nothing else.

@@ -49,7 +49,7 @@ Read these in **parallel** (use the Read tool with multiple calls in one message
    - The "Decisions" column (fix/skip per finding)
    - **Skip stories whose evaluation.md doesn't exist** — they're in-progress, not signal.
 
-5. **Story executor states** — for each story above, also read `tasks/stories/<id>/executor-state.md` "Local Test Result" section. This carries the acceptance verdict (the acceptance-test-agent doesn't write its own file).
+5. **Story executor states** — for each story above, also read `tasks/stories/<id>/acceptance.md`, where `/implement` saves the acceptance-test-agent's report (the acceptance verdict), and the `step:` and `## Red evidence` in `tasks/stories/<id>/executor-state.md` (how far the run got, and the recorded reds). Skip a story whose `acceptance.md` does not exist.
 
 If `tasks/` doesn't exist or `sessions.jsonl` is empty, output `✅ Nothing to analyze yet — no session history.` and stop.
 
@@ -69,7 +69,7 @@ Group `sessions.jsonl` entries by `story_id`. If any story_id appears ≥ 3 time
 
 Across all evaluation.md files in the window, group adversarial findings by Category column. If any category appears in ≥ 2 different stories → flag.
 
-**Hypothesis:** the executor keeps producing the same class of bug; the evaluator catches it but the planner doesn't prevent it. **Proposal target:** add a rule under `rules/` (e.g. `rules/code-style.md` for style issues, `rules/security.md` for security), or extend the executor's prompt in `agents/story-executor-agent.md` to pre-empt the class.
+**Hypothesis:** the builder keeps producing the same class of bug; the evaluator catches it but the planner doesn't prevent it. **Proposal target:** add a rule under `rules/` (e.g. `rules/code-style.md` for style issues, `rules/security.md` for security), or extend the builder's prompt in `agents/story-builder.md` to pre-empt the class.
 
 ### Pattern 3 — Persistent blocker
 
@@ -245,7 +245,7 @@ TRACKER_ITEM_TYPE=Task bash trackers/active/create-issue.sh "<title>" "<body>" "
 ```markdown
 ## Agent Feedback
 
-- **Skill or agent:** [e.g., story-executor-agent, evaluator-agent]
+- **Skill or agent:** [e.g., story-builder, evaluator-agent]
 - **Work item:** [story ID or "N/A" if pattern is cross-story]
 - **What happened:** [observed behavior — cite evidence from evaluation.md or executor-state.md]
 - **What should have happened:** [expected behavior per the skill/agent spec]

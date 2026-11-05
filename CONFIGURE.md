@@ -264,7 +264,7 @@ tasks/
 | `/implement 40` on a **Feature** | every story, one after another, in one Feature worktree (`<repo>-f40`) on the Feature branch, then one review panel, Prove it, and one PR from `feature/40-<slug>` |
 | `/implement 42` on a story or bug **with** a parent Feature | asks whether you meant the Feature |
 | `/implement 42 --standalone` on a story or bug **without** one | that one item, on its own branch |
-| `/implement --resume <id>` | carries on a stopped run from its saved state — a story, a Feature, or a plan `/troubleshoot` wrote |
+| `/implement --resume <id>` | carries on a stopped run from its saved step — a story or a Feature |
 
 Every build stops once, at its **plan gate** — the plan, how each requirement line of the source
 document is covered, and every open question with a recommended answer — then runs straight to the
@@ -279,8 +279,9 @@ Four sections of `tasks/lessons.md` (`tasks/notes.md` on the solo pack) drive it
   read-only API and database, the *names* of their credential variables (never the values), and the
   e2e command. `/implement` checks the item's Demo against it before planning.
 - **Feature runs** — `worktree-size-gb` (default 3, used for the disk check: the Feature
-  worktree plus the Prove-it copy) and `verify-lock` (`global` when worktrees share a port, database
-  or cache). Stories run one at a time, so there is no width setting.
+  worktree plus the Prove-it copy) and `verify-lock` (default per-story, no lock; `global` if Features
+  running side by side share a port, a database, Docker or a global cache). Stories run one at a time,
+  so there is no width setting.
 - **Worktree setup** — the gitignored files each new worktree needs, and its restore commands.
 
 On the **enterprise** pack (`workflowPack: enterprise` in `.claude/.harness-manifest.json`),

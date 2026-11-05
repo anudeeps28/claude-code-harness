@@ -37,7 +37,7 @@ Run these checks (in parallel):
 
 3. **Plan file**: Read the "In Progress" and "Up Next" sections.
 
-4. **Todo file**: Read the "In Progress", "Up Next" sections AND any `<tasks>` XML blocks (check which are partially complete — have some `✅` but not all).
+4. **Todo file**: Read the "In Progress" and "Up Next" sections. For a story with a saved run, read the saved `step:` in `tasks/stories/<id>/executor-state.md` to see how far it got.
 
 ---
 

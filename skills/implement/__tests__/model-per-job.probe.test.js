@@ -80,9 +80,10 @@ const BUILT_IN = new Set(['Explore']);
 const JUDGEMENT = new Set([
   'story-understand-agent', 'implement-planner-agent', 'Explore', 'security-reviewer-agent',
   'architect-reviewer-agent', 'acceptance-test-agent', 'evaluator-agent', 'coverage-auditor-agent',
-  'debug-agent', 'prover', 'troubleshoot-investigator',
+  'debug-agent', 'prover',
 ]);
-const SONNET_ONLY = ['story-builder', 'suite-runner', 'story-reviewer', 'story-executor-agent', 'loosened-reviewer-agent', 'story-pr-agent'];
+// F73 #83: the executor and the troubleshoot investigator are retired, so neither is listed.
+const SONNET_ONLY = ['story-builder', 'suite-runner', 'story-reviewer', 'loosened-reviewer-agent', 'story-pr-agent'];
 
 // The one exception: the two story agents may run on opus for the last two review rounds only, as a
 // non-default row whose job says "rounds 4–5".
@@ -174,7 +175,7 @@ test('Model_SkillFrontmatterIsSonnet', () => {
 // /implement invokes spawns by name.
 function derivedAgents() {
   const names = new Set(readRequired().filter((r) => r.kind === 'agent').map((r) => r.name));
-  for (const skill of ['debug', 'coverage-audit', 'troubleshoot']) {
+  for (const skill of ['debug', 'coverage-audit']) {
     for (const m of read('skills', skill, 'SKILL.md').matchAll(/Spawn a \*\*`([a-z0-9-]+)`\*\*/g)) names.add(m[1]);
   }
   return names;
@@ -224,7 +225,7 @@ test('Model_EveryAgentCallPassesItsModel', () => {
   const bad = callsWithoutModel(outside, table.rows);
   assert.deepStrictEqual(bad, [], `AC2: every Agent call must pass its model explicitly; these sentences do not: ${bad.join(' // ')}`);
   // The other skills /implement hands off to spawn agents too.
-  for (const skill of ['debug', 'coverage-audit', 'troubleshoot']) {
+  for (const skill of ['debug', 'coverage-audit']) {
     const t = read('skills', skill, 'SKILL.md');
     assert.ok(spawnUnits(t).some((u) => SPAWN_VERB.test(u) && table.rows.some((r) => u.includes('`' + r.agent + '`'))), `companion: skills/${skill}/SKILL.md must spawn a table agent`);
     const b = callsWithoutModel(t, table.rows);
@@ -313,7 +314,7 @@ test('Model_OpusOnlyWhereJudgementIs', () => {
   assert.ok(classifiedExactlyOnce(parseTable(PLANTED_TABLE.replace('story-pr-agent', '`story-pr-agent`')).rows.concat([{ agent: 'brand-new-agent', job: 'x', model: 'opus' }])).includes('brand-new-agent (0 lists)'), 'an agent in no list must be reported');
   assert.deepStrictEqual(classifiedExactlyOnce([{ agent: 'story-builder', job: 'x', model: 'sonnet' }], new Set(['story-builder']), ['story-builder']), ['story-builder (2 lists)'], 'an agent in two lists must be reported');
   assert.deepStrictEqual(classifiedExactlyOnce(rows), [], 'every table agent is in exactly one of the judgement, sonnet-only or haiku lists');
-  assert.ok(sonnetJobsStaySonnet(rows), 'builders, the test runner, reviewers, the loosened reviewer, story-pr and the executor are sonnet; tracker-helper is haiku');
+  assert.ok(sonnetJobsStaySonnet(rows), 'builders, the test runner, reviewers, the loosened reviewer, and story-pr are sonnet; tracker-helper is haiku');
 });
 
 // ── AC4 ───────────────────────────────────────────────────────────────

@@ -144,7 +144,7 @@ Wait 3 minutes after uploading blobs — the Function App needs time to process.
 - Dev server: `dotnet run --project src/YOUR_PROJECT_NAMESPACE.API/YOUR_PROJECT_NAMESPACE.API.csproj --urls http://localhost:5000`
 - Dev server URL: `http://localhost:5000`
 
-**Test filtering (for `<verify>` commands):**
+**Test filtering (for the story's test command):**
 - Run a specific test class: `dotnet test --filter "FullyQualifiedName~ClassName"`
 - Run a specific test: `dotnet test --filter "Name=MethodName"`
 
@@ -155,8 +155,8 @@ Wait 3 minutes after uploading blobs — the Function App needs time to process.
 
 ## Dependency Injection Rules
 
-- `DependencyInjection.cs` files must **always be in their own task** — never combined with other files in the same parallel_group
-- When adding a new service, the DI registration task always runs **after** all the service implementation tasks
+- `DependencyInjection.cs` files are changed **together with the service they register**, in the same story, and the story's tests cover the registration
+- When adding a new service, register it after the service implementation exists, and test that it resolves
 - Use `AddScoped` for services that hold request state, `AddSingleton` for stateless utilities
 
 ---

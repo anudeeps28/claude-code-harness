@@ -1,6 +1,7 @@
-// Tests for skills/implement/bin/resume-point.js (#25): `/implement --resume <id>` reads the saved
-// state and the plan, and says where to re-enter, which tasks are finished, and which half-done
-// tasks must have their files restored first.
+// Tests for skills/implement/bin/resume-point.js (#25, rewritten for F73 #83): `/implement --resume <id>`
+// reads the saved state of a standalone story and says which step of the story loop to re-enter, and
+// at which review round. There are no task statuses and no waves any more: the saved `step:` and
+// `round:` are the whole position.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -11,51 +12,52 @@ const { spawnSync } = require('node:child_process');
 
 const SCRIPT = path.join(__dirname, '..', 'bin', 'resume-point.js');
 
-const PLAN = `# Plan
+// The per-story plan: a Demo and one "## Story #<id>" section.
+const PLAN = `## Demo
+
+Run the app and see the new button.
+
+## Story #7 — Add the button
+
+**Acceptance criteria and their proofs:**
+1. The button shows
+   - Proof: unit — Button_Shows
+   - Seen by: the rendered page
+   - Would lie if: the page is empty
+`;
+
+// What a run before #83 saved: task XML in the plan and a per-task Progress table in the state.
+const LEGACY_PLAN = `# Plan
 
 <tasks story="7">
   <task id="1" parallel_group="1" type="auto">
     <name>One</name>
     <files>src/a.js</files>
   </task>
-  <task id="2" parallel_group="1" type="auto">
-    <name>Two</name>
-    <files>src/b.js</files>
-  </task>
-  <task id="3" parallel_group="2" type="auto">
-    <name>Three</name>
-    <files>src/c.js</files>
-  </task>
-  <task id="4" parallel_group="3" type="auto">
-    <name>Four</name>
-    <read_first>src/c.js</read_first>
-    <files>src/d.js, src/e.js</files>
-  </task>
-  <task id="5" parallel_group="3" type="auto">
-    <name>Five</name>
-    <files>src/f.js</files>
-  </task>
-  <task id="6" parallel_group="4" type="test" must_fail="true">
-    <name>Six</name>
-    <files>test/g.test.js</files>
-  </task>
 </tasks>
 `;
+const LEGACY_STATE = `# Executor state — story 7
 
-function state({ runMode = 'interactive', next = 'wave-3', statuses }) {
-  const rows = statuses.map((s, i) => `| ${i + 1} | "t${i + 1}" | 1 | 1 | ${s} | x |`).join('\n');
-  return `# Executor state — story 7
-
-run-mode: ${runMode}
-step: wave-2
-next: ${next}
+run-mode: interactive
+step: wave-1
+next: wave-2
 updated: 2026-10-05T12:00:00Z
 
 ## Progress
 
 | Task | Name | Wave | Attempts | Status | Summary |
 |---|---|---|---|---|---|
-${rows}
+| 1 | "t1" | 1 | 1 | verified | x |
+`;
+
+function state({ runMode = 'interactive', step, round, branch = 'implement/7' }) {
+  return `# Executor state — story 7
+
+run-mode: ${runMode}
+skill: implement
+branch: ${branch}
+step: ${step}
+${round === undefined ? '' : `round: ${round}\n`}updated: 2026-11-04T12:00:00Z
 `;
 }
 
@@ -78,61 +80,51 @@ function run(root, id = '7') {
   return { code: r.status, out: r.stdout, err: r.stderr, fields };
 }
 
-test('Resume_StoppedAfterTask3Of6_ReentersAtTask4AndSkipsTasks1To3', () => {
-  const stateText = state({ statuses: ['verified', 'verified', 'verified', 'pending', 'pending', 'pending'] });
-  withStory({ stateText }, (root) => {
+test('Resume_StoppedAtRed_NextIsRed', () => {
+  withStory({ stateText: state({ step: 'red' }) }, (root) => {
     const r = run(root);
-    assert.equal(r.code, 0, r.err);
-    assert.equal(r.fields.next, 'wave-3');
-    assert.equal(r.fields.finished, '1, 2, 3');
-    assert.equal(r.fields['to-run'], '4, 5, 6');
-    assert.equal(r.fields.restore, 'none');
+    assert.equal(r.code, 0, r.err + r.out);
+    assert.equal(r.fields.step, 'red');
+    assert.equal(r.fields.next, 'red');
+    assert.equal(r.fields.branch, 'implement/7');
+    // Companion: the per-task lines of the old format are gone.
+    for (const key of ['finished', 'to-run', 'restore', 'keep-as-is', 'reopened']) {
+      assert.equal(r.fields[key], undefined, `no "${key}:" line: tasks and waves are retired`);
+    }
   });
 });
 
-test('Resume_TaskHalfwayThrough_ListsItsDeclaredFilesToRestore', () => {
-  const stateText = state({ statuses: ['done', 'done', 'verified', 'running', 'pending', 'pending'] });
-  withStory({ stateText }, (root) => {
+test('Resume_ReviewRound3_ResumesAtRound3', () => {
+  withStory({ stateText: state({ step: 'review', round: 3 }) }, (root) => {
     const r = run(root);
-    assert.equal(r.code, 0, r.err);
-    assert.equal(r.fields.next, 'wave-3');
-    assert.equal(r.fields.restore, 'task 4: src/d.js, src/e.js');
+    assert.equal(r.code, 0, r.err + r.out);
+    assert.equal(r.fields.next, 'review');
+    assert.equal(r.fields.round, '3');
   });
 });
 
-test('Resume_FailedTask_IsRestoredAndRerun', () => {
-  const stateText = state({ statuses: ['verified', 'verified', 'failed', 'pending', 'pending', 'pending'] });
-  withStory({ stateText }, (root) => {
+test('Resume_ReviewWithNoRoundSaved_StartsAtRound1', () => {
+  withStory({ stateText: state({ step: 'review' }) }, (root) => {
     const r = run(root);
-    assert.equal(r.fields.next, 'wave-2');
-    assert.equal(r.fields.restore, 'task 3: src/c.js');
-    assert.equal(r.fields['to-run'], '3, 4, 5, 6');
+    assert.equal(r.code, 0, r.err + r.out);
+    assert.equal(r.fields.next, 'review');
+    assert.equal(r.fields.round, '1');
   });
 });
 
-test('Resume_HalfDoneMustFailTask_IsNeverRestored', () => {
-  const stateText = state({ statuses: ['verified', 'verified', 'verified', 'verified', 'verified', 'running'] });
-  withStory({ stateText }, (root) => {
+test('Resume_LegacyTaskXmlState_SaysRestartFromThePlan', () => {
+  withStory({ plan: LEGACY_PLAN, stateText: LEGACY_STATE }, (root) => {
     const r = run(root);
-    assert.equal(r.fields.next, 'wave-4');
-    assert.equal(r.fields.restore, 'none');
-    assert.equal(r.fields['keep-as-is'], 'task 6 (must_fail: its test file is the evidence)');
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.match(r.out, /^legacy: .*restart from the plan/m);
   });
 });
 
 test('Resume_AutonomousRun_StaysAutonomous', () => {
-  const stateText = state({ runMode: 'autonomous', statuses: ['verified', 'pending', 'pending', 'pending', 'pending', 'pending'] });
-  withStory({ stateText }, (root) => {
-    assert.equal(run(root).fields['run-mode'], 'autonomous');
-  });
-});
-
-test('Resume_EveryTaskVerified_ReentersAtTheSavedNextStep', () => {
-  const stateText = state({ next: 'review', statuses: Array(6).fill('verified') });
-  withStory({ stateText }, (root) => {
+  withStory({ stateText: state({ runMode: 'autonomous', step: 'code' }) }, (root) => {
     const r = run(root);
-    assert.equal(r.fields.next, 'review');
-    assert.equal(r.fields['to-run'], 'none');
+    assert.equal(r.fields['run-mode'], 'autonomous');
+    assert.equal(r.fields.next, 'code', 'companion: the run was read, not refused');
   });
 });
 
@@ -145,15 +137,86 @@ test('Resume_NoSavedState_SaysSoAndExitsNonZero', () => {
 });
 
 test('Resume_StateButNoPlan_SaysSoAndExitsNonZero', () => {
-  withStory({ plan: null, stateText: state({ statuses: ['verified'] }) }, (root) => {
+  withStory({ plan: null, stateText: state({ step: 'red' }) }, (root) => {
     const r = run(root);
     assert.equal(r.code, 1);
     assert.match(r.out + r.err, /no plan/);
   });
 });
 
+test('Resume_StoppedBeforeThePlanWasApproved_ExitsNonZeroAndSaysRerun', () => {
+  for (const step of ['understand', 'goal', 'plan']) {
+    withStory({ stateText: state({ step }) }, (root) => {
+      const r = run(root);
+      assert.equal(r.code, 1, `${step}: ${r.out}${r.err}`);
+      assert.match(r.out, /re-run \/implement 7: the plan was not approved/, step);
+      assert.equal(r.fields.next, undefined, `${step}: no next step is offered`);
+    });
+  }
+  // Companion: the first step after the plan is approved still resumes.
+  withStory({ stateText: state({ step: 'tests' }) }, (root) => {
+    assert.equal(run(root).code, 0);
+  });
+});
+
+test('Resume_FinishedRun_SaysSoAndOffersNoNextStep', () => {
+  withStory({ stateText: state({ step: 'done' }) }, (root) => {
+    const r = run(root);
+    assert.equal(r.code, 0, r.err + r.out);
+    assert.match(r.out, /the run is finished/);
+    assert.equal(r.fields.next, undefined, 'no next build step');
+  });
+  // Companion: the pr step is still in flight and resumes.
+  withStory({ stateText: state({ step: 'pr' }) }, (root) => {
+    const r = run(root);
+    assert.equal(r.code, 0);
+    assert.equal(r.fields.next, 'pr');
+  });
+});
+
+test('Resume_PlanProseMentioningATaskTag_IsNotLegacy', () => {
+  const plan = `${PLAN}\nNo \`<task \` blocks any more: the story is the unit.\n`;
+  withStory({ plan, stateText: state({ step: 'red' }) }, (root) => {
+    const r = run(root);
+    assert.equal(r.code, 0, r.out + r.err);
+    assert.equal(r.fields.next, 'red');
+  });
+});
+
+test('Resume_PlanWithOnlyTheTaskXml_IsLegacy', () => {
+  withStory({ plan: LEGACY_PLAN, stateText: state({ step: 'red' }) }, (root) => {
+    const r = run(root);
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.match(r.out, /^legacy: /m);
+  });
+  const idOnly = `${PLAN}\n<task id="1" type="auto"></task>\n`;
+  withStory({ plan: idOnly, stateText: state({ step: 'red' }) }, (root) => {
+    assert.match(run(root).out, /^legacy: /m);
+  });
+});
+
+// The red set (tests and stubs) is saved under "## Red files" so a resume at `code` never restores it.
+test('Resume_RedFilesSaved_ArePrintedOnePerLine', () => {
+  const text = `${state({ step: 'code' })}\n## Red evidence\n\n- T | AC1 | x | shape: assertion\n\n## Red files\n\n- src/__tests__/a.test.js\n- src/a.js\n\n## Blockers\n\n- src/not-a-red-file.js\n`;
+  withStory({ stateText: text }, (root) => {
+    const r = spawnSync(process.execPath, [SCRIPT, '--root', root, '7'], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    const lines = r.stdout.split('\n').filter((l) => l.startsWith('red-file: '));
+    assert.deepEqual(lines, ['red-file: src/__tests__/a.test.js', 'red-file: src/a.js']);
+  });
+});
+
+test('Resume_NoRedFilesSaved_PrintsNoRedFileLine', () => {
+  withStory({ stateText: state({ step: 'code' }) }, (root) => {
+    const r = run(root);
+    assert.equal(r.code, 0, r.err + r.out);
+    assert.doesNotMatch(r.out, /red-file/);
+    assert.equal(r.fields.next, 'code', 'companion: the run is still read');
+  });
+});
+
 test('Resume_StoryIdWithPathCharacters_IsRefused', () => {
-  withStory({ stateText: state({ statuses: ['verified'] }) }, (root) => {
+  withStory({ stateText: state({ step: 'red' }) }, (root) => {
     assert.equal(run(root, '../7').code, 1);
   });
 });

@@ -1,6 +1,7 @@
 # ADR-0005 — Stories are built one after another on the Feature branch
 
 - **Status:** accepted (2026-11-03): built in F72
+- **Amended by F73 #83 (2026-11-04):** there are no waves and no executor in a standalone run either: it builds its one story with the same story loop (`story-builder`, `suite-runner`, `story-reviewer`) as a Feature, so the wave rules' pre-wave checks do not apply to it.
 - **Date:** 2026-11-03
 - **Decided by:** Anudeep Sharma (F72 plan gate)
 - **Supersedes:** [ADR-0002](0002-story-worktrees.md) (a worktree per story) and [ADR-0003](0003-orchestrator-only-merger.md) (merge each story, tested, before commit)
@@ -29,13 +30,15 @@ step.
   `suite-runner` runs the suite and shows red, then green; `story-reviewer` reviews. That is about six
   agents per story, plus fix rounds. Opus is kept for the jobs that need judgement.
 - **Parallel only across Features.** Two Features side by side, each in its own Feature worktree, is
-  planned (story #73) and not built yet. Stories inside a Feature never overlap.
+  built (story #82): one session per Feature, in the home folder ([ADR-0006](0006-one-session-per-feature.md)).
+  Stories inside a Feature never overlap.
 - **Resume reads the `Story:` commits.** A story with its commit is done and never redone.
 - **The sequence is proven** by `feature-state.js sequence`, which reads the Feature's progress
   log and reports any two stories that were in flight at the same time.
 - The wave-execution ban on `isolation: "worktree"` stays. A Feature's stories have no waves and no
-  executors; the wave rules apply to standalone single-story runs only. The Feature worktree still gets
-  the branch check, and restore-before-retry still applies to a failed job's files.
+  executors, and since F73 #83 neither do standalone runs: the story loop builds both. What stays of the
+  wave rules is the branch check, the ban on `isolation: "worktree"`, and restore-before-retry for a
+  failed job's files.
 
 ## Consequences
 

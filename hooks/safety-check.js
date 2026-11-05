@@ -119,19 +119,39 @@ function asksDisabled() {
   return process.env.SAFETY_ALLOW_GIT_COMMIT_PUSH === '1';
 }
 
-function checkRules(rules, text) {
+// `text` is what the rules read; `alsoDeny` is further text the deny and ask rules read too (the raw
+// command, when `text` is a rewrite of it).
+function checkRules(rules, text, alsoDeny = []) {
   // Destructive denials take precedence: a command that both matches an ask rule
   // and a deny rule (e.g. "git commit && rm -rf") must be hard-blocked, not merely
   // prompted. So run all deny rules first, then the ask prompts.
-  for (const rule of rules) {
-    if (rule.action === 'ask') continue;
-    if (rule.re.test(text)) deny(rule.reason, rule.id);
+  for (const t of [text, ...alsoDeny]) {
+    for (const rule of rules) {
+      if (rule.action === 'ask') continue;
+      if (rule.re.test(t)) deny(rule.reason, rule.id);
+    }
   }
   if (asksDisabled()) return;
-  for (const rule of rules) {
-    if (rule.action !== 'ask') continue;
-    if (rule.re.test(text)) ask(rule.reason, rule.id);
+  // The ask rules read the raw text too: a commit or push hidden in a dropped option value still asks.
+  for (const t of [text, ...alsoDeny]) {
+    for (const rule of rules) {
+      if (rule.action !== 'ask') continue;
+      if (rule.re.test(t)) ask(rule.reason, rule.id);
+    }
   }
+}
+
+// The run's git wrapper (`node ".../worktree.js" git -- [-C <dir>] <args>`) is judged as the git
+// command it runs, so commit and push still ask and a denied form still denies. Global git options
+// that sit before the subcommand (`-C <dir>`, `-c <k=v>`) are dropped for the judgement too, so
+// `git -C <dir> commit` is a commit whether or not the wrapper carries it. The deny rules also read
+// the raw command, and so do the ask rules, because the dropped option value is text a shell may run
+// (`git -C "$(rm -rf ~)"`, `git -C "$(git push --force origin main)"`).
+const WRAPPER_RE = /worktree\.js["']?\s+["']?git["']?\s+["']?--["']?\s+/gi;
+const GIT_GLOBAL_OPTS_RE = /\bgit((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))+)\s+(?=\S)/g;
+
+function judgedAs(command) {
+  return command.replace(WRAPPER_RE, ' git ').replace(GIT_GLOBAL_OPTS_RE, 'git ');
 }
 
 runHook('safety-check', async () => {
@@ -142,7 +162,7 @@ runHook('safety-check', async () => {
   if (toolName === 'Bash') {
     const command = toolInput.command || '';
     if (RM_ACR_ALLOWLIST.test(command)) return ok();
-    checkRules(BASH_RULES, command);
+    checkRules(BASH_RULES, judgedAs(command), [command]);
     return ok();
   }
 

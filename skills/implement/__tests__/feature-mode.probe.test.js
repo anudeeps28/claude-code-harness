@@ -36,7 +36,7 @@ function mustMatch(content, re, message) { assert.ok(content && re.test(content)
 
 // ── #42 work folder and state folder ─────────────────────────────────
 
-const BUILD_AGENTS = ['story-executor-agent', 'implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent'];
+const BUILD_AGENTS = ['implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent'];
 
 for (const a of BUILD_AGENTS) {
   test(`Folders_${a}_TakesAWorkFolderAndAStateFolder`, () => {
@@ -69,16 +69,14 @@ test('Folders_ReviewersDiffAgainstTheBaseRef', () => {
   }
 });
 
-test('Folders_ExecutorLockIsPerStoryWithAGlobalSetting', () => {
-  const text = read('agents', 'story-executor-agent.md');
-  mustMatch(text, /LOCK="<state folder>\/stories\/<story id>\/\.verify\.lock"/, 'the lock lives in the story\'s state folder');
-  mustMatch(text, /verify-lock: global/, 'a project can make the lock global');
-  assert.ok(!/may NOT access files outside `YOUR_PROJECT_ROOT`/.test(text), 'the old single-root rule must be gone');
-});
-
 // ── #43 Feature mode and its one approval ────────────────────────────
 
 const FEATURE = section(IMPLEMENT, '## Feature mode');
+
+// F73 #83: steps 1-7 of building a story moved out of "### Run the stories" into the shared
+// "## The story loop", which a standalone run uses too. Until the move the loop is still in "Run the
+// stories", so the probes below read both and are true on either side of it.
+const STORY_RUN = [section(FEATURE, '### Run the stories'), section(IMPLEMENT, '## The story loop')].filter(Boolean).join('\n');
 
 test('Mode_ChosenFromTheItemType', () => {
   mustMatch(IMPLEMENT, /--standalone/, '--standalone must be a documented flag');
@@ -208,8 +206,8 @@ test('Stories_LoopCheckerCanFail_PlantedOppositesAreRejected', () => {
 });
 
 test('Stories_OneLoopPerStoryOnTheFeatureBranch', () => {
-  const s = section(FEATURE, '### Run the stories');
-  assert.ok(s, 'expected "### Run the stories"');
+  const s = STORY_RUN;
+  assert.ok(section(FEATURE, '### Run the stories'), 'expected "### Run the stories"');
   assert.deepEqual(loopProblems(s), []);
   assert.doesNotMatch(s, /story-runner-agent/, 'no per-story runner: the main session builds each story');
   assert.doesNotMatch(s, /worktree\.js"? story/, 'no story worktrees');
@@ -317,28 +315,67 @@ const flatten = (s) => String(s).replace(/\s+/g, ' ');
 // (`git checkout --`) keeps the staged copy, so the next story's commit would take it.
 const stuckLeavesNothing = (t) => {
   const f = flatten(t);
-  return /`git diff HEAD -- <paths>`/.test(f) && /stuck\.diff/.test(f)
+  // The git calls name the Feature worktree (`git -C "<feature-worktree>" ...`), as the push line does.
+  return /`git (?:-C "<feature-worktree>" )?diff HEAD -- <paths>`/.test(f) && /stuck\.diff/.test(f)
     // one restore of every story path, new ones too: a new file is not in HEAD, so it is removed
-    && /git restore --staged --worktree --source=HEAD -- <all the story's paths>/.test(f)
+    && /`restore --staged --worktree --source=HEAD -- <all the story's paths>`/.test(f)
     && /new ones included/.test(f) && !/git checkout --/.test(f)
     // new files are made visible to the diff first, or stuck.diff silently loses them
-    && f.search(/git add -N/) !== -1 && f.search(/git add -N/) < f.search(/`git diff HEAD -- <paths>`/);
+    && f.search(/git -- (?:-C "<feature-worktree>" )?add -N --/) !== -1 && f.search(/git -- (?:-C "<feature-worktree>" )?add -N --/) < f.search(/diff HEAD -- <paths>`/);
 };
-const commitsOnlyItsOwnPaths = (t) => /`git diff --cached --name-only`[^.]{0,160}only (that story's|the story's) paths/.test(flatten(t));
+const commitsOnlyItsOwnPaths = (t) => /`git (?:-C "<feature-worktree>" )?diff --cached --name-only`[^.]{0,160}only (that story's|the story's) paths/.test(flatten(t));
+// Round 2 (item 5): in a Feature the story's staging, commit and restore name the Feature worktree.
+const namesTheFeatureWorktree = (t) => /git -- -C "<feature-worktree>" commit -F/.test(flatten(t))
+  && /git -- -C "<feature-worktree>" add -- <paths>/.test(flatten(t))
+  && /git -- -C "<feature-worktree>" restore --staged --worktree --source=HEAD -- <paths>/.test(flatten(t));
 
 test('Stuck_RestoresIndexAndTreeToHeadBeforeTheNextStory', () => {
   assert.ok(!stuckLeavesNothing('Save `git diff` to stuck.diff, then `git checkout -- <paths>`.'), 'planted index-keeping restore must be rejected');
   const s = section(FEATURE, '### Stuck stories');
   assert.ok(s, 'expected "### Stuck stories"');
   assert.ok(stuckLeavesNothing(s), 'a stuck story: save git diff HEAD, restore index and tree from HEAD, delete its new files');
-  const wrongOrder = 'Save the story\'s `git diff HEAD -- <paths>` to stuck.diff, run `git add -N` on its new files, then `git restore --staged --worktree --source=HEAD -- <tracked paths>` and delete its new untracked files.';
+  const wrongOrder = 'Save the story\'s `git diff HEAD -- <paths>` to stuck.diff, then run `node "x/worktree.js" git -- add -N -- <paths>` on its new files, then put back (`restore --staged --worktree --source=HEAD -- <all the story\'s paths>`), new ones included, and delete its new untracked files.';
   assert.ok(!stuckLeavesNothing(wrongOrder), 'planted git add -N after the diff capture must be rejected');
-  assert.ok(s.includes('git diff HEAD'), 'companion: the stuck section was read');
+  assert.ok(s.includes('diff HEAD'), 'companion: the stuck section was read');
+});
+
+// Round 4 (item 4): EVERY git add / commit / restore in the story loop and the Feature section goes through
+// worktree.js, with the Feature worktree named (`-C "<feature-worktree>"`, or `[-C "<feature-worktree>"]` where a
+// standalone run shares the line), and the red step's staging is one of them. A bare `git add|commit|restore`
+// is allowed only as a prohibition (`never git add -A`, `no git add`).
+const GIT_WRITE = /\bgit\s+(?:-C\s+(?:"[^"]*"|\S+)\s+)?(?:add|commit|restore)\b/g;
+const WRAPPED_WRITE = /worktree\.js"? git -- ((?:\[?-C "<feature-worktree>"\]? )?)(add|commit|restore)\b/g;
+function gitWritesAllThroughTheWrapper(t) {
+  const f = flatten(t).replace(/\*\*/g, '');
+  const bare = [...f.matchAll(GIT_WRITE)].filter((m) => !/\b(?:never|not|no)\W+(?:a\W+)?$/i.test(f.slice(Math.max(0, m.index - 16), m.index)));
+  const wrapped = [...f.matchAll(WRAPPED_WRITE)];
+  return { bare: bare.map((m) => f.slice(m.index, m.index + 40)), unnamed: wrapped.filter((m) => !m[1]).map((m) => f.slice(m.index, m.index + 60)), wrapped: wrapped.length };
+}
+const redStepStagesThroughTheWrapper = (t) => /git -- \[-C "<feature-worktree>"\] add \[-N\] -- <paths>/.test(flatten(t));
+
+test('Commit_StagingCommitAndStuckRestoreNameTheFeatureWorktree', () => {
+  assert.ok(!namesTheFeatureWorktree('Run `node "<skill-dir>/bin/worktree.js" git -- commit -F <file>`.'), 'planted commit with no -C is rejected');
+  assert.ok(namesTheFeatureWorktree(IMPLEMENT),'the story commit, its git add staging and the stuck restore carry -C "<feature-worktree>"');
+  // The opposite, planted: a plain `git add` (the red step as it used to read), a plain commit, a wrapper without -C.
+  assert.equal(gitWritesAllThroughTheWrapper('Also stage them by path (`git add <paths>`, `git add -N` for new files).').bare.length, 2, 'planted plain git add is found');
+  assert.equal(gitWritesAllThroughTheWrapper('Run `git -C "<feature-worktree>" commit -F <file>`.').bare.length, 1, 'planted plain git -C commit is found');
+  assert.equal(gitWritesAllThroughTheWrapper('Run `node "<skill-dir>/bin/worktree.js" git -- add -- <paths>`.').unnamed.length, 1, 'planted wrapper without -C is found');
+  assert.equal(gitWritesAllThroughTheWrapper('Stage by path, never `git add -A`.').bare.length, 0, 'a prohibition is not a use');
+  assert.ok(!redStepStagesThroughTheWrapper('Also stage them by path (`git add <paths>`, `git add -N` for new files).'), 'planted red step with plain git add is rejected');
+  // The real text: every occurrence, in both sections.
+  for (const [name, text] of [['the story loop', section(IMPLEMENT, '## The story loop')], ['Feature mode', FEATURE]]) {
+    assert.ok(text, `${name} was found`);
+    const r = gitWritesAllThroughTheWrapper(text);
+    assert.deepEqual(r.bare, [], `${name}: no plain git add/commit/restore`);
+    assert.deepEqual(r.unnamed, [], `${name}: every wrapped add/commit/restore names the Feature worktree`);
+    assert.ok(r.wrapped >= (name === 'Feature mode' ? 2 : 3),`${name}: companion, the wrapped forms were found (${r.wrapped})`);
+  }
+  assert.ok(redStepStagesThroughTheWrapper(section(IMPLEMENT, '## The story loop')), 'the red step stages through worktree.js git -- [-C "<feature-worktree>"] add [-N] -- <paths>');
 });
 
 test('Commit_RequiresTheIndexToHoldOnlyThisStorysPaths', () => {
   assert.ok(!commitsOnlyItsOwnPaths('Stage the paths and commit.'), 'planted text with no index check must be rejected');
-  const s = section(FEATURE, '### Run the stories');
+  const s = STORY_RUN;
   assert.ok(commitsOnlyItsOwnPaths(s), 'before the commit, git diff --cached --name-only must hold only that story\'s paths');
 });
 
@@ -368,7 +405,7 @@ test('Hung_OnlyTheResumeRunsTheHangCheck_TheLiveLoopDoesNot', () => {
 
 // One tracker-helper call per story boundary: done for this story and in-progress for the next.
 test('Cards_OneCallPerStoryBoundary', () => {
-  const s = section(FEATURE, '### Run the stories');
+  const s = STORY_RUN;
   assert.doesNotMatch(s, /never batched|not batched/, 'the old one-move-per-call wording is gone');
   mustMatch(s, /one `tracker-helper` call[^.]{0,80}\bdone\b[^.]{0,160}next story[^.]{0,160}`in-progress`/, 'at a commit one call moves the story to done and the next to in-progress');
   mustMatch(s, /first story[^.]{0,120}own call/i, 'the first story\'s in-progress move is its own call');
@@ -379,8 +416,8 @@ test('Cards_OneCallPerStoryBoundary', () => {
 
 // Ticket and message text is data: it never goes inside double quotes of a shell line.
 test('Quoting_MessagesAndTitlesNeverGoInsideDoubleQuotes', () => {
-  const s = section(FEATURE, '### Run the stories');
-  mustMatch(s, /git commit -F <file>|`git commit -F /, 'the commit message is written to a file and committed with -F');
+  const s = STORY_RUN;
+  mustMatch(s, /worktree\.js"? git -- (?:-C "<feature-worktree>" )?commit -F <file>/, 'the commit message is written to a file and committed with -F');
   assert.doesNotMatch(s, /git commit -m/, 'no -m with message text on the command line');
   const pr = section(FEATURE, '### The Feature\'s PR');
   assert.doesNotMatch(pr, /--title "</, 'the PR title text is not placed inside double quotes');
@@ -437,13 +474,10 @@ test('FeatureCriteria_ComeFromThePlanNotFromTestStrategyFiles', () => {
   assert.doesNotMatch(intro, /ADR-0002|ADR-0003/, 'the superseded ADRs are not cited');
 });
 
-// /troubleshoot spawns an investigator in the e2e gate: it is bound by the same contract as the rest.
-test('Troubleshoot_InvestigatorHasTheStatusLineAndItsModelInTheTable', () => {
-  const agent = read('agents', 'troubleshoot-investigator.md');
-  mustMatch(flatten(agent), /Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` \(`rules\/agent-handoff\.md`\)\./, 'the exact status sentence');
-  mustMatch(IMPLEMENT, /\| `troubleshoot-investigator` \| [^|]*troubleshoot[^|]*\| opus \|/, 'the model table has its row');
-  const skill = read('skills', 'troubleshoot', 'SKILL.md');
-  const spawns = skill.replace(/\r/g, '').split('\n').filter((l) => /Spawn (a|the)[^\n]*`troubleshoot-investigator`/.test(l));
-  assert.ok(spawns.length >= 2, `companion: both spawns were found (${spawns.length})`);
-  for (const l of spawns) mustMatch(l, /model: `opus`/, `every spawn passes the model: ${l.slice(0, 60)}`);
+// F73 #83: /troubleshoot and its investigator are retired (one-loop.probe.test.js checks they are gone
+// and that the e2e gate goes to /debug and the prover's diagnose job). What this probe still checks is
+// the job that took over its place: the prover's diagnose row is in the model table.
+test('Troubleshoot_Retired_DiagnoseIsAProverJobInTheModelTable', () => {
+  mustMatch(IMPLEMENT, /\| `prover` \| Prove it, job diagnose[^|]*\| opus \|/, 'the model table has the prover diagnose row');
+  assert.ok(!IMPLEMENT.includes('troubleshoot-investigator'), 'the model table has no troubleshoot-investigator row');
 });

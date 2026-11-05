@@ -141,7 +141,7 @@ Examples:
 > branch. Leave a line as a placeholder to keep its default.
 
 - worktree-size-gb: `<!-- default 3; disk per worktree with dependencies restored, for the startup disk check -->`
-- verify-lock: `<!-- default per-story; "global" if worktrees share a port, a database or a global cache -->`
+- verify-lock: `<!-- default per-story (no lock); "global" if Features running side by side share a port, a database, Docker or a global cache -->`
 
 ---
 
@@ -178,5 +178,5 @@ Examples:
 
 > Remove this section if your project doesn't use DI.
 
-- DI registration files must **always be in their own task** — never combined with other files in the same parallel_group
-- When adding a new service, the DI registration task always runs **after** all the service implementation tasks
+- DI registration files are changed **together with the service they register**, in the same story, and the story's tests cover the registration
+- When adding a new service, register it after the service implementation exists, and test that it resolves

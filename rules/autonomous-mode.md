@@ -29,7 +29,7 @@ run back to back and end at **one plan gate**: the plan, the coverage of the sou
 and every open question with a recommended answer. Once a person approves it, the run is autonomous:
 build, local tests, review, the fix loop and the PR run with **no further STOP**, under the self-answer
 rule below. A Feature run works the same way: its plan approval is its gate. `--step` (opt-in) brings
-back a stop after every phase and every wave, for a person who wants to watch.
+back a stop after the brief, the goal, green and before the push, for a person who wants to watch.
 
 **What `--autonomous` adds:** the plan gate approves itself when it has nothing to ask (no open
 question, no unmapped source line) and logs that; with anything to ask, it stops like any other run.
@@ -81,21 +81,14 @@ An autonomous run stops and asks the human on any of these, regardless of the se
   autonomous; see "How `/debug` behaves" below).
 - **Missing dependency** — a skill, agent, script, or tracker adapter the flow names by identity is
   not installed. **Never substitute a replacement.** A named agent definition *is* a quality contract
-  (its system prompt encodes the planning structure, executor discipline, or review checklist the
+  (its system prompt encodes the planning structure, builder discipline, or review checklist the
   phase depends on); swapping in a `general-purpose` agent with an improvised prompt silently changes
   *what work was done*, not just how it was done — so it fails the reversibility test no matter how
   close the substitute looks. Same for a missing skill or tracker script: stop and report the exact
   missing identity and the phase that needed it. This is a harness defect, not a decision — route it
   to `/improve-harness` once unblocked.
 
-**One carve-out, and only one:** a `must_fail="true"` task reporting BLOCKED because **the behaviour
-already exists** is self-answered, not halted — the orchestrator opens the method, confirms it holds
-real code rather than an empty shell, skips that slice, logs the decision, and continues. Every other
-BLOCKED cause on a `must_fail` task, and every BLOCKED on any other task, halts as below. Without this
-carve-out stated here, a run reading the next sentence literally pauses exactly where test-first mode
-says it should not.
-
-A task that still **FAILs** after the 3-attempt rule and `/debug`, or reports **BLOCKED**, also halts the run — that is a genuine block, not a checkpoint.
+A job that still **FAILs** after the 3-attempt rule and `/debug`, or reports **BLOCKED**, also halts the run — that is a genuine block, not a checkpoint. One carve-out, and only one: a test that passes before its code exists because **the behaviour already exists** is self-answered, not halted. It is recorded as `shape: already-met` with the existing code as `path:line` (`skills/implement/bin/red-evidence.js` refuses it without one); the main session opens that code, confirms it is real code and not an empty shell, logs one decisions-log line, and the test stays as a regression test. A test that passes for any other reason goes back to the builder (the story loop), and any other BLOCKED halts.
 
 ---
 

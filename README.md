@@ -5,11 +5,11 @@
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 [![CI](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-341%20passing-success.svg)](hooks/__tests__)
+[![Tests](https://img.shields.io/badge/tests-1129%20passing-success.svg)](hooks/__tests__)
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 25 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 23 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -29,7 +29,7 @@ flowchart TB
     subgraph S["/implement #42 --standalone — one story, bug or description"]
         direction LR
         S1["Understand · goal · plan<br/>source lines, questions"] --> S2{{"Plan gate — plan, coverage,<br/>every question at once"}}
-        S2 --> S3["Execute<br/>waves, tests in every verify"]
+        S2 --> S3["Build the story<br/>tests · red · code · green · 2 reviews"]
         S3 --> S4["Local tests"]
         S4 --> S5["4 reviewers<br/>+ e2e gate"]
         S5 --> S7(["PR"])
@@ -82,7 +82,8 @@ panel and **Prove it** on the whole branch, and opens one PR — only when every
 is met.
 
 **Building a standalone item.** `/implement 42 --standalone` builds one story or bug on its own
-branch: understand → goal → plan → **plan gate** → build in waves → local tests → four reviewers →
+branch: understand → goal → plan → **plan gate** → build the story (the same loop a Feature's story
+uses: tests, red, code, green, two reviews, a commit) → local tests → four reviewers →
 e2e gate → PR, with one stop for you at the plan gate (a stop at every step with `--step`). A story that belongs to a Feature makes
 `/implement` ask whether you meant the Feature.
 
@@ -93,7 +94,7 @@ e2e gate → PR, with one stop for you at the plan gate (a stop at every step wi
 /implement #42 --discuss          ← 3 clarifying questions before planning
 /implement #42 --research         ← scan codebase for reusable utilities first
 /implement #42 --full             ← --discuss + --research (max understanding)
-/implement #42 --step             ← stop after every phase and wave, the old way
+/implement #42 --step             ← stop after the brief, the goal, green and before the push, the old way
 /implement #42 --full --quick     ← max understanding, skip post-build evaluation
 /implement #42 --autonomous       ← unattended: a plan with nothing to ask approves itself
 /implement --rework 58 "also rename the flag"   ← re-enter a rejected PR, fix on the same branch, push
@@ -105,14 +106,14 @@ e2e gate → PR, with one stop for you at the plan gate (a stop at every step wi
 - `--discuss` — pre-plan Q&A (intent, acceptance bar, constraints, free-form notes)
 - `--research` — codebase scan produces a reuse inventory before the plan
 - `--quick` — skip Phase 3 (evaluation + acceptance testing)
-- `--step` — the old step-by-step run: a stop after the brief, the goal, every wave and before the push, as well as at the plan gate
-- `--auto` — kept for old commands; waves no longer pause, so it only matters with `--step` (drops the wave stops)
+- `--step` — the old step-by-step run: a stop after the brief, the goal, the tests green and before the push, as well as at the plan gate
+- `--auto` — kept for old commands; the build no longer pauses, so it only matters with `--step` (drops the green stop)
 - `--full` — sugar for `--discuss --research`; orthogonal to `--quick`
 - `--autonomous` — fully unattended: the plan gate approves itself when it has nothing to ask; with any question (a scope reading above all) it stops like any run. NOT `--quick`.
 - `--rework <PR#>` — mode selector (not additive): re-enter an already-open, rejected PR, merge its review comments with optional typed feedback, fix on the same branch, and push so the PR updates. Its own explicit autonomous entry point.
-- `--resume <id>` — carry on a stopped run from its saved state; a finished task or a committed story is never redone.
+- `--resume <id>` — carry on a stopped run from its saved step (and review round); a committed story is never redone.
 - `--standalone` — build a story or bug that has no parent Feature.
-- `--tdd` — test-first: each slice is planned as empty shell → failing test → real code (always on for bug fixes).
+- `--tdd` — kept for old commands; every story is test first (tests, red, then code), so it changes nothing.
 - `--no-ship` — run everything up to the PR, then stop before any git step.
 
 ### Enterprise teams
@@ -127,7 +128,6 @@ e2e gate → PR, with one stop for you at the plan gate (a stop at every step wi
 ```
 /evaluate                   ← adversarial quality check before PR
 /debug                      ← root cause diagnosis after 3 failed attempts
-/troubleshoot               ← deep behavioral bug investigation
 /local-test                 ← stack-agnostic build + test runner at 3 levels
 ```
 
@@ -205,12 +205,11 @@ flowchart LR
 | Build a feature test-first with strict RED-GREEN-REFACTOR | `/tdd` |
 | Build a whole Feature, every story, to one PR | `/implement <feature-id>` |
 | Build one story, bug or issue | `/implement #42 --standalone` |
-| Build a whole story or issue test-first | `/implement #42 --tdd` |
+| Build a whole story or issue (always test-first) | `/implement #42 --standalone` |
 | Carry on a run that stopped part-way | `/implement --resume <id>` |
 | Get a queue of small fixes shipped before a demo | `/hackathon` |
 | Adversarially evaluate code before opening a PR | `/evaluate` |
 | Debug a hard or recurring bug | `/debug` (or `/diagnose`) |
-| Investigate a behavioral bug (wrong output, wrong logic) | `/troubleshoot` |
 | Drive a PR to zero review threads | `/babysit-pr` |
 | Deploy and verify (branch-test or post-merge) | `/deploy` |
 | Run build + tests at 3 levels | `/local-test` |
@@ -235,7 +234,7 @@ The harness supports three **modes** for tracking work. You pick one at install 
 
 **The philosophy:** local task files are shared memory between you and the agent on this machine — per-developer, gitignored, never committed to git. They are not team documents. In **both** mode, the tracker is the boss; `todo.md` is a regenerable printout of it.
 
-This is separate from the **execution workspace** (`tasks/stories/<id>/`), which always exists in every mode. Story folders hold the brief, plan, executor state, and review files that agents pass between phases — they are working memory for the current story, not the task registry.
+This is separate from the **execution workspace** (`tasks/stories/<id>/`), which always exists in every mode. Story folders hold the brief, plan, saved state, and review files that agents pass between phases — they are working memory for the current story, not the task registry.
 
 ### Local mode basics
 
@@ -352,7 +351,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 ### Build (both packs)
 | Skill | Usage | What it does |
 |---|---|---|
-| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story one after another on the Feature branch, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run, `--tdd` builds test-first. On the enterprise pack it also keeps the sprint file in step |
+| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story one after another on the Feature branch, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run; every story is built test first. On the enterprise pack it also keeps the sprint file in step |
 
 ### Solo workflow
 | Skill | Usage | What it does |
@@ -377,7 +376,6 @@ each thing they did now lives.
 | **babysit-pr** | `/babysit-pr <PR>` | Drive a PR to zero review threads |
 | **evaluate** | `/evaluate` | Adversarial quality check before PR |
 | **debug** | `/debug` (alias: `/diagnose`) | Feedback-loop-first diagnosis — builds a deterministic pass/fail signal, then tests ranked falsifiable hypotheses one at a time |
-| **troubleshoot** | `/troubleshoot` | Deep behavioral bug investigation (up to 5 iterations) |
 | **deploy** | `/deploy` | Deploy and verify (branch-test or post-merge modes) |
 | **local-test** | `/local-test [1\|2\|3\|e2e]` | Build, test, and Docker integration at 3 levels, plus the e2e gate (no e2e command is NOT SET UP, a fail — never a skip) |
 | **prd** | `/prd` | Generate a Product Requirements Document |
@@ -454,15 +452,16 @@ Phase 1.5: GOAL DEFINITION
 
 Phase 1c: PLAN
   → Spawns implement-planner-agent with brief + goal as input
-  → Produces XML task plan + test strategy; mandatory type="test" tasks
-  → With --tdd (and always for bug fixes): each slice ordered
-    empty shell → failing test → real code, three separate agents
+  → Writes tasks/stories/<id>/plan.md: the Demo, the probes and one "## Story #<id>" section
+    (files, tests to write first, criteria with their proofs, source lines, commands, questions)
+  → Every story is test first (a bug's first test reproduces the bug); --tdd changes nothing
   → Checks: Demo never weaker, a proof per criterion, probes planned, every source line kept verbatim
   → THE PLAN GATE (the one stop): plan, coverage, every open question with a recommended answer
 
-Phase 2: EXECUTE (waves back to back)
-  → Executors in your working folder, no isolation; overlap and branch checks around every wave
-  → Every <verify> runs build + relevant tests; a task is done only after the review passes
+Phase 2: BUILD THE STORY (the story loop, as in a Feature)
+  → story-builder writes the tests, suite-runner shows them red (the red is recorded), story-builder
+    writes the code, suite-runner shows them green, two story-reviewers, then the story's commit
+  → In your working folder, no isolation; a branch check before the loop and a restore before each retry
   → 3 failures → auto-invokes /debug; a failure it cannot fix stops the run
 
 Phase 2.5: LOCAL VERIFICATION
@@ -472,8 +471,9 @@ Phase 3: REVIEW + e2e GATE + PR
   → Four review agents in parallel: evaluator, acceptance, architect, security
   → The e2e goal gate — evidence-driven re-approach on a failure, never a blind retry
   → Closing check when this story completes a coverage table: every doc line vs the code
-  → Drafts commit messages + PR description (enterprise: updates the Master Status Table)
-  → Commits, pushes and opens the PR — no stop (with --step: "Review and commit. Say 'push'")
+  → Review fixes go to story-builder test first and are committed on their own
+  → Drafts the PR description (enterprise: updates the Master Status Table)
+  → Pushes and opens the PR — no stop (with --step: "Review the commits. Say 'push'")
 ```
 
 Every step leaves a saved state behind, so `/implement --resume <id>` carries on from the last
@@ -523,17 +523,16 @@ branch, and pushes so the PR updates in place.
 
 | Agent | Model | Used by | Role |
 |---|---|---|---|
-| `implement-planner-agent` | opus | `/implement` Phase 1c | Plans tasks from brief + goal — one pass |
+| `implement-planner-agent` | opus | `/implement` Phase 1c | Plans the story section(s) from brief + goal — one pass |
 | `story-understand-agent` | opus | `/implement` Phase 1 | Reads the whole ticket + docs (and the sprint file on enterprise), produces the brief |
-| `story-executor-agent` | sonnet | `/implement` waves | Writes code for one task |
-| `story-pr-agent` | sonnet | `/implement` PR step | Commit messages + PR description; the Master Status Table on enterprise |
+| `story-pr-agent` | sonnet | `/implement` PR step | The PR description and checklist (commits nothing); the Master Status Table on enterprise |
 | `evaluator-agent` | opus (Feature panel: sonnet for the complexity and dead-code parts) | `/evaluate`, `/implement` 3 and Feature panel | Adversarial quality check + test coverage, complexity, dead code, and what the change made false (no security/arch overlap) |
 | `acceptance-test-agent` | opus | `/implement` 3 and Feature panel | Verifies every criterion (carried-over and Feature-level too) and asks whether each test could pass with it unmet; claims with nothing behind them |
 | `architect-reviewer-agent` | opus | `/implement` 3 and Feature panel | Architecture drift, NFR compliance, data-flow integrity, migrations on a database that already exists |
 | `security-reviewer-agent` | opus | `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
 | `coverage-auditor-agent` | opus | `/coverage-audit` | The closing check's reader — every requirement line of a document vs the code, Built / Partly / Missing with file evidence; never reads the plans |
 | `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
-| `prover` | sonnet | `/implement` Prove it | Runs each criterion's proof on the real system in a scratch copy, a tool on a second case, breaks each main test once; one line per criterion; fixes nothing. Job `diagnose` (the cause of a failed criterion) is called on opus |
+| `prover` | sonnet | `/implement` Prove it | Runs each criterion's proof on the real system in a scratch copy, a tool on a second case, breaks each main test once; one line per criterion; fixes nothing. Job `diagnose` (the cause of a failed criterion, also for a standalone story's e2e gate; it needs only the criterion, its three records and what was seen) is called on opus |
 | `story-builder` | sonnet | `/implement` | Writes the tests first from the criteria, the code that turns them green, or a fix; never stages, commits or pushes |
 | `story-reviewer` | sonnet | `/implement` | Reviews in one named mode (Correctness, Rules and quality, Re-review, Cross-story); findings only, edits nothing |
 | `suite-runner` | sonnet | `/implement` | Runs the build and test commands and returns only exit codes, counts and each failing test's first error line |
@@ -544,7 +543,6 @@ branch, and pushes so the PR updates in place.
 | `sprint-plan-docs-reader` | haiku | `/sprint-plan` | Reads docs/ folder |
 | `sprint-plan-gap-analyzer` | opus | `/sprint-plan` | Produces planning questions |
 | `debug-agent` | opus | `/debug` | Root cause diagnosis |
-| `troubleshoot-investigator` | opus | `/troubleshoot` | Behavioral bug investigation |
 | `chief-operator` | opus | standalone (`--agent`) | Main-session project operator — researches, decides, delegates via handoff files + tracker tasks. Never implements. |
 | `build-session` | opus (1M) | role session (`--agent`) | The build session of the two-session pipeline — understand → plan → code → test → fix, then commit/push and draft the PR body |
 | `review-session` | opus (1M) | role session (`--agent`) | The fresh adversarial review session — report-only, BLOCK vs ADVISORY verdict to the story files, never edits code |
@@ -621,7 +619,7 @@ The other 9 are always-referenced convention docs, not path-scoped:
 | `next-task.md` | Live-check procedure for "what's next" questions across tracker + local sources |
 | `phase-markers.md` | The `phase.md` marker contract written at every subagent boundary |
 | `progress-tracking.md` | `TodoWrite` as the in-session mirror of the durable story plan; a task is ticked only once its review passes |
-| `wave-execution.md` | Wave agents share the working directory — pre/post-wave checks, verify lock, restore-on-failure |
+| `wave-execution.md` | Shared working directory — build agents run in it with no isolation; branch check, the run's starting tree, restore-on-failure, foreign work at startup |
 
 ---
 
@@ -665,9 +663,8 @@ Each story gets structured state files that pass between phases:
 ```
 tasks/stories/<story-id>/
 ├── brief.md           ← Phase 1 output (understanding, source requirement lines, open questions)
-├── plan.md            ← Phase 2 output (XML task plan + rationale)
-├── test-strategy.md   ← Phase 2 output (acceptance criteria + integration scenarios + regression guardrails)
-├── executor-state.md  ← Phase 3 output (per-task results, updated per wave)
+├── plan.md            ← Phase 1c output (Demo, probes, one "## Story #<id>" section with the criteria and their proofs)
+├── executor-state.md  ← the saved state (step, review round, red evidence), updated at every step
 ├── evaluation.md          ← Phase 3.6 output (evaluator findings + verdict)
 ├── acceptance.md          ← Phase 3.6 output (acceptance criteria PASS/FAIL + verdict)
 ├── architecture-review.md ← Phase 3.6 output (architecture drift + NFR compliance)
@@ -713,7 +710,7 @@ In **local mode**, task files also appear in `tasks/issues/` (one `.md` per task
 ## Customization
 
 ### Works out of the box
-`/implement`, `/plan`, `/babysit-pr`, `/sprint-plan`, `/debug`, `/troubleshoot`, `/evaluate`, `/prd`, `/prd-critique`, `/pa`
+`/implement`, `/plan`, `/babysit-pr`, `/sprint-plan`, `/debug`, `/evaluate`, `/prd`, `/prd-critique`, `/pa`
 
 ### Needs configuration
 - **`/deploy`** — Fill in cloud resource names in `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo).
@@ -732,7 +729,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 ```
 claude-code-harness/
 ├── skills/           ← 33 skills
-├── agents/           ← 25 agents (22 sub-agents + 1 main-session operator + 2 role identities)
+├── agents/           ← 23 agents (20 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 14 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
@@ -754,9 +751,8 @@ claude-code-harness/
 
 - **Human gates everywhere** — Nothing advances without your explicit "go". Not an autonomous agent — a supervised one. The optional per-run `--autonomous` flag doesn't change that stance — it MOVES the single human gate to the PR (opened non-draft, never auto-merged), it never removes it.
 - **3-attempt rule** — If something fails 3 times, stops retrying and invokes `/debug` for root-cause diagnosis. Prevents infinite loops.
-- **Early-exit on high confidence** — Troubleshoot investigations can stop before 5 iterations when root cause is confirmed (>95% confidence, stress-tested).
 - **File-based state** — `tasks/` files are the source of truth. No database, no external service. Git-friendly, diff-friendly, human-readable.
-- **Adversarial evaluation** — The evaluator agent has a different prompt than the executor. It tries to break things, not defend them. Prevents self-evaluation bias.
+- **Adversarial evaluation** — The evaluator agent has a different prompt than the builder. It tries to break things, not defend them. Prevents self-evaluation bias.
 - **Model routing** — Opus for thinking, Sonnet for typing, Haiku for data gathering. Saves cost without sacrificing quality.
 - **Tracker abstraction** — Same 8-script interface across all 4 tracker adapters (ADO, GitHub, Todoist, local). A separate `code-platform/` layer (github, azure-repos, none) handles PR review threads with its own 3-script interface. Adding a new tracker = implementing 8 shell scripts.
 

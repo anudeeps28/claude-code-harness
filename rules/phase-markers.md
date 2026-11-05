@@ -59,7 +59,7 @@ phase: coding
 role: builder
 updated: 2026-07-31T19:03:25Z
 skill: implement
-detail: Phase 2 Wave 1/3 — story-executor-agent (tasks 1, 2, 3)
+detail: Phase 2 — story-builder, code
 ```
 
 ---
@@ -67,8 +67,8 @@ detail: Phase 2 Wave 1/3 — story-executor-agent (tasks 1, 2, 3)
 ## When to write
 
 Write at **every subagent boundary** — immediately BEFORE spawning the agent(s) for that phase, not
-after. Rewriting the same `phase` value with an updated `detail` (e.g. moving between waves within
-coding) is expected and fine.
+after. Rewriting the same `phase` value with an updated `detail` (e.g. moving from the tests to the code
+within coding) is expected and fine.
 
 The marker is written in **every** run mode, interactive and autonomous alike. It is not gated on
 `--autonomous`.
@@ -91,7 +91,7 @@ active session for that project) describes a finished or abandoned run, not a ru
 pre-flight check in `/implement` turns on this word and is **not self-answerable under
 `--autonomous`** — an undefined threshold on a non-self-answerable gate means the run must either halt
 or invent a number, and a real run had to invent one. Thirty minutes is comfortably longer than any
-single wave and comfortably shorter than a working session, so a marker older than that belongs to a
+single step and comfortably shorter than a working session, so a marker older than that belongs to a
 run that is over.
 
 Two qualifications, both learned the hard way:

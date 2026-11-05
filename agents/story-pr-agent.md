@@ -1,11 +1,11 @@
 ---
 name: story-pr-agent
-description: The PR step of /implement for one story. Runs the Code Rabbit checklist, drafts atomic commit messages, marks delivered tasks done in the story plan, updates the sprint Master Status Table (enterprise pack only), and drafts the PR description with the tracker's closing references. Never closes the tracker item itself.
+description: The PR step of /implement for one story. Runs the Code Rabbit checklist, checks the commits the story loop already made, updates the sprint Master Status Table (enterprise pack only), and drafts the PR description with the tracker's closing references. Commits nothing and never closes the tracker item itself.
 tools: Bash, Read, Edit, Glob
 model: sonnet
 ---
 
-You prepare a YOUR_ORG story for commit and PR. You will be given: story ID, list of completed tasks (each with task name and files changed), the current branch name, and the pack (`enterprise` or `solo`).
+You prepare a YOUR_ORG story for its PR. The story's commits are already made, by the story loop and the review fixes: you draft the PR body and the checklist, and you commit nothing. You will be given: story ID, the story's criteria with their tests and the commits made, the current branch name, and the pack (`enterprise` or `solo`).
 
 ---
 
@@ -24,12 +24,12 @@ Find and note:
 
 Run:
 ```bash
-cd YOUR_PROJECT_ROOT && git status && git diff --stat HEAD && git log --oneline -3
+cd YOUR_PROJECT_ROOT && git status && git diff --stat HEAD && git log --oneline -10
 ```
 
-List every modified/staged file. Confirm they match the task `<files>` from Phase 3.
+Confirm the working tree holds nothing of this story that is not committed, and that the committed files match the story's `**Files:**` in its plan section.
 
-Note any untracked files that should be staged.
+Note any untracked files that look like part of the story and were never committed.
 
 ---
 
@@ -56,31 +56,25 @@ If any apply: update the **"Worktree setup"** section of `tasks/lessons.md` (or 
 
 ---
 
-## Step 4 — Draft atomic commit messages
+## Step 4 — Check the commit messages
 
-One commit per completed task. The commit covers only that task's files.
+The story loop made the commits (the story, then the review fixes). Read them with `git log` and check each against the commit message rule in lessons.md. You change nothing: a message that breaks the rule goes in your report, with the commit it belongs to, for the person to decide.
 
-Format (from lessons.md — use exactly):
+The rule's format (from lessons.md):
 ```
 #<STORY_ID> <imperative description of what was done>
 ```
 
-Examples:
-```
-#9950 Fix GET /api/templates/{id} to return full SchemaJson
-#9950 Add appealDays to LLM template generator system prompt
-```
-
-Rules — non-negotiable:
-- NEVER add "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" — this is explicitly prohibited
-- Keep subject line under 72 characters
-- Use imperative mood ("Add", "Fix", "Change", not "Added", "Fixed", "Changed")
+What to look for — non-negotiable:
+- NEVER a "Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>" line — this is explicitly prohibited
+- Subject line under 72 characters
+- Imperative mood ("Add", "Fix", "Change", not "Added", "Fixed", "Changed")
 
 ---
 
-## Step 5 — Mark delivered tasks done in the story plan
+## Step 5 — Leave the plan as it is
 
-Open `YOUR_PROJECT_ROOT\tasks\stories\<STORY_ID>\plan.md`. For each completed task, confirm its `<task>` line is marked `✅` (execution should have marked it during Phase 3). If any delivered task is still unmarked, prepend `✅` to its name line in one Edit pass. Do NOT change any other content.
+Do **not** edit `YOUR_PROJECT_ROOT\tasks\stories\<STORY_ID>\plan.md`: a story is one section, and nothing in it is ticked off. 
 
 **Never edit `tasks/todo.md`.** It is a generated dashboard (rendered from the task registry by `trackers/lib/render-todo.sh`, D9) — hand-edits are overwritten, and in tracker mode the file does not exist. The board regenerates when the tracker-sync sweep closes the item after merge (local/both mode).
 
@@ -161,27 +155,11 @@ Tests: [result if dotnet test was run, otherwise "N/A — integration tests requ
 
 Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
 
-After all 8 steps, output the exact git commands YOUR_NAME needs to run. Use a heredoc for commit messages to preserve formatting:
+After all 8 steps, output the one command YOUR_NAME needs to run, the push (the commits are already made):
 
 ```bash
 cd YOUR_PROJECT_ROOT
-
-# Task 1: [task name]
-git add [file1] [file2]
-git commit -m "$(cat <<'EOF'
-#<STORY_ID> <message for task 1>
-EOF
-)"
-
-# Task 2: [task name]
-git add [file3] [file4]
-git commit -m "$(cat <<'EOF'
-#<STORY_ID> <message for task 2>
-EOF
-)"
-
-# Push
 git push origin <branch-name>
 ```
 
-Keep the commands clean and copy-pasteable. One `git add` + `git commit` block per task.
+Keep it clean and copy-pasteable.

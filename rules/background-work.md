@@ -17,7 +17,7 @@ reported, then write.
 
 This covers every kind of background work the build skills start:
 
-- a wave's `story-executor-agent`s;
+- the builders and the test runner of a story, when they are spawned in the background;
 - the review agents in Phase 3, when they are spawned in the background;
 - a long test or build command run in the background;
 - anything else launched with `run_in_background`.
@@ -27,15 +27,15 @@ This covers every kind of background work the build skills start:
 A turn that ends early reports work that has not finished. Three things go wrong, all seen in real
 runs:
 
-1. **The summary is wrong.** It describes a wave or a review as done while an agent is still editing
+1. **The summary is wrong.** It describes a build step or a review as done while an agent is still editing
    files, so the person approves something that is still changing.
 2. **The STOP is unsafe.** The person answers a checkpoint and the next step starts while the last one
-   is still writing to the same working directory, which is the clobber the wave rules exist to
+   is still writing to the same working directory, which is the clobber the shared-directory rules exist to
    prevent (`rules/wave-execution.md`).
 3. **The result is lost.** A background agent that finishes after the turn has ended reports into a
    conversation that has moved on, and its result, including a FAIL, is easy to miss.
 
-Before this rule, "wait for all to complete" was written only inside the wave steps, so it did not
+Before this rule, "wait for all to complete" was written only inside the build steps, so it did not
 cover a review panel or a background test run.
 
 ## How to wait

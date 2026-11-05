@@ -72,7 +72,7 @@ test('Observe_PlannerBuildsTheProbes', () => {
 // ── #39 a proof for every criterion ──────────────────────────────────
 
 test('Proof_PlannerWritesThreeLinesPerCriterion', () => {
-  const s = section(PLANNER, '### Test Strategy');
+  const s = section(PLANNER, '### Goal and proofs');
   mustMatch(s, /\*\*Acceptance criteria and their proofs:\*\*/, 'the planner writes the proof list');
   for (const f of ['Proof:', 'Seen by:', 'Would lie if:']) assert.ok(s.includes(f), `the planner must write a "${f}" line`);
   for (const k of PROOF_KINDS) assert.ok(s.includes(k), `the planner must list the "${k}" proof kind`);
@@ -88,9 +88,12 @@ test('Proof_PlannerRestatesTheDemoNeverWeaker', () => {
 
 test('Proof_PlanApprovalRunsAllThreeChecks', () => {
   // Phase 1c runs to Phase 2; it has subheadings of its own ("### Implementation plan").
-  const s = IMPLEMENT.slice(IMPLEMENT.indexOf('### Phase 1c — Plan'), IMPLEMENT.indexOf('## Phase 2 — Execute'));
+  // F73 #83: Phase 2 is "Build the story", and a story's plan is one "## Story #<id>" section of
+  // plan.md (no test-strategy.md), so the proof check reads that section.
+  assert.ok(IMPLEMENT.includes('## Phase 2 — Build the story'), 'SKILL.md has "## Phase 2 — Build the story"');
+  const s = IMPLEMENT.slice(IMPLEMENT.indexOf('### Phase 1c — Plan'), IMPLEMENT.indexOf('## Phase 2 — Build the story'));
   mustMatch(s, /demo\.js"? compare tasks\/stories\/<id>\/ticket\.md tasks\/stories\/<id>\/plan\.md/, 'Demo never weaker');
-  mustMatch(s, /proof-check\.js"? tasks\/stories\/<id>\/test-strategy\.md/, 'a proof for every criterion');
+  mustMatch(s, /proof-check\.js"? tasks\/stories\/<id>\/plan\.md --story <id>/, 'a proof for every criterion, read from the story\'s plan section');
   mustMatch(s, /observe-check\.js"? --demo tasks\/stories\/<id>\/plan\.md --plan tasks\/stories\/<id>\/plan\.md/, 'the probes are planned');
   mustMatch(s, /rejected|back to the planner/i, 'a plan failing a check goes back to the planner');
 });

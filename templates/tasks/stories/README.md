@@ -8,9 +8,9 @@ These files are the **formal contracts** between phases. Each phase reads the pr
 
 ```
 tasks/stories/<story-id>/
-├── brief.md          # Phase 1 output — 8-point understanding brief
-├── plan.md           # Phase 2 output — XML task plan + rationale
-├── executor-state.md # Phase 3 output — per-task results, updated live
+├── brief.md          # Phase 1 output — the understanding brief, source lines, Goal, answers
+├── plan.md           # Phase 1c output — Demo, probes and one "## Story #<id>" section
+├── executor-state.md # the saved state — step, review round, red evidence, updated live
 ├── phase.md          # Current phase marker — written by the build skill at every phase
 │                      # boundary; see rules/phase-markers.md. Machine-read by external
 │                      # orchestrators (e.g. DevOS's Story State Reader).
@@ -20,8 +20,8 @@ tasks/stories/<story-id>/
 ## Lifecycle
 
 1. `/implement <id>` Phase 1 creates `brief.md`
-2. Phase 1c reads `brief.md`, creates `plan.md` and `test-strategy.md`
-3. Phase 2 reads `plan.md`, creates and updates `executor-state.md` after each wave
+2. Phase 1c reads `brief.md`, creates `plan.md`
+3. Phase 2 (the story loop) reads `plan.md`, creates and updates `executor-state.md` at every step
 4. Phase 3 reads `plan.md` + `executor-state.md`, creates `evaluation.md` and the other review reports
 5. The PR step reads all files to draft the PR description
 

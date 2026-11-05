@@ -80,7 +80,7 @@ test('Pack_ImplementReadsItAndGatesTheEnterpriseSteps', () => {
   mustMatch(IMPLEMENT, /Pack: \[`enterprise` or `solo`\]/, 'the PR step passes the pack to story-pr-agent');
   const pr = read('agents', 'story-pr-agent.md');
   mustMatch(pr, /## Step 6 — Update sprint Master Status Table \(enterprise only\)[\s\S]{0,300}solo install, skip this\s+step entirely/, 'story-pr-agent skips the table on solo');
-  mustMatch(read('agents', 'implement-planner-agent.md'), /\*\*`Child tasks:`\*\*[\s\S]{0,200}one `<task>` per child task/, 'the planner knows the child-task rule');
+  mustMatch(read('agents', 'implement-planner-agent.md'), /\*\*`Child tasks:`\*\*[\s\S]{0,300}per child task/, 'the planner knows the child-task rule (F73 #83: the plan has no task XML, so the rule no longer names a `<task>`)');
 });
 
 test('Moved_BehavioursThatWereOnlyInStory', () => {
@@ -90,13 +90,6 @@ test('Moved_BehavioursThatWereOnlyInStory', () => {
 });
 
 // ── #64 the replacements work ────────────────────────────────────────
-
-test('Replacements_TroubleshootHandsItsPlanToResume', () => {
-  const ts = read('skills', 'troubleshoot', 'SKILL.md');
-  mustMatch(ts, /\/implement --resume troubleshoot-\[short-name\]/, '/troubleshoot hands off to --resume');
-  mustMatch(ts, /executor-state\.md[\s\S]{0,400}next: wave-1/, 'it saves the state --resume needs');
-  mustMatch(ts, /test-strategy\.md/, 'it saves the test strategy the review needs');
-});
 
 test('Replacements_RosterAndInstallerKnowTheOneBuildSkill', () => {
   for (const pack of ['solo', 'enterprise']) {

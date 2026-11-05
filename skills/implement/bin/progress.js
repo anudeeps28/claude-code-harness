@@ -14,7 +14,7 @@ const path = require('node:path');
 
 const EVENTS = new Set([
   'run-started', 'run-resumed', 'run-paused', 'run-finished',
-  'phase', 'step', 'task-verified', 'task-done', 'task-reopened', 'review-done', 'pr-opened',
+  'phase', 'step', 'review-done', 'pr-opened',
   'tracker-error',
   'story-started', 'story-committed', 'story-stuck',
 ]);

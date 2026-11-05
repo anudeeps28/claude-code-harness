@@ -127,18 +127,14 @@ test('Handoff_NoStatusLineIsDoneWithConcerns_NeverSameBriefSameModel', () => {
   assert.ok(neverSameBriefSameModel(rule), 'AC2: the same brief is never relaunched unchanged on the same model');
 });
 
-// An agent with its own RESULT block keeps its halt, retry and restore rules; the relaunch rows
-// must not override them (review finding, story #74).
-const resultDrivesRouting = (t) =>
-  /own file defines a\s+`RESULT:` block[\s\S]{0,120}is routed by that `RESULT:`/.test(t) &&
-  /`STATUS:` line is only the first line/.test(t);
-
-test('Handoff_AgentsWithAResultBlockAreRoutedByIt', () => {
-  assert.ok(!resultDrivesRouting('An agent whose own file defines a `RESULT:` block is relaunched like any other.'),
-    'planted text that relaunches a RESULT agent must be rejected');
+// F73 #83: the executor was the one agent with its own `RESULT:` block, so the rule's "routed by that
+// RESULT:" paragraph is gone with it. Every agent now routes by its STATUS line alone.
+test('Handoff_NoAgentIsRoutedByAResultBlock', () => {
+  const routedByResult = (t) => /is routed by that `RESULT:`|`STATUS:` line is only the first line/.test(t);
+  assert.ok(routedByResult('An agent whose own file defines a `RESULT:` block is routed by that `RESULT:`.'), 'the check finds the old paragraph');
   const rule = readRule();
-  assert.ok(rule && resultDrivesRouting(rule),
-    'the rule must route story-executor-agent by its RESULT block, the STATUS line being only the first line');
+  assert.ok(rule && /STATUS/.test(rule), 'companion: the handoff rule was read');
+  assert.ok(!routedByResult(rule), 'the rule no longer routes an agent by a RESULT block');
 });
 
 // ── AC3 / AC5 ─────────────────────────────────────────────────────────
@@ -147,7 +143,7 @@ test('Handoff_AgentsWithAResultBlockAreRoutedByIt', () => {
 // /implement invokes spawns by name.
 function buildAgentSet() {
   const names = new Set(readRequired().filter((r) => r.kind === 'agent').map((r) => r.name));
-  for (const skill of ['debug', 'coverage-audit', 'troubleshoot']) {
+  for (const skill of ['debug', 'coverage-audit']) {
     const text = read('skills', skill, 'SKILL.md');
     for (const m of text.matchAll(/Spawn a \*\*`([a-z0-9-]+)`\*\*/g)) names.add(m[1]);
   }
@@ -159,8 +155,11 @@ test('Handoff_EveryAgentImplementStartsSaysItsReportStartsWithTheStatusLine', ()
 
   const agents = buildAgentSet();
   assert.ok(agents.size >= 10, `the derived agent set must have at least 10 members (got ${agents.size}: ${[...agents].join(', ')})`);
-  for (const name of ['story-understand-agent', 'implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent', 'loosened-reviewer-agent', 'coverage-auditor-agent', 'story-pr-agent', 'debug-agent', 'troubleshoot-investigator']) {
+  for (const name of ['story-understand-agent', 'implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent', 'loosened-reviewer-agent', 'coverage-auditor-agent', 'story-pr-agent', 'debug-agent', 'prover']) {
     assert.ok(agents.has(name), `the derived agent set must include ${name}`);
+  }
+  for (const gone of ['story-executor-agent', 'troubleshoot-investigator']) {
+    assert.ok(!agents.has(gone), `the derived agent set must not include the retired ${gone}`);
   }
 
   const missing = [];

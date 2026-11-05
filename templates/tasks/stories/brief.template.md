@@ -59,6 +59,17 @@ Source: [path of the source document, or "none"]
 Coverage: [tasks/coverage/<doc-slug>.md, if any]
 - [<id>] [the line, verbatim — "extracted — confirm" above the list when Phase 1 extracted them]
 
+## Goal
+
+[Written by /implement in Phase 1.5, so a resumed run does not define it again.]
+- **Demo:** [the ticket's `## Demo`, verbatim — or "none on the ticket; the plan writes one"]
+- **E2E modality:** [how the finished work is exercised end to end]
+- **Machine oracle?** [yes → automated gate / no → structured human acceptance]
+- **Concrete gate:** [the command or check that must pass]
+- **Acceptance criteria (= the gate):** [the unified list, every source line first as `[<id>] <verbatim line>`]
+- **Observability:** [how the actual state is seen per criterion, or "probe to be built as a task"]
+- **Open questions:** [each with your recommended answer — or "none"]
+
 ## Open questions
 
 1. [question] — Recommended: [answer] (asked at the plan gate)

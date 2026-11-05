@@ -121,6 +121,85 @@ test('Bash_GitCommitAndRmRf_DeniedNotAsked', () => {
   assert.match(r.json.reason, /rm -rf/);
 });
 
+// The run's git wrapper (`worktree.js git -- <args>`) is judged as the git command after the `--`, so
+// commit and push still ask and a denied form still denies, exactly as when typed directly.
+const WRAP = 'node "/h/skills/implement/bin/worktree.js" git -- ';
+
+function decisionOf(r) {
+  if (r.exitCode === 2) return `deny:${r.json.reason}`;
+  const out = r.json && r.json.hookSpecificOutput;
+  return out ? `${out.permissionDecision}:${out.permissionDecisionReason}` : 'allow';
+}
+
+for (const { name, direct, wrapped, expected } of [
+  { name: 'commit', direct: 'git commit -F msg.txt', wrapped: 'commit -F msg.txt', expected: /^ask:git commit/ },
+  { name: 'commit_with_C', direct: 'git -C "/wt" commit -F msg.txt', wrapped: '-C "/wt" commit -F msg.txt', expected: /^ask:git commit/ },
+  { name: 'push', direct: 'git push -u origin feature/x', wrapped: 'push -u origin feature/x', expected: /^ask:git push/ },
+  { name: 'push_force', direct: 'git push --force origin feature/x', wrapped: 'push --force origin feature/x', expected: /^ask:git push/ },
+  { name: 'checkout_dashes', direct: 'git checkout -- a.txt', wrapped: 'checkout -- a.txt', expected: /^deny:git checkout --/ },
+  { name: 'reset_hard', direct: 'git reset --hard', wrapped: 'reset --hard', expected: /^deny:git reset --hard/ },
+  { name: 'restore_worktree', direct: 'git restore --worktree -- a.txt', wrapped: 'restore --worktree -- a.txt', expected: /^allow$/ },
+]) {
+  test(`Bash_WorktreeGitWrapper_${name}_JudgedAsTheDirectCommand`, () => {
+    const d = decisionOf(bash(direct));
+    const w = decisionOf(bash(WRAP + wrapped));
+    assert.match(d, expected, `the direct form: ${d}`);
+    assert.equal(w, d, 'the wrapper is judged exactly like the direct command');
+  });
+}
+
+test('Bash_WorktreeGitWrapperThenRmRf_Denied', () => {
+  const r = bash(WRAP + 'commit -F msg.txt && rm -rf /tmp/foo');
+  assert.equal(r.exitCode, 2, r.stdout);
+  assert.match(r.json.reason, /rm -rf/);
+});
+
+// Round 4: dropping the token after `git -C` / `git -c` for the judgement must never hide a command
+// that sits in that token, so a deny rule runs on the raw command as well as the judged one.
+for (const [name, cmd, reason] of [
+  ['C_subshell_quoted', 'git -C "$(rm -rf ~)" status', /rm -rf/],
+  ['C_subshell_bare', 'git -C $(rm -rf ~) status', /rm -rf/],
+  ['c_semicolon_rm', 'git -c x;rm -rf /tmp/a', /rm -rf/],
+  ['c_and_publish', 'git -c x&&npm publish', /npm publish/],
+  ['c_semicolon_az', 'git -C x;az group delete -n p', /group delete/],
+]) {
+  test(`Bash_GitGlobalOptionHidesCommand_${name}_Denied`, () => {
+    const r = bash(cmd);
+    assert.equal(r.exitCode, 2, `expected deny, got ${decisionOf(r)}`);
+    assert.match(r.json.reason, reason);
+  });
+}
+
+// Round 5: the same dropped option value must not hide a commit or push from the ask rules either.
+for (const [name, cmd, reason] of [
+  ['C_subshell_push', 'git -C "$(git push --force origin main)" status', /^ask:git push/],
+  ['C_subshell_commit', 'git -C "$(git commit -am x)" status', /^ask:git commit/],
+  ['c_alias_push_double', 'git -c "alias.st=!git push --force origin main" st', /^ask:git push/],
+  ['c_alias_push_single', "git -c 'alias.p=!git push -f origin main' p", /^ask:git push/],
+]) {
+  test(`Bash_GitGlobalOptionHidesAskedCommand_${name}_Asks`, () => {
+    assert.match(decisionOf(bash(cmd)), reason);
+  });
+}
+
+// Round 4: the wrapper path is matched without regard to case, and `git` and `--` may be quoted.
+for (const [name, cmd] of [
+  ['upper_case_path', 'node "/h/skills/implement/bin/WORKTREE.JS" git -- push -u origin feature/x'],
+  ['quoted_git', 'node "/h/skills/implement/bin/worktree.js" "git" -- push -u origin feature/x'],
+  ['quoted_dashes', 'node "/h/skills/implement/bin/worktree.js" git "--" push -u origin feature/x'],
+  ['all_three', 'node "/h/skills/implement/bin/WORKTREE.JS" "git" -- push -u origin feature/x'],
+]) {
+  test(`Bash_WorktreeGitWrapperVariant_${name}_PushAsks`, () => {
+    assert.match(decisionOf(bash(cmd)), /^ask:git push/);
+  });
+}
+
+test('Bash_WorktreeGitWrapperCommit_OptOutSet_AllowedWithoutPrompt', () => {
+  const r = runHook('Bash', { command: WRAP + 'commit -F msg.txt' }, { SAFETY_ALLOW_GIT_COMMIT_PUSH: '1' });
+  assert.equal(r.exitCode, 0);
+  assert.equal(r.stdout, '');
+});
+
 // SAFETY_ALLOW_GIT_COMMIT_PUSH=1 is the opt-out for a person who wants Claude to commit and
 // push without a prompt. It lifts only the two ask rules, never a destructive deny.
 for (const { name, cmd } of BASH_ASK_CASES) {

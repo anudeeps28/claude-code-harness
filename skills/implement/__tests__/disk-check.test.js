@@ -11,14 +11,17 @@ const { spawnSync } = require('node:child_process');
 const SCRIPT = path.join(__dirname, '..', 'bin', 'disk-check.js');
 const GB = 1024 ** 3;
 
-function run(args, { free, lessons } = {}) {
+// `args` may be a function of the temp home folder, and `setup(dir)` may plant files in it first.
+function run(args, { free, lessons, setup } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'disk-'));
   fs.mkdirSync(path.join(dir, 'tasks'));
   if (lessons !== undefined) fs.writeFileSync(path.join(dir, 'tasks', 'lessons.md'), lessons);
+  if (setup) setup(dir);
   const env = { ...process.env };
   delete env.HARNESS_FREE_BYTES;
   if (free !== undefined) env.HARNESS_FREE_BYTES = String(free);
-  const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: dir, encoding: 'utf8', env });
+  const argv = typeof args === 'function' ? args(dir) : args;
+  const r = spawnSync(process.execPath, [SCRIPT, ...argv], { cwd: dir, encoding: 'utf8', env });
   return { code: r.status, out: r.stdout + r.stderr };
 }
 
@@ -63,4 +66,49 @@ test('Disk_RealFreeSpace_IsReadOnThisPlatform', () => {
 
 test('Disk_BadInput_ExitsTwo', () => {
   assert.equal(run(['--worktrees', 'many']).code, 2);
+});
+
+// ── several Features at once (F73 #82, AC5) ──────────────────────────
+
+// Another Feature under <home>/tasks/features/<fid>: approved, in the testing phase (not coding, so a
+// check that only counted coding Features would miss it), with or without its worktree on disk.
+function otherFeature(dir, fid, { approved = 'yes', worktreeExists = true, finished = false } = {}) {
+  const f = path.join(dir, 'tasks', 'features', fid);
+  fs.mkdirSync(f, { recursive: true });
+  const wt = path.join(dir, '..', `${path.basename(dir)}-f${fid}`);
+  if (worktreeExists) fs.mkdirSync(wt, { recursive: true });
+  fs.writeFileSync(path.join(f, 'feature-state.md'),
+    `feature: ${fid}\nplan-approved: ${approved}\nphase: testing\nfeature-worktree: ${wt}\n`);
+  fs.writeFileSync(path.join(f, 'progress.log'),
+    `[harness] ts=2026-11-04T09:00:00Z feature=${fid} story=- event=run-started phase=planning detail="x"\n`
+    + (finished ? `[harness] ts=2026-11-04T09:50:00Z feature=${fid} story=- event=run-finished phase=shipping detail="x"\n` : ''));
+}
+
+const forFeature = (dir) => ['--feature', '123', '--root', dir];
+
+test('Disk_AnotherFeatureBeingBuilt_CountsItsScratchCopy', () => {
+  // Free 8 GB at 3 GB each: this Feature needs 2 worktrees (6 GB) and fits; the other Feature's
+  // Prove-it copy makes 3 (9 GB), which does not.
+  const r = run(forFeature, { free: 8 * GB, setup: (d) => otherFeature(d, '124') });
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^not enough disk: need 9\.0 GB for 3 worktrees \(this Feature and its Prove-it copy, plus 1 for #124 being built in other sessions\)/m);
+  // Companion: with no other Feature the same free space is enough, so the other one is what was counted.
+  assert.equal(run(['--feature', '123'], { free: 8 * GB }).code, 0, 'no other Feature: 2 × 3 GB fits in 8 GB');
+  // The other Feature's worktree is not made yet: its worktree counts too (4 worktrees, 12 GB).
+  const missing = run(forFeature, { free: 11 * GB, setup: (d) => otherFeature(d, '124', { worktreeExists: false }) });
+  assert.equal(missing.code, 1, missing.out);
+  assert.match(missing.out, /need 12\.0 GB for 4 worktrees/);
+  // An approved plan is required: a Feature still at its plan gate is not being built.
+  assert.equal(run(forFeature, { free: 8 * GB, setup: (d) => otherFeature(d, '124', { approved: 'no' }) }).code, 0);
+});
+
+test('Disk_FinishedFeature_NotCounted', () => {
+  const finished = run(forFeature, { free: 8 * GB, setup: (d) => otherFeature(d, '124', { finished: true }) });
+  assert.equal(finished.code, 0, finished.out);
+  assert.equal(finished.out, '');
+  // Companion: the same Feature without run-finished is counted, so the fixture was read.
+  const running = run(forFeature, { free: 8 * GB, setup: (d) => otherFeature(d, '124') });
+  assert.equal(running.code, 1, running.out);
+  // This Feature's own state is never counted as "another".
+  assert.equal(run(forFeature, { free: 8 * GB, setup: (d) => otherFeature(d, '123') }).code, 0, 'only other Features count');
 });

@@ -328,6 +328,20 @@ test('Resume_RunningStoryWithoutStep_ReadsNextFromItsExecutorState', () => {
   assert.match(r.out, /^restart 201: from step review$/m);
 });
 
+test('Resume_RunningStoryWithoutStep_ReadsTheSavedStepFromItsExecutorState', () => {
+  // F73 #83: executor-state.md saves `step:` and no longer writes `next:`.
+  const { wt } = featureRepo([]);
+  const dir = home(AB);
+  init(dir);
+  run(dir, 'set', '--feature', '123', '--story', '201', 'status=running');
+  const sdir = path.join(dir, 'tasks', 'stories', '201');
+  fs.mkdirSync(sdir, { recursive: true });
+  fs.writeFileSync(path.join(sdir, 'executor-state.md'), 'run-mode: autonomous\nstep: code\nupdated: 2026-11-04T00:00:00Z\n');
+  const r = resume(dir, wt);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^restart 201: from step code$/m);
+});
+
 test('Resume_FeatureWorktreeMissing_WarnsAndTrustsTheStateFile', () => {
   const dir = home(AB);
   init(dir);
@@ -609,4 +623,365 @@ test('ReadState_DropsAStoryRowWithABadId', () => {
   const file = path.join(dir, 'tasks', 'features', '123', 'feature-state.md');
   fs.appendFileSync(file, 'story ../evil: status=pending\nstory --all: status=pending\n');
   assert.deepEqual(readState(dir, '123').stories.map((s) => s.id), ['201', '202'], 'only well-formed ids survive; the two real stories prove the file was read');
+});
+
+// ── several sessions at once (F73 #82): claim and together ───────────────
+
+const NOW = '2026-11-04T10:00:00Z';
+
+function featureDir(dir, fid) {
+  const f = path.join(dir, 'tasks', 'features', fid);
+  fs.mkdirSync(f, { recursive: true });
+  return f;
+}
+
+// One progress.log line in progress.js's own format, at the given time.
+function logLine(fid, ts, event = 'step', sid = '1') {
+  return `[harness] ts=${ts} feature=${fid} story=${sid} event=${event} phase=coding detail="x"\n`;
+}
+
+function claimed(dir, session, fid = '123') {
+  fs.writeFileSync(path.join(featureDir(dir, fid), 'claim.md'), `session: ${session}\nclaimed: 2026-11-04T08:00:00Z\n`);
+}
+
+const claimFile = (dir, fid = '123') => path.join(dir, 'tasks', 'features', fid, 'claim.md');
+
+function claim(dir, session, ...extra) {
+  return run(dir, 'claim', '--feature', '123', '--session', session, '--now', NOW, ...extra);
+}
+
+test('Claim_OtherSessionActiveWithin30m_Busy', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:55:00Z', 'story-started'));
+  const before = fs.readFileSync(claimFile(dir), 'utf8');
+  const r = claim(dir, 's2');
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^busy 123: session s1, last activity 5m ago \(story-started\)/m);
+  assert.doesNotMatch(r.out, /^free$/m);
+  assert.equal(fs.readFileSync(claimFile(dir), 'utf8'), before, 'the claim is unchanged');
+  // Companion: 29 minutes is still active.
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:31:00Z'));
+  assert.equal(claim(dir, 's2').code, 1, '29 minutes old is still busy');
+});
+
+// `live`: is another session working on this Feature right now? Reuses the claim's own activity
+// reading (progress.log, phase.md, the running story's phase.md, the test-lock heartbeat).
+function live(dir, fid = '123') {
+  return run(dir, 'live', '--feature', fid, '--now', NOW);
+}
+
+test('Live_ActivityWithin30m_PrintsLiveAndExit0', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:55:00Z', 'story-started'));
+  const r = live(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^live 123: idle 5m$/m);
+  // Companion: 29 minutes is still live; the claim's own 08:00 time is not what is read.
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:31:00Z'));
+  assert.equal(live(dir).code, 0, '29 minutes is still live');
+});
+
+test('Live_NothingFor30m_PrintsIdleAndExit1', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:30:00Z'));
+  const r = live(dir);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^idle 123: 30m$/m);
+  assert.doesNotMatch(r.out, /^live/m);
+  // A Feature with no record at all is not live either.
+  const empty = live(home([]), '999');
+  assert.equal(empty.code, 1, empty.out);
+  assert.match(empty.out, /^idle 999:/m);
+});
+
+test('Live_HeartbeatCountsAsActivity', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T08:00:00Z'));
+  const hb = path.join(featureDir(dir, '123'), 'heartbeat');
+  fs.writeFileSync(hb, '');
+  const stamp = new Date('2026-11-04T09:50:00Z');
+  fs.utimesSync(hb, stamp, stamp);
+  const r = live(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^live 123: idle 10m$/m);
+  // Companion: the same heartbeat, 40 minutes old, is idle.
+  const old = new Date('2026-11-04T09:20:00Z');
+  fs.utimesSync(hb, old, old);
+  assert.equal(live(dir).code, 1);
+});
+
+// The claim's own time is activity: a Feature whose only record is a claim made 10 minutes ago is live.
+test('Live_OnlyTheClaimItself10mOld_IsLive', () => {
+  const dir = home([]);
+  featureDir(dir, '123');
+  fs.writeFileSync(claimFile(dir), 'session: s1\nclaimed: 2026-11-04T09:50:00Z\n');
+  const r = live(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^live 123: idle 10m$/m);
+  // Companion: the same lone claim, 40 minutes old, is idle (so it is the claim's time that decides).
+  fs.writeFileSync(claimFile(dir), 'session: s1\nclaimed: 2026-11-04T09:20:00Z\n');
+  const old = live(dir);
+  assert.equal(old.code, 1, old.out);
+  assert.match(old.out, /^idle 123: 40m$/m);
+});
+
+test('Claim_OtherSessionIdle30m_FreeAndTakesIt', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:30:00Z'));
+  const r = claim(dir, 's2');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^free$/m);
+  assert.match(fs.readFileSync(claimFile(dir), 'utf8'), /^session: s2$/m, 'the claim now names this session');
+  // Companion: a newer phase.md keeps the Feature active even when the log is old.
+  const dir2 = home([]);
+  claimed(dir2, 's1');
+  fs.writeFileSync(path.join(featureDir(dir2, '123'), 'progress.log'), logLine('123', '2026-11-04T08:00:00Z'));
+  fs.writeFileSync(path.join(featureDir(dir2, '123'), 'phase.md'), 'schemaVersion: 1\nphase: coding\nrole: builder\nupdated: 2026-11-04T09:50:00Z\nskill: implement\ndetail: x\n');
+  assert.equal(claim(dir2, 's2').code, 1, 'a fresh phase.md means busy');
+});
+
+test('Claim_SameSession_Free', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:58:00Z'));
+  const r = claim(dir, 's1');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^free$/m);
+  assert.equal(claim(dir, 's2').code, 1, 'companion: another session is still refused on the same fixture');
+});
+
+test('Claim_NoClaimYet_FreeAndWritten', () => {
+  const dir = home([]);
+  assert.ok(!fs.existsSync(path.join(dir, 'tasks', 'features', '123', 'feature-state.md')), 'no feature-state.md yet');
+  const r = claim(dir, 's1');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^free$/m);
+  assert.match(fs.readFileSync(claimFile(dir), 'utf8'), /^session: s1$/m);
+  assert.match(fs.readFileSync(claimFile(dir), 'utf8'), /^claimed: \d{4}-\d\d-\d\dT/m);
+});
+
+test('Claim_TakeOver_WritesRegardless', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:59:00Z'));
+  assert.equal(claim(dir, 's2').code, 1, 'companion: without --take-over it is busy');
+  const r = claim(dir, 's2', '--take-over');
+  assert.equal(r.code, 0, r.out);
+  assert.match(fs.readFileSync(claimFile(dir), 'utf8'), /^session: s2$/m);
+});
+
+test('Claim_UnsubstitutedSessionId_Refused', () => {
+  const dir = home([]);
+  const r = claim(dir, '${CLAUDE_SESSION_ID}');
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /no session id: /);
+  assert.ok(!fs.existsSync(claimFile(dir)), 'nothing was written');
+  assert.equal(claim(dir, '').code, 2, 'an empty id is refused too');
+  // Even when the claim on disk holds the same literal, it is never treated as a match.
+  claimed(dir, '${CLAUDE_SESSION_ID}');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:59:00Z'));
+  assert.equal(claim(dir, '${CLAUDE_SESSION_ID}').code, 2);
+  assert.equal(claim(dir, 's9').code, 1, 'companion: a real id is refused as busy, so the literal was not the holder');
+});
+
+function twoLogs(dir, a, b) {
+  const write = (fid, rows) => fs.writeFileSync(path.join(featureDir(dir, fid), 'progress.log'),
+    rows.map(([ts, event, sid]) => logLine(fid, ts, event, sid)).join(''));
+  write('123', a);
+  write('124', b);
+}
+
+test('Together_StoriesOfTwoFeaturesInterleave_Ok', () => {
+  const dir = home([]);
+  twoLogs(dir,
+    [['2026-11-04T10:00:00Z', 'story-started', '1'], ['2026-11-04T10:20:00Z', 'story-committed', '1']],
+    [['2026-11-04T10:10:00Z', 'story-started', '5'], ['2026-11-04T10:30:00Z', 'story-committed', '5']]);
+  const r = run(dir, 'together', '--feature', '123', '--with', '124');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^ok$/m);
+  assert.doesNotMatch(r.out, /apart/);
+  // The other orientation: the first Feature's start falls inside the second one's window.
+  twoLogs(dir,
+    [['2026-11-04T10:15:00Z', 'story-started', '1'], ['2026-11-04T10:40:00Z', 'story-committed', '1']],
+    [['2026-11-04T10:00:00Z', 'story-started', '5'], ['2026-11-04T10:30:00Z', 'story-committed', '5']]);
+  assert.match(run(dir, 'together', '--feature', '123', '--with', '124').out, /^ok$/m);
+});
+
+test('Together_OneAfterTheOther_Apart', () => {
+  const dir = home([]);
+  twoLogs(dir,
+    [['2026-11-04T10:00:00Z', 'story-started', '1'], ['2026-11-04T10:20:00Z', 'story-committed', '1']],
+    [['2026-11-04T10:30:00Z', 'story-started', '5'], ['2026-11-04T10:50:00Z', 'story-committed', '5']]);
+  const r = run(dir, 'together', '--feature', '123', '--with', '124');
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^apart: /m);
+  assert.doesNotMatch(r.out, /^ok$/m);
+  // Companion: the same logs moved to overlap are ok, so the command did read both files.
+  twoLogs(dir,
+    [['2026-11-04T10:00:00Z', 'story-started', '1'], ['2026-11-04T10:40:00Z', 'story-committed', '1']],
+    [['2026-11-04T10:30:00Z', 'story-started', '5'], ['2026-11-04T10:50:00Z', 'story-committed', '5']]);
+  assert.match(run(dir, 'together', '--feature', '123', '--with', '124').out, /^ok$/m);
+});
+
+// ── review fixes for #82 ─────────────────────────────────────────────────
+
+const { cmdClaim } = require(SCRIPT);
+
+function inProcess(fn) {
+  const lines = [];
+  const real = process.stdout.write;
+  process.stdout.write = (s) => { lines.push(String(s)); return true; };
+  try { return { code: fn(), out: lines.join('') }; } finally { process.stdout.write = real; }
+}
+
+test('Claim_ClaimAppearsBetweenReadAndWrite_SecondSessionGetsBusy', () => {
+  assert.equal(typeof cmdClaim, 'function', 'cmdClaim is exported');
+  const dir = home([]);
+  featureDir(dir, '123');
+  // s2 read "no claim"; before it writes, s1 claims the Feature.
+  const hooks = { afterRead: () => fs.writeFileSync(claimFile(dir), 'session: s1\nclaimed: 2026-11-04T09:59:00Z\n') };
+  const r = inProcess(() => cmdClaim(dir, { feature: '123', session: 's2', now: NOW }, hooks));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^busy 123: session s1/m);
+  assert.match(fs.readFileSync(claimFile(dir), 'utf8'), /^session: s1$/m, 's1 still holds the claim');
+  // Companion: with nothing in between, the same call takes the claim.
+  const dir2 = home([]);
+  const r2 = inProcess(() => cmdClaim(dir2, { feature: '123', session: 's2', now: NOW }, {}));
+  assert.equal(r2.code, 0, r2.out);
+  assert.match(fs.readFileSync(claimFile(dir2), 'utf8'), /^session: s2$/m);
+});
+
+test('Claim_TwoSessionsTakeOverTheSameStaleClaim_OnlyOneGetsFree', () => {
+  const dir = home([]);
+  claimed(dir, 's1'); // stale: claimed two hours ago, nothing since
+  // s2 judged s1's claim stale; before s2 acts, s3 took it over.
+  const hooks = { afterRead: () => fs.writeFileSync(claimFile(dir), 'session: s3\nclaimed: 2026-11-04T09:59:00Z\n') };
+  const r = inProcess(() => cmdClaim(dir, { feature: '123', session: 's2', now: NOW }, hooks));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^busy 123: session s3/m);
+  assert.doesNotMatch(r.out, /^free$/m);
+  assert.match(fs.readFileSync(claimFile(dir), 'utf8'), /^session: s3$/m, 's3 still holds the claim');
+  assert.deepEqual(fs.readdirSync(path.dirname(claimFile(dir))), ['claim.md'], 'no file left aside');
+  // Companion: with nobody in between the take-over succeeds and leaves nothing aside.
+  const dir2 = home([]);
+  claimed(dir2, 's1');
+  const r2 = inProcess(() => cmdClaim(dir2, { feature: '123', session: 's2', now: NOW }, {}));
+  assert.equal(r2.code, 0, r2.out);
+  assert.match(r2.out, /^took over 123 from session s1/m);
+  assert.match(fs.readFileSync(claimFile(dir2), 'utf8'), /^session: s2$/m);
+  assert.deepEqual(fs.readdirSync(path.dirname(claimFile(dir2))), ['claim.md']);
+  // The claim vanishes between read and take-over (another session moved it away): busy or re-claimed, never both free.
+  const dir3 = home([]);
+  claimed(dir3, 's1');
+  const gone = { afterRead: () => { fs.rmSync(claimFile(dir3)); fs.writeFileSync(claimFile(dir3), 'session: s4\nclaimed: 2026-11-04T09:59:00Z\n'); } };
+  assert.equal(inProcess(() => cmdClaim(dir3, { feature: '123', session: 's2', now: NOW, 'take-over': 'true' }, gone)).code, 1, 'an explicit take-over also loses to a claim made since it read');
+});
+
+test('Claim_ReplaceFails_LeavesNoTempFile_AndRetriesOnEperm', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  const folder = path.dirname(claimFile(dir));
+  const realRename = fs.renameSync;
+  // The session's own claim is replaced in place; the rename always fails.
+  fs.renameSync = () => { throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' }); };
+  try {
+    assert.throws(() => inProcess(() => cmdClaim(dir, { feature: '123', session: 's1', now: NOW })), /cannot replace the claim/);
+  } finally {
+    fs.renameSync = realRename;
+  }
+  assert.deepEqual(fs.readdirSync(folder), ['claim.md'], 'no .tmp file left behind');
+  // Companion: an EPERM that goes away on the third try is retried and succeeds.
+  let calls = 0;
+  fs.renameSync = (a, b) => { calls++; if (calls < 3) throw Object.assign(new Error('EPERM'), { code: 'EPERM' }); return realRename(a, b); };
+  try {
+    assert.equal(inProcess(() => cmdClaim(dir, { feature: '123', session: 's1', now: NOW })).code, 0);
+  } finally {
+    fs.renameSync = realRename;
+  }
+  assert.equal(calls, 3, 'renamed on the third try');
+  assert.deepEqual(fs.readdirSync(folder), ['claim.md']);
+});
+
+test('Claim_StaleTakeOver_IsAnnounced', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:20:00Z'));
+  const r = claim(dir, 's2');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^took over 123 from session s1, idle 40m$/m);
+  assert.match(r.out, /^free$/m);
+  // Companions: the same session, a claim nobody held and an explicit --take-over say nothing of the kind.
+  assert.doesNotMatch(claim(dir, 's2').out, /took over/, 'its own claim again');
+  assert.doesNotMatch(claim(home([]), 's1').out, /took over/, 'no earlier holder');
+  const dir3 = home([]);
+  claimed(dir3, 's1');
+  fs.writeFileSync(path.join(featureDir(dir3, '123'), 'progress.log'), logLine('123', '2026-11-04T09:59:00Z'));
+  assert.doesNotMatch(claim(dir3, 's2', '--take-over').out, /took over/, 'the person chose it');
+});
+
+test('Claim_TestLockHeartbeat_KeepsTheFeatureActive', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  const beat = path.join(featureDir(dir, '123'), 'heartbeat');
+  fs.writeFileSync(beat, '2026-11-04T09:50:00Z\n');
+  const at = new Date('2026-11-04T09:50:00Z');
+  fs.utimesSync(beat, at, at);
+  const r = claim(dir, 's2');
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^busy 123: session s1, last activity 10m ago \(test lock\)/m);
+  // Companion: an old heartbeat does not hold the claim.
+  const old = new Date('2026-11-04T09:00:00Z');
+  fs.utimesSync(beat, old, old);
+  assert.equal(claim(dir, 's2').code, 0, 'a 60-minute-old heartbeat is idle');
+});
+
+test('Claim_RunningStorysPhaseMd_KeepsTheFeatureActive', () => {
+  const dir = home(AB);
+  init(dir);
+  assert.equal(run(dir, 'set', '--feature', '123', '--story', '201', 'status=running').code, 0);
+  claimed(dir, 's1');
+  const storyDir = path.join(dir, 'tasks', 'stories', '201');
+  fs.mkdirSync(storyDir, { recursive: true });
+  fs.writeFileSync(path.join(storyDir, 'phase.md'), 'schemaVersion: 1\nphase: coding\nrole: builder\nupdated: 2026-11-04T09:50:00Z\nskill: implement\ndetail: Step 2 build\n');
+  const r = claim(dir, 's2');
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^busy 123: session s1, last activity 10m ago \(Step 2 build\)/m);
+  // Companion: once the story is no longer running its phase.md is not read.
+  assert.equal(run(dir, 'set', '--feature', '123', '--story', '201', 'status=committed').code, 0);
+  assert.equal(claim(dir, 's2').code, 0, 'a finished story\'s phase.md does not hold the claim');
+});
+
+test('Claim_ClaimedTimeIsTheLastResort', () => {
+  const dir = home([]);
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'claim.md'), 'session: s1\nclaimed: 2026-11-04T09:45:00Z\n');
+  const r = claim(dir, 's2');
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^busy 123: session s1, last activity 15m ago \(claimed\)/m);
+  claimed(dir, 's1');
+  assert.equal(claim(dir, 's2').code, 0, 'companion: claimed two hours ago and nothing since is free');
+});
+
+test('Together_StoryStillInFlight_CountsAsRunning', () => {
+  const dir = home([]);
+  twoLogs(dir,
+    [['2026-11-04T10:00:00Z', 'story-started', '1']],
+    [['2026-11-04T10:10:00Z', 'story-started', '5'], ['2026-11-04T10:30:00Z', 'story-committed', '5']]);
+  const r = run(dir, 'together', '--feature', '123', '--with', '124');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^ok$/m);
+  // Companion: an in-flight story that started after the other Feature's last story ended is apart.
+  twoLogs(dir,
+    [['2026-11-04T11:00:00Z', 'story-started', '1']],
+    [['2026-11-04T10:10:00Z', 'story-started', '5'], ['2026-11-04T10:30:00Z', 'story-committed', '5']]);
+  assert.match(run(dir, 'together', '--feature', '123', '--with', '124').out, /^apart: /m);
+  // The latest commit counts, not the last line.
+  twoLogs(dir,
+    [['2026-11-04T10:00:00Z', 'story-started', '1'], ['2026-11-04T10:20:00Z', 'story-committed', '1']],
+    [['2026-11-04T10:10:00Z', 'story-started', '5'], ['2026-11-04T10:50:00Z', 'story-committed', '5'], ['2026-11-04T10:05:00Z', 'step', '5']]);
+  assert.match(run(dir, 'together', '--feature', '123', '--with', '124').out, /^ok$/m);
 });

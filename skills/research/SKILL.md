@@ -1,6 +1,6 @@
 ---
 name: research
-description: Research an external API, integration, or unfamiliar library and cache findings in research.md with provenance-tagged claims. Future agents (planner, executor) read this file for context. Usage: /research <topic> [--urls <url1> <url2> ...]
+description: Research an external API, integration, or unfamiliar library and cache findings in research.md with provenance-tagged claims. Future agents (planner, builder) read this file for context. Usage: /research <topic> [--urls <url1> <url2> ...]
 ---
 
 **Core Philosophy:** Training data is a hypothesis, not a fact. Every claim must carry a provenance tag — verified, cited, or assumed. The cached research.md becomes the source of truth for downstream agents, so accuracy matters more than completeness.
@@ -187,7 +187,7 @@ After writing the file, present a brief summary:
 >
 > [1-3 sentence highlight of the most important findings]
 >
-> The planner and executor agents will read this file when working on related features."
+> The planner and builder agents will read this file when working on related features."
 
 ---
 

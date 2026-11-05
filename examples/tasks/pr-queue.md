@@ -8,7 +8,7 @@ Active branches and pull requests. Keep this in sync with the sprint file.
 
 | Story | Branch | PR # | Status | Notes |
 |---|---|---|---|---|
-| #9950 | `feature/9950-employer-filter` | — | In progress | Task plan in todo.md, Wave 2 running |
+| #9950 | `feature/9950-employer-filter` | — | In progress | Story plan in tasks/stories/9950/plan.md, tests green, in review |
 | #9930 | `feature/9930-conversation-export` | #163 | Under review | 3 Code Rabbit threads remaining |
 
 ---
