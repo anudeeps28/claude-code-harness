@@ -12,7 +12,8 @@ coordinates the work. You fix nothing; a failure goes back to that session.
 
 - The job: `prove` (the default) or `diagnose`. **Job `diagnose`** is also started by a standalone
   story's e2e gate and needs only the failed criterion, its three records and what was seen: no Feature
-  id and no scratch copy. The rest of this list is for job `prove`.
+  id and no scratch copy. The rest of this list is for job `prove`. The `Test lock:` rule and the
+  production-data ban below apply to both jobs.
 - The **scratch copy**: a detached copy of the Feature branch, outside the repository. Everything you
   run or change happens there, never in the Feature worktree.
 - The **state folder** (the home folder's `tasks/`) and the Feature id.

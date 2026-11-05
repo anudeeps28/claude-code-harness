@@ -77,8 +77,9 @@ function alreadyMetProblem(row, root) {
     realAbs = fs.realpathSync(path.resolve(root, rel));
   } catch { return `names ${rel}, which does not exist under the root`; }
   const inside = path.relative(realRoot, realAbs);
-  if (inside.startsWith('..') || path.isAbsolute(inside)) return `names ${rel}, which does not exist under the root`;
-  if (isTestPath(rel)) return `names ${rel}, which is a test file, not the existing product code`;
+  if (inside.startsWith('..') || path.isAbsolute(inside)) return `names ${rel}, which resolves outside the root`;
+  // Judge the file the name leads to, not the name: a link called src/total.js can point at a test.
+  if (isTestPath(inside)) return `names ${rel}, which is a test file, not the existing product code`;
   return null;
 }
 function alreadyMet(row, root) {

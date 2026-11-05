@@ -118,7 +118,7 @@ test('Feature_LockNeverReleased_NamesTheLock', () => {
   const lock = plantRefLock(r);
   const f = run('feature', '--home', r.home, '--path', r.fwt, '--branch', 'feature/x');
   assert.equal(f.code, 1, f.out);
-  assert.match(f.out, /x\.lock is held: another git command is running, or one stopped and left it; check, then remove it/);
+  assert.match(f.out, /x\.lock is held: another git command is running, or one stopped and left it; check that no other git process is running/);
   assert.ok(fs.existsSync(lock), 'the run never deletes a lock itself');
   assert.ok(!fs.existsSync(r.fwt), 'no worktree was made');
   // Companion: a real failure that is not a lock is not retried or reworded.
@@ -141,7 +141,7 @@ test('Git_IndexLockHeldBriefly_RetriedAndTheCommandSucceeds', async () => {
   fs.writeFileSync(path.join(r.home, 'new.txt'), 'x\n');
   const lock = path.join(r.home, '.git', 'index.lock');
   fs.writeFileSync(lock, '');
-  const child = spawn(process.execPath, [SCRIPT, 'git', '--', 'add', 'new.txt'], { cwd: r.home });
+  const child = spawn(process.execPath, [SCRIPT, 'git', '--', 'add', '--', 'new.txt'], { cwd: r.home });
   let out = '';
   child.stdout.on('data', (d) => { out += d; });
   child.stderr.on('data', (d) => { out += d; });
@@ -158,20 +158,135 @@ test('Git_LockNeverReleased_NamesItAndNeverDeletesIt_AndAPlainFailureIsNotRetrie
   fs.writeFileSync(path.join(r.home, 'new.txt'), 'x\n');
   const lock = path.join(r.home, '.git', 'index.lock');
   fs.writeFileSync(lock, '');
-  const held = runIn(r.home, 'git', '--', 'add', 'new.txt');
+  const held = runIn(r.home, 'git', '--', 'add', '--', 'new.txt');
   assert.equal(held.code, 1, held.out);
   assert.match(held.out, /index\.lock is held/);
+  assert.match(held.out, /check that no other git process is running/);
+  assert.doesNotMatch(held.out, /remove it/, 'never tells the person to delete a lock');
   assert.ok(fs.existsSync(lock), 'the lock was never deleted');
   fs.rmSync(lock);
   // Companion: a failure that is not a lock comes back at once (no 2 s waits) with git's own message.
   const t0 = Date.now();
-  const plain = runIn(r.home, 'git', '--', 'checkout', 'no-such-branch');
+  const plain = runIn(r.home, 'git', '--', 'restore', '--worktree', '--', 'no-such-file');
   assert.equal(plain.code, 1, plain.out);
-  assert.match(plain.out, /no-such-branch/);
+  assert.match(plain.out, /no-such-file/);
   assert.doesNotMatch(plain.out, /is held/);
   assert.ok(Date.now() - t0 < 1900, 'not retried');
   // And no git arguments is a usage error.
   assert.equal(runIn(r.home, 'git', '--').code, 2);
+});
+
+// A non-lock failure that merely contains the words "cannot lock ref" (a branch `feature` already
+// exists, so `feature/x` cannot be made) is not a lock held by another session: not retried.
+test('Feature_CannotLockRefThatIsNotALockFile_IsNotRetried', () => {
+  const r = repo();
+  git(r.home, 'branch', 'feature');
+  const t0 = Date.now();
+  const f = run('feature', '--home', r.home, '--path', r.fwt, '--branch', 'feature/x');
+  assert.equal(f.code, 1, f.out);
+  assert.match(f.out, /cannot lock ref/, 'git really did say cannot lock ref');
+  assert.doesNotMatch(f.out, /is held/);
+  assert.ok(Date.now() - t0 < 1900, 'not retried');
+});
+
+// A line the remote printed (prefixed `remote:`) is never this machine's lock file.
+test('Git_RemoteSaysLockFileExists_IsNotRetried', () => {
+  const r = repo();
+  const bare = path.join(r.root, 'origin.git');
+  git(r.root, 'init', '-q', '--bare', '-b', 'main', bare);
+  const hook = path.join(bare, 'hooks', 'pre-receive');
+  fs.writeFileSync(hook, "#!/bin/sh\necho \"Unable to create '/srv/x.lock': File exists.\" >&2\nexit 1\n");
+  fs.chmodSync(hook, 0o755);
+  git(r.home, 'remote', 'add', 'origin', bare);
+  git(r.home, 'checkout', '-q', '-b', 'feature/y');
+  const t0 = Date.now();
+  const p = runIn(r.home, 'git', '--', 'push', '-u', 'origin', 'feature/y');
+  assert.equal(p.code, 1, p.out);
+  assert.match(p.out, /remote: Unable to create/, 'the remote line really came through');
+  assert.doesNotMatch(p.out, /is held/);
+  assert.ok(Date.now() - t0 < 1900, 'not retried');
+});
+
+// ── `git --` runs only the run's own fixed shapes (round 2, item 1a) ─────────
+
+test('Git_EachAllowedShape_Runs', () => {
+  const r = repo();
+  const bare = path.join(r.root, 'origin.git');
+  git(r.root, 'init', '-q', '--bare', '-b', 'main', bare);
+  git(r.home, 'remote', 'add', 'origin', bare);
+  fs.writeFileSync(path.join(r.home, 'new.txt'), 'x\n');
+  // add -N -- <paths>: intent to add
+  const n = runIn(r.home, 'git', '--', 'add', '-N', '--', 'new.txt');
+  assert.equal(n.code, 0, n.out);
+  assert.match(git(r.home, 'status', '--porcelain'), /^ ?A new\.txt$/m); // the helper trims the leading space of the first line
+  // add -- <paths>, with a -C prefix from another folder
+  const a = runIn(r.root, 'git', '--', '-C', r.home, 'add', '--', 'new.txt');
+  assert.equal(a.code, 0, a.out);
+  assert.match(git(r.home, 'status', '--porcelain'), /^A {2}new\.txt$/m);
+  // restore --staged --worktree --source=HEAD -- <paths> takes the new file out of both
+  const re = runIn(r.home, 'git', '--', 'restore', '--staged', '--worktree', '--source=HEAD', '--', 'new.txt');
+  assert.equal(re.code, 0, re.out);
+  assert.equal(fs.existsSync(path.join(r.home, 'new.txt')), false, 'the new file is gone from the tree');
+  // restore --worktree -- <paths> puts a changed tracked file back
+  fs.writeFileSync(path.join(r.home, 'app.txt'), 'changed\n');
+  const rw = runIn(r.home, 'git', '--', 'restore', '--worktree', '--', 'app.txt');
+  assert.equal(rw.code, 0, rw.out);
+  assert.equal(fs.readFileSync(path.join(r.home, 'app.txt'), 'utf8'), 'line 1\n');
+  // commit -F <file>
+  fs.writeFileSync(path.join(r.home, 'c.txt'), 'c\n');
+  git(r.home, 'add', '--', 'c.txt');
+  const msg = path.join(r.root, 'msg.txt');
+  fs.writeFileSync(msg, 'feat: c\n');
+  const c = runIn(r.home, 'git', '--', '-C', r.home, 'commit', '-F', msg);
+  assert.equal(c.code, 0, c.out);
+  assert.equal(git(r.home, 'log', '-1', '--format=%s'), 'feat: c');
+  // push -u origin <branch>
+  git(r.home, 'checkout', '-q', '-b', 'feature/z');
+  const p = runIn(r.home, 'git', '--', 'push', '-u', 'origin', 'feature/z');
+  assert.equal(p.code, 0, p.out);
+  assert.match(git(r.root, '--git-dir', bare, 'branch', '--list'), /feature\/z/);
+});
+
+test('Git_RefusedFlagsAndSubcommands_Exit2_AndGitNeverRuns', () => {
+  const r = repo();
+  const bare = path.join(r.root, 'origin.git');
+  git(r.root, 'init', '-q', '--bare', '-b', 'main', bare);
+  git(r.home, 'remote', 'add', 'origin', bare);
+  fs.writeFileSync(path.join(r.home, 'app.txt'), 'dirty\n');
+  const refused = [
+    ['push', '--force', 'origin', 'feature/x'],
+    ['push', '-f', 'origin', 'feature/x'],
+    ['push', '-u', 'origin', '+feature/x'],
+    ['push', 'origin', '+main:main'],
+    ['push', '--mirror', 'origin'],
+    ['push', '--delete', 'origin', 'feature/x'],
+    ['push', '-u', 'origin', 'feature/x', '--force'],
+    ['push', '--upload-pack=evil', '-u', 'origin', 'feature/x'],
+    ['push', '--receive-pack=evil', '-u', 'origin', 'feature/x'],
+    ['push', '--exec=evil', '-u', 'origin', 'feature/x'],
+    ['-c', 'core.hooksPath=/x', 'add', '--', 'app.txt'],
+    ['-C', r.home, '-c', 'core.hooksPath=/x', 'add', '--', 'app.txt'],
+    ['checkout', '--', 'app.txt'],
+    ['reset', '--hard'],
+    ['config', 'user.name', 'x'],
+    ['commit', '-m', 'x'],
+    ['commit', '-F', 'f', '--amend'],
+    ['add', '.'],
+    ['restore', '--source=other', '--', 'app.txt'],
+    ['push', '-u', 'origin', '--bad'],
+  ];
+  for (const args of refused) {
+    const s = runIn(r.home, 'git', '--', ...args);
+    assert.equal(s.code, 2, `${args.join(' ')}: ${s.out}`);
+    assert.match(s.out, /refused/, `${args.join(' ')} is named as refused`);
+  }
+  // Companions: git never ran (the dirty file was not restored, nothing was pushed or configured).
+  assert.equal(fs.readFileSync(path.join(r.home, 'app.txt'), 'utf8'), 'dirty\n');
+  assert.equal(git(r.root, '--git-dir', bare, 'branch', '--list'), '');
+  assert.equal(spawnSync('git', ['config', '--get', 'user.name'], { cwd: r.home, encoding: 'utf8' }).stdout.trim(), 'Test');
+  // The refusal names the offending thing.
+  assert.match(runIn(r.home, 'git', '--', 'push', '--force', 'origin', 'x').out, /--force/);
+  assert.match(runIn(r.home, 'git', '--', 'reset', '--hard').out, /reset/);
 });
 
 test('CheckBranch_ReportsAMovedBranch', () => {

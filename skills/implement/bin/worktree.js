@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // worktree.js — the git side of a Feature run (F4 #45, #46; F72 #79). Only the orchestrator runs
-// it. Nothing here is ever forced: no --force, no -D, no reset, no push. Stories are built one after
-// another on the Feature branch, so there is no story worktree, story merge or story removal.
+// it. Its own commands (feature, scratch, ...) never force, delete a branch or reset. The `git`
+// command runs a small fixed set of the run's own git commands (add, commit -F, restore, push -u
+// origin <branch>) and refuses everything else; the safety hook judges it as the git command it runs.
+// Stories are built one after another on the Feature branch, so there is no story worktree, story
+// merge or story removal.
 //
 // Usage:
 //   feature --home <dir> --path <p> --branch <b> [--base main]
@@ -12,14 +15,16 @@
 //       Prove it's scratch copy: a detached worktree at <ref> (no branch). Refuses an existing path.
 //   remove-scratch --home <dir> --path <p>
 //       Removes it only when it is detached and clean: a broken line not put back is refused (exit 1).
-//   git -- <git arguments...>
-//       One git command in the current folder (the story commit, the stuck-story restore, the PR push),
-//       retried when another session holds a lock file. Any failure exits 1 with git's message.
+//   git -- [-C <dir>] add [-N] -- <paths> | commit -F <file> | restore [--staged] [--worktree]
+//        [--source=HEAD] -- <paths> | push -u origin <branch>
+//       One of those git commands (the story commit and staging, the restore, the push), retried when
+//       another session holds a lock file. Any other command or flag: exit 2, "refused", git not run.
+//       A git failure exits 1 with git's message.
 //
 // Output and exit codes:
 //   0 ok
 //   1 a git command refused (message printed)
-//   2 usage error
+//   2 usage error, or a git command refused
 //   5 "branch-moved: ..." (contradiction: the run stops)
 
 const fs = require('node:fs');
@@ -29,19 +34,30 @@ const { spawnSync } = require('node:child_process');
 const BRANCH_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
 // Another session's git command may hold a lock file for a moment (F73 #82): a lock-file failure is
-// retried 3 times, 2 seconds apart. Still locked: say which lock; this script never deletes one.
-const LOCK_MESSAGE = /\.lock': File exists|Unable to create '[^']*\.lock'|cannot lock ref/;
+// retried 3 times, 2 seconds apart. Only this machine's own `Unable to create '<path>.lock': File
+// exists` counts; a line the remote printed (`remote: ...`) or any other "cannot lock ref" failure
+// does not. Still locked: say which lock; this script never deletes one.
+const LOCK_MESSAGE = /Unable to create '([^']*\.lock)': File exists/;
 const RETRIES = 3;
 const RETRY_WAIT_MS = 2000;
+
+function lockHeld(stderr) {
+  for (const line of (stderr || '').split(/\r?\n/)) {
+    if (/^\s*remote:/.test(line)) continue;
+    const m = line.match(LOCK_MESSAGE);
+    if (m) return m[1];
+  }
+  return null;
+}
 
 function git(cwd, args) {
   let r;
   for (let attempt = 0; ; attempt++) {
     r = spawnSync('git', args, { cwd, encoding: 'utf8' });
-    if (r.status === 0 || !LOCK_MESSAGE.test(r.stderr || '')) break;
+    const lock = r.status === 0 ? null : lockHeld(r.stderr);
+    if (!lock) break;
     if (attempt === RETRIES) {
-      const named = (r.stderr || '').match(/Unable to create '([^']*\.lock)'/);
-      die(1, `${named ? named[1] : 'a git lock file'} is held: another git command is running, or one stopped and left it; check, then remove it`);
+      die(1, `${lock} is held: another git command is running, or one stopped and left it; check that no other git process is running`);
     }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, RETRY_WAIT_MS);
   }
@@ -123,10 +139,48 @@ const NEEDS = {
   'remove-scratch': ['home', 'path'],
 };
 
-// `git -- <args...>`: one git write of a run (the story commit, the stuck-story restore, the PR push)
-// in the current folder, with the same lock retry. Arguments go to git as an array, never as shell text.
+// `git -- <args...>` runs only the run's own fixed shapes, each optionally preceded by `-C <dir>`:
+//   add [-N] -- <paths>            commit -F <file>
+//   restore [--staged] [--worktree] [--source=HEAD] -- <paths>
+//   push -u origin <branch>        (branch matches BRANCH_RE)
+// Everything else is refused (exit 2) before git runs, so this wrapper cannot carry a force push, a
+// config override or any other command past the safety hook, which judges it as the git command it runs.
+const REFUSED_FLAG = /^(--force(-with-lease|-if-includes)?(=.*)?|-f|\+.*|--mirror|--delete|-d|-c|--upload-pack(=.*)?|--receive-pack(=.*)?|--exec(=.*)?)$/;
+const RESTORE_OPTS = new Set(['--staged', '--worktree', '--source=HEAD']);
+
+function refusal(args) {
+  let rest = args;
+  if (rest[0] === '-C') {
+    if (!rest[1] || rest[1].startsWith('-')) return '-C needs a folder';
+    rest = rest.slice(2);
+  }
+  const sub = rest[0];
+  const dd = rest.indexOf('--');
+  // Flags are looked for before `--` (after it everything is a path), and in every argument of a push.
+  const scanned = sub === 'add' || sub === 'restore' ? rest.slice(0, dd === -1 ? rest.length : dd) : rest;
+  const flag = scanned.find((a) => REFUSED_FLAG.test(a));
+  if (flag) return `${flag} is never run through this command`;
+  const shape = `git ${sub || '(nothing)'}${rest.slice(1, 2).length ? ' ' + rest[1] : ''} is not one of the run's own shapes (add [-N] -- <paths>, commit -F <file>, restore [--staged] [--worktree] [--source=HEAD] -- <paths>, push -u origin <branch>)`;
+  if (sub === 'add') {
+    const opts = rest.slice(1, dd);
+    return dd !== -1 && rest.length > dd + 1 && opts.every((o) => o === '-N') && opts.length <= 1 ? null : shape;
+  }
+  if (sub === 'restore') {
+    const opts = rest.slice(1, dd);
+    return dd !== -1 && rest.length > dd + 1 && opts.every((o) => RESTORE_OPTS.has(o)) ? null : shape;
+  }
+  if (sub === 'commit') return rest.length === 3 && rest[1] === '-F' && !rest[2].startsWith('-') ? null : shape;
+  if (sub === 'push') {
+    return rest.length === 4 && rest[1] === '-u' && rest[2] === 'origin' && BRANCH_RE.test(rest[3]) ? null : shape;
+  }
+  return shape;
+}
+
+// Arguments go to git as an array, never as shell text.
 function cmdGit(args) {
   if (args.length === 0) die(2, 'usage: worktree.js git -- <git arguments...>');
+  const why = refusal(args);
+  if (why) die(2, `refused: ${why}`);
   const r = git(process.cwd(), args);
   if (r.out) out(r.out);
   if (r.code !== 0) die(1, r.err || `git ${args[0]} failed`);

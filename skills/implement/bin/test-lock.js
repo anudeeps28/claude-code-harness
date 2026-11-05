@@ -7,7 +7,7 @@
 //   Takes the lock with mkdir (atomic) and writes <dir>/owner ("pid:", "host:", "platform:", "start:"
 //   lines). A lock whose owner pid is gone is broken only when the host AND the platform match this
 //   machine's (WSL and Windows share a hostname, not pids), and only the exact lock that was judged dead
-//   is ever removed. A directory with no owner file is broken only when it is empty (a crash leftover);
+//   is ever removed. A directory with no owner file is broken only when it is empty and older than 20 minutes (a crash leftover);
 //   one holding anything else is never touched: it is waited on, then named in the timeout. Waits at most 60 minutes, then exits 3 with "lock held: <dir> by <owner>". There is no age
 //   limit while the owner lives, so a long suite is never broken into. The command runs with its
 //   arguments as an array, never as shell text. On Windows a `.cmd`/`.bat` shim (npm, npx, pnpm, yarn)
@@ -38,8 +38,9 @@ const envMs = (name, dflt) => {
   const v = Number(process.env[name]);
   return Number.isFinite(v) && v > 0 ? v : dflt;
 };
-// A lock dir with no owner file is one left by a crash, or by a lock made by hand (a plain `mkdir`):
-// it is broken once it is older than the grace below (20 minutes).
+// A lock dir with no owner file is one left by a crash, or by a lock made by hand (a plain `mkdir`).
+// It is broken only when it is empty (or holds nothing but an unreadable `owner`) AND is older than the
+// grace below (20 minutes); one holding anything else is never touched (see judgeStale).
 const maxWaitMs = () => envMs('TEST_LOCK_TIMEOUT_MS', 60 * 60 * 1000);
 const noOwnerGraceMs = () => envMs('TEST_LOCK_GRACE_MS', 20 * 60 * 1000);
 const beatMs = () => envMs('TEST_LOCK_BEAT_MS', 60 * 1000);

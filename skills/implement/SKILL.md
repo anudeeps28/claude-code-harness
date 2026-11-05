@@ -91,10 +91,10 @@ under a gitignored directory, so nothing finds it by looking. See `rules/wave-ex
 
 **A Feature run is not foreign work here.** A `phase.md` or an `executor-state.md` that carries a `feature:` key belongs to a Feature run, which builds in its own Feature worktree and writes only `tasks/` in this folder, so it is **not foreign work** for this folder. Paths under `tasks/` are not counted as dirty for this check. Everything else in the check is unchanged: a standalone run still builds in the folder it runs in.
 
-**But a Feature session open in this home folder is a reason to ask before the branch is made.** A standalone run checks out its branch in this folder, which moves the shared home folder off `main` under a Feature session that drives from it. So: if any `tasks/features/*/claim.md` is fresh (`updated` within the last 30 minutes, `rules/phase-markers.md`), show which Feature and how old, and ask before checking out a branch here:
+**But a Feature session open in this home folder is a reason to ask before the branch is made.** A standalone run checks out its branch in this folder, which moves the shared home folder off `main` under a Feature session that drives from it. So: for each folder `tasks/features/<fid>/`, run `node "<skill-dir>/bin/feature-state.js" live --feature <fid>`. It prints `live <fid>: idle <N>m` (exit 0) when the Feature's last activity is under 30 minutes old (its progress log, its phase markers, the test-lock heartbeat, the claim itself), else `idle <fid>: <N>m` (exit 1). If any prints `live`, show which Feature and how long it has been idle, and ask before checking out a branch here:
 
 ```
-A Feature session looks open in this home folder: tasks/features/<fid>/claim.md, updated <N> minutes ago.
+A Feature session looks open in this home folder: Feature <fid>, last activity <N> minutes ago (feature-state.js live).
 A standalone run checks out a branch here, which moves the home folder off main under that session.
 Recommended: build this story in its own worktree.
 
@@ -102,7 +102,7 @@ Recommended: build this story in its own worktree.
 (B) Continue here
 ```
 
-This is **not** self-answerable under `--autonomous` (it moves a folder another session is using; not reversible by this run): an autonomous run **pauses** here. A stale claim (older than 30 minutes) asks nothing.
+This is **not** self-answerable under `--autonomous` (it moves a folder another session is using; not reversible by this run): an autonomous run **pauses** here. A Feature that prints `idle` asks nothing.
 
 **Show what you found and ask.** Do not refuse outright, and do not proceed silently — a dirty tree is often YOUR_NAME's own scratch work, so the call is theirs:
 
@@ -510,7 +510,7 @@ for `code`, the product files changed since the red run, never the test files, w
 evidence; for `tests`, the story's test files. The loop stages the tests (and the stub) at the red
 step and saves its paths under `## Red files` (`resume-point.js` prints them as `red-file:` lines), so
 for `code` restore the files in `git diff --name-only` **that are not in that list**, with
-`git checkout -- <paths>`, plus the untracked files in neither that list nor
+`restore --worktree -- <paths>` run through `worktree.js` (`node "<skill-dir>/bin/worktree.js" git -- [-C "<feature-worktree>"] restore --worktree -- <paths>`; in a Feature the `-C` names the Feature worktree), plus the untracked files in neither that list nor
 `tasks/stories/<id>/.tree-baseline`, which you delete. The red set stays as it is, so the stub the
 tests builder wrote is not reverted (a `git add -N` file still shows in `git diff --name-only`, which is
 why the list decides). The same under `--no-ship`, where nothing is staged and the list is the only
@@ -687,8 +687,13 @@ content into the command line.
 place:
 
 ```bash
-git add <only the paths your fixes touched> && git commit -F <message file> && git push
+node "<skill-dir>/bin/worktree.js" git -- add -- <only the paths your fixes touched>
+node "<skill-dir>/bin/worktree.js" git -- commit -F <message file>
+node "<skill-dir>/bin/worktree.js" git -- push -u origin "<the PR's head branch>"
 ```
+
+(Three calls, because `worktree.js git` runs one git command at a time and retries a lock file another
+session holds; the hook still asks before the commit and the push.)
 
 Stage only the specific files the fix list actually changed — do **not** `git add -A`, which would
 sweep unrelated local or gitignored files into the PR-updating commit. Do **not** open a new pull
@@ -735,7 +740,8 @@ contradiction pause-anyway trigger: **stop**, never self-answered.
 the same test lock as a Feature's (**Run the stories**), without the heartbeat, which only a Feature's
 claim reads: `Test lock: node "<skill-dir>/bin/test-lock.js" run --lock "<state>/.verify.lock" --`. The default passes none.
 The same `Test lock:` line goes to **every agent and skill that executes a suite**: `story-builder`, `suite-runner`,
-`evaluator-agent`, `acceptance-test-agent`, `/local-test` (every level, e2e included) and the `prover`. Each
+`evaluator-agent`, `acceptance-test-agent`, `architect-reviewer-agent` (its `Migrate forward:` command),
+`debug-agent` and `/debug` (the feedback loop), `/local-test` (every level, e2e included) and the `prover`. Each
 puts it in front of **each** build, test or E2E command it runs, one command at a time (a compound `a && b` is
 two commands: wrap each). **Never wrap a long-running start command** (the app's "Start the app", a dev
 server): it would hold the lock for the server's life and every later command, yours included, would wait
@@ -810,17 +816,19 @@ Who tunes the waits: the person who owns the project's test setup, through `TEST
    first. At the start of each round, write `round: <n>` into the story's `executor-state.md`, so
    a resume at review starts at that round. The phase marker follows the agent: `phase: reviewing`
    before a reviewer, `phase: coding` before a fix builder, `phase: testing` before the green run.
-   Before a round's fixes, stage the story's paths (`git add <paths>`, `git add -N` for new
-   files) so that `git diff` is exactly the fix diff. Still open after round 5: **stop and ask**
+   Before a round's fixes, stage the story's paths (`node "<skill-dir>/bin/worktree.js" git -- -C "<feature-worktree>" add -- <paths>`,
+   with `add -N --` for new files; a standalone run leaves the `-C` out) so that `git -C "<feature-worktree>" diff` is exactly the fix diff. Still open after round 5: **stop and ask**
    (`event=run-paused`). A fix is followed by a green scoped run before the next round. When the
    review is clean, set `step=commit`.
 7. **Commit.** Stage the union of the paths the builders reported, by path, never `git add -A` (a
-   dirty tree holds work that is not this story's). Before the commit, `git diff --cached --name-only`
+   dirty tree holds work that is not this story's), with `worktree.js git -- -C "<feature-worktree>" add -- <paths>`.
+   Before the commit, `git -C "<feature-worktree>" diff --cached --name-only`
    must hold only that story's paths: anything else in the index (a stuck story's leftovers, someone
    else's staging) is a stop, never committed. Commit only when the scoped set is green on the
    final state, **never on red**. The message is `<type>: <title>`, then `Acceptance criteria covered:` with one
    line per criterion and its test, then the trailer `Story: #<sid>`. Write it to a file under the
-   system temp directory and run `git commit -F <file>` through `worktree.js` (`node "<skill-dir>/bin/worktree.js" git -- commit -F <file>`:
+   system temp directory and run `git commit -F <file>` through `worktree.js` (in a Feature, naming the Feature worktree, like the push:
+   `node "<skill-dir>/bin/worktree.js" git -- -C "<feature-worktree>" commit -F <file>`; a standalone run leaves the `-C` out:
    the same git, retried when another session holds a lock file in the shared `.git`; it never deletes one):
    never message text inside double quotes on the command line. Then, in a Feature:
    `feature-state.js set --feature <fid> --story <sid> status=committed commit=<sha> finished=<now>
@@ -873,10 +881,13 @@ state; the builders write product code and tests in the Feature worktree. You ne
 **Several Features at once.** Open one session per Feature, each in the home folder, each running
 `/implement <fid>` (ADR-0006). Each session writes only its own `tasks/features/<fid>/` and its stories'
 folders. A shared file (`lessons.md`/`notes.md`, the sprint file) is read just before it is edited; a failed
-Edit is re-read and redone, never written over. Every git write a run makes in the shared `.git` (the
-story commit, the stuck-story restore, the PR `push -u`, the worktree commands) goes through
-`worktree.js` (`worktree.js git -- <args>` for the first three): a command that meets another session's lock
-file is retried 3 times, and `worktree.js` never deletes a lock. Stories inside a Feature still go one at a time.
+Edit is re-read and redone, never written over. These git writes in the shared `.git` go through
+`worktree.js`: the story staging and commit, the restores (stuck story, resume, retry), the rework commit and push, the PR
+`push -u` (all `worktree.js git -- <args>`, which runs only `add`, `commit -F`, `restore` and `push -u origin <branch>`),
+and the worktree commands (`feature`, `scratch`, `remove-scratch`). A command that meets another session's lock
+file is retried 3 times, and `worktree.js` never deletes a lock. The one exception is branch creation
+(`git checkout -b implement/<id>` in "Before you start"), which stays plain git and is not retried.
+Stories inside a Feature still go one at a time.
 
 ### Another session on the same Feature
 
@@ -937,7 +948,9 @@ TITLE_END
    turns each into criteria with proofs. Then spawn **one** `implement-planner-agent` (foreground,
    model: `opus`) in its **Plan format**. Give it the goals, the brief, the tickets, the story
    order, the Feature's Demo, the `Probes to build:` lines from the Observe check and both folders; it
-   writes `tasks/features/<fid>/plan.md` and no other plan. Its format is in the planner's **Plan
+   writes `tasks/features/<fid>/plan.md` and no other plan, and it writes a `## Goal` section in
+   `tasks/features/<fid>/test-strategy.md` from the goals you gave it: the e2e modality, the concrete gate and how
+   each result is seen (that is where `/local-test e2e` and the reviewers read a Feature's Goal). Its format is in the planner's **Plan
    format**. **A numbered file** (an ADR, a migration) takes a number that is free on the base branch and not
    named in another Feature's `tasks/features/*/plan.md`: give the planner those paths, and the plan says
    `Reserves: ADR-<n>` on the story that creates it.
@@ -1036,8 +1049,8 @@ story run `worktree.js check-branch --path "<feature-worktree>" --expect "<featu
 (a moved branch is a contradiction pause-anyway trigger: **stop**, never self-answered).
 
 **Shared test resources.** When lessons/notes set `verify-lock: global`, every brief to `story-builder`,
-`suite-runner`, `prover`, `evaluator-agent`, `acceptance-test-agent` and `/local-test` (every level, e2e
-included) carries one extra line:
+`suite-runner`, `prover`, `evaluator-agent`, `acceptance-test-agent`, `architect-reviewer-agent` (its
+`Migrate forward:` command), `debug-agent` and `/debug` (the feedback loop of the 3-attempt rule), and `/local-test` (every level, e2e included) carries one extra line:
 
 `Test lock: node "<skill-dir>/bin/test-lock.js" run --lock "<state>/.verify.lock" --heartbeat "<state>/features/<fid>/heartbeat" --`
 
@@ -1085,10 +1098,10 @@ It marks the story stuck and every story that depends on it, directly or not, he
 stuck story's card to `needs-person`
 (`tracker-helper`, model: `haiku`) and print `event=story-stuck`. The held dependents' cards are left
 untouched: they stay where they are, and the state file says they are held. First run `git add -N` on the
-story's new files, so the diff includes them (a plain diff skips untracked files and `stuck.diff` would
-lose them). Then save the story's `git diff HEAD -- <paths>` (staged and unstaged together) to
+story's new files (`worktree.js git -- -C "<feature-worktree>" add -N -- <paths>`), so the diff includes them (a plain diff skips untracked files and `stuck.diff` would
+lose them). Then save the story's `git -C "<feature-worktree>" diff HEAD -- <paths>` (staged and unstaged together) to
 `tasks/stories/<sid>/stuck.diff`. Then put back only that story's own
-paths, new ones included, in one call: `git restore --staged --worktree --source=HEAD -- <all the story's paths>`, run through `worktree.js` (`node "<skill-dir>/bin/worktree.js" git -- restore ...`), which retries when another session holds a lock file in the shared `.git`.
+paths, new ones included, in one call: `git restore --staged --worktree --source=HEAD -- <all the story's paths>`, run through `worktree.js` (`node "<skill-dir>/bin/worktree.js" git -- -C "<feature-worktree>" restore --staged --worktree --source=HEAD -- <paths>`), which retries when another session holds a lock file in the shared `.git`.
 A new file is not in HEAD, so this drops its index entry and deletes it. Restoring from the index
 would keep the staged copy, and the next story's `git commit` would take the stuck code. Index and tree must match HEAD for those paths
 before the next story starts (`rules/wave-execution.md`, "restore before retrying").
@@ -1169,7 +1182,7 @@ The one full review, run once on the whole Feature branch after every story is c
    evaluator is called three times, one per part. Every one gets: **work folder** = the Feature worktree; **state folder** =
    `<state>`; **base ref** = the `base:` in `feature-state.md`, normally `main` (they diff `<base>...feature/<fid>`); the Feature id; **scripts
    folder** = `<skill-dir>/bin`; "Feature panel"; under `verify-lock: global`, the `Test lock:` line (the
-   evaluator and the acceptance agent run commands, so they queue on it; **Shared test resources**); and its **model, passed explicitly** on the Agent
+   evaluator, the acceptance agent and the architect reviewer, whose `Migrate forward:` command stands up a database, run commands, so they queue on it; **Shared test resources**); and its **model, passed explicitly** on the Agent
    call — an answer that is a list goes on the faster model, an answer that is an argument never does:
 
    | Agent | Model | Also gets |
@@ -1631,7 +1644,7 @@ contract in "Autonomous mode" above). After the commit of step 7, go on to Phase
 context, twice; after the third failed attempt **STOP**, say "3-attempt rule. Invoking /debug." and invoke `/debug`.
 Before every retry, **restore** what the failed attempt left half-done in the working directory
 (the rules for a shared working directory, "Restore before retrying"): the story's own paths that were changed since the
-run started (compare with `tasks/stories/<id>/.tree-baseline`), with `node "<skill-dir>/bin/worktree.js" git -- checkout -- <tracked paths>`,
+run started (compare with `tasks/stories/<id>/.tree-baseline`), with `node "<skill-dir>/bin/worktree.js" git -- restore --worktree -- <tracked paths>` (with `-C "<feature-worktree>"` first in a Feature),
 deleting the untracked files that attempt created — but a green test the builder must not edit is
 never one of the paths put back, and never a blanket `git checkout .` or `git stash`, which would
 destroy work that is not this story's. Without it, attempt 2 reads attempt 1's wreckage as if it were
@@ -1699,6 +1712,7 @@ Spawn **all four review agents in parallel** (foreground):
 **Agent 3 — Architect Reviewer:** Spawn an **`architect-reviewer-agent`** (model: `opus`) with:
 
 > Story ID: [issue ID or "implement/<branch-name>"]
+> Test lock: [the `Test lock:` line, only under `verify-lock: global`; it goes in front of the `Migrate forward:` command]
 
 **Agent 4 — Security Reviewer:** Spawn a **`security-reviewer-agent`** (model: `opus`) with:
 
@@ -1754,7 +1768,7 @@ defect in the run, not a record.
 When the review has passed — every finding you chose to fix is fixed and re-reviewed — write the
 **step record**: `step: e2e-gate`.
 
-**e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1.5 and the story's criteria. Run `/local-test e2e` (with the story id, so it reads the Goal from `tasks/stories/<id>/brief.md`, and the `Test lock:` line under `verify-lock: global`) for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) as evidence for YOUR_NAME's sign-off, carried into the PR (`needs-person`, Phase 1c) rather than waited for. **NOT SET UP is a red gate**, exactly like a FAIL: no e2e command in Observe means nobody has seen the Demo happen. Add the command (or build it as part of the story) and re-run; never treat it as skipped. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs built vs observed → root-cause: a failed criterion goes to the `prover` (job `diagnose`, model: `opus`), briefed with the criterion, its three records (intended, built, observed) and what was seen (no Feature id and no scratch copy: it reads nothing else), and a build or runtime failure goes to `/debug` → the fix goes through `story-builder` (job `fix`, model: `sonnet`), test first → re-run. Three evidence-based re-approaches without a green gate → STOP and invoke `/debug`; do not attempt a 4th (a blind repeat doesn't count as a re-approach). The gate blocks the PR until green; a sign-off criterion goes to the PR as `needs-person`.
+**e2e goal gate (skipped only with `--quick`):** Before PR, run the feature's e2e gate — the goal defined in Phase 1.5 and the story's criteria. Run `/local-test e2e` (with the story id, so it reads the Goal from `tasks/stories/<id>/brief.md`, and the `Test lock:` line under `verify-lock: global`) for an automated modality, or for a no-oracle feature surface the actual behavior (per the observability plan) as evidence for YOUR_NAME's sign-off, carried into the PR (`needs-person`, Phase 1c) rather than waited for. **NOT SET UP is a red gate**, exactly like a FAIL: no e2e command in Observe means nobody has seen the Demo happen. Add the command (or build it as part of the story) and re-run; never treat it as skipped. **"Done" is goal-met, not "compiles."** If the gate fails, do NOT blind-retry: observe the actual state → compare intended vs built vs observed → root-cause: a failed criterion goes to the `prover` (job `diagnose`, model: `opus`), briefed with the criterion, its three records (intended, built, observed) and what was seen (no Feature id and no scratch copy; it needs nothing else in its brief but the `Test lock:` line under `verify-lock: global`), and a build or runtime failure goes to `/debug` → the fix goes through `story-builder` (job `fix`, model: `sonnet`), test first → re-run. Three evidence-based re-approaches without a green gate → STOP and invoke `/debug`; do not attempt a 4th (a blind repeat doesn't count as a re-approach). The gate blocks the PR until green; a sign-off criterion goes to the PR as `needs-person`.
 
 **The closing check (only when this story completes a coverage table).** When the story's source
 lines name a coverage table and every other item it maps to is already closed, run
@@ -1798,11 +1812,14 @@ plan gate was the approval to build through to it, and the PR is the human gate 
 Committing and pushing your own branch and opening a PR are reversible and non-destructive; force-push
 or any history rewrite is NOT, and remains a pause-anyway trigger.
 
-**STOP 3 (`--step` only).** Instead, say "Review the commits and PR description above. Push the branch
-and open the PR with the commands shown, then say 'push' when ready," and wait for YOUR_NAME to push. Then:
+**STOP 3 (`--step` only).** Instead of running the two commands below, show them and say "Review the commits
+and PR description above. The push and `gh pr create` below are yours to run (I do not run them); say 'pushed'
+when the PR is open," and wait for YOUR_NAME. The run then carries on with what follows the PR (the card, the
+`event=pr-opened` line) and never pushes a second time.
 
 Write the body from `story-pr-agent` to a temp file; the title is ticket text, so it goes in through the
-single-quoted heredoc, never inside double quotes:
+single-quoted heredoc, never inside double quotes. Without `--step`, the run runs these two commands itself
+(the push, then `gh pr create`); under `--step` they are the person's, shown above and not run:
 
 ```bash
 node "<skill-dir>/bin/worktree.js" git -- push -u origin "<this run's branch>"

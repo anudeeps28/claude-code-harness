@@ -315,14 +315,19 @@ const flatten = (s) => String(s).replace(/\s+/g, ' ');
 // (`git checkout --`) keeps the staged copy, so the next story's commit would take it.
 const stuckLeavesNothing = (t) => {
   const f = flatten(t);
-  return /`git diff HEAD -- <paths>`/.test(f) && /stuck\.diff/.test(f)
+  // The git calls name the Feature worktree (`git -C "<feature-worktree>" ...`), as the push line does.
+  return /`git (?:-C "<feature-worktree>" )?diff HEAD -- <paths>`/.test(f) && /stuck\.diff/.test(f)
     // one restore of every story path, new ones too: a new file is not in HEAD, so it is removed
     && /git restore --staged --worktree --source=HEAD -- <all the story's paths>/.test(f)
     && /new ones included/.test(f) && !/git checkout --/.test(f)
     // new files are made visible to the diff first, or stuck.diff silently loses them
-    && f.search(/git add -N/) !== -1 && f.search(/git add -N/) < f.search(/`git diff HEAD -- <paths>`/);
+    && f.search(/git add -N/) !== -1 && f.search(/git add -N/) < f.search(/diff HEAD -- <paths>`/);
 };
-const commitsOnlyItsOwnPaths = (t) => /`git diff --cached --name-only`[^.]{0,160}only (that story's|the story's) paths/.test(flatten(t));
+const commitsOnlyItsOwnPaths = (t) => /`git (?:-C "<feature-worktree>" )?diff --cached --name-only`[^.]{0,160}only (that story's|the story's) paths/.test(flatten(t));
+// Round 2 (item 5): in a Feature the story's staging, commit and restore name the Feature worktree.
+const namesTheFeatureWorktree = (t) => /git -- -C "<feature-worktree>" commit -F/.test(flatten(t))
+  && /git -- -C "<feature-worktree>" add -- <paths>/.test(flatten(t))
+  && /git -- -C "<feature-worktree>" restore --staged --worktree --source=HEAD -- <paths>/.test(flatten(t));
 
 test('Stuck_RestoresIndexAndTreeToHeadBeforeTheNextStory', () => {
   assert.ok(!stuckLeavesNothing('Save `git diff` to stuck.diff, then `git checkout -- <paths>`.'), 'planted index-keeping restore must be rejected');
@@ -331,7 +336,12 @@ test('Stuck_RestoresIndexAndTreeToHeadBeforeTheNextStory', () => {
   assert.ok(stuckLeavesNothing(s), 'a stuck story: save git diff HEAD, restore index and tree from HEAD, delete its new files');
   const wrongOrder = 'Save the story\'s `git diff HEAD -- <paths>` to stuck.diff, run `git add -N` on its new files, then `git restore --staged --worktree --source=HEAD -- <tracked paths>` and delete its new untracked files.';
   assert.ok(!stuckLeavesNothing(wrongOrder), 'planted git add -N after the diff capture must be rejected');
-  assert.ok(s.includes('git diff HEAD'), 'companion: the stuck section was read');
+  assert.ok(s.includes('diff HEAD'), 'companion: the stuck section was read');
+});
+
+test('Commit_StagingCommitAndStuckRestoreNameTheFeatureWorktree', () => {
+  assert.ok(!namesTheFeatureWorktree('Run `node "<skill-dir>/bin/worktree.js" git -- commit -F <file>`.'), 'planted commit with no -C is rejected');
+  assert.ok(namesTheFeatureWorktree(IMPLEMENT),'the story commit, its git add staging and the stuck restore carry -C "<feature-worktree>"');
 });
 
 test('Commit_RequiresTheIndexToHoldOnlyThisStorysPaths', () => {

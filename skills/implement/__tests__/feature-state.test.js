@@ -665,6 +665,55 @@ test('Claim_OtherSessionActiveWithin30m_Busy', () => {
   assert.equal(claim(dir, 's2').code, 1, '29 minutes old is still busy');
 });
 
+// `live`: is another session working on this Feature right now? Reuses the claim's own activity
+// reading (progress.log, phase.md, the running story's phase.md, the test-lock heartbeat).
+function live(dir, fid = '123') {
+  return run(dir, 'live', '--feature', fid, '--now', NOW);
+}
+
+test('Live_ActivityWithin30m_PrintsLiveAndExit0', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:55:00Z', 'story-started'));
+  const r = live(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^live 123: idle 5m$/m);
+  // Companion: 29 minutes is still live; the claim's own 08:00 time is not what is read.
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:31:00Z'));
+  assert.equal(live(dir).code, 0, '29 minutes is still live');
+});
+
+test('Live_NothingFor30m_PrintsIdleAndExit1', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T09:30:00Z'));
+  const r = live(dir);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^idle 123: 30m$/m);
+  assert.doesNotMatch(r.out, /^live/m);
+  // A Feature with no record at all is not live either.
+  const empty = live(home([]), '999');
+  assert.equal(empty.code, 1, empty.out);
+  assert.match(empty.out, /^idle 999:/m);
+});
+
+test('Live_HeartbeatCountsAsActivity', () => {
+  const dir = home([]);
+  claimed(dir, 's1');
+  fs.writeFileSync(path.join(featureDir(dir, '123'), 'progress.log'), logLine('123', '2026-11-04T08:00:00Z'));
+  const hb = path.join(featureDir(dir, '123'), 'heartbeat');
+  fs.writeFileSync(hb, '');
+  const stamp = new Date('2026-11-04T09:50:00Z');
+  fs.utimesSync(hb, stamp, stamp);
+  const r = live(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /^live 123: idle 10m$/m);
+  // Companion: the same heartbeat, 40 minutes old, is idle.
+  const old = new Date('2026-11-04T09:20:00Z');
+  fs.utimesSync(hb, old, old);
+  assert.equal(live(dir).code, 1);
+});
+
 test('Claim_OtherSessionIdle30m_FreeAndTakesIt', () => {
   const dir = home([]);
   claimed(dir, 's1');

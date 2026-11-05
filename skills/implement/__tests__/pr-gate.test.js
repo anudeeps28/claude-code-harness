@@ -33,10 +33,13 @@ function setup({ gate, body = '', stories = 'committed', feature } = {}) {
     '# Feature state — 1', '', 'feature: 1', '', '## Stories', '',
     `story 201: status=${stories} title=Orders`, 'story 202: status=committed title=Status', '',
   ].join('\n'));
-  for (const [sid, n] of [['201', 2], ['202', 1]]) {
-    fs.mkdirSync(path.join(root, 'tasks', 'stories', sid), { recursive: true });
-    fs.writeFileSync(path.join(root, 'tasks', 'stories', sid, 'test-strategy.md'), STRATEGY(n));
-  }
+  // Each story's criteria live in its "## Story #<sid>" section of the Feature plan (F73 round 2: there
+  // is no per-story test-strategy.md to fall back on).
+  fs.writeFileSync(path.join(fdir, 'plan.md'), [
+    '## Story order', '1. 201 then 202', '',
+    '## Story #201 — Orders', '', STRATEGY(2),
+    '## Story #202 — Status', '', STRATEGY(1),
+  ].join('\n'));
   if (feature) fs.writeFileSync(path.join(fdir, 'test-strategy.md'), STRATEGY(feature));
   if (gate !== undefined) fs.writeFileSync(path.join(fdir, 'prove-it.md'), `# Prove it — Feature 1\n\n## Gate\n\n${gate.join('\n')}\n`);
   fs.writeFileSync(path.join(fdir, 'pr-body.md'), body);
@@ -168,11 +171,7 @@ test('Gate_CriteriaFromTheFeaturePlanSections', () => {
   const plan = (s, text) => fs.writeFileSync(path.join(s.root, 'tasks', 'features', '1', 'plan.md'), text);
   const sections = (a, b) => ['## Story order', '1. 201 then 202', '', '## Story #201 — Orders', '', STRATEGY(a), '## Story #202 — Status', '', STRATEGY(b)].join('\n');
   // The criteria live only in the Feature plan sections; no per-story strategy files exist.
-  const fresh = (gate) => {
-    const s = setup({ gate });
-    for (const sid of ['201', '202']) fs.rmSync(path.join(s.root, 'tasks', 'stories', sid, 'test-strategy.md'));
-    return s;
-  };
+  const fresh = (gate) => setup({ gate });
 
   const notMet = fresh([ALL_MET[0], ALL_MET[1], '- 202.1: not-met — no status column']);
   plan(notMet, sections(2, 1));
@@ -195,7 +194,6 @@ test('Gate_CriteriaFromTheFeaturePlanSections', () => {
 
 test('Gate_StorySectionWithNoCriteriaList_Refused', () => {
   const s = setup({ gate: ALL_MET });
-  for (const sid of ['201', '202']) fs.rmSync(path.join(s.root, 'tasks', 'stories', sid, 'test-strategy.md'));
   fs.writeFileSync(path.join(s.root, 'tasks', 'features', '1', 'plan.md'), [
     '## Story #201 — Orders', '', STRATEGY(2),
     '## Story #202 — Status', '', '**Files:**', '- a.js', '',
@@ -204,4 +202,18 @@ test('Gate_StorySectionWithNoCriteriaList_Refused', () => {
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /^refused: no criteria for story 202$/m);
   assert.doesNotMatch(r.out, /for 201/, 'companion: the story with criteria is not refused');
+});
+
+test('Gate_CommittedStoryWithNoSectionInTheFeaturePlan_RefusedByName_NoFallback', () => {
+  const s = setup({ gate: ALL_MET });
+  // Story 202 is committed but the plan has no "## Story #202" section. An old per-story strategy
+  // file, which would have supplied its criteria before, is not read any more.
+  fs.writeFileSync(path.join(s.root, 'tasks', 'features', '1', 'plan.md'), ['## Story #201 — Orders', '', STRATEGY(2)].join('\n'));
+  fs.mkdirSync(path.join(s.root, 'tasks', 'stories', '202'), { recursive: true });
+  fs.writeFileSync(path.join(s.root, 'tasks', 'stories', '202', 'test-strategy.md'), STRATEGY(1));
+  const r = run(s);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /^refused: story 202 is committed but the Feature plan has no "## Story #202" section$/m);
+  assert.doesNotMatch(r.out, /201/, 'companion: the story that has its section is not named');
+  assert.doesNotMatch(r.out, /^gate: open$/m);
 });

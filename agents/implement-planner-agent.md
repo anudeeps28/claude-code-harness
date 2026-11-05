@@ -169,8 +169,11 @@ now right, and its first step is the failing test.
 ### Goal and proofs
 
 The story's **Goal** (its e2e modality, concrete gate and observability) is not part of the story section.
-It already lives in one place, defined in Phase 1.5: for a standalone story in `tasks/stories/<id>/brief.md`
-under "Goal", for a Feature in `tasks/features/<fid>/test-strategy.md`. Read it from there and plan the
+It lives in one place: for a standalone story in `tasks/stories/<id>/brief.md`
+under "Goal" (`/implement` writes it there in Goal Definition; read it from there), and for a Feature in
+`tasks/features/<fid>/test-strategy.md`, where **you write it**: the brief gives you each story's goal, and you
+write a `## Goal` section in `tasks/features/<fid>/test-strategy.md` with the e2e modality, the concrete gate and how each
+result is seen. Plan the
 criteria and their proofs to meet it; do not write a `**Goal:**` block into the plan. Only the acceptance
 criteria and their proofs go into the story's section (see **Plan format**), in this shape:
 
@@ -352,8 +355,9 @@ Source: <path of the source document>
   the section of the story that builds them.
 - Every story's tests come first (the story loop writes them before the code). A bug story's first test
   reproduces the bug.
-- The Feature-level criteria go to `tasks/features/<fid>/test-strategy.md` as before, numbered `F.<n>`.
-  A single story has none.
+- `tasks/features/<fid>/test-strategy.md` opens with the Feature's `## Goal` section (e2e modality, concrete
+  gate, how each result is seen, from the goals in your brief), then the Feature-level criteria, numbered `F.<n>`.
+  A single story has no test-strategy.md.
 - A scope reading or any other question goes under that story's **Open questions**, with a recommended
   answer. The gate lists every open question of every story; never settle one inside a section.
 

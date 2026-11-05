@@ -16,7 +16,7 @@ sprint file.
 | Flags `--auto`, `--autonomous`, `--tdd` | Same meaning in both | Covered: `/implement` flags (`--auto`, `--autonomous`, `--tdd`), plus `--quick`, `--discuss`, `--research`, `--resume`, `--rework`, `--no-ship`, `--standalone` |
 | Before you start: read `tasks/lessons.md` | Commit rules, Code Rabbit patterns, the 3-attempt rule | **Moved (#63):** `/implement` Before you start now reads `tasks/lessons.md`, else `tasks/notes.md`. It used to read only `notes.md`, so an enterprise install skipped its commit rules |
 | Before you start: foreign-work check on a dirty tree | Show and ask; not self-answerable | Covered: `/implement` Before you start, same wording (`rules/wave-execution.md`) |
-| Autonomous mode: self-answer, pause-anyway triggers, the `must_fail` carve-out | | Covered: `/implement` Autonomous mode (`rules/autonomous-mode.md`) |
+| Autonomous mode: self-answer, pause-anyway triggers, the `must_fail` carve-out | | Covered: `/implement` Autonomous mode (`rules/autonomous-mode.md`). **Dropped in #83:** the `must_fail` task itself, with the executor; the story loop's red step (`red-evidence.js`) takes its place |
 | Decisions log is public in the PR: never secrets, tokens or PII | | **Moved (#63)** to `/implement` Autonomous mode, both packs |
 | Durable `run-mode: autonomous` marker | | Covered: `executor-state.md`, read by `/implement --resume` |
 | Phase marker at every phase | | Covered: `/implement` Phase marker |
@@ -28,7 +28,7 @@ sprint file.
 | Phase 2: plan revision stall detection (3 rounds) | | Covered: `/implement` Phase 1c |
 | Phase 3: waves; branch-drift check before and after; overlap check (`<files>` and `<read_first>`); background executors with no isolation; stray-file check; restore before retry; 3-attempt rule | | Dropped in #83: there are no waves, overlap check or background executors; the branch-drift check, the restore before retry and the stray-file check stay (`rules/wave-execution.md`), and the 3-attempt rule is in the story loop |
 | Phase 3: `type="manual"` tasks shown as instructions | | Dropped in #83: there is no task XML, so no `type="manual"` task |
-| Phase 3: seed TodoWrite before Wave 1 | | Covered, and stricter since F1: a task is `completed` only after review |
+| Phase 3: seed TodoWrite before Wave 1 | | **Dropped in #83:** there are no waves. The checklist (`rules/progress-tracking.md`) is seeded before the first story with one item per story, and an item is `completed` only after its review |
 | Phase 3: mark ✅ in `plan.md` when a wave passes | | Dropped in #83: there is no ✅ on a task line any more; a story is done only after its review and the e2e gate, recorded as `step: done` in `executor-state.md` |
 | Phase 3: `executor-state.md` after every wave | | Covered: the step record |
 | Phase 3: STOP 3 after each wave in mode A, with the "deliberately red" note for a `must_fail` wave | | Dropped in #83: there are no waves or `must_fail` tasks; `--step` stops once in the build, at STOP 2 (the tests green) |
@@ -59,7 +59,7 @@ sprint file.
 |---|---|---|---|
 | `story-understand-agent` | Yes, Phase 1 | Reads the sprint file's section for the story | **Kept.** Enterprise `/implement` now passes the sprint file (#63) |
 | `story-pr-agent` | Yes, the PR step | Step 6 updates the sprint file's Master Status Table | **Kept**, with Step 6 run only on an enterprise install that has a sprint file (#63). In a Feature run, `/implement` updates each committed story's row itself at the Feature's PR, because no `story-pr-agent` runs per story there |
-| `story-plan-agent` | No, `/story` only | One `<task>` per tracker child task | **Moved (#63), enterprise only:** `implement-planner-agent` plans one task per child task when the ticket has child tasks on an enterprise install |
+| `story-plan-agent` | No, `/story` only | One `<task>` per tracker child task | **Moved (#63), enterprise only, then changed in #83:** there is no `<task>` XML any more; `implement-planner-agent` names each child task in the story section's `Files:` lines, one line per child task, on an enterprise install |
 | | | `DependencyInjection.cs` always in its own wave | **Dropped.** A .NET-specific rule. Dropped in #83: there are no waves and no task XML, so the overlap check that once kept two tasks off one file is gone too |
 | | | `type="manual"` tasks alone and last | Dropped in #83: there is no task XML, so no `type="manual"` task |
 | | | Parallelism rationale table | Dropped in #83: there are no parallel tasks to explain; a story is built by one builder at a time |
@@ -77,7 +77,7 @@ All landed in #63, each now in `/implement`:
 - [x] Read `tasks/lessons.md` (else `notes.md`) — **Before you start**
 - [x] Decisions log: never secrets, tokens or PII — **Autonomous mode**
 - [x] Sprint file to `story-understand-agent` (enterprise) — **Phase 1**
-- [x] One task per tracker child task (enterprise) — **Phase 1c** and `implement-planner-agent`
+- [x] One task per tracker child task (enterprise) — **Phase 1c** and `implement-planner-agent`; **changed in #83:** one `Files:` line per child task in the story section, not a `<task>`
 - [x] Never auto-push from the default branch — **Phase 3**, the PR step
 - [x] Commit rules from the lessons file — **Hard rules**
 - [x] Master Status Table (enterprise) — `story-pr-agent` Step 6, and **The Feature's PR** in Feature mode

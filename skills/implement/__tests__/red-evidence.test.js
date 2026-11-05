@@ -265,12 +265,35 @@ test('Red_AlreadyMetPathThroughALinkLeadingOutsideTheRoot_IsRefused', () => {
     const file = state(['- Total_Empty_IsZero | AC1 | src/link/real.js:3 | shape: already-met']);
     const r = checkRoot(file, 'AC1', root);
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /^refused: AC1 .*already-met.*does not exist under the root/m);
+    assert.match(r.out, /^refused: AC1 .*already-met.*resolves outside the root/m, 'an escaping path says so, not "does not exist"');
+    assert.doesNotMatch(r.out, /does not exist/);
+    // Companion: a path that simply is not there still says it does not exist.
+    const gone = state(['- Total_Empty_IsZero | AC1 | src/nothing.js:3 | shape: already-met']);
+    assert.match(checkRoot(gone, 'AC1', root).out, /does not exist under the root/);
     // Companion: a real file inside the root is still accepted.
     const ok = state(['- Total_Empty_IsZero | AC1 | src/total.js:3 | shape: already-met']);
     assert.equal(checkRoot(ok, 'AC1', root).code, 0);
   });
   fs.rmSync(outside, { recursive: true, force: true });
+});
+
+test('Red_AlreadyMetNamedByALinkThatPointsAtATestFile_IsJudgedByTheRealPath', () => {
+  // S4 leftover: the name `src/link/total.js` looks like product code; the real path is under __tests__.
+  withRoot(['src/total.js', 'src/__tests__/total.js'], (root) => {
+    try {
+      fs.symlinkSync(path.join(root, 'src', '__tests__'), path.join(root, 'src', 'link'), 'junction');
+    } catch (e) {
+      process.stderr.write(`skipped: cannot create a link here: ${e.message}\n`);
+      return;
+    }
+    const file = state(['- Total_Empty_IsZero | AC1 | src/link/total.js:3 | shape: already-met']);
+    const r = checkRoot(file, 'AC1', root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /^refused: AC1 .*already-met.*test file/m);
+    // Companion: the plain product file next to it is still accepted.
+    const ok = state(['- Total_Empty_IsZero | AC1 | src/total.js:3 | shape: already-met']);
+    assert.equal(checkRoot(ok, 'AC1', root).code, 0);
+  });
 });
 
 test('Red_EmptyCriteriaList_IsAUsageError', () => {

@@ -79,10 +79,13 @@ const HARNESS_TEXT = {
   'hooks/lib/plan-lint.js': /Lints a <tasks> XML plan/,
 };
 
-// The files the previous install recorded (relative, forward slashes), from the target's manifest.
+// The files the previous install recorded (relative, forward slashes), from the target's manifest. A
+// backfilled manifest (backfillManifest lists whatever it finds, whoever wrote it) records nothing
+// about who installed a file, so it is not trusted: those items must carry the harness's own text.
 function recordedFiles(target) {
   try {
     const m = JSON.parse(fs.readFileSync(path.join(target, '.harness-manifest.json'), 'utf8'));
+    if (m.backfilled === true) return [];
     return Array.isArray(m.installedFiles) ? m.installedFiles : [];
   } catch { return []; }
 }
@@ -976,6 +979,7 @@ function backfillManifest(target, opts = {}) {
     installedFiles: installedFiles.sort(),
     now,
   });
+  manifest.backfilled = true; // it lists what was found, not what the harness installed
 
   const manifestPath = path.join(target, '.harness-manifest.json');
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
@@ -987,5 +991,5 @@ module.exports = {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck, runUpdate, runSwitchTracker, backfillManifest,
   HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS,
-  RETIRED_SKILLS, RETIRED_AGENTS, RETIRED_HOOKS, removeRetired, warnRetiredElsewhere,
+  RETIRED_SKILLS, RETIRED_AGENTS, RETIRED_HOOKS, removeRetired, warnRetiredElsewhere, HARNESS_TEXT,
 };

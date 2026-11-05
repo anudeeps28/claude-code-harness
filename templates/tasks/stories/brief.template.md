@@ -59,6 +59,13 @@ Source: [path of the source document, or "none"]
 Coverage: [tasks/coverage/<doc-slug>.md, if any]
 - [<id>] [the line, verbatim — "extracted — confirm" above the list when Phase 1 extracted them]
 
+## Goal
+
+[Written by /implement in Phase 1.5, so a resumed run does not define it again.]
+- **e2e modality:** [how the finished work is exercised end to end]
+- **Concrete gate:** [the command or check that must pass]
+- **Seen by:** [how each result is observed]
+
 ## Open questions
 
 1. [question] — Recommended: [answer] (asked at the plan gate)

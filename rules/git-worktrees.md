@@ -83,13 +83,19 @@ After the standard `git fetch --prune` at session start:
    git ls-remote --exit-code --heads origin <branch>
    ```
    Exit code 2 (or non-zero) means the branch is gone from origin — typically because the PR merged and the source branch was deleted.
-3. **Skip a Feature worktree that is still being built.** A Feature's branch is pushed only when its PR
+3. **Skip a Feature worktree that is being built right now.** A Feature's branch is pushed only when its PR
    is opened, so "gone from origin" is the normal state of a live one. For a worktree named
-   `<repo>-f<fid>` on a branch `feature/<fid>-…` (or its `<repo>-f<fid>-prove` scratch copy), look in the
-   home folder's `tasks/features/<fid>/`: when there is a fresh `claim.md` (30 minutes, `rules/phase-markers.md`), or a `feature-state.md` whose phase is not `done`,
-   say "Worktree `<path>`: Feature <fid> is in progress in another session, left alone", and go to the next one. It is never offered for removal.
+   `<repo>-f<fid>` on a branch `feature/<fid>-…` (or its `<repo>-f<fid>-prove` scratch copy), run
+   `node "<skill-dir>/bin/feature-state.js" live --feature <fid>` against the home folder (it reads `tasks/features/<fid>/`).
+   When it prints `live` (activity within 30 minutes), say "Worktree `<path>`: Feature <fid> is in progress in another session, left alone",
+   and go to the next one. It is never offered for removal while it is live. A Feature that is not live
+   (it printed `idle`) is offered like any other worktree below.
 4. For each remaining worktree whose remote branch is gone, prompt the user:
    > "Worktree `<path>` is on branch `<name>` which no longer exists on origin (likely merged). Remove it? [y/n]"
+
+   When it is a Feature worktree whose `tasks/features/<fid>/progress.log` has no `event=pr-opened` line (its
+   PR was never opened, so the branch was never pushed and removing it loses the only copy of its commits), say
+   "unfinished Feature, idle <n>m" in the question, with the `<n>` that `live` printed.
 5. On `y`: run `git worktree remove <path>` then `git branch -d <name>`.
 6. On `n`: leave it — ask again next session.
 

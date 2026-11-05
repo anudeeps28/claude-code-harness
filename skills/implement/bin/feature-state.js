@@ -47,6 +47,9 @@
 //          A new claim is created exclusively (flag wx); a changed one is written to a temp file and
 //          renamed, then read back: two sessions racing give one "free" and one "busy".
 //          An empty --session, or one still reading ${CLAUDE_SESSION_ID}, is refused (exit 2).
+//   live   --feature <fid> [--now <iso>]   is another session working on it now? Same activity reading as
+//          claim (including the claim's own time): "live <fid>: idle <n>m" (exit 0) when under 30 minutes,
+//          else "idle <fid>: <n>m" (exit 1). Nothing is written.
 //   together --feature <a> --with <b>   reads both progress.log files: "ok" when a story-started of one
 //          Feature falls between the other's first story-started and its last story-committed (a story
 //          still in flight runs to the latest event of either log), else "apart: ..." (exit 1)
@@ -503,6 +506,23 @@ function cmdClaim(root, opts, hooks = {}) {
   return 1;
 }
 
+// Is another session working on this Feature right now? "live <fid>: idle <n>m" (exit 0) when its last
+// activity (the same reading `claim` uses, the claim's own time included) is under 30 minutes old; else
+// "idle <fid>: <n>m" (exit 1). A Feature with no record at all is idle.
+function cmdLive(root, opts) {
+  const now = opts.now ? Date.parse(opts.now) : Date.now();
+  if (!Number.isFinite(now)) return fail(2, `bad --now: ${opts.now}`);
+  const file = path.join(root, 'tasks', 'features', opts.feature, 'claim.md');
+  let text = '';
+  try { text = fs.readFileSync(file, 'utf8'); } catch { /* no claim */ }
+  const act = lastActivity(root, opts.feature, (text.match(/^claimed: (\S+)/m) || [])[1]);
+  if (!act) { out(`idle ${opts.feature}: no activity recorded`); return 1; }
+  const idle = Math.max(0, Math.floor((now - act.at) / 60000));
+  if (now - act.at < HANG_MINUTES * 60000) { out(`live ${opts.feature}: idle ${idle}m`); return 0; }
+  out(`idle ${opts.feature}: ${idle}m`);
+  return 1;
+}
+
 // Did two Features' stories run side by side? Reads both progress.log files.
 // A Feature's window runs from its first story-started to its latest story-committed. A story still in
 // flight (started, not committed or stuck yet) has no end, so its window runs to the latest event of
@@ -595,9 +615,9 @@ function main() {
   const commands = {
     init: () => cmdInit(root, opts), set: () => cmdSet(root, opts, pairs), next: () => cmdNext(root, opts),
     resume: () => cmdResume(root, opts), stuck: () => cmdStuck(root, opts), hung: () => cmdHung(root, opts),
-    sequence: () => cmdSequence(root, opts), claim: () => cmdClaim(root, opts), together: () => cmdTogether(root, opts),
+    sequence: () => cmdSequence(root, opts), claim: () => cmdClaim(root, opts), live: () => cmdLive(root, opts), together: () => cmdTogether(root, opts),
   };
-  if (!commands[command]) fail(2, 'usage: feature-state.js init|set|next|resume|stuck|hung|sequence|claim|together --feature <fid> [...] (see the header of this file)');
+  if (!commands[command]) fail(2, 'usage: feature-state.js init|set|next|resume|stuck|hung|sequence|claim|live|together --feature <fid> [...] (see the header of this file)');
   process.exit(commands[command]());
 }
 

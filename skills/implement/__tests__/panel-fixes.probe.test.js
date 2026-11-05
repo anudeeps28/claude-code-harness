@@ -61,7 +61,12 @@ test('Goal_HasOneHome_BriefForAStory_TestStrategyForAFeature', () => {
   assert.ok(readsGoal(e2e), '/local-test e2e reads a story\'s Goal from brief.md and a Feature\'s from its test-strategy.md');
 
   // The planner does not write a Goal block into the plan, and says where the Goal lives.
-  assert.ok(!/^\*\*Goal:\*\*\s*$/m.test(PLANNER), 'the planner writes no **Goal:** block');
+  // Any line that opens with **Goal:** is a Goal block in the plan, filled or empty.
+  const hasGoalBlock = (t) => /^\s*\*\*Goal:\*\*/m.test(t);
+  assert.ok(hasGoalBlock('**Goal:** e2e through the API, gate: curl returns 200'), 'planted filled Goal line is caught');
+  assert.ok(hasGoalBlock('**Goal:**\n'), 'planted empty Goal line is caught');
+  assert.ok(!hasGoalBlock('Do not write a `**Goal:**` block.'), 'companion: a mention is not a block');
+  assert.ok(!hasGoalBlock(PLANNER), 'the planner writes no **Goal:** block');
   assert.match(flat(PLANNER), /`tasks\/stories\/<id>\/brief\.md`[^.]*under "Goal"[^.]*`tasks\/features\/<fid>\/test-strategy\.md`/);
   // The reviewers read it from there.
   for (const a of ['acceptance-test-agent', 'evaluator-agent']) {
@@ -80,23 +85,63 @@ test('Goal_HasOneHome_BriefForAStory_TestStrategyForAFeature', () => {
   assert.deepEqual(naming.map((f) => path.relative(REPO_ROOT, f)), [], 'no live instruction names tasks/stories/<id>/test-strategy.md');
 });
 
+// ── Round 2, item 2: a Feature's Goal has a writer (the planner) ─────
+
+test('Goal_FeatureGoalIsWrittenByThePlanner_IntoTestStrategy_AndTheBriefTemplateHasTheHeading', () => {
+  const writesGoal = (t) => /\bwrites? a `## Goal` section in `tasks\/features\/<fid>\/test-strategy\.md`/.test(flat(t));
+  const planted = 'The planner reads the Goal from `tasks/features/<fid>/test-strategy.md` and writes no `## Goal` section.';
+  assert.ok(!writesGoal(planted), 'planted text that gives the Goal no writer is rejected');
+  assert.ok(writesGoal('The planner writes a `## Goal` section in `tasks/features/<fid>/test-strategy.md`.'), 'companion: the check can pass');
+
+  const step4 = SKILL.slice(SKILL.indexOf('4. **Plan the whole Feature, once.**'), SKILL.indexOf('5. **Check the plan, before the gate.**'));
+  assert.ok(step4.length > 200, 'companion: SKILL Feature step 4 was found');
+  assert.ok(writesGoal(step4), 'SKILL step 4 says the planner writes the Goal section');
+  assert.match(flat(step4), /modality[^.]*concrete gate[^.]*seen/i, 'step 4 names what the Goal holds');
+
+  const goalSection = slice(PLANNER, '### Goal and proofs');
+  assert.ok(goalSection, 'the planner has a Goal and proofs section');
+  assert.ok(writesGoal(goalSection), 'the planner\'s Goal and proofs section says it writes the Goal for a Feature');
+  assert.doesNotMatch(flat(goalSection), /Read it from there/, 'the planner no longer reads a Feature Goal that nobody wrote');
+  const bullet = flat(PLANNER).match(/- `tasks\/features\/<fid>\/test-strategy\.md` [^]*?numbered `F\.<n>`/);
+  assert.ok(bullet, 'companion: the planner bullet on test-strategy.md was found');
+  assert.match(bullet[0], /opens with the Feature's `## Goal` section/, 'the planner bullet names the Goal section');
+
+  // F15: the brief template has the Goal heading /implement writes, and the README describes brief.md truthfully.
+  const tpl = read('templates', 'tasks', 'stories', 'brief.template.md');
+  const goalHeading = tpl.match(/^## Goal\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
+  assert.ok(goalHeading, 'the brief template has a ## Goal heading');
+  assert.match(flat(goalHeading[1]), /modality[\s\S]*concrete gate[\s\S]*seen/i);
+  const readme = read('templates', 'tasks', 'stories', 'README.md');
+  const line = readme.split('\n').find((l) => /^├── brief\.md/.test(l));
+  assert.ok(line, 'companion: the README line for brief.md was found');
+  assert.doesNotMatch(line, /8-point/, 'the README no longer calls brief.md an 8-point brief');
+  assert.match(line, /Goal/, 'the README line names the Goal that brief.md carries');
+});
+
 // ── A3: the session-start cleanup leaves a live Feature worktree alone ──
 
 test('Worktrees_CleanupSkipsAFeatureInProgressInAnotherSession', () => {
+  // Round 2: a Feature is skipped only when `feature-state.js live` says live. One that is not live is
+  // offered like any other worktree, and an unfinished one (no pr-opened event) says so in the question.
   const skips = (section) => {
     const f = flat(section);
     const iSkip = f.search(/in progress in another session, left alone/);
     const iAsk = f.search(/Remove it\?/);
     return iSkip !== -1 && iAsk !== -1 && iSkip < iAsk
-      && /`tasks\/features\/<fid>\/`/.test(f) && /claim\.md/.test(f)
-      && /feature-state\.md/.test(f) && /phase is not `?done`?/.test(f)
+      && /`tasks\/features\/<fid>\/`/.test(f)
+      && /feature-state\.js" live --feature <fid>/.test(f) && /prints `live`/.test(f)
+      && !/claim\.md/.test(f) && !/phase is not `?done`?/.test(f)
+      && /not live[^.]*offered like any other/i.test(f)
+      && /event=pr-opened/.test(f) && /unfinished Feature, idle <n>m/.test(f)
       && /<repo>-f<fid>/.test(f) && /feature\/<fid>-/.test(f) && /-prove/.test(f);
   };
   const planted = '3. For each worktree whose remote branch is gone, prompt the user: "Remove it? [y/n]" (no exception).';
   assert.ok(!skips(planted), 'planted text that offers every worktree for removal is rejected');
+  const plantedOld = '3. Skip a Feature worktree: when there is a fresh `claim.md`, or a `feature-state.md` whose phase is not `done`, say "Feature <fid> is in progress in another session, left alone". Remove it?';
+  assert.ok(!skips(plantedOld), 'planted text that keeps the old claim.md / phase-not-done rule is rejected');
   const section = slice(read('rules', 'git-worktrees.md'), '## Lifecycle');
   assert.ok(section, 'git-worktrees.md has the Lifecycle section');
-  assert.ok(skips(section), 'a Feature worktree with a claim or a state not done is skipped before removal is offered');
+  assert.ok(skips(section), 'a Feature worktree is skipped only when live says live; a not-live one is offered, saying so when unfinished');
   assert.match(flat(section), /never offered/i);
 });
 
@@ -117,19 +162,21 @@ test('Worktrees_Terminal_FeatureIsDrivenFromAHomeFolderSession_StandaloneGetsIts
 test('Skill_StandaloneRunAsksWhenAFeatureSessionIsOpenInThisHomeFolder', () => {
   const asks = (t) => {
     const f = flat(t);
-    return /`tasks\/features\/\*\/claim\.md` is fresh/.test(f) && /30 minutes/.test(f)
+    return /feature-state\.js" live --feature <fid>`\. It prints `live <fid>: idle <N>m`/.test(f) && /30 minutes/.test(f)
+      && !/claim\.md/.test(f)
       && /before checking out a branch here/.test(f) && /\(A\) Stop/.test(f) && /\(B\) Continue/.test(f)
       && /not self-answerable under `--autonomous`/.test(f);
   };
   assert.ok(!asks('A fresh claim is ignored and the branch is checked out; self-answerable.'), 'planted opposite is rejected');
   const before = slice(SKILL, '## Before you start');
   assert.ok(before, 'SKILL has "Before you start"');
-  assert.ok(asks(before), 'a fresh claim.md (30 minutes) makes a standalone run ask, (A) stop or (B) continue, never self-answered');
+  assert.ok(asks(before), 'a Feature that `feature-state.js live` calls live (30 minutes) makes a standalone run ask, (A) stop or (B) continue, never self-answered');
   // ADR-0006 and ARCHITECTURE say the same, not "built in its own worktree" flatly.
   const adr = flat(ADR('0006-'));
   const arch = flat(read('ARCHITECTURE.md'));
   for (const [name, t] of [['ADR-0006', adr], ['ARCHITECTURE', arch]]) {
-    assert.match(t, /standalone (?:item|run)[^.]*claim\.md[^.]*asks? first|standalone (?:item|run)[^.]*asks? first[^.]*claim\.md/i, `${name}: a standalone run asks first when a claim is fresh`);
+    assert.match(t, /standalone (?:item|run)[^]{0,200}?`feature-state\.js live[^]{0,200}?asks? first/i, `${name}: a standalone run asks first when feature-state.js live says live`);
+    assert.doesNotMatch(t, /fresh `claim\.md`/, `${name}: no longer reads a "fresh claim.md"`);
     assert.doesNotMatch(t, /While Features are running, (?:build )?a standalone item (?:is built )?(?:in its own worktree|in its own worktree \(Risk 4\))\./, `${name}: not the flat "built in its own worktree" rule`);
   }
 });

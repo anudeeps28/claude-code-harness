@@ -51,7 +51,9 @@ const AGENTS = (() => {
   });
   // F73 fix (A2): the review agents run the build and the tests too (the evaluator's Steps 2-3, the
   // acceptance agent's Step 3). Any agent the SKILL names anywhere whose own steps say to run them is found here.
-  const RUNS = /Run the project (?:build|tests?)|<(?:build|test|unit test|integration test) command|\b(?:run|runs) the (?:build|tests?|test suite)\b/i;
+  // Round 2 (F6): the feedback loop /debug and debug-agent run, and the architect reviewer's `Migrate
+  // forward:` command, are suite commands too, so the lock reaches them.
+  const RUNS = /Run the project (?:build|tests?)|<(?:build|test|unit test|integration test) command|\b(?:run|runs) the (?:build|tests?|test suite)\b|\bRun the feedback loop\b|`Migrate forward:` command/i;
   const everyAgent = [...new Set([...SKILL.matchAll(/`([a-z][a-z-]+)`/g)].map((m) => m[1]))]
     .filter((n) => fs.existsSync(path.join(REPO_ROOT, 'agents', `${n}.md`)))
     .filter((n) => /^tools:.*\bBash\b/m.test(read('agents', `${n}.md`)) && RUNS.test(read('agents', `${n}.md`)));
@@ -137,6 +139,13 @@ test('Sessions_OpenBlockerBeingBuiltElsewhere_NamesTheLinkAndTheWorktree', () =>
 
 // ── AC4: the test lock ───────────────────────────────────────────────
 
+// The standalone "Shared test resources" paragraph of the story loop.
+function standaloneLock() {
+  const m = slice(SKILL, '## The story loop').match(/\*\*Shared test resources\.\*\*[\s\S]*?(?=\n\n)/);
+  assert.ok(m, 'the standalone "Shared test resources" paragraph was found');
+  return m[0];
+}
+
 test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
   const prefixed = (t) => /run every build, test and Observe command with it in front/i.test(flat(t));
   assert.ok(!prefixed('run every build, test and Observe command without it in front'), 'the opposite claim is rejected');
@@ -146,8 +155,8 @@ test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
   const flatRun = flat(run);
   assert.match(flatRun, /Shared test resources/);
   assert.match(flatRun, /`verify-lock: global`/);
-  assert.equal(AGENTS.join(','), 'acceptance-test-agent,evaluator-agent,prover,story-builder,suite-runner', 'the agents that run build, test and Observe commands are exactly these five');
-  assert.equal(AGENTS.length, 5, 'companion: the derivation found five, not none');
+  assert.equal(AGENTS.join(','), 'acceptance-test-agent,architect-reviewer-agent,debug-agent,evaluator-agent,prover,story-builder,suite-runner', 'the agents that run build, test, Observe, feedback-loop and migrate-forward commands are exactly these seven');
+  assert.equal(AGENTS.length, 7, 'companion: the derivation found seven, not none');
   assert.match(flatRun, /Test lock: node "<skill-dir>\/bin\/test-lock\.js" run --lock "<state>\/\.verify\.lock" --heartbeat "<state>\/features\/<fid>\/heartbeat" --/);
   assert.match(flatRun, /compound command[^.]*`a && b`[^.]*not wrapped[^.]*wrap each command/i, 'a compound command is not wrapped');
   assert.match(flatRun, /`per-story`\) passes none/, 'the default passes no lock');
@@ -156,6 +165,14 @@ test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
   assert.ok(shared, 'the Feature "Shared test resources" paragraph was found');
   for (const name of AGENTS) assert.ok(shared[0].includes(`\`${name}\``), `the paragraph gives the lock to ${name}`);
   assert.match(shared[0], /`\/local-test` \(every level, e2e included\)/, 'and to /local-test, every level, e2e included');
+  assert.match(shared[0], /`\/debug`/, 'and to /debug, whose feedback loop runs the suite');
+  // The skill that runs the feedback loop carries the same rule, in its own words.
+  const dbg = flat(read('skills', 'debug', 'SKILL.md'));
+  assert.match(dbg, /`Test lock:` prefix/, '/debug names the Test lock prefix');
+  assert.ok(/with it in front \(`<prefix> <command>`\)/.test(dbg), '/debug puts the prefix in front of each command');
+  assert.match(dbg, /compound command[^.]*`a && b`[^.]*not wrapped[^.]*wrap each/i);
+  assert.match(dbg, /never wrap a long-running start command[^.]*lock for the server's life/i);
+  assert.match(flat(standaloneLock()), /`\/debug`/, 'the standalone paragraph passes the line to /debug too');
   const standalone = flat(slice(SKILL, '## The story loop') || '');
   assert.match(standalone, /Test lock:[\s\S]*every agent and skill that executes a suite/, 'the standalone paragraph passes it to every suite runner');
   for (const name of AGENTS) {

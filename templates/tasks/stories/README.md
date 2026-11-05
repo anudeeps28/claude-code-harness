@@ -8,7 +8,7 @@ These files are the **formal contracts** between phases. Each phase reads the pr
 
 ```
 tasks/stories/<story-id>/
-├── brief.md          # Phase 1 output — 8-point understanding brief
+├── brief.md          # Phase 1 output — the understanding brief, source lines, Goal, answers
 ├── plan.md           # Phase 1c output — Demo, probes and one "## Story #<id>" section
 ├── executor-state.md # the saved state — step, review round, red evidence, updated live
 ├── phase.md          # Current phase marker — written by the build skill at every phase

@@ -48,6 +48,16 @@ the human is involved only when `/debug` itself cannot build a signal or cannot 
 
 Before any diagnosis begins, you need a **deterministic, agent-runnable pass/fail signal** — a single command that returns PASS or FAIL reliably and quickly.
 
+### Test lock (under `verify-lock: global`)
+
+When the caller's brief gives a `Test lock:` prefix, run every build, test and E2E command, the feedback loop
+included, with it in front (`<prefix> <command>`). The same prefix goes in the brief of the `debug-agent`. A lock wait
+over 60 minutes (exit 3) is reported as a failed step naming the lock's owner. A compound command (`a && b`) is
+not wrapped by it: wrap each command on its own. Never wrap a long-running start command (the app's "Start the
+app"): it would hold the lock for the server's life and every later command, yours included, would wait on it.
+Start it outside the lock and wrap each build, test and E2E command that uses it. With no prefix given, run the
+commands as they are.
+
 ### 1a — Find or create the signal
 
 Look for an existing signal:

@@ -179,6 +179,53 @@ test('Retired_AUsersOwnSkillOfARetiredName_SurvivesAnUpdateAndIsNamed', () => {
   }
 });
 
+test('Retired_ABackfilledManifestListingTheUsersOwnSkill_DoesNotGetItDeleted', () => {
+  // backfillManifest records every file it finds, whoever wrote it, so a backfilled manifest proves
+  // nothing about who installed skills/troubleshoot: only the harness's own text may remove it.
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'retired-backfill-'));
+  const origLog = console.log;
+  try {
+    const own = path.join(target, 'skills', 'troubleshoot', 'SKILL.md');
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, '---\nname: troubleshoot\ndescription: My own notes for chasing flaky builds\n---\nmine\n');
+    const { manifest } = backfillManifest(target, { harnessVersion: '2.0.0' });
+    assert.ok(manifest.installedFiles.includes('skills/troubleshoot/SKILL.md'), 'companion: the backfill did list the user\'s file');
+    assert.equal(manifest.backfilled, true, 'a backfilled manifest says so');
+    console.log = () => {};
+    updater.removeRetired(target);
+    console.log = origLog;
+    assert.ok(fs.existsSync(own), 'the user\'s own skill survives');
+    // Companion: the same backfilled manifest still removes an item that carries the harness's own text.
+    fs.writeFileSync(own, '---\nname: troubleshoot\ndescription: Deep behavioral bug investigation — system compiles but does the wrong thing.\n---\n');
+    console.log = () => {};
+    updater.removeRetired(target);
+    console.log = origLog;
+    assert.ok(!fs.existsSync(path.dirname(own)), 'the harness\'s own text is still removed');
+    // And a real (not backfilled) manifest is trusted, as before.
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, 'mine again');
+    fs.writeFileSync(path.join(target, '.harness-manifest.json'), JSON.stringify({ installedFiles: ['skills/troubleshoot/SKILL.md'] }));
+    console.log = () => {};
+    updater.removeRetired(target);
+    console.log = origLog;
+    assert.ok(!fs.existsSync(path.dirname(own)), 'a recorded, not backfilled, manifest is trusted');
+  } finally {
+    console.log = origLog;
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('Retired_HarnessTextKeysAreExactlyTheRetiredLists', () => {
+  const expected = [
+    ...updater.RETIRED_SKILLS.map((s) => `skills/${s}`),
+    ...updater.RETIRED_AGENTS.map((a) => `agents/${a}`),
+    ...updater.RETIRED_HOOKS.map((h) => `hooks/${h}`),
+  ].sort();
+  assert.ok(updater.HARNESS_TEXT, 'HARNESS_TEXT is exported');
+  assert.deepEqual(Object.keys(updater.HARNESS_TEXT).sort(), expected, 'a retired item with no text pattern, or a pattern for an item not retired, is a drift');
+  assert.equal(expected.length, 10, 'companion: the lists were read, not empty');
+});
+
 test('Retired_OnlyAHookRemoved_PrintsNoEmptyReplacementParentheses', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'retired-hook-'));
   const logged = [];

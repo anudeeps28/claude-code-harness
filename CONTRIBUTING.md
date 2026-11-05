@@ -174,8 +174,8 @@ Two agents run with `permissionMode: bypassPermissions`: `babysit-pr-fixer` and 
   - Only run build/test commands (no arbitrary Bash)
   - No access outside the project root
   - No package installs, config changes, or infrastructure modifications
-- `sprint-plan-tracker-reader` cannot edit anything: its tools are only `Bash` and `Read`, and its
-  instructions allow exactly **one** command, the read-only tracker script `get-sprint-issues.sh <sprint number>`,
+- `sprint-plan-tracker-reader` is limited by its instructions, not by its tools: it has `Bash` and `Read`
+  (and `bypassPermissions`), so Bash could in principle edit; its instructions allow exactly **one** command, the read-only tracker script `get-sprint-issues.sh <sprint number>`,
   whose output it formats.
 
 **When to use `bypassPermissions` on a new agent:**

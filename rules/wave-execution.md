@@ -149,7 +149,10 @@ foreign work when the tree is dirty **and** any of these hold:
 A marker with a `feature:` key is a Feature run in its own worktree, not foreign work here: such a run
 writes only `tasks/` in this folder, and paths under `tasks/` are not counted as dirty for this check.
 The same Feature open in two sessions is a different check, the claim (`feature-state.js claim`,
-ADR-0006). A standalone run still builds in the folder it runs in, so the bullets above hold for it.
+ADR-0006). A standalone run still builds in the folder it runs in, so the bullets above hold for it, and
+it asks one more thing first: `feature-state.js live --feature <fid>` for each Feature in `tasks/features/`;
+any that prints `live` means a Feature session is open in this home folder, and the run asks before it
+checks out a branch here (`skills/implement/SKILL.md`, "Before you start"; not self-answerable).
 
 **Show what was found and ask** — do not refuse outright and do not proceed silently. Dirty state is
 often the human's own scratch work, so the decision is theirs:

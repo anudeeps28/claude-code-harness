@@ -20,6 +20,7 @@ You receive:
 - **Error messages** — exact text from the failures
 - **Git diff** — current uncommitted changes
 - **File paths** — files being modified
+- **Test lock** (optional) — a `Test lock:` prefix, given under `verify-lock: global`. Run every build, test and Observe command with it in front (`<prefix> <command>`), the feedback loop included. A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the lock's owner. A compound command (`a && b`) is not wrapped by it: wrap each command on its own. Never wrap a long-running start command (the app's "Start the app"): it would hold the lock for the server's life. Start the app outside the lock and wrap each build, test and E2E command that uses it.
 
 ---
 

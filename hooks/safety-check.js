@@ -134,6 +134,17 @@ function checkRules(rules, text) {
   }
 }
 
+// The run's git wrapper (`node ".../worktree.js" git -- [-C <dir>] <args>`) is judged as the git
+// command it runs, so commit and push still ask and a denied form still denies. Global git options
+// that sit before the subcommand (`-C <dir>`, `-c <k=v>`) are dropped for the judgement too, so
+// `git -C <dir> commit` is a commit whether or not the wrapper carries it.
+const WRAPPER_RE = /worktree\.js["']?\s+git\s+--\s+/g;
+const GIT_GLOBAL_OPTS_RE = /\bgit((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))+)\s+(?=\S)/g;
+
+function judgedAs(command) {
+  return command.replace(WRAPPER_RE, ' git ').replace(GIT_GLOBAL_OPTS_RE, 'git ');
+}
+
 runHook('safety-check', async () => {
   const input = await readStdinJson();
   const toolName = input.tool_name || '';
@@ -142,7 +153,7 @@ runHook('safety-check', async () => {
   if (toolName === 'Bash') {
     const command = toolInput.command || '';
     if (RM_ACR_ALLOWLIST.test(command)) return ok();
-    checkRules(BASH_RULES, command);
+    checkRules(BASH_RULES, judgedAs(command));
     return ok();
   }
 

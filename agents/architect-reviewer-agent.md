@@ -167,6 +167,11 @@ migration or seed file on the branch:
    applies this branch's migrations — run it from the work folder and report pass or fail with its last
    lines. Otherwise say plainly: "could not migrate forward: no `Migrate forward:` command in
    lessons/notes". Never point it at a shared or production database.
+   When the brief gives a `Test lock:` prefix, run every build, test and Observe command with it in front
+   (`<prefix> <command>`), the `Migrate forward:` command included. A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the
+   lock's owner. A compound command (`a && b`) is not wrapped by it: wrap each command on its own. Never wrap a
+   long-running start command (the app's "Start the app"): it would hold the lock for the server's life.
+   Start the app outside the lock and wrap each build, test and E2E command that uses it.
 
 ---
 
