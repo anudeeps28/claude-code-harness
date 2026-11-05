@@ -5,11 +5,11 @@
 [![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](https://nodejs.org)
 [![CI](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/anudeeps28/claude-code-harness/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](package.json)
-[![Tests](https://img.shields.io/badge/tests-341%20passing-success.svg)](hooks/__tests__)
+[![Tests](https://img.shields.io/badge/tests-1083%20passing-success.svg)](hooks/__tests__)
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-32 skills, 23 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 23 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -351,7 +351,7 @@ Skills are invoked with `/skill-name` in Claude Code. Each skill is a folder und
 ### Build (both packs)
 | Skill | Usage | What it does |
 |---|---|---|
-| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story one after another on the Feature branch, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run, `--tdd` builds test-first. On the enterprise pack it also keeps the sprint file in step |
+| **implement** | `/implement <feature-id>`, `/implement #42 --standalone` or `/implement "add dark mode"` | The one build skill. A Feature: every story one after another on the Feature branch, one review panel, Prove it, one PR. A story, bug or description: plan, execute, evaluate, PR. `--resume` carries on a stopped run; every story is built test first. On the enterprise pack it also keeps the sprint file in step |
 
 ### Solo workflow
 | Skill | Usage | What it does |
@@ -532,7 +532,7 @@ branch, and pushes so the PR updates in place.
 | `security-reviewer-agent` | opus | `/implement` 3 and Feature panel | OWASP Top 10, PHI/PII detection, auth patterns, dependency vulns, who can reach each endpoint once deployed, fixtures as evidence, plus the built-in `/security-review` |
 | `coverage-auditor-agent` | opus | `/coverage-audit` | The closing check's reader — every requirement line of a document vs the code, Built / Partly / Missing with file evidence; never reads the plans |
 | `loosened-reviewer-agent` | sonnet | `/implement` Feature panel | Every check, skip or baseline the branch relaxed (with reason, owner, re-check), and what will cost money or change operations |
-| `prover` | sonnet | `/implement` Prove it | Runs each criterion's proof on the real system in a scratch copy, a tool on a second case, breaks each main test once; one line per criterion; fixes nothing. Job `diagnose` (the cause of a failed criterion) is called on opus |
+| `prover` | sonnet | `/implement` Prove it | Runs each criterion's proof on the real system in a scratch copy, a tool on a second case, breaks each main test once; one line per criterion; fixes nothing. Job `diagnose` (the cause of a failed criterion, also for a standalone story's e2e gate; it needs only the criterion, its three records and what was seen) is called on opus |
 | `story-builder` | sonnet | `/implement` | Writes the tests first from the criteria, the code that turns them green, or a fix; never stages, commits or pushes |
 | `story-reviewer` | sonnet | `/implement` | Reviews in one named mode (Correctness, Rules and quality, Re-review, Cross-story); findings only, edits nothing |
 | `suite-runner` | sonnet | `/implement` | Runs the build and test commands and returns only exit codes, counts and each failing test's first error line |
@@ -728,7 +728,7 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 
 ```
 claude-code-harness/
-├── skills/           ← 32 skills
+├── skills/           ← 33 skills
 ├── agents/           ← 23 agents (20 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
 ├── rules/            ← 14 rule files (5 path-scoped)

@@ -129,6 +129,51 @@ test('Feature_LockNeverReleased_NamesTheLock', () => {
   assert.doesNotMatch(p.out, /is held/);
 });
 
+// A4: `worktree.js git -- <args...>` runs one git command in the current folder with the same lock retry,
+// so the story commit, the stuck-story restore and the PR push survive another session's lock file.
+function runIn(cwd, ...args) {
+  const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', cwd });
+  return { code: r.status, out: r.stdout + r.stderr };
+}
+
+test('Git_IndexLockHeldBriefly_RetriedAndTheCommandSucceeds', async () => {
+  const r = repo();
+  fs.writeFileSync(path.join(r.home, 'new.txt'), 'x\n');
+  const lock = path.join(r.home, '.git', 'index.lock');
+  fs.writeFileSync(lock, '');
+  const child = spawn(process.execPath, [SCRIPT, 'git', '--', 'add', 'new.txt'], { cwd: r.home });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  child.stderr.on('data', (d) => { out += d; });
+  const done = new Promise((resolve) => child.on('close', resolve));
+  // Timing is the criterion: the other session's lock is held for a second, then released.
+  setTimeout(() => fs.rmSync(lock, { force: true }), 1000);
+  const code = await done;
+  assert.equal(code, 0, out);
+  assert.match(git(r.home, 'status', '--porcelain'), /^A {2}new\.txt$/m, 'the add really happened');
+});
+
+test('Git_LockNeverReleased_NamesItAndNeverDeletesIt_AndAPlainFailureIsNotRetried', () => {
+  const r = repo();
+  fs.writeFileSync(path.join(r.home, 'new.txt'), 'x\n');
+  const lock = path.join(r.home, '.git', 'index.lock');
+  fs.writeFileSync(lock, '');
+  const held = runIn(r.home, 'git', '--', 'add', 'new.txt');
+  assert.equal(held.code, 1, held.out);
+  assert.match(held.out, /index\.lock is held/);
+  assert.ok(fs.existsSync(lock), 'the lock was never deleted');
+  fs.rmSync(lock);
+  // Companion: a failure that is not a lock comes back at once (no 2 s waits) with git's own message.
+  const t0 = Date.now();
+  const plain = runIn(r.home, 'git', '--', 'checkout', 'no-such-branch');
+  assert.equal(plain.code, 1, plain.out);
+  assert.match(plain.out, /no-such-branch/);
+  assert.doesNotMatch(plain.out, /is held/);
+  assert.ok(Date.now() - t0 < 1900, 'not retried');
+  // And no git arguments is a usage error.
+  assert.equal(runIn(r.home, 'git', '--').code, 2);
+});
+
 test('CheckBranch_ReportsAMovedBranch', () => {
   const r = repo();
   feature(r);

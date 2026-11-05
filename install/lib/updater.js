@@ -29,8 +29,8 @@ const HARNESS_HOOK_SCRIPTS = new Set([
   'tracker-sync.js',
 ]);
 
-// Agents only the enterprise pack's skills spawn. The story-understand / -executor
-// / -pr agents are NOT here: /implement (in both packs) spawns them by name, so
+// Agents only the enterprise pack's skills spawn. The story-understand / -pr
+// agents are NOT here: /implement (in both packs) spawns them by name, so
 // skipping them in solo left it pointing at agents that were never installed.
 const ENTERPRISE_ONLY_AGENTS = new Set([
   'sprint-plan-gap-analyzer.md',
@@ -63,29 +63,69 @@ const ENTERPRISE_MARKER_AGENTS = new Set(['story-plan-agent.md']);
 // What took each retired skill's place, said when it is removed.
 const REPLACED_BY = { story: '/implement', 'run-tasks': '/implement --resume', 'to-issues': '/plan-features', troubleshoot: '/debug' };
 
+// How a retired item is known to be the harness's own when the previous install did not record it:
+// its main file carries the harness's own description (or header). A user's own skill or agent of the
+// same name does not, so it is left alone (S5).
+const HARNESS_TEXT = {
+  'skills/story': /Goal-driven story execution/,
+  'skills/run-tasks': /Execute XML tasks from the story plan wave by wave/,
+  'skills/to-issues': /Decompose planning artifacts into tracker tasks/,
+  'skills/troubleshoot': /Deep behavioral bug investigation/,
+  'agents/story-plan-agent.md': /Phase 2 of \/story/,
+  'agents/story-runner-agent.md': /Builds one story of a Feature inside its own git worktree/,
+  'agents/story-executor-agent.md': /The wave executor of \/implement/,
+  'agents/troubleshoot-investigator.md': /Deep investigation agent for behavioral bugs/,
+  'hooks/plan-lint-check.js': /lints tasks\/stories\/<id>\/plan\.md/i,
+  'hooks/lib/plan-lint.js': /Lints a <tasks> XML plan/,
+};
+
+// The files the previous install recorded (relative, forward slashes), from the target's manifest.
+function recordedFiles(target) {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(target, '.harness-manifest.json'), 'utf8'));
+    return Array.isArray(m.installedFiles) ? m.installedFiles : [];
+  } catch { return []; }
+}
+
 /**
- * Remove retired skills and agents from an install. Only paths inside the target are touched,
- * never through a symlink that leads elsewhere. Returns the human-readable lines it printed.
+ * Remove retired skills, agents and hooks from an install, only those that are the harness's own: the
+ * previous install recorded them, or they carry the harness's own text. Anything else is left, with a
+ * note naming it. Only paths inside the target are touched, never through a symlink that leads
+ * elsewhere. Returns the names it removed.
  */
 function removeRetired(target) {
   const removed = [];
+  const recorded = recordedFiles(target);
+  const isOurs = (rel, p, st) => {
+    if (recorded.some((f) => f === rel || f.startsWith(`${rel}/`))) return true;
+    const pattern = HARNESS_TEXT[rel];
+    if (!pattern) return false;
+    try {
+      const file = st.isDirectory() ? path.join(p, 'SKILL.md') : p;
+      return pattern.test(fs.readFileSync(file, 'utf8'));
+    } catch { return false; }
+  };
   const inside = (p) => {
     try {
       const real = fs.realpathSync(path.dirname(p));
       return real === fs.realpathSync(target) || real.startsWith(fs.realpathSync(target) + path.sep);
     } catch { return false; }
   };
-  const drop = (p, label) => {
+  const drop = (p, label, rel) => {
     let st;
     try { st = fs.lstatSync(p); } catch { return; }
     if (!inside(p)) return;
+    if (!isOurs(rel, p, st)) {
+      console.log(`    Retired: left ${rel} in place, it is not this harness's own (remove it yourself if you do not want it)`);
+      return;
+    }
     if (st.isSymbolicLink() || st.isFile()) fs.unlinkSync(p);
     else fs.rmSync(p, { recursive: true, force: true });
     removed.push(label);
   };
-  for (const skill of RETIRED_SKILLS) drop(path.join(target, 'skills', skill), `/${skill}`);
-  for (const agent of RETIRED_AGENTS) drop(path.join(target, 'agents', agent), agent.replace(/\.md$/, ''));
-  for (const hook of RETIRED_HOOKS) drop(path.join(target, 'hooks', ...hook.split('/')), hook);
+  for (const skill of RETIRED_SKILLS) drop(path.join(target, 'skills', skill), `/${skill}`, `skills/${skill}`);
+  for (const agent of RETIRED_AGENTS) drop(path.join(target, 'agents', agent), agent.replace(/\.md$/, ''), `agents/${agent}`);
+  for (const hook of RETIRED_HOOKS) drop(path.join(target, 'hooks', ...hook.split('/')), hook, `hooks/${hook}`);
   if (removed.length) {
     const replaced = RETIRED_SKILLS.filter((s) => removed.includes(`/${s}`)).map((s) => `/${s} → ${REPLACED_BY[s]}`);
     console.log(`    Retired: removed ${removed.join(', ')}${replaced.length ? ` (${replaced.join(', ')})` : ''}`);

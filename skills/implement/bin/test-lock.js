@@ -4,9 +4,11 @@
 // cache, so their test commands take turns.
 //
 // Usage: node test-lock.js run --lock <dir> [--heartbeat <file>] -- <command> [args...]
-//   Takes the lock with mkdir (atomic) and writes <dir>/owner ("pid:", "host:", "start:" lines). A lock
-//   whose owner pid is gone on this host is broken, and only the exact lock that was judged dead is ever
-//   removed. Waits at most 60 minutes, then exits 3 with "lock held: <dir> by <owner>". There is no age
+//   Takes the lock with mkdir (atomic) and writes <dir>/owner ("pid:", "host:", "platform:", "start:"
+//   lines). A lock whose owner pid is gone is broken only when the host AND the platform match this
+//   machine's (WSL and Windows share a hostname, not pids), and only the exact lock that was judged dead
+//   is ever removed. A directory with no owner file is broken only when it is empty (a crash leftover);
+//   one holding anything else is never touched: it is waited on, then named in the timeout. Waits at most 60 minutes, then exits 3 with "lock held: <dir> by <owner>". There is no age
 //   limit while the owner lives, so a long suite is never broken into. The command runs with its
 //   arguments as an array, never as shell text. On Windows a `.cmd`/`.bat` shim (npm, npx, pnpm, yarn)
 //   is found through PATH and PATHEXT and run through cmd.exe with every argument escaped for it; an
@@ -18,8 +20,10 @@
 //   `feature-state.js claim` sees a session that waits or runs a long suite as alive.
 //
 // Environment (tests and tuning): TEST_LOCK_TIMEOUT_MS (wait, default 60 min), TEST_LOCK_GRACE_MS
-// (how old a lock with no owner file must be before it is broken, default 20 min), TEST_LOCK_BEAT_MS
-// (heartbeat interval, default 60 s).
+// (how old an empty lock directory must be before it is broken, default 20 min), TEST_LOCK_BEAT_MS
+// (heartbeat interval, default 60 s). Who tunes them: the person who owns the project's test setup,
+// through the environment of the sessions. Revisit TEST_LOCK_TIMEOUT_MS when a suite on this project
+// runs longer than the wait: its waiters then exit 3 while the owner is still alive and well.
 //
 // Exit codes: the command's; 2 usage error; 3 the lock was not free within the wait.
 
@@ -49,7 +53,7 @@ function readOwner(lock) {
   try {
     const text = fs.readFileSync(path.join(lock, 'owner'), 'utf8');
     const get = (k) => (text.match(new RegExp(`^${k}: (.*)$`, 'm')) || [])[1];
-    return { pid: Number(get('pid')), host: get('host'), start: get('start'), text: text.trim().replace(/\s*\n\s*/g, ', ') };
+    return { pid: Number(get('pid')), host: get('host'), platform: get('platform'), start: get('start'), text: text.trim().replace(/\s*\n\s*/g, ', ') };
   } catch { return null; }
 }
 
@@ -63,9 +67,16 @@ function pidAlive(pid) {
 function judgeStale(lock) {
   const owner = readOwner(lock);
   if (!owner) {
-    try { return Date.now() - fs.statSync(lock).mtimeMs > noOwnerGraceMs() ? { owner: null } : null; } catch { return null; }
+    try {
+      // Ownerless: broken only when it is empty or holds nothing but an unreadable `owner` (a crash
+      // leftover). A folder with anything else in it is not ours: it is left alone and waited on.
+      if (fs.readdirSync(lock).some((name) => name !== 'owner')) return null;
+      return Date.now() - fs.statSync(lock).mtimeMs > noOwnerGraceMs() ? { owner: null } : null;
+    } catch { return null; }
   }
-  return owner.host === os.hostname() && !pidAlive(owner.pid) ? { owner: owner.text } : null;
+  // A pid means something only on the host AND the platform that wrote it (WSL and Windows share a
+  // hostname but not a pid namespace).
+  return owner.host === os.hostname() && owner.platform === process.platform && !pidAlive(owner.pid) ? { owner: owner.text } : null;
 }
 
 // Move the lock aside (of several waiters only one rename succeeds), look at whose it is, and remove it
@@ -99,7 +110,7 @@ function tryTake(lock) {
   fs.rmSync(tmp, { recursive: true, force: true });
   try {
     fs.mkdirSync(tmp);
-    fs.writeFileSync(path.join(tmp, 'owner'), `pid: ${process.pid}\nhost: ${os.hostname()}\nstart: ${new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')}\n`);
+    fs.writeFileSync(path.join(tmp, 'owner'), `pid: ${process.pid}\nhost: ${os.hostname()}\nplatform: ${process.platform}\nstart: ${new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')}\n`);
     fs.renameSync(tmp, lock);
   } catch (e) {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -152,8 +163,8 @@ const CMD_META = /([()\][%!^"`<>&|;, *?])/g;
 const escapeCmdCommand = (s) => s.replace(CMD_META, '^$1');
 function escapeCmdArgument(arg) {
   let a = `${arg}`;
-  a = a.replace(/(?=(\\+?)?)\1"/g, '$1$1\\"');
-  a = a.replace(/(?=(\\+?)?)\1$/, '$1$1');
+  a = a.replace(/(\\*)"/g, '$1$1\\"');
+  a = a.replace(/(\\*)$/, '$1$1');
   return `"${a}"`.replace(CMD_META, '^$1');
 }
 

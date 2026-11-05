@@ -43,7 +43,9 @@ sessions may share the home folder without touching each other's files.
   folder they run in. It no longer says a Feature session lives inside its worktree.
 - ADR-0004 stands: the builders still get a work folder (the Feature worktree) and the state folder
   (the home folder's `tasks/`). What changes is who may share the home folder: several Feature sessions.
-- While Features are running, a standalone item is built in its own worktree, not in the home folder.
+- A standalone run that starts while a Feature session is open (a fresh `claim.md`, 30 minutes) asks first,
+  before it checks out a branch in the home folder, because that moves the shared folder off main under the
+  Feature session: (A) stop and use its own worktree, or (B) continue. It is not self-answerable.
 - A person closing a session leaves a claim behind. It goes stale after 30 minutes without activity,
   or the next session takes it over.
 - Two open Feature sessions share one machine's disk, CPU and, for stacks with a shared port or

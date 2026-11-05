@@ -518,6 +518,12 @@ test('update removes the retired skills and agent from an old install of either 
         fs.mkdirSync(path.dirname(path.join(claudeDir, 'hooks', h)), { recursive: true });
         fs.writeFileSync(path.join(claudeDir, 'hooks', h), '// old\n');
       }
+      // An old install recorded these as its own in the manifest (the updater removes only the harness's own).
+      const manifestFile = path.join(claudeDir, '.harness-manifest.json');
+      const oldManifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+      oldManifest.installedFiles.push(...RETIRED_SKILLS.map((s) => `skills/${s}/SKILL.md`),
+        ...RETIRED_AGENTS.map((a) => `agents/${a}`), ...RETIRED_HOOKS.map((h) => `hooks/${h}`));
+      fs.writeFileSync(manifestFile, JSON.stringify(oldManifest, null, 2));
       const settingsFile = path.join(claudeDir, 'settings.json');
       const old = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
       old.hooks.PostToolUse[0].hooks.push({ type: 'command', command: `node "${claudeDir.replace(/\\/g, '/')}/hooks/plan-lint-check.js"` });

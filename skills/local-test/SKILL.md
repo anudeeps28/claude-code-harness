@@ -50,9 +50,9 @@ Everything in Level 2, plus a running application for manual interaction.
 
 ### e2e — Run the story's e2e goal gate
 
-The end-to-end gate for the current feature — the terminal check `/implement` runs before its PR. Unlike Levels 1-3 (which are fixed build/test stages), the e2e gate is **per-feature**: its modality and concrete command were chosen during planning and recorded in the story's `test-strategy.md` ("Goal" + "Concrete gate").
+The end-to-end gate for the current feature — the terminal check `/implement` runs before its PR. Unlike Levels 1-3 (which are fixed build/test stages), the e2e gate is **per-feature**: its modality and concrete command were chosen during planning and recorded in the Goal ("Goal" + "Concrete gate" + observability): for a standalone story in `tasks/stories/<id>/brief.md` under its "Goal" heading, for a Feature in `tasks/features/<fid>/test-strategy.md`.
 
-1. **Read the gate.** Find the story's `tasks/stories/<id>/test-strategy.md` and read its **Goal** (chosen e2e modality) and **Concrete gate**. If a story ID wasn't passed, ask which story's gate to run.
+1. **Read the gate.** For a story id, read `tasks/stories/<id>/brief.md` and take its **Goal** heading (chosen e2e modality, **Concrete gate**, observability). For a Feature id, read `tasks/features/<fid>/test-strategy.md` for the same. If no id was passed, ask which story's or Feature's gate to run.
 2. **Find the gate command.** The actual command is the **`E2E command`** entry in the **Observe** section of `tasks/lessons.md` / `tasks/notes.md` (an older "E2E gate" entry elsewhere in the file still counts) — **never hardcode it here**. Different modalities run differently:
    - **Automated test / integration:** the e2e/acceptance test command from the lessons file.
    - **UI automation:** the UI e2e command (e.g. the project's browser-driver suite).
@@ -69,6 +69,18 @@ Add it there (or plan a "Build the probe: E2E command" task), then run /local-te
 ```
 
 Do not invent a command. The one escape hatch is unchanged: a change with zero runtime behaviour (docs, comments, a pure rename) can have its gate waived with "skip gate — no runtime impact" at goal definition, and that is logged — the gate is then never run, so it never reaches this step.
+
+---
+
+## Test lock (under `verify-lock: global`)
+
+When the caller's brief gives a `Test lock:` prefix, run every build, test and E2E command, at every level
+and in the e2e gate, with it in front (`<prefix> <command>`). A lock wait over 60 minutes (exit 3) is
+reported as a failed step naming the lock's owner. A compound command (`a && b`) is not wrapped by it: wrap
+each command on its own. Never wrap a long-running start command (the app's "Start the app", the Level 3
+dev server): it would hold the lock for the server's life and every later command, yours included, would
+wait on it. Start it outside the lock and wrap each build, test and E2E command that uses it. With no
+prefix given, run the commands as they are.
 
 ---
 

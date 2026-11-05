@@ -168,11 +168,15 @@ Two agents run with `permissionMode: bypassPermissions`: `babysit-pr-fixer` and 
 
 **Risk:** A poorly written fix description could cause the agent to modify files outside the intended scope. The safety hook (`safety-check.js`) blocks destructive Bash commands and Writes that look like hardcoded secrets, but direct `Edit` calls are not intercepted by hooks.
 
-**Guardrails:** Both agents have explicit scope constraints in their instructions:
-- Only modify files listed in the task/fix input
-- Only run build/test commands (no arbitrary Bash)
-- No access outside the project root
-- No package installs, config changes, or infrastructure modifications
+**Guardrails:** The two agents are held differently.
+- `babysit-pr-fixer` has explicit scope constraints in its instructions:
+  - Only modify files listed in the task/fix input
+  - Only run build/test commands (no arbitrary Bash)
+  - No access outside the project root
+  - No package installs, config changes, or infrastructure modifications
+- `sprint-plan-tracker-reader` cannot edit anything: its tools are only `Bash` and `Read`, and its
+  instructions allow exactly **one** command, the read-only tracker script `get-sprint-issues.sh <sprint number>`,
+  whose output it formats.
 
 **When to use `bypassPermissions` on a new agent:**
 - Only for agents that run inside a human-gated workflow (the user approved a plan before the agent executes)

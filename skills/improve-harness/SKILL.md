@@ -49,7 +49,7 @@ Read these in **parallel** (use the Read tool with multiple calls in one message
    - The "Decisions" column (fix/skip per finding)
    - **Skip stories whose evaluation.md doesn't exist** — they're in-progress, not signal.
 
-5. **Story executor states** — for each story above, also read `tasks/stories/<id>/executor-state.md` "Local Test Result" section. This carries the acceptance verdict (the acceptance-test-agent doesn't write its own file).
+5. **Story executor states** — for each story above, also read `tasks/stories/<id>/acceptance.md`, where `/implement` saves the acceptance-test-agent's report (the acceptance verdict), and the `step:` and `## Red evidence` in `tasks/stories/<id>/executor-state.md` (how far the run got, and the recorded reds). Skip a story whose `acceptance.md` does not exist.
 
 If `tasks/` doesn't exist or `sessions.jsonl` is empty, output `✅ Nothing to analyze yet — no session history.` and stop.
 

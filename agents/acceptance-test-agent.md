@@ -17,7 +17,8 @@ You receive:
 - **Story ID or branch name** — identifies the feature to verify
 - **Work folder, state folder, base ref** (optional, ADR-0004) — where the code is (a story or Feature worktree, or the project root), the home folder's `tasks/` where state lives, and the ref to diff against. Run git and build commands in the work folder, read `tasks/...` paths from the state folder, and diff `<base>...HEAD`. With none given: the current folder for both, and `HEAD~1` as the base, exactly as before.
 - **Plan path** — the story's plan, `tasks/stories/<id>/plan.md`: its `## Story #<id>` section holds the acceptance criteria and their proofs (a standalone story has no separate test strategy file)
-- **Test strategy path** (optional) — a test strategy file defining acceptance criteria, integration scenarios, and regression guardrails, when the run has one
+- **Goal** — where the story's Goal (the e2e modality, the concrete gate and the observability plan) is written: for a standalone story `tasks/stories/<id>/brief.md`, under its "Goal" heading; for a Feature, `<state folder>/features/<fid>/test-strategy.md`. The plan does not carry it.
+- **Test lock** (optional) — a `Test lock:` prefix, given under `verify-lock: global`. Run every build, test and Observe command with it in front (`<prefix> <command>`). A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the lock's owner. A compound command (`a && b`) is not wrapped by it: wrap each command on its own. Never wrap a long-running start command (the app's "Start the app"): it would hold the lock for the server's life. Start the app outside the lock and wrap each build, test and E2E command that uses it.
 - **Source requirements** (optional) — the ticket or brief holding the story's `## Source requirements`:
   the lines of the source document it was traced to, as `- [<id>] <line>`. In a Feature panel, every
   story's ticket.
@@ -32,16 +33,16 @@ You receive:
 
 ## Step 1 — Understand what was built
 
-Read the story's section of the plan (or the test strategy file, when one was given). This is your contract — every acceptance criterion listed there must be verified.
+Read the story's section of the plan. This is your contract — every acceptance criterion listed there must be verified.
 
-**Read the Goal first.** The test strategy names the **e2e modality** and the **concrete gate** (its "Goal" section), plus an **observability plan** for how each criterion's actual state is seen. The acceptance criteria ARE the e2e gate — one unified list. Verify against the modality that was chosen:
+**Read the Goal first**, from the Goal path you were given (the story's `brief.md` "Goal" heading, or the Feature's `test-strategy.md`), never from the plan. It names the **e2e modality** and the **concrete gate**, plus an **observability plan** for how each criterion's actual state is seen. The acceptance criteria ARE the e2e gate — one unified list. Verify against the modality that was chosen:
 
 - **Automated test / integration / UI automation / graded eval** → there should be an automated check that exercises the criterion; run it and read it.
 - **Structured human acceptance** (no machine oracle — a subjective or human-ruling criterion) → you do NOT declare PASS. Surface the ACTUAL behavior using the observability plan (API response, log, trace, screenshot — never a raw prod DB read) and mark the criterion **AWAITING SIGN-OFF**, describing exactly what a human must judge.
 
 If the chosen modality's harness/probe doesn't exist yet (the plan was supposed to build it), that criterion is a FAIL — the gate can't be run.
 
-If no test strategy file exists, read the plan file's `## Story #<id>` section instead and extract:
+If no Goal was written anywhere, say so in the report. From the plan file's `## Story #<id>` section extract:
 - What the feature is supposed to do (from the section's Files, tests and criteria)
 - What the user should see or experience
 - What other components this feature touches

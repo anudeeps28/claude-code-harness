@@ -45,10 +45,17 @@ const AGENTS = (() => {
   const run = [slice(SKILL, '### Run the stories'), slice(SKILL, '## The story loop')].filter(Boolean).join('\n');
   const named = [...new Set([...run.matchAll(/`([a-z][a-z-]+)`/g)].map((m) => m[1]))]
     .filter((n) => fs.existsSync(path.join(REPO_ROOT, 'agents', `${n}.md`)));
-  return named.filter((n) => {
+  const fromStories = named.filter((n) => {
     const t = flat(read('agents', `${n}.md`));
     return /^tools:.*\bBash\b/m.test(read('agents', `${n}.md`)) && /\bbuild\b/i.test(t) && /\btests?\b/i.test(t);
-  }).sort();
+  });
+  // F73 fix (A2): the review agents run the build and the tests too (the evaluator's Steps 2-3, the
+  // acceptance agent's Step 3). Any agent the SKILL names anywhere whose own steps say to run them is found here.
+  const RUNS = /Run the project (?:build|tests?)|<(?:build|test|unit test|integration test) command|\b(?:run|runs) the (?:build|tests?|test suite)\b/i;
+  const everyAgent = [...new Set([...SKILL.matchAll(/`([a-z][a-z-]+)`/g)].map((m) => m[1]))]
+    .filter((n) => fs.existsSync(path.join(REPO_ROOT, 'agents', `${n}.md`)))
+    .filter((n) => /^tools:.*\bBash\b/m.test(read('agents', `${n}.md`)) && RUNS.test(read('agents', `${n}.md`)));
+  return [...new Set([...fromStories, ...everyAgent])].sort();
 })();
 
 // ── AC1: a Feature run's markers are not foreign work ────────────────
@@ -139,12 +146,18 @@ test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
   const flatRun = flat(run);
   assert.match(flatRun, /Shared test resources/);
   assert.match(flatRun, /`verify-lock: global`/);
-  assert.equal(AGENTS.join(','), 'prover,story-builder,suite-runner', 'the agents that run build, test and Observe commands are exactly these three');
-  assert.equal(AGENTS.length, 3, 'companion: the derivation found three, not none');
+  assert.equal(AGENTS.join(','), 'acceptance-test-agent,evaluator-agent,prover,story-builder,suite-runner', 'the agents that run build, test and Observe commands are exactly these five');
+  assert.equal(AGENTS.length, 5, 'companion: the derivation found five, not none');
   assert.match(flatRun, /Test lock: node "<skill-dir>\/bin\/test-lock\.js" run --lock "<state>\/\.verify\.lock" --heartbeat "<state>\/features\/<fid>\/heartbeat" --/);
   assert.match(flatRun, /compound command[^.]*`a && b`[^.]*not wrapped[^.]*wrap each command/i, 'a compound command is not wrapped');
-  assert.match(flatRun, /`story-builder`, `suite-runner` and `prover`/);
   assert.match(flatRun, /`per-story`\) passes none/, 'the default passes no lock');
+  // The SKILL's Feature "Shared test resources" paragraph names every one of them, and /local-test.
+  const shared = flat(slice(SKILL, '### Run the stories')).match(/Shared test resources\.[\s\S]*?(?=Then loop on)/);
+  assert.ok(shared, 'the Feature "Shared test resources" paragraph was found');
+  for (const name of AGENTS) assert.ok(shared[0].includes(`\`${name}\``), `the paragraph gives the lock to ${name}`);
+  assert.match(shared[0], /`\/local-test` \(every level, e2e included\)/, 'and to /local-test, every level, e2e included');
+  const standalone = flat(slice(SKILL, '## The story loop') || '');
+  assert.match(standalone, /Test lock:[\s\S]*every agent and skill that executes a suite/, 'the standalone paragraph passes it to every suite runner');
   for (const name of AGENTS) {
     const t = read('agents', `${name}.md`);
     assert.match(t, /`Test lock:`/, `${name} names the Test lock prefix`);
@@ -152,7 +165,26 @@ test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
     assert.match(flat(t), /<prefix> <command>/, `${name} shows the shape`);
     assert.match(flat(t), /compound command[^.]*`a && b`[^.]*(?:not|never) wrapped[^.]*wrap each/i, `${name}: a compound command is wrapped one command at a time`);
     assert.match(flat(t), /(?:wait|waits) over 60 minutes \(exit 3\)[^.]*`STATUS: BLOCKED`[^.]*owner/i, `${name}: a lock wait over 60 minutes is BLOCKED with the owner`);
+    assert.match(flat(t), /never wrap a long-running start command[^.]*(?:"Start the app")?[^.]*lock for the server's life/i, `${name}: a long-running start command is never wrapped (A6)`);
   }
+  // /local-test is a skill, not an agent: the same prefix rule, in its own words.
+  const lt = flat(read('skills', 'local-test', 'SKILL.md'));
+  assert.match(lt, /`Test lock:` prefix/, 'local-test names the Test lock prefix');
+  assert.ok(/with it in front \(`<prefix> <command>`\)/.test(lt), 'local-test puts the prefix in front of each command');
+  assert.match(lt, /every build, test and E2E command, at every level and in the e2e gate/, 'every level and the e2e gate');
+  assert.match(lt, /compound command[^.]*`a && b`[^.]*not wrapped[^.]*wrap each/i);
+  assert.match(lt, /never wrap a long-running start command[^.]*lock for the server's life/i, 'local-test: a long-running start command is never wrapped (A6)');
+  assert.ok(!/with it in front/.test('run the commands without a lock'), 'planted opposite is not accepted by the in-front check');
+});
+
+// A6: a long-running start command is never wrapped, in every place that tells how to use the lock.
+test('Sessions_LongRunningStartCommandIsNeverWrapped', () => {
+  const never = (t) => /never wrap a long-running start command[^.]*lock for the server's life/i.test(flat(t));
+  assert.ok(!never('Wrap the app\'s "Start the app" command too, so the lock is held for the server\'s life.'), 'the opposite claim is rejected');
+  assert.ok(never('Never wrap a long-running start command (the app\'s "Start the app"): it would hold the lock for the server\'s life.'), 'the claim itself is accepted');
+  assert.ok(never(slice(SKILL, '### Run the stories')), 'SKILL Feature "Shared test resources"');
+  assert.ok(never(slice(SKILL, '## The story loop')), 'SKILL standalone "Shared test resources"');
+  for (const a of ['story-builder', 'suite-runner', 'prover']) assert.ok(never(read('agents', `${a}.md`)), a);
 });
 
 // ── AC5: the disk check is given the Feature ─────────────────────────
@@ -227,6 +259,7 @@ test('Docs_EarlierAdrsAndArchitectureAgreeWithAdr0006', () => {
   assert.match(a5, /one session per Feature/, 'ADR-0005 points to one session per Feature');
   const row = read('ARCHITECTURE.md').split('\n').find((l) => /^\| 6 \| Verify lock/.test(l));
   assert.ok(row, 'ARCHITECTURE.md has the verify lock row');
-  assert.match(row, /`tasks\/stories\/<sid>\/\.verify\.lock`[^|]*standalone[^|]*default/, 'the per-story lock is the standalone default');
+  // F73 fix (A7): the per-story lock is gone; the default takes no lock.
+  assert.match(row, /default takes no lock/, 'the default takes no lock');
   assert.match(row, /`<state>\/\.verify\.lock`[^|]*all sessions/, 'the state-folder lock is the global one for all sessions');
 });

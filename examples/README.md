@@ -11,7 +11,7 @@ Real filled-in examples of what your project setup should look like after instal
 | [`settings.json`](settings.json) | What `.claude/settings.json` looks like after `install.sh` runs (global install) |
 | [`tasks/tracker-config.md`](tasks/tracker-config.md) | Fully filled-in tracker config — ADO variant and GitHub variant |
 | [`tasks/lessons.md`](tasks/lessons.md) | Filled-in lessons file with real git rules, Code Rabbit patterns, and project conventions |
-| [`tasks/todo.md`](tasks/todo.md) | Example XML task plan — the format `/implement` plans and `/implement --resume` carries on |
+| [`tasks/todo.md`](tasks/todo.md) | Example story plan section — the `## Story #<id>` format `/implement` plans and `/implement --resume` carries on |
 | [`tasks/pr-queue.md`](tasks/pr-queue.md) | Example PR queue with real entries |
 
 ---

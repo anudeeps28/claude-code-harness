@@ -87,8 +87,9 @@ Every *newly* changed path should be one a builder reported or the story's `**Fi
 that appears here but is named by **neither** means an agent edited outside its scope. Surface it
 loudly, name the file, and **stop**: it will otherwise ship inside the story's diff unnoticed. Ignore
 paths that are gitignored and the story workspace (`tasks/stories/<id>/`); a leftover lock directory
-under `verify-lock: global` means an agent died mid-test, which its own BLOCKED report already covers:
-`rmdir` it and carry on rather than reporting it as a stray edit.
+under `verify-lock: global` is not a stray edit: do not report it, and **never remove the global lock by
+hand**. `test-lock.js` breaks a dead owner's lock itself (same host and platform, owner pid gone) and an
+empty ownerless one; a lock held by a live owner is waited on.
 
 ### The index at commit
 

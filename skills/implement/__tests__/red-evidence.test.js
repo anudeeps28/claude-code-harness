@@ -250,6 +250,29 @@ test('Red_AlreadyMetRefusedRow_DoesNotBlockARealRedForTheSameCriterion', () => {
   });
 });
 
+test('Red_AlreadyMetPathThroughALinkLeadingOutsideTheRoot_IsRefused', () => {
+  // S4: a folder link inside the root that points outside it must not let a row name code outside the root.
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'red-outside-'));
+  fs.writeFileSync(path.join(outside, 'real.js'), 'module.exports = 1;\n');
+  withRoot(['src/total.js'], (root) => {
+    try {
+      fs.symlinkSync(outside, path.join(root, 'src', 'link'), 'junction');
+    } catch (e) {
+      // Stated reason for the skip: this machine does not let a test create a folder link (no permission).
+      process.stderr.write(`skipped: cannot create a link here: ${e.message}\n`);
+      return;
+    }
+    const file = state(['- Total_Empty_IsZero | AC1 | src/link/real.js:3 | shape: already-met']);
+    const r = checkRoot(file, 'AC1', root);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /^refused: AC1 .*already-met.*does not exist under the root/m);
+    // Companion: a real file inside the root is still accepted.
+    const ok = state(['- Total_Empty_IsZero | AC1 | src/total.js:3 | shape: already-met']);
+    assert.equal(checkRoot(ok, 'AC1', root).code, 0);
+  });
+  fs.rmSync(outside, { recursive: true, force: true });
+});
+
 test('Red_EmptyCriteriaList_IsAUsageError', () => {
   const file = state(['- Total_Sums | AC1 | AssertionError: x | shape: assertion']);
   for (const list of ['', ' , ,']) {

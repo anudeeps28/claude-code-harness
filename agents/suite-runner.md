@@ -36,7 +36,9 @@ of the diff's changed lines the tests ran, and the uncovered lines as `file:line
 
 When the brief gives a `Test lock:` prefix, run every build, test and Observe command with it in front
 (`<prefix> <command>`). A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the lock's owner.
-A compound command (`a && b`) is not wrapped by it: wrap each command on its own.
+A compound command (`a && b`) is not wrapped by it: wrap each command on its own. Never wrap a
+long-running start command (the app's "Start the app"): it would hold the lock for the server's life.
+Start the app outside the lock and wrap each build, test and E2E command that uses it.
 
 Do not edit, stage, commit or push anything. Anything you try (a single suite on its own, a clean
 build) runs in place or in a copy outside the repository, never under its git folder.

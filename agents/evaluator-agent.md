@@ -22,6 +22,8 @@ You receive:
 - **Source requirements** (optional) — the ticket or brief holding `## Source requirements`: the lines
   of the source document the work was traced to. They outrank the plan: a plan that dropped or
   narrowed one is itself a finding
+- **Goal** (optional) — where the story's Goal (e2e modality, concrete gate, observability) is written: a standalone story's `tasks/stories/<id>/brief.md` under "Goal", or a Feature's `<state folder>/features/<fid>/test-strategy.md`
+- **Test lock** (optional) — a `Test lock:` prefix, given under `verify-lock: global`. Run every build, test and Observe command with it in front (`<prefix> <command>`). A lock wait over 60 minutes (exit 3) is `STATUS: BLOCKED` with the lock's owner. A compound command (`a && b`) is not wrapped by it: wrap each command on its own. Never wrap a long-running start command (the app's "Start the app"): it would hold the lock for the server's life. Start the app outside the lock and wrap each build, test and E2E command that uses it.
 - **Scope** — "full" (default) or "quick" (skip Steps 4-5, only run hard gates)
 - **Part** (optional, Feature panel only) — the panel runs you three times, on two models, one call per
   dimension (the factory's branch-reviewer dimensions): what is a list goes on the faster model, what
@@ -126,7 +128,7 @@ Check whether the new/changed code has adequate test coverage:
 1. **Identify what was added/changed** — from the git diff, list every new public method, endpoint, class, or behavior.
 2. **Search for corresponding tests** — for each new/changed item, search the test directories for a test that exercises it. Use filename patterns, class names, and method names to find matches.
 3. **Check test quality** — for each test found, read it. Does it test the actual behavior (not just that the method exists)? Does it cover the happy path AND at least one edge case?
-4. **Check the test strategy + goal** — if the story's plan section (`tasks/stories/<id>/plan.md`, its `## Story #<id>` section) or a test strategy file exists, verify it defines a **Goal** (an e2e modality + concrete gate) and an **observability plan**, and that each acceptance criterion has a corresponding check (the criteria ARE the e2e gate — one unified list). For a structured-human-acceptance modality (no machine oracle), a criterion without an automated test is expected — flag only that its evidence must be surfaced for sign-off, not as a coverage gap.
+4. **Check the test strategy + goal** — read the **Goal** from where it lives, never from the plan: for a standalone story `tasks/stories/<id>/brief.md` under its "Goal" heading, for a Feature `<state folder>/features/<fid>/test-strategy.md` (the path is in your brief). Verify it defines a **Goal** (an e2e modality + concrete gate) and an **observability plan**, and that each acceptance criterion has a corresponding check (the criteria ARE the e2e gate — one unified list). For a structured-human-acceptance modality (no machine oracle), a criterion without an automated test is expected — flag only that its evidence must be surfaced for sign-off, not as a coverage gap.
 
 Rate overall test coverage:
 - **GOOD** — New code has tests, tests cover behavior, acceptance criteria are tested

@@ -168,13 +168,13 @@ now right, and its first step is the failing test.
 
 ### Goal and proofs
 
-The goal and the acceptance criteria go into the story's section (see **Plan format**), in this shape:
+The story's **Goal** (its e2e modality, concrete gate and observability) is not part of the story section.
+It already lives in one place, defined in Phase 1.5: for a standalone story in `tasks/stories/<id>/brief.md`
+under "Goal", for a Feature in `tasks/features/<fid>/test-strategy.md`. Read it from there and plan the
+criteria and their proofs to meet it; do not write a `**Goal:**` block into the plan. Only the acceptance
+criteria and their proofs go into the story's section (see **Plan format**), in this shape:
 
 ```
-**Goal:**
-- E2E modality: [how this is verified end-to-end — automated test / UI automation / graded eval / structured human acceptance; menu is OPEN, define a new one if none fit]
-- Concrete gate: [the exact check that must go green — the story's definition of done]
-
 **Acceptance criteria and their proofs:**
 1. [<id>] [a source requirement line, verbatim — one criterion per line, all of them first]
    - Means: [optional: what it means concretely here]

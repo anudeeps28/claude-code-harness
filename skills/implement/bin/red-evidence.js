@@ -69,9 +69,15 @@ function alreadyMetProblem(row, root) {
   if (!m) return 'names no existing code as path:line';
   if (!root) return null;
   const rel = m[0].replace(/:\d+$/, '');
-  const abs = path.resolve(root, rel);
-  const inside = path.relative(path.resolve(root), abs);
-  if (inside.startsWith('..') || path.isAbsolute(inside) || !fs.existsSync(abs)) return `names ${rel}, which does not exist under the root`;
+  // Resolve links first: a link inside the root that points outside it must not pass for code under it.
+  let realRoot;
+  let realAbs;
+  try {
+    realRoot = fs.realpathSync(path.resolve(root));
+    realAbs = fs.realpathSync(path.resolve(root, rel));
+  } catch { return `names ${rel}, which does not exist under the root`; }
+  const inside = path.relative(realRoot, realAbs);
+  if (inside.startsWith('..') || path.isAbsolute(inside)) return `names ${rel}, which does not exist under the root`;
   if (isTestPath(rel)) return `names ${rel}, which is a test file, not the existing product code`;
   return null;
 }

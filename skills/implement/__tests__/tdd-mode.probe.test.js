@@ -1,7 +1,8 @@
 // Doc-consistency probe for test-first building across /implement, the planner, /tdd, the wave and
 // testing rules, and the four tracker adapters. Rewritten for F73 #83: the executor, its `must_fail`
 // task attribute, waves, the red window and the plan-lint hook are retired, so every test that pinned
-// them is gone (the commit lists each, as "moot: waves retired"). Every story is now test first, built
+// them is gone (the Feature's fix commit message lists each deleted test and why, as "moot: waves
+// retired"). Every story is now test first, built
 // by the story loop (`story-builder`, `suite-runner`, `red-evidence.js`); what is kept here is each
 // guarantee the loop still makes:
 //

@@ -116,6 +116,11 @@ test('Retired_RemoveRetiredTakesOutTheSkillAgentsAndHooksAndNamesThem', () => {
     fs.mkdirSync(path.join(target, 'hooks', 'lib'), { recursive: true });
     for (const h of ['plan-lint-check.js', path.join('lib', 'plan-lint.js'), 'safety-check.js']) fs.writeFileSync(path.join(target, 'hooks', h), 'x');
 
+    // The previous install recorded these as the harness's own (S5: only recorded or harness-worded ones go).
+    fs.writeFileSync(path.join(target, '.harness-manifest.json'), JSON.stringify({ installedFiles: [
+      'skills/troubleshoot/SKILL.md', 'agents/story-executor-agent.md', 'agents/troubleshoot-investigator.md',
+      'hooks/plan-lint-check.js', 'hooks/lib/plan-lint.js',
+    ] }));
     console.log = (...a) => logged.push(a.join(' '));
     updater.removeRetired(target);
     console.log = origLog;
@@ -137,6 +142,43 @@ test('Retired_RemoveRetiredTakesOutTheSkillAgentsAndHooksAndNamesThem', () => {
   }
 });
 
+test('Retired_AUsersOwnSkillOfARetiredName_SurvivesAnUpdateAndIsNamed', () => {
+  // S5: only what the harness installed goes. A user's own skills/troubleshoot is left, with a note.
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'retired-own-'));
+  const logged = [];
+  const origLog = console.log;
+  try {
+    const own = path.join(target, 'skills', 'troubleshoot', 'SKILL.md');
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, '---\nname: troubleshoot\ndescription: My own notes for chasing flaky builds\n---\nmine\n');
+    fs.mkdirSync(path.join(target, 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'agents', 'story-executor-agent.md'), '---\nname: story-executor-agent\ndescription: my own agent\n---\n');
+    fs.writeFileSync(path.join(target, '.harness-manifest.json'), JSON.stringify({ installedFiles: ['skills/implement/SKILL.md'] }));
+    console.log = (...a) => logged.push(a.join(' '));
+    updater.removeRetired(target);
+    console.log = origLog;
+    assert.ok(fs.existsSync(own), 'the user\'s own skill is still there');
+    assert.ok(fs.existsSync(path.join(target, 'agents', 'story-executor-agent.md')), 'and so is their own agent');
+    const note = logged.find((l) => /troubleshoot/.test(l) && /not .*harness|left/i.test(l)) || '';
+    assert.ok(note, `a note names it: ${logged.join(' / ')}`);
+
+    // Companion 1: the same folder, recorded by the previous install, is removed.
+    fs.writeFileSync(path.join(target, '.harness-manifest.json'), JSON.stringify({ installedFiles: ['skills/troubleshoot/SKILL.md'] }));
+    updater.removeRetired(target);
+    assert.ok(!fs.existsSync(path.dirname(own)), 'recorded as installed: removed');
+
+    // Companion 2: nothing records it, but it carries the harness's own description: removed.
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, '---\nname: troubleshoot\ndescription: Deep behavioral bug investigation — system compiles but does the wrong thing.\n---\n');
+    fs.writeFileSync(path.join(target, '.harness-manifest.json'), JSON.stringify({ installedFiles: [] }));
+    updater.removeRetired(target);
+    assert.ok(!fs.existsSync(path.dirname(own)), 'the harness\'s own text: removed');
+  } finally {
+    console.log = origLog;
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('Retired_OnlyAHookRemoved_PrintsNoEmptyReplacementParentheses', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'retired-hook-'));
   const logged = [];
@@ -144,6 +186,7 @@ test('Retired_OnlyAHookRemoved_PrintsNoEmptyReplacementParentheses', () => {
   try {
     fs.mkdirSync(path.join(target, 'hooks'), { recursive: true });
     fs.writeFileSync(path.join(target, 'hooks', 'plan-lint-check.js'), 'x');
+    fs.writeFileSync(path.join(target, '.harness-manifest.json'), JSON.stringify({ installedFiles: ['hooks/plan-lint-check.js'] }));
     console.log = (...a) => logged.push(a.join(' '));
     updater.removeRetired(target);
     console.log = origLog;

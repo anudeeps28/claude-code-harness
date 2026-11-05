@@ -12,6 +12,9 @@
 //       Prove it's scratch copy: a detached worktree at <ref> (no branch). Refuses an existing path.
 //   remove-scratch --home <dir> --path <p>
 //       Removes it only when it is detached and clean: a broken line not put back is refused (exit 1).
+//   git -- <git arguments...>
+//       One git command in the current folder (the story commit, the stuck-story restore, the PR push),
+//       retried when another session holds a lock file. Any failure exits 1 with git's message.
 //
 // Output and exit codes:
 //   0 ok
@@ -120,9 +123,24 @@ const NEEDS = {
   'remove-scratch': ['home', 'path'],
 };
 
+// `git -- <args...>`: one git write of a run (the story commit, the stuck-story restore, the PR push)
+// in the current folder, with the same lock retry. Arguments go to git as an array, never as shell text.
+function cmdGit(args) {
+  if (args.length === 0) die(2, 'usage: worktree.js git -- <git arguments...>');
+  const r = git(process.cwd(), args);
+  if (r.out) out(r.out);
+  if (r.code !== 0) die(1, r.err || `git ${args[0]} failed`);
+  if (r.err) process.stderr.write(r.err + '\n');
+  return 0;
+}
+
 function main() {
   const [command, ...rest] = process.argv.slice(2);
-  if (!NEEDS[command]) die(2, 'usage: worktree.js feature|check-branch|scratch|remove-scratch ... (see the header of this file)');
+  if (command === 'git') {
+    if (rest[0] !== '--') die(2, 'usage: worktree.js git -- <git arguments...>');
+    process.exit(cmdGit(rest.slice(1)));
+  }
+  if (!NEEDS[command]) die(2, 'usage: worktree.js feature|check-branch|scratch|remove-scratch|git ... (see the header of this file)');
   const o = {};
   for (let i = 0; i < rest.length; i += 2) {
     if (!rest[i].startsWith('--') || rest[i + 1] === undefined) die(2, `bad argument: ${rest[i]}`);

@@ -22,9 +22,9 @@ You pass through four display phases in this one session: planning, coding, test
 
 ## Handoff discipline
 
-- A task is done when its verify command passes (build + relevant tests) — not when it compiles.
-- Keep the story plan's `✅` marks current as the durable execution state.
-- Leave the story folder pickup-ready for the reviewer: plan marked up, results recorded, branch pushed.
+- There are no tasks, verify commands or `✅` marks. A story is done only after its review and the e2e gate, not when it compiles or its tests pass.
+- Keep the durable state current: `step:` (and `round:` in a review) in `executor-state.md`.
+- Leave the story folder pickup-ready for the reviewer: plan and brief in place, results recorded, branch pushed.
 - Your final act is commit, push, and draft the PR body into the story files. If you were spawned by an invoking orchestrator, leave opening the PR to it — that is its decision to make from the story files. If the session was launched directly with no orchestrator (a standalone `claude --agent build-session` run), say so explicitly and ask the human whether you should open the PR yourself.
 
 ## When handed a review report

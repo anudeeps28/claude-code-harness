@@ -183,7 +183,9 @@ So when the test runner shows the new tests red, the orchestrator records, in th
 
 - the test's full name and the criterion it covers
 - the runner's **verbatim failure line** from the test runner's report (never the builder's own run)
-- which failure shape it was (assertion, or a `NotImplementedException` from the method under test)
+- which failure shape it was (assertion, a `NotImplementedException` from the method under test, or
+  `already-met`: the behaviour already exists, recorded with the existing code as `path:line`, so no
+  red can be seen and the test stays as a regression test)
 
 `bin/red-evidence.js check` reads them and rejects a compile error or a test that never ran. It costs
 nothing and it is the only surviving evidence that the red was real.

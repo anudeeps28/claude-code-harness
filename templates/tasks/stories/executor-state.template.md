@@ -24,20 +24,3 @@ updated: YYYY-MM-DDTHH:MM:SSZ
      line. A resume at `code` restores nothing listed here. -->
 
 - [path/to/test-or-stub-file]
-
-## Debug Escalations
-
-### [what] — escalated YYYY-MM-DD HH:MM
-**Root cause (from /debug):** [what debug-agent found]
-**Chosen approach:** [which of the 2-3 approaches was picked]
-**Result:** [resolved / still blocked]
-
-## Local Test Result
-
-**Phase 2.5:** [NOT RUN / ✅ PASS / ❌ FAIL]
-**Command:** `/local-test 2`
-**Output summary:** [build OK, N tests passed, M failed]
-
-## Blockers
-
-- [list anything waiting on external action, with who and what]

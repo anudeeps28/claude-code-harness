@@ -15,7 +15,7 @@ This file teaches the AI harness (Claude Code, Cursor, Aider, Cline, Continue, e
 
 A Feature session runs from the home folder (as the factory's `work-feature` runs from its clone), never edits code there, and writes only its own `tasks/` folders, so several Feature sessions may share the home folder. A standalone run builds in the folder it runs in, so it is still one per folder.
 
-The home folder is pinned to `main` (or the project's default branch). Every feature, fix, or PR-review lives in its own sibling folder named `<repo>-<short-name>`. Each worktree gets its own AI terminal — no stash/checkout dance, no cross-contamination between in-flight work.
+The home folder is pinned to `main` (or the project's default branch). Every feature, fix, or PR-review lives in its own sibling folder named `<repo>-<short-name>`. A standalone branch's worktree gets its own terminal; a Feature worktree is driven from a session in the home folder and has no terminal of its own. Either way: no stash/checkout dance, no cross-contamination between in-flight work.
 
 ---
 
@@ -69,7 +69,7 @@ git worktree add <sibling-path> <existing-branch-name>
 **After creating, do these steps in the new folder:**
 1. Copy gitignored config files from the home folder (the list lives in `tasks/lessons.md` under "Worktree setup" — if that section is absent, ask the user).
 2. Run package restore so the project builds. The exact commands also live in `tasks/lessons.md` (e.g., `npm install`, `dotnet restore`, `pip install -r requirements.txt`, `go mod download`, `bundle install`). If `lessons.md` doesn't list them, ask the user once and then add the answer to `lessons.md`.
-3. The user opens a NEW AI terminal in the new folder — that terminal becomes the dedicated context for this branch.
+3. For a standalone branch, the user opens a NEW AI terminal in the new folder — that terminal becomes the dedicated context for this branch. A Feature worktree (made by `/implement <fid>`) gets none: its session stays in the home folder.
 
 ---
 
@@ -83,10 +83,15 @@ After the standard `git fetch --prune` at session start:
    git ls-remote --exit-code --heads origin <branch>
    ```
    Exit code 2 (or non-zero) means the branch is gone from origin — typically because the PR merged and the source branch was deleted.
-3. For each worktree whose remote branch is gone, prompt the user:
+3. **Skip a Feature worktree that is still being built.** A Feature's branch is pushed only when its PR
+   is opened, so "gone from origin" is the normal state of a live one. For a worktree named
+   `<repo>-f<fid>` on a branch `feature/<fid>-…` (or its `<repo>-f<fid>-prove` scratch copy), look in the
+   home folder's `tasks/features/<fid>/`: when there is a fresh `claim.md` (30 minutes, `rules/phase-markers.md`), or a `feature-state.md` whose phase is not `done`,
+   say "Worktree `<path>`: Feature <fid> is in progress in another session, left alone", and go to the next one. It is never offered for removal.
+4. For each remaining worktree whose remote branch is gone, prompt the user:
    > "Worktree `<path>` is on branch `<name>` which no longer exists on origin (likely merged). Remove it? [y/n]"
-4. On `y`: run `git worktree remove <path>` then `git branch -d <name>`.
-5. On `n`: leave it — ask again next session.
+5. On `y`: run `git worktree remove <path>` then `git branch -d <name>`.
+6. On `n`: leave it — ask again next session.
 
 **Never use `--force`.** If the worktree has uncommitted changes, git refuses to remove it. Surface that error and let the user decide; do not bypass.
 

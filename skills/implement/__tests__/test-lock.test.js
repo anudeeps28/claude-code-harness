@@ -1,8 +1,8 @@
 // Tests for skills/implement/bin/test-lock.js (F73 #82, AC4): under `verify-lock: global`, builds, tests
 // and Observe commands of several sessions queue on one lock directory. `run --lock <dir> -- <cmd...>`.
 //
-// The owner file is written by the script as `pid: <n>`, `host: <name>`, `start: <iso>`; the tests that
-// plant one use that shape.
+// The owner file is written by the script as `pid: <n>`, `host: <name>`, `platform: <os>`, `start: <iso>`;
+// the tests that plant one use that shape.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -76,7 +76,7 @@ test('Lock_OwnerProcessGone_IsBroken', async () => {
   // A pid that has exited: a short-lived child of this test.
   const gone = spawnSync(process.execPath, ['-e', ''], { encoding: 'utf8' }).pid;
   fs.mkdirSync(lock);
-  fs.writeFileSync(path.join(lock, 'owner'), `pid: ${gone}\nhost: ${os.hostname()}\nstart: 2026-11-04T09:00:00Z\n`);
+  fs.writeFileSync(path.join(lock, 'owner'), `pid: ${gone}\nhost: ${os.hostname()}\nplatform: ${process.platform}\nstart: 2026-11-04T09:00:00Z\n`);
   const r = runLock(lock, [process.execPath, '-e', writeMarker, marker]);
   assert.equal(r.code, 0, r.out);
   assert.equal(fs.existsSync(marker), true, 'the command ran after the dead owner\'s lock was broken');
@@ -85,7 +85,7 @@ test('Lock_OwnerProcessGone_IsBroken', async () => {
   // Companion: an owner that is alive is never broken into, however long it holds.
   const lock2 = path.join(dir, '.verify2.lock');
   fs.mkdirSync(lock2);
-  fs.writeFileSync(path.join(lock2, 'owner'), `pid: ${process.pid}\nhost: ${os.hostname()}\nstart: 2026-11-04T09:00:00Z\n`);
+  fs.writeFileSync(path.join(lock2, 'owner'), `pid: ${process.pid}\nhost: ${os.hostname()}\nplatform: ${process.platform}\nstart: 2026-11-04T09:00:00Z\n`);
   const marker2 = path.join(dir, 'ran2.txt');
   const w = runLockAsync(lock2, [process.execPath, '-e', writeMarker, marker2]);
   // Timing is the criterion: give a wrong implementation time to break the lock.
@@ -149,7 +149,7 @@ test('Lock_CommandArgumentsAreNeverShellText', () => {
   assert.doesNotMatch(r.out, /^pwned/m, 'no shell ran the second command');
 });
 
-const ownerOf = (pid) => `pid: ${pid}\nhost: ${os.hostname()}\nstart: 2026-11-04T09:00:00Z\n`;
+const ownerOf = (pid, platform = process.platform) => `pid: ${pid}\nhost: ${os.hostname()}\nplatform: ${platform}\nstart: 2026-11-04T09:00:00Z\n`;
 
 function plantLock(lock, ownerText) {
   fs.mkdirSync(lock);
@@ -271,6 +271,56 @@ test('Lock_OwnerlessLock_BrokenOnlyAfterTheGrace', () => {
   const r2 = runLock(young, [process.execPath, '-e', ''], { env: { TEST_LOCK_GRACE_MS: '60000', TEST_LOCK_TIMEOUT_MS: '800' }, timeout: 8000 });
   assert.equal(r2.code, 3, r2.out);
   assert.ok(fs.existsSync(young), 'the young ownerless lock was not broken');
+});
+
+test('Lock_WindowsCmdShim_TrailingBackslashRunsArriveExactly', { skip: process.platform !== 'win32' }, () => {
+  // S1: a run of backslashes at the end of an argument (and before the closing quote) is doubled whole.
+  const dir = tmp();
+  const bin = plantShim(dir);
+  const rec = path.join(dir, 'args.json');
+  const args = ['q\\\\', 'r\\\\\\', 'next', 'one\\', 'plain'];
+  const r = runLock(path.join(dir, '.verify.lock'), ['recshim', ...args],
+    { env: { PATH: bin + path.delimiter + process.env.PATH, RECFILE: rec } });
+  assert.equal(r.code, 0, r.out);
+  assert.deepEqual(JSON.parse(fs.readFileSync(rec, 'utf8')), args, 'two and three trailing backslashes arrive exactly as sent');
+});
+
+test('Lock_LockHoldingOtherFiles_IsNeverBrokenAsOwnerless', () => {
+  // S2: an old directory with no owner file is broken only when empty (or holding only `owner`).
+  const dir = tmp();
+  const ago = (ms) => new Date(Date.now() - ms);
+  const folder = path.join(dir, 'realfolder');
+  fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, 'keep.txt'), 'somebody\'s file');
+  fs.utimesSync(folder, ago(300000), ago(300000));
+  const env = { TEST_LOCK_GRACE_MS: '1000', TEST_LOCK_TIMEOUT_MS: '1500' };
+  const r = runLock(folder, [process.execPath, '-e', ''], { env, timeout: 8000 });
+  assert.equal(r.code, 3, r.out);
+  assert.match(r.out, /lock held: .*realfolder/, 'it names the folder it will not break');
+  assert.ok(fs.existsSync(path.join(folder, 'keep.txt')), 'the file inside was left alone');
+  // Companion: an equally old EMPTY directory is still broken (the crash-leftover case).
+  const empty = path.join(dir, 'empty.lock');
+  plantLock(empty, null);
+  fs.utimesSync(empty, ago(300000), ago(300000));
+  assert.equal(runLock(empty, [process.execPath, '-e', ''], { env, timeout: 8000 }).code, 0);
+});
+
+test('Lock_OwnerOnAnotherPlatformSameHost_IsNeverJudgedDead', () => {
+  // S3: WSL and Windows share a hostname but not a pid namespace.
+  assert.equal(typeof lockModule.judgeStale, 'function');
+  const dir = tmp();
+  const gone = spawnSync(process.execPath, ['-e', ''], { encoding: 'utf8' }).pid;
+  const other = process.platform === 'win32' ? 'linux' : 'win32';
+  const lock = path.join(dir, '.verify.lock');
+  plantLock(lock, ownerOf(gone, other));
+  assert.equal(lockModule.judgeStale(lock), null, 'a dead pid on another platform proves nothing');
+  fs.rmSync(lock, { recursive: true });
+  plantLock(lock, ownerOf(gone));
+  assert.ok(lockModule.judgeStale(lock), 'companion: same host and platform, dead pid: stale');
+  // The owner file the script writes carries the platform.
+  const fresh = path.join(dir, 'fresh.lock');
+  assert.equal(lockModule.tryTake(fresh), true);
+  assert.match(fs.readFileSync(path.join(fresh, 'owner'), 'utf8'), new RegExp(`^platform: ${process.platform}$`, 'm'));
 });
 
 test('Lock_Heartbeat_TouchedWhileWaitingAndWhileTheCommandRuns', async () => {
