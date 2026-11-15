@@ -1,0 +1,112 @@
+/* Harness UI — design tokens
+ * Two themes (dark, light) x two tones (modern = default, soft).
+ * Apply on the app root: class="t-dark" | "t-light", plus "tone-soft" for the soft tone.
+ * Every color in the UI comes from these variables. Never hard-code a hex in a component.
+ */
+
+.t-dark {
+  /* surfaces — VS Code "Dark Modern"-style neutral grays */
+  --bg: #1F1F1F;        /* main canvas */
+  --rail: #181818;      /* side panels */
+  --surface: #252526;   /* cards, inputs */
+  --sunk: #1A1A1A;      /* columns, wells, tool blocks */
+  --raised: #2B2B2B;    /* hover, chips */
+  --line: #2B2B2B;      /* hairlines */
+  --line2: #3C3C3C;     /* stronger borders */
+  --sel: #37373D;       /* selected row */
+
+  /* text */
+  --text: #E2E2E2;
+  --text2: #CCCCCC;
+  --muted: #A0A0A0;
+  --dim: #8F8F8F;       /* smallest readable label, 4.5:1 on --bg */
+
+  /* status: blue = working, amber = needs you, red = stuck, violet = PR open, gray = done */
+  --blue: #3794FF;   --blueText: #75BEFF;   --blueBg: #0F2D47;
+  --amber: #CCA700;  --amberText: #E2C08D;  --amberBg: #332B12; --amberLine: #54461A; --amberSoft: #26231A;
+  --red: #F14C4C;    --redText: #F48771;    --redBg: #3A1E1E;   --redLine: #5A2B2B;
+  --violet: #B180D7; --violetText: #C9A7E8; --violetBg: #2D2538;
+  --done: #8B8B8B;
+  --hollow: #6B6B6B;    /* outline of a queued/idle dot */
+  --greenText: #89D185; --greenBg: #1F2D1F;   /* diffs, "new" tags */
+
+  /* misc */
+  --userBg: #264F78;    /* your chat bubble */
+  --inv: #0078D4;       /* primary button */
+  --invText: #FFFFFF;
+  --scrim: rgba(0, 0, 0, .45);
+  --shadow: 0 0 0 1px rgba(0, 0, 0, .2), 0 4px 16px rgba(0, 0, 0, .36);
+  color-scheme: dark;
+}
+
+/* soft dark = VS Code "Dark+"-style, a touch lighter */
+.t-dark.tone-soft {
+  --bg: #1E1E1E; --rail: #252526; --surface: #2D2D2D; --sunk: #252526;
+  --raised: #333333; --line: #333333; --line2: #454545; --sel: #3A3D41;
+}
+
+.t-light {
+  --bg: #F8F8F8; --rail: #F3F3F3; --surface: #FFFFFF; --sunk: #F0F0F0;
+  --raised: #E8E8E8; --line: #E5E5E5; --line2: #D4D4D4; --sel: #E4E6F1;
+
+  --text: #1F1F1F; --text2: #3B3B3B; --muted: #5F5F5F; --dim: #686868;
+
+  --blue: #005FB8;   --blueText: #005FB8;   --blueBg: #E5EFF9;
+  --amber: #BF8803;  --amberText: #7A5300;  --amberBg: #FBF1D9; --amberLine: #E9D39A; --amberSoft: #FFFAEB;
+  --red: #D13438;    --redText: #A4262C;    --redBg: #FDEEEE;   --redLine: #F1C7C8;
+  --violet: #8250DF; --violetText: #6639BA; --violetBg: #F2ECFC;
+  --done: #8A8A8A; --hollow: #A6A6A6;
+  --greenText: #2C6E31; --greenBg: #E7F4E8;
+
+  --userBg: #E5EFF9; --inv: #005FB8; --invText: #FFFFFF;
+  --scrim: rgba(0, 0, 0, .18);
+  --shadow: 0 0 0 1px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .08);
+  color-scheme: light;
+}
+
+/* soft light = warm paper, easier on the eyes */
+.t-light.tone-soft {
+  --bg: #F6F5F2; --rail: #EFEDE9; --surface: #FDFCFA; --sunk: #EEECE8;
+  --raised: #E5E2DD; --line: #E3E0DA; --line2: #D2CEC7; --sel: #E6E4EE;
+  --text: #2A2826; --text2: #433F3A; --muted: #625D56; --dim: #6A655E;
+}
+
+/* ---------- type ---------- */
+:root {
+  --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;  /* code, commands, ids, times only */
+  --fs-xs: 11px; --fs-sm: 12px; --fs-base: 14px; --fs-md: 15px; --fs-lg: 19px; --fs-xl: 22px; --fs-2xl: 26px; --fs-3xl: 34px;
+}
+
+/* ---------- motion (Emil Kowalski's rules) ---------- */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);       /* enter / exit */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);   /* move on screen */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);    /* Dig deeper drawer */
+  --dur-press: 120ms; --dur-hover: 150ms; --dur-enter: 260ms; --dur-drawer: 300ms;
+}
+
+@keyframes pulse   { 0% { box-shadow: 0 0 0 0 rgba(245,165,36,.55) } 70% { box-shadow: 0 0 0 7px rgba(245,165,36,0) } 100% { box-shadow: 0 0 0 0 rgba(245,165,36,0) } }
+@keyframes breathe { 0%, 100% { opacity: 1 } 50% { opacity: .4 } }
+@keyframes rise    { from { opacity: 0; transform: translateY(8px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes slide   { from { opacity: 0; transform: translateX(28px) } to { opacity: 1; transform: none } }
+@keyframes caret   { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
+@keyframes pole    { to { background-position: 11.3px 0 } }
+
+.ask    { animation: pulse 1.8s linear infinite; }                    /* needs-you dot */
+.live   { animation: breathe 1.6s var(--ease-in-out) infinite; }      /* working dot */
+.rise   { animation: rise var(--dur-enter) var(--ease-out) both; }    /* card that just moved/appeared */
+.drawer { animation: slide var(--dur-drawer) var(--ease-drawer) both; }
+.caret  { display: inline-block; width: 7px; height: 1em; background: var(--blue); animation: caret 1s steps(2, jump-none) infinite; }
+.pole   { background-color: var(--blueBg); background-image: repeating-linear-gradient(135deg, var(--blue) 0 3px, transparent 3px 8px); background-size: 11.3px 11.3px; animation: pole .9s linear infinite; } /* step in progress on the timeline */
+.hatch-red { background-image: repeating-linear-gradient(135deg, var(--red) 0 3px, transparent 3px 7px); } /* failed attempt */
+
+@media (prefers-reduced-motion: reduce) {
+  .ask, .live, .rise, .drawer, .caret, .pole { animation: none; }
+}
+
+/* ---------- browser surfaces ---------- */
+::selection { background: var(--blueBg); color: var(--text); }
+* { scrollbar-color: var(--line2) transparent; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }

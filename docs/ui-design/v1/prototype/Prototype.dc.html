@@ -1,0 +1,1483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Harness — working prototype</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.t-dark{--bg:#1F1F1F;--rail:#181818;--surface:#252526;--sunk:#1A1A1A;--raised:#2B2B2B;--line:#2B2B2B;--line2:#3C3C3C;--text:#E2E2E2;--text2:#CCCCCC;--muted:#A0A0A0;--dim:#8F8F8F;--sel:#37373D;--blue:#3794FF;--blueText:#75BEFF;--blueBg:#0F2D47;--amber:#CCA700;--amberText:#E2C08D;--amberBg:#332B12;--amberLine:#54461A;--amberSoft:#26231A;--red:#F14C4C;--redText:#F48771;--redBg:#3A1E1E;--redLine:#5A2B2B;--violet:#B180D7;--violetText:#C9A7E8;--violetBg:#2D2538;--done:#8B8B8B;--hollow:#6B6B6B;--userBg:#264F78;--greenText:#89D185;--greenBg:#1F2D1F;--inv:#0078D4;--invText:#FFFFFF;--scrim:rgba(0,0,0,.45);--shadow:0 0 0 1px rgba(0,0,0,.2),0 4px 16px rgba(0,0,0,.36);color-scheme:dark}
+.t-dark.tone-soft{--bg:#1E1E1E;--rail:#252526;--surface:#2D2D2D;--sunk:#252526;--raised:#333333;--line:#333333;--line2:#454545;--sel:#3A3D41}
+.t-light{--bg:#F8F8F8;--rail:#F3F3F3;--surface:#FFFFFF;--sunk:#F0F0F0;--raised:#E8E8E8;--line:#E5E5E5;--line2:#D4D4D4;--text:#1F1F1F;--text2:#3B3B3B;--muted:#5F5F5F;--dim:#686868;--sel:#E4E6F1;--blue:#005FB8;--blueText:#005FB8;--blueBg:#E5EFF9;--amber:#BF8803;--amberText:#7A5300;--amberBg:#FBF1D9;--amberLine:#E9D39A;--amberSoft:#FFFAEB;--red:#D13438;--redText:#A4262C;--redBg:#FDEEEE;--redLine:#F1C7C8;--violet:#8250DF;--violetText:#6639BA;--violetBg:#F2ECFC;--done:#8A8A8A;--hollow:#A6A6A6;--userBg:#E5EFF9;--greenText:#2C6E31;--greenBg:#E7F4E8;--inv:#005FB8;--invText:#FFFFFF;--scrim:rgba(0,0,0,.18);--shadow:0 0 0 1px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.08);color-scheme:light}
+.t-light.tone-soft{--bg:#F6F5F2;--rail:#EFEDE9;--surface:#FDFCFA;--sunk:#EEECE8;--raised:#E5E2DD;--line:#E3E0DA;--line2:#D2CEC7;--text:#2A2826;--text2:#433F3A;--muted:#625D56;--dim:#6A655E;--sel:#E6E4EE}
+::selection{background:var(--blueBg);color:var(--text)}
+*{scrollbar-color:var(--line2) transparent}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,165,36,.55)}70%{box-shadow:0 0 0 7px rgba(245,165,36,0)}100%{box-shadow:0 0 0 0 rgba(245,165,36,0)}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes rise{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes toast{from{opacity:0;transform:translate(-50%,8px) scale(.97)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes caret{0%,100%{opacity:1}50%{opacity:0}}
+.ask{animation:pulse 1.8s linear infinite}
+.live{animation:breathe 1.6s cubic-bezier(0.77,0,0.175,1) infinite}
+.rise{animation:rise .32s cubic-bezier(0.23,1,0.32,1) both}
+.toast{animation:toast .22s cubic-bezier(0.23,1,0.32,1) both}
+.caret{display:inline-block;width:7px;height:1em;margin-left:2px;vertical-align:-2px;background:var(--blue);animation:caret 1s steps(2,jump-none) infinite}
+@keyframes pole{to{background-position:11.3px 0}}
+@keyframes slide{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+.pole{background-color:var(--blueBg);background-image:repeating-linear-gradient(135deg,var(--blue) 0 3px,transparent 3px 8px);background-size:11.3px 11.3px;animation:pole .9s linear infinite}
+.hatch-red{background-image:repeating-linear-gradient(135deg,var(--red) 0 3px,transparent 3px 7px)}
+.drawer{animation:slide .3s cubic-bezier(0.32,0.72,0,1) both}
+.card{transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease}
+.card:hover{background:var(--raised)}
+.ghost:hover{background:var(--raised)}
+.bar-seg{transition:background-color .4s ease}
+.rowc .cbtn{opacity:.55}
+.rowc:hover .cbtn,.cbtn:focus-visible{opacity:1}
+button,a{transition:background-color .15s ease,border-color .15s ease,color .15s ease}
+button:active{transform:scale(.97)}
+button:disabled:active{transform:none}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+details>summary{list-style:none;cursor:pointer}
+details>summary::-webkit-details-marker{display:none}
+details[open] .chev{transform:rotate(90deg)}
+.chev{transition:transform .15s cubic-bezier(0.23,1,0.32,1)}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+kbd{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;padding:1px 6px;border:1px solid var(--line2);border-radius:4px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.ask,.live,.rise,.toast,.caret,.pole,.drawer{animation:none}}
+</style>
+</helmet>
+<div class="{{themeCls}}" style="min-height: 100vh; background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; font-size: 14px; display: flex; flex-direction: column; position: relative">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--bg)">
+    <button onClick="{{goHome}}" aria-label="Harness home" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-weight: 600; cursor: pointer">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="19" height="19" rx="5" stroke="currentColor" stroke-width="1.5"></rect><path d="M7 7v8M15 7v8M7 11h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>Harness
+    </button>
+    <button onClick="{{openCmd}}" style="flex: 1 1 240px; max-width: 440px; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); color: var(--muted); font: inherit; cursor: pointer; text-align: left">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"></circle><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+      <span style="flex: 1">Jump to, answer, or run…</span><kbd>⌘K</kbd>
+    </button>
+    <div role="group" aria-label="Home screen" style="display: flex; padding: 3px; border-radius: 9px; background: var(--sunk); border: 1px solid var(--line)">
+      <button onClick="{{homeBoard}}" aria-pressed="{{isBoardHome}}" style="{{homeBoardStyle}}">Board</button>
+      <button onClick="{{homeFocus}}" aria-pressed="{{isFocusHome}}" style="{{homeFocusStyle}}">Focus</button>
+    </div>
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 8px">
+      <span class="{{simCls}}" title="{{simTitle}}" style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted)"><span style="{{simDot}}"></span>{{simLabel}}</span>
+      <button onClick="{{openNew}}" style="display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path></svg>New feature
+      </button>
+      <button onClick="{{goNeeds}}" style="{{needPill}}"><span class="{{needDotCls}}" style="{{needDot}}"></span>{{needLabel}}</button>
+      <button onClick="{{toggleTheme}}" aria-label="{{themeLabel}}" style="width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer">
+        <sc-if value="{{isDark}}" hint-placeholder-val="{{true}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"></circle><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg></sc-if>
+        <sc-if value="{{isLight}}" hint-placeholder-val="{{false}}"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 9.5A6 6 0 016.5 2.5a6 6 0 107 7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path></svg></sc-if>
+      </button>
+    </div>
+  </header>
+
+  <sc-if value="{{showRail}}" hint-placeholder-val="{{true}}">
+  <div style="flex: 1; display: flex; flex-wrap: wrap">
+    <nav aria-label="Projects" style="flex: 1 1 220px; max-width: 250px; border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 3px; background: var(--rail)">
+      <div style="font-size: 12px; color: var(--dim); padding: 0 10px 8px">Projects on this Mac</div>
+      <sc-for list="{{projects}}" as="p" hint-placeholder-count="5">
+        <button onClick="{{p.pick}}" style="{{p.style}}">
+          <span class="{{p.lightCls}}" style="{{p.light}}"></span>
+          <span style="flex: 1; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.name}}</span>
+          <span class="mono num" style="font-size: 11px; color: var(--muted)">{{p.count}}</span>
+        </button>
+      </sc-for>
+      <button onClick="{{addRepo}}" class="ghost" style="display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 10px; margin-top: 6px; border: 1px dashed var(--line2); border-radius: 8px; background: transparent; color: var(--muted); font: inherit; cursor: pointer">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg>Add a repo
+      </button>
+      <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px">
+        <button onClick="{{goHome}}" style="{{navHome}}">Home<span style="color: var(--dim)">{{homeName}}</span></button>
+        <button onClick="{{goVision}}" style="{{navVision}}">Vision &amp; roadmap</button>
+        <button onClick="{{goDone}}" style="{{navDone}}">Completed<span class="mono num" style="font-size: 11px; color: var(--dim)">{{doneCount}}</span></button>
+      </div>
+    </nav>
+
+    <main style="flex: 999 1 600px; min-width: 0; padding: 22px 24px 32px; display: flex; flex-direction: column; gap: 22px">
+
+      <sc-if value="{{newOpen}}" hint-placeholder-val="{{false}}">
+        <section class="rise" aria-label="New feature" style="display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 12px; border: 1px solid var(--line2); background: var(--surface); box-shadow: var(--shadow)">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 600">New feature</h2>
+            <button onClick="{{closeNew}}" aria-label="Close" class="ghost" style="width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg></button>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px">
+            <label style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted)">Describe it, or paste an issue number
+              <input value="{{newText}}" onChange="{{setNewText}}" placeholder="Export invoices as CSV" style="height: 40px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--sunk); color: var(--text); font: inherit; font-size: 14px">
+            </label>
+            <label style="flex: 0 1 200px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted)">Project
+              <select value="{{newProject}}" onChange="{{setNewProject}}" style="height: 40px; padding: 0 10px; border: 1px solid var(--line2); border-radius: 8px; background: var(--sunk); color: var(--text); font: inherit; font-size: 14px">
+                <option value="billing-service">billing-service</option>
+                <option value="docs-site">docs-site</option>
+                <option value="mobile-app">mobile-app</option>
+                <option value="harness-ui">harness-ui</option>
+              </select>
+            </label>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+            <span style="flex: 1 1 240px; font-size: 13px; color: var(--muted)">It reads the repo, writes a plan, then stops at the plan gate for you.</span>
+            <button onClick="{{createFeature}}" disabled="{{newEmpty}}" style="{{createStyle}}">Write the plan</button>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{isBoard}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex; flex-direction: column; gap: 22px">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em">{{scopeTitle}}</h1>
+          <p class="num" style="margin: 0; color: var(--muted)">{{summary}}</p>
+        </div>
+
+        <section id="needs" aria-label="Needs you" style="display: flex; flex-direction: column; gap: 10px">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text2)">Needs you</h2>
+          <sc-if value="{{noNeeds}}" hint-placeholder-val="{{false}}">
+            <div class="rise" style="padding: 16px; border-radius: 12px; border: 1px dashed var(--line2); color: var(--muted)">Nothing needs you. Everything is moving.</div>
+          </sc-if>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 10px">
+            <sc-for list="{{needs}}" as="n" hint-placeholder-count="3">
+              <div class="rise" style="{{n.box}}">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 12px">
+                  <span class="{{n.lightCls}}" style="{{n.light}}"></span>
+                  <span style="{{n.kindStyle}}">{{n.kind}}</span>
+                  <span style="color: var(--dim)">{{n.project}}</span>
+                </div>
+                <button onClick="{{n.open}}" style="padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; font-size: 15px; text-align: left; cursor: pointer">{{n.name}}</button>
+                <p style="margin: 0; line-height: 1.5; color: var(--text2)">{{n.body}}</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                  <sc-for list="{{n.actions}}" as="a" hint-placeholder-count="2">
+                    <button onClick="{{a.go}}" style="{{a.style}}">{{a.label}}</button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section aria-label="Board" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; align-items: start">
+          <sc-for list="{{cols}}" as="c" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--sunk); min-height: 180px">
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 2px 4px">
+                <span style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600"><span style="{{c.dot}}"></span>{{c.title}}</span>
+                <span class="mono num" style="font-size: 11px; color: var(--muted)">{{c.count}}</span>
+              </div>
+              <span class="num" style="font-size: 12px; color: var(--dim); padding: 0 4px 4px; line-height: 1.4">{{c.hint}}</span>
+              <sc-if value="{{c.empty}}" hint-placeholder-val="{{false}}"><span style="padding: 14px 4px; font-size: 13px; color: var(--dim)">{{c.emptyText}}</span></sc-if>
+              <sc-for list="{{c.cards}}" as="f" hint-placeholder-count="2">
+                <button onClick="{{f.open}}" onMouseEnter="{{f.enter}}" onMouseLeave="{{f.leave}}" onFocus="{{f.enter}}" onBlur="{{f.leave}}" class="{{f.cls}}" style="{{f.box}}">
+                  <span style="display: flex; align-items: center; gap: 8px; width: 100%">
+                    <span class="{{f.lightCls}}" style="{{f.light}}"></span>
+                    <span style="font-weight: 500; flex: 1; min-width: 0; text-align: left">{{f.name}}</span>
+                    <sc-if value="{{f.hasOrder}}" hint-placeholder-val="{{false}}"><span class="mono num" style="font-size: 11px; color: var(--dim)">{{f.order}}</span></sc-if>
+                  </span>
+                  <span style="font-size: 12px; color: var(--dim)">{{f.project}}</span>
+                  <sc-if value="{{f.hasBar}}" hint-placeholder-val="{{true}}">
+                    <span style="display: flex; gap: 3px; width: 100%">
+                      <sc-for list="{{f.bar}}" as="b" hint-placeholder-count="5"><span class="bar-seg" style="{{b.s}}"></span></sc-for>
+                    </span>
+                  </sc-if>
+                  <span class="num" style="{{f.noteStyle}}">{{f.note}}</span>
+                  <sc-if value="{{f.hasBadge}}" hint-placeholder-val="{{false}}">
+                    <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--blueText)">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6h7M6.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{f.badge}}
+                    </span>
+                  </sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{isFocus}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; flex-direction: column; gap: 28px; max-width: 980px">
+        <h1 style="margin: 8px 0 0; font-size: 34px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em; text-wrap: balance">{{focusHeadline}}</h1>
+        <sc-if value="{{hasFocus}}" hint-placeholder-val="{{true}}">
+          <section aria-label="Decision" class="rise" style="padding: 24px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 16px">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px">
+              <span class="{{fc.lightCls}}" style="{{fc.light}}"></span>
+              <span style="{{fc.kindStyle}}">{{fc.kind}}</span>
+              <span style="color: var(--dim)">{{fc.project}} · {{fc.name}}</span>
+              <span class="num" style="margin-left: auto; color: var(--muted)">{{focusPos}}</span>
+              <button onClick="{{focusPrev}}" aria-label="Previous decision" class="ghost" style="width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer">‹</button>
+              <button onClick="{{focusNext}}" aria-label="Next decision" class="ghost" style="width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer">›</button>
+            </div>
+            <h2 style="margin: 0; font-size: 22px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; text-wrap: pretty">{{fc.question}}</h2>
+            <p style="margin: 0; color: var(--muted); line-height: 1.5">{{fc.body}}</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{fc.actions}}" as="a" hint-placeholder-count="2">
+                <button onClick="{{a.go}}" style="{{a.bigStyle}}">{{a.label}}</button>
+              </sc-for>
+            </div>
+          </section>
+        </sc-if>
+        <sc-if value="{{noFocus}}" hint-placeholder-val="{{false}}">
+          <div class="rise" style="padding: 24px; border-radius: 16px; border: 1px dashed var(--line2); color: var(--muted)">Nothing is waiting on you. You'll get a ping when something comes up.</div>
+        </sc-if>
+        <div style="display: flex; flex-wrap: wrap; gap: 24px">
+          <section aria-label="Running" style="flex: 3 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+            <h2 class="num" style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text2)">{{runningTitle}}</h2>
+            <sc-for list="{{runningRows}}" as="r" hint-placeholder-count="5">
+              <button onClick="{{r.open}}" class="{{r.cls}}" style="display: grid; grid-template-columns: 10px minmax(0, 1fr) 140px; gap: 12px; align-items: center; min-height: 52px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer">
+                <span class="{{r.lightCls}}" style="{{r.light}}"></span>
+                <span style="display: flex; flex-direction: column; min-width: 0"><span style="font-weight: 500">{{r.name}}</span><span class="num" style="font-size: 12px; color: var(--dim)">{{r.note}}</span></span>
+                <span style="display: flex; gap: 3px"><sc-for list="{{r.bar}}" as="b" hint-placeholder-count="5"><span class="bar-seg" style="{{b.s}}"></span></sc-for></span>
+              </button>
+            </sc-for>
+          </section>
+          <section aria-label="Since you left" style="flex: 2 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text2)">Since you left</h2>
+            <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px">
+              <sc-for list="{{events}}" as="e" hint-placeholder-count="5">
+                <li class="{{e.cls}}" style="display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 9px 4px; border-bottom: 1px solid var(--line)">
+                  <span style="{{e.mark}}"></span><span style="line-height: 1.4; color: var(--text2)">{{e.text}}</span><span class="num" style="font-size: 12px; color: var(--dim)">{{e.t}}</span>
+                </li>
+              </sc-for>
+            </ol>
+          </section>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{isVision}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; flex-direction: column; gap: 24px; max-width: 980px">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em">Vision &amp; roadmap</h1>
+        <sc-for list="{{visions}}" as="v" hint-placeholder-count="2">
+          <section style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line)">
+            <span style="font-size: 12px; color: var(--dim)">{{v.project}}</span>
+            <p style="margin: 0; font-size: 18px; line-height: 1.4; font-weight: 500; max-width: 60ch">{{v.text}}</p>
+            <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+              <sc-for list="{{v.feats}}" as="f" hint-placeholder-count="4">
+                <li>
+                  <button onClick="{{f.open}}" class="ghost" style="width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 44px; padding: 0 8px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer">
+                    <span class="{{f.lightCls}}" style="{{f.light}}"></span><span>{{f.name}}</span><span style="font-size: 12px; color: var(--muted)">{{f.dep}}</span>
+                  </button>
+                </li>
+              </sc-for>
+            </ol>
+          </section>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{isDone}}" hint-placeholder-val="{{false}}">
+      <div style="display: flex; flex-direction: column; gap: 16px; max-width: 980px">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em">Completed</h1>
+        <div style="overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface)">
+          <table class="num" style="width: 100%; border-collapse: collapse; font-size: 13px">
+            <thead><tr style="text-align: left; color: var(--dim)"><th style="padding: 10px 14px; font-weight: 500">Feature</th><th style="padding: 10px 14px; font-weight: 500">Project</th><th style="padding: 10px 14px; font-weight: 500">PR</th><th style="padding: 10px 14px; font-weight: 500">Stories</th><th style="padding: 10px 14px; font-weight: 500">Merged</th></tr></thead>
+            <tbody>
+              <sc-for list="{{doneRows}}" as="d" hint-placeholder-count="4">
+                <tr style="border-top: 1px solid var(--line)"><td style="padding: 12px 14px; font-weight: 500">{{d.name}}</td><td style="padding: 12px 14px; color: var(--muted)">{{d.project}}</td><td class="mono" style="padding: 12px 14px; font-size: 12px">{{d.pr}}</td><td style="padding: 12px 14px">{{d.stories}}</td><td style="padding: 12px 14px; color: var(--muted)">{{d.when}}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </sc-if>
+    </main>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{isRun}}" hint-placeholder-val="{{false}}">
+  <div style="flex: 1; display: flex; flex-direction: column">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line)">
+      <button onClick="{{goHome}}" class="ghost" style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text2); font: inherit; cursor: pointer">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{homeName}}
+      </button>
+      <span style="color: var(--dim)">{{run.project}}</span>
+      <span style="color: var(--hollow)" aria-hidden="true">/</span>
+      <span style="font-weight: 600">{{run.name}}</span>
+      <span style="{{run.pill}}"><span class="{{run.lightCls}}" style="{{run.pillDot}}"></span>{{run.status}}</span>
+      <div style="margin-left: auto; display: flex; gap: 8px">
+        <sc-if value="{{canDig}}" hint-placeholder-val="{{true}}">
+          <button onClick="{{openDeep}}" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--blue); background: var(--blueBg); color: var(--blueText); font: inherit; font-weight: 500; cursor: pointer">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4h8M2 8h5M2 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><circle cx="11.5" cy="10.5" r="2.5" stroke="currentColor" stroke-width="1.5"></circle><path d="M13.3 12.3L15 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>Dig deeper
+          </button>
+        </sc-if>
+        <sc-if value="{{run.canPause}}" hint-placeholder-val="{{true}}"><button onClick="{{togglePause}}" style="height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; cursor: pointer">{{run.pauseLabel}}</button></sc-if>
+      </div>
+    </div>
+    <div style="flex: 1; display: flex; flex-wrap: wrap">
+      <nav aria-label="Feature line and threads" style="flex: 1 1 230px; max-width: 270px; border-right: 1px solid var(--line); padding: 20px 16px; display: flex; flex-direction: column; gap: 24px; background: var(--rail)">
+        <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+          <sc-for list="{{run.line}}" as="s" hint-placeholder-count="9">
+            <li style="display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 12px">
+              <span style="display: flex; flex-direction: column; align-items: center"><span class="{{s.cls}}" style="{{s.dot}}"></span><span style="{{s.wire}}"></span></span>
+              <span style="display: flex; flex-direction: column; gap: 1px; padding-bottom: 14px"><span style="{{s.labelStyle}}">{{s.label}}</span><span class="num" style="font-size: 12px; color: var(--dim)">{{s.sub}}</span></span>
+            </li>
+          </sc-for>
+        </ol>
+        <div style="display: flex; flex-direction: column; gap: 3px">
+          <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--dim); padding: 0 8px 6px">Agents
+            <sc-if value="{{canDig}}" hint-placeholder-val="{{true}}"><button onClick="{{openDeep}}" style="padding: 2px 0; border: 0; background: transparent; color: var(--blueText); font: inherit; font-size: 12px; cursor: pointer">See them over time ›</button></sc-if>
+          </div>
+          <sc-for list="{{agents}}" as="t" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column">
+              <sc-if value="{{t.isFirstSub}}" hint-placeholder-val="{{false}}"><div style="display: flex; justify-content: space-between; padding: 12px 8px 4px; font-size: 12px; color: var(--dim)">Sub-agents<span>view only</span></div></sc-if>
+              <button onClick="{{t.pick}}" aria-label="{{t.aria}}" style="{{t.style}}">
+                <span class="{{t.cls}}" style="{{t.dot}}"></span>
+                <span style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 13px; font-weight: 500">{{t.name}}</span><span class="num" style="{{t.metaStyle}}">{{t.meta}}</span></span>
+                <sc-if value="{{t.isOrch}}" hint-placeholder-val="{{true}}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="color: var(--muted)"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path></svg></sc-if>
+                <sc-if value="{{t.isSub}}" hint-placeholder-val="{{false}}"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="color: var(--muted)"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" stroke="currentColor" stroke-width="1.3"></path><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"></circle></svg></sc-if>
+              </button>
+            </div>
+          </sc-for>
+        </div>
+      </nav>
+
+      <main style="flex: 999 1 500px; min-width: 0; display: flex; flex-direction: column">
+        <div role="tablist" aria-label="Views" style="display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 20px 0; border-bottom: 1px solid var(--line)">
+          <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+            <button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button>
+          </sc-for>
+        </div>
+
+        <div style="flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 12px; max-width: 820px; width: 100%; box-sizing: border-box; margin: 0 auto">
+          <sc-if value="{{tabSession}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; flex-direction: column; gap: 12px">
+            <sc-if value="{{isPeek}}" hint-placeholder-val="{{false}}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--raised); font-size: 13px">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="color: var(--muted)"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" stroke="currentColor" stroke-width="1.3"></path><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"></circle></svg>
+                <span style="flex: 1 1 240px">Peeking at <span style="font-weight: 600">{{peekName}}</span> · view only. {{peekRole}}.</span>
+                <button onClick="{{backOrch}}" style="height: 30px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; cursor: pointer">Back to orchestrator</button>
+              </div>
+            </sc-if>
+            <sc-for list="{{run.blocks}}" as="b" hint-placeholder-count="5">
+              <div class="{{b.cls}}" style="display: flex; flex-direction: column">
+                <sc-if value="{{b.isDivider}}" hint-placeholder-val="{{false}}"><div class="num" style="display: flex; align-items: center; gap: 10px; padding-top: 6px; font-size: 12px; color: var(--dim)"><span style="flex: 1; height: 1px; background: var(--line)"></span>{{b.text}}<span style="flex: 1; height: 1px; background: var(--line)"></span></div></sc-if>
+                <sc-if value="{{b.isText}}" hint-placeholder-val="{{true}}"><p style="margin: 0; line-height: 1.6; color: var(--text2)">{{b.text}}<sc-if value="{{b.typing}}" hint-placeholder-val="{{false}}"><span class="caret" aria-hidden="true"></span></sc-if></p></sc-if>
+                <sc-if value="{{b.isUser}}" hint-placeholder-val="{{false}}"><div style="align-self: flex-end; max-width: 80%; padding: 10px 14px; border-radius: 12px 12px 4px 12px; background: var(--userBg); line-height: 1.5">{{b.text}}</div></sc-if>
+                <sc-if value="{{b.isLive}}" hint-placeholder-val="{{false}}"><div class="mono" style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--blueText)"><span class="{{b.dotCls}}" style="width: 7px; height: 7px; border-radius: 50%; background: var(--blue)"></span>{{b.text}}</div></sc-if>
+                <sc-if value="{{b.isTool}}" hint-placeholder-val="{{false}}">
+                  <details style="border: 1px solid var(--line); border-radius: 8px; background: var(--sunk)">
+                    <summary class="mono num" style="display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; font-size: 12px; color: var(--text2)">
+                      <svg class="chev" width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3.5 2l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      <span style="color: var(--muted)">{{b.verb}}</span><span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{b.text}}</span><span style="{{b.resultStyle}}">{{b.result}}</span><span style="color: var(--dim); white-space: nowrap">{{b.time}}</span>
+                    </summary>
+                    <div class="mono" style="padding: 0 12px 12px 32px; font-size: 12px; color: var(--muted); line-height: 1.6">{{b.detail}}</div>
+                  </details>
+                </sc-if>
+              </div>
+            </sc-for>
+
+            <sc-if value="{{run.showTodo}}" hint-placeholder-val="{{false}}">
+              <div style="border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--sunk)">
+                <span style="font-size: 12px; color: var(--dim)">To-do · {{run.todoTitle}}</span>
+                <sc-for list="{{run.todos}}" as="d" hint-placeholder-count="6"><span style="display: flex; align-items: center; gap: 10px; font-size: 13px"><span style="{{d.box}}"></span><span style="{{d.text}}">{{d.label}}</span></span></sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{run.showAsk}}" hint-placeholder-val="{{false}}">
+              <div style="{{run.askBox}}">
+                <span style="{{run.askHead}}"><span class="{{run.askCls}}" style="{{run.askDot}}"></span>{{run.askKind}}</span>
+                <p style="margin: 0; line-height: 1.55">{{run.askText}}</p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px">
+                  <sc-for list="{{run.askActions}}" as="a" hint-placeholder-count="2"><button onClick="{{a.go}}" style="{{a.style}}">{{a.label}}</button></sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-for list="{{run.chat}}" as="m" hint-placeholder-count="0">
+              <div style="display: flex; flex-direction: column">
+                <sc-if value="{{m.mine}}" hint-placeholder-val="{{true}}"><div class="rise" style="align-self: flex-end; max-width: 80%; padding: 10px 14px; border-radius: 12px 12px 4px 12px; background: var(--userBg); line-height: 1.5">{{m.text}}</div></sc-if>
+                <sc-if value="{{m.theirs}}" hint-placeholder-val="{{false}}"><p class="rise" style="margin: 0; line-height: 1.6; color: var(--text2)">{{m.text}}</p></sc-if>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
+          <sc-if value="{{tabDiff}}" hint-placeholder-val="{{false}}">
+            <div style="border: 1px solid var(--line); border-radius: 10px; overflow: hidden">
+              <sc-for list="{{run.files}}" as="f" hint-placeholder-count="5">
+                <div class="mono num" style="display: grid; grid-template-columns: minmax(0, 1fr) 60px 60px; gap: 10px; align-items: center; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); font-size: 12px">
+                  <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{f.path}}</span><span style="color: var(--greenText); text-align: right">{{f.add}}</span><span style="color: var(--redText); text-align: right">{{f.del}}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{tabTests}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <sc-for list="{{run.tests}}" as="t" hint-placeholder-count="5">
+                <div style="display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 12px; border-radius: 8px; background: var(--sunk)"><span style="{{t.dot}}"></span><span style="flex: 1">{{t.name}}</span><span style="font-size: 12px; color: var(--muted)">{{t.state}}</span></div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{tabPlan}}" hint-placeholder-val="{{false}}">
+            <ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; color: var(--text2)">
+              <sc-for list="{{run.planLines}}" as="p" hint-placeholder-count="5"><li>{{p.text}}</li></sc-for>
+            </ol>
+          </sc-if>
+          <sc-if value="{{tabTerm}}" hint-placeholder-val="{{false}}">
+            <div class="mono" style="padding: 14px; border-radius: 10px; background: var(--sunk); border: 1px solid var(--line); font-size: 12px; line-height: 1.7; color: var(--text2); white-space: pre-wrap">{{run.term}}</div>
+          </sc-if>
+        </div>
+
+        <div style="padding: 12px 20px 20px; max-width: 820px; width: 100%; box-sizing: border-box; margin: 0 auto">
+          <sc-if value="{{isPeek}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 12px; color: var(--muted); font-size: 13px">
+              <span style="flex: 1 1 260px; line-height: 1.5">Sub-agents can't be messaged. Tell the orchestrator and it passes it on at the next step.</span>
+              <button onClick="{{askOrch}}" style="height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--inv); color: var(--invText); font: inherit; font-weight: 600; cursor: pointer">Message the orchestrator</button>
+            </div>
+          </sc-if>
+          <div style="{{composerBox}}">
+            <textarea aria-label="Message the orchestrator" rows="2" value="{{draft}}" onChange="{{setDraft}}" onKeyDown="{{draftKey}}" placeholder="Talk to this run. / for commands, @ for files." style="resize: none; background: transparent; border: 0; outline: none; color: var(--text); font: inherit; line-height: 1.5"></textarea>
+            <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--muted)">
+              <span style="padding: 3px 8px; border-radius: 6px; background: var(--raised)">To: Orchestrator</span>
+              <span style="padding: 3px 8px; border-radius: 6px; background: var(--raised)">Supervised</span>
+              <span style="margin-left: auto">Enter sends</span>
+              <button onClick="{{send}}" disabled="{{draftEmpty}}" style="{{sendStyle}}">Send</button>
+            </span>
+          </div>
+        </div>
+      </main>
+
+      <aside aria-label="At a glance" style="flex: 1 1 230px; max-width: 270px; border-left: 1px solid var(--line); padding: 20px 16px; display: flex; flex-direction: column; gap: 14px; background: var(--rail)">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text2)">At a glance</h2>
+        <dl class="num" style="margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 14px; font-size: 13px">
+          <sc-for list="{{run.glance}}" as="g" hint-placeholder-count="5">
+            <dt style="color: var(--dim)">{{g.k}}</dt><dd style="margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis">{{g.v}}</dd>
+          </sc-for>
+        </dl>
+        <div style="height: 1px; background: var(--line)"></div>
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text2)">After the PR</h2>
+        <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted)">The run stops at the PR. It checks it every 5 min, fixes review comments, and moves to Completed once you merge.</p>
+      </aside>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{isPlan}}" hint-placeholder-val="{{false}}">
+  <div style="flex: 1; display: flex; flex-direction: column">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line)">
+      <button onClick="{{goHome}}" class="ghost" style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text2); font: inherit; cursor: pointer">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>{{homeName}}
+      </button>
+      <span style="color: var(--dim)">{{plan.project}}</span>
+      <span style="color: var(--hollow)" aria-hidden="true">/</span>
+      <span style="font-weight: 600">{{plan.name}}</span>
+      <span style="{{plan.pill}}"><span class="{{plan.lightCls}}" style="{{plan.pillDot}}"></span>{{plan.status}}</span>
+      <span class="num" style="margin-left: auto; font-size: 12px; color: var(--muted)">Plan v{{plan.ver}}</span>
+    </div>
+
+    <sc-if value="{{plan.writing}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1; padding: 40px clamp(16px, 4vw, 48px); display: flex; flex-direction: column; gap: 14px; max-width: 760px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600">Writing the plan</h1>
+        <p style="margin: 0; color: var(--muted); line-height: 1.6">Reading the repo, the spec and the tracker. When the plan is ready this turns amber on the board and you'll get a ping.</p>
+        <div class="live" style="height: 14px; width: 70%; border-radius: 4px; background: var(--raised)"></div>
+        <div class="live" style="height: 14px; width: 55%; border-radius: 4px; background: var(--raised)"></div>
+        <div class="live" style="height: 14px; width: 62%; border-radius: 4px; background: var(--raised)"></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{plan.ready}}" hint-placeholder-val="{{true}}">
+    <div style="flex: 1; display: flex; flex-wrap: wrap">
+      <main style="flex: 999 1 540px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line)">
+        <div style="flex: 1; padding: 28px clamp(16px, 4vw, 48px); display: flex; flex-direction: column; gap: 26px; max-width: 860px">
+          <section style="display: flex; flex-direction: column; gap: 8px">
+            <h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">The plan</h1>
+            <p style="margin: 0; color: var(--text2); line-height: 1.6; max-width: 66ch">Ship docs for every API version side by side, with a version picker and a banner on old versions. Done when a reader on v1 docs can jump to the same page in v2.</p>
+          </section>
+          <section aria-label="Stories in build order" style="display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px">
+              <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text2)">Stories, in build order</h2>
+              <span style="font-size: 12px; color: var(--dim)">{{plan.commentHint}}</span>
+            </div>
+            <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px">
+              <sc-for list="{{plan.stories}}" as="s" hint-placeholder-count="5">
+                <li style="display: flex; flex-direction: column; gap: 6px">
+                  <div class="rowc {{s.cls}}" style="{{s.box}}">
+                    <span class="mono" style="font-size: 12px; color: var(--muted)">{{s.n}}</span>
+                    <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-weight: 500">{{s.title}}</span><span style="{{s.subStyle}}">{{s.sub}}</span></span>
+                    <span style="{{s.tagStyle}}">{{s.tag}}</span>
+                    <sc-if value="{{s.canComment}}" hint-placeholder-val="{{true}}">
+                      <button onClick="{{s.openC}}" class="cbtn ghost" aria-label="{{s.cLabel}}" style="width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+                      </button>
+                    </sc-if>
+                  </div>
+                  <sc-if value="{{s.isOpen}}" hint-placeholder-val="{{false}}">
+                    <div class="rise" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; margin-left: 48px; border-radius: 10px; border: 1px solid var(--blue); background: var(--surface)">
+                      <input autoFocus="{{true}}" aria-label="{{s.cLabel}}" value="{{s.cText}}" onChange="{{s.setC}}" onKeyDown="{{s.keyC}}" placeholder="What should change on this line?" style="flex: 1 1 240px; height: 36px; padding: 0 10px; border: 1px solid var(--line2); border-radius: 8px; background: var(--sunk); color: var(--text); font: inherit">
+                      <button onClick="{{s.submitC}}" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--inv); color: var(--invText); font: inherit; font-weight: 600; cursor: pointer">Change it</button>
+                      <button onClick="{{s.cancelC}}" style="height: 36px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 8px; background: transparent; color: var(--text); font: inherit; cursor: pointer">Cancel</button>
+                    </div>
+                  </sc-if>
+                </li>
+              </sc-for>
+            </ol>
+          </section>
+          <section aria-label="Coverage" style="display: flex; flex-direction: column; gap: 8px">
+            <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text2)">Every line of the spec is covered</h2>
+            <div style="overflow-x: auto; border: 1px solid var(--line); border-radius: 10px">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px">
+                <thead><tr style="color: var(--dim); text-align: left"><th style="padding: 10px 14px; font-weight: 500">Spec line</th><th style="padding: 10px 14px; font-weight: 500">Story</th></tr></thead>
+                <tbody>
+                  <sc-for list="{{plan.coverage}}" as="c" hint-placeholder-count="4"><tr style="border-top: 1px solid var(--line)"><td style="padding: 10px 14px">{{c.line}}</td><td class="mono" style="padding: 10px 14px; font-size: 12px">{{c.story}}</td></tr></sc-for>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section aria-label="Questions" style="display: flex; flex-direction: column; gap: 10px">
+            <h2 class="num" style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text2)">Questions · {{plan.answered}} of 3 answered</h2>
+            <sc-for list="{{plan.qs}}" as="q" hint-placeholder-count="3">
+              <div style="{{q.box}}">
+                <span style="line-height: 1.5">{{q.text}}</span>
+                <span style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{q.opts}}" as="o" hint-placeholder-count="2"><button onClick="{{o.pick}}" disabled="{{o.off}}" style="{{o.style}}">{{o.label}}</button></sc-for></span>
+              </div>
+            </sc-for>
+          </section>
+        </div>
+        <div style="position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px clamp(16px, 4vw, 48px); border-top: 1px solid var(--line); background: var(--bg)">
+          <span class="num" style="flex: 1 1 260px; color: var(--muted); font-size: 13px">{{plan.hint}}</span>
+          <sc-if value="{{plan.notApproved}}" hint-placeholder-val="{{true}}"><button onClick="{{approve}}" disabled="{{plan.locked}}" style="{{plan.approveStyle}}">Approve and build</button></sc-if>
+          <sc-if value="{{plan.approved}}" hint-placeholder-val="{{false}}"><button onClick="{{goHome}}" style="height: 42px; padding: 0 18px; border: 1px solid var(--line2); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer">Back to {{homeName}}</button></sc-if>
+        </div>
+      </main>
+
+      <aside aria-label="Talk about the plan" style="flex: 1 1 340px; max-width: 440px; display: flex; flex-direction: column; background: var(--rail)">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center">
+          <h2 style="margin: 0; font-size: 14px; font-weight: 600">Talk it through</h2>
+          <span style="font-size: 12px; color: var(--dim)">changes land in the plan</span>
+        </div>
+        <div style="flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+          <p style="margin: 0; line-height: 1.6; color: var(--text2)">Plan's ready: 5 stories, every spec line covered, 3 questions with my pick on each.</p>
+          <div style="align-self: flex-end; max-width: 85%; padding: 10px 14px; border-radius: 12px 12px 4px 12px; background: var(--userBg); line-height: 1.5">Story 3 feels too big. The picker and the jump between versions are two different things.</div>
+          <p style="margin: 0; line-height: 1.6; color: var(--text2)">Agreed. I split it into 3a (picker) and 3b (jump to the same page). 3b needs 3a first, so the order stays.</p>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px">
+            <span class="mono" style="padding: 4px 8px; border-radius: 6px; background: var(--greenBg); color: var(--greenText); font-size: 12px">+ story 3b</span>
+            <span class="mono" style="padding: 4px 8px; border-radius: 6px; background: var(--raised); color: var(--text2); font-size: 12px">~ story 3 → 3a</span>
+          </div>
+          <p style="margin: 0; line-height: 1.6; color: var(--text2)">{{plan.tail}}</p>
+          <sc-for list="{{plan.chat}}" as="m" hint-placeholder-count="0">
+            <div style="display: flex; flex-direction: column">
+              <sc-if value="{{m.mine}}" hint-placeholder-val="{{true}}"><div class="rise" style="align-self: flex-end; max-width: 85%; padding: 10px 14px; border-radius: 12px 12px 4px 12px; background: var(--userBg); line-height: 1.5">{{m.text}}</div></sc-if>
+              <sc-if value="{{m.theirs}}" hint-placeholder-val="{{false}}"><p class="rise" style="margin: 0; line-height: 1.6; color: var(--text2)">{{m.text}}</p></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding: 12px 20px 20px">
+          <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 12px; background: var(--surface)">
+            <textarea aria-label="Message about the plan" rows="2" value="{{draft}}" onChange="{{setDraft}}" onKeyDown="{{draftKey}}" placeholder="Push back, add a story, change the order…" style="resize: none; background: transparent; border: 0; outline: none; color: var(--text); font: inherit; line-height: 1.5"></textarea>
+            <span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted)"><span style="padding: 3px 8px; border-radius: 6px; background: var(--raised)">@spec.md</span><span style="margin-left: auto">Enter sends</span><button onClick="{{send}}" disabled="{{draftEmpty}}" style="{{sendStyle}}">Send</button></span>
+          </div>
+        </div>
+      </aside>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{deep.open}}" hint-placeholder-val="{{false}}">
+    <div onClick="{{closeDeep}}" style="position: fixed; inset: 0; z-index: 25; display: flex; justify-content: flex-end; background: var(--scrim)">
+      <aside role="dialog" aria-modal="true" aria-label="Dig deeper" tabIndex="-1" autoFocus="{{true}}" onKeyDown="{{deepKey}}" onClick="{{stop}}" class="drawer" style="width: min(1180px, 100%); height: 100%; overflow-y: auto; outline: none; background: var(--bg); border-left: 1px solid var(--line2); box-shadow: var(--shadow); display: flex; flex-direction: column">
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line)">
+          <button onClick="{{closeDeep}}" class="ghost" style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text2); font: inherit; cursor: pointer">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>Back to run
+          </button>
+          <span style="{{deep.curAv}}">{{deep.curInitial}}</span>
+          <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 260px">
+            <span><span style="font-weight: 600">{{deep.curAgent}}</span><span style="color: var(--muted)"> · {{deep.curState}}</span></span>
+            <span class="mono" style="font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{deep.curLabel}}</span>
+          </div>
+          <span style="{{deep.chip}}"><span class="{{deep.chipCls}}" style="{{deep.chipDot}}"></span>{{deep.chipText}}</span>
+          <span class="mono num" aria-label="Time on this step" style="font-size: 28px; font-weight: 500; letter-spacing: -0.02em">{{deep.clock}}</span>
+        </div>
+
+        <div class="num" style="display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 12px 20px 0; font-size: 13px; color: var(--muted)">
+          <span>{{deep.name}}</span>
+          <sc-for list="{{deep.stats}}" as="st" hint-placeholder-count="4"><span>{{st.k}} <span style="color: var(--text); font-weight: 600">{{st.v}}</span></span></sc-for>
+        </div>
+
+        <section aria-label="Agents over time" style="padding: 14px 20px 18px; border-bottom: 1px solid var(--line); overflow-x: auto">
+          <div style="min-width: 720px; display: grid; grid-template-columns: 190px minmax(0, 1fr); column-gap: 14px">
+            <span></span>
+            <div style="position: relative; height: 18px">
+              <sc-for list="{{deep.marks}}" as="m" hint-placeholder-count="2"><span style="{{m.style}}">{{m.label}}</span></sc-for>
+              <span style="position: absolute; right: 0; top: 0; font-size: 11px; font-weight: 600; color: var(--blueText)">now</span>
+            </div>
+            <sc-for list="{{deep.lanes}}" as="ln" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 8px; min-height: 34px; border-top: 1px solid var(--line)">
+                <span style="{{ln.av}}">{{ln.initial}}</span>
+                <span style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 13px; font-weight: 500">{{ln.name}}</span><span class="num" style="{{ln.metaStyle}}">{{ln.meta}}</span></span>
+              </div>
+              <div style="position: relative; height: 34px; border-top: 1px solid var(--line)">
+                <sc-for list="{{deep.marks}}" as="m" hint-placeholder-count="2"><span style="{{m.rule}}"></span></sc-for>
+                <span style="position: absolute; right: 0; top: 0; bottom: 0; border-left: 1.5px solid var(--blue)"></span>
+                <sc-for list="{{ln.blocks}}" as="b" hint-placeholder-count="3"><button title="{{b.tip}}" aria-label="{{b.tip}}" onClick="{{b.pick}}" class="{{b.cls}}" style="{{b.style}}"></button></sc-for>
+              </div>
+            </sc-for>
+            <span></span>
+            <div style="position: relative; height: 20px; border-top: 1px solid var(--line); margin-top: 0">
+              <sc-for list="{{deep.ticks}}" as="t" hint-placeholder-count="4"><span class="num" style="{{t.style}}">{{t.label}}</span></sc-for>
+            </div>
+          </div>
+        </section>
+
+        <div style="flex: 1; display: flex; flex-wrap: wrap; min-height: 0">
+          <section aria-label="Steps" style="flex: 1 1 420px; min-width: 0; padding: 12px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px">
+            <sc-for list="{{deep.items}}" as="it" hint-placeholder-count="6">
+              <div style="display: flex; flex-direction: column">
+                <sc-if value="{{it.isDivider}}" hint-placeholder-val="{{false}}">
+                  <div style="display: flex; align-items: center; gap: 10px; padding: 8px 4px; font-size: 12px; font-weight: 500; color: var(--blueText)"><span style="flex: 1; height: 1px; background: var(--blue)"></span>{{it.label}}<span style="flex: 1; height: 1px; background: var(--blue)"></span></div>
+                </sc-if>
+                <sc-if value="{{it.isStep}}" hint-placeholder-val="{{true}}">
+                  <button onClick="{{it.pick}}" class="ghost" style="{{it.style}}">
+                    <span style="{{it.av}}">{{it.initial}}</span>
+                    <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+                      <span style="display: flex; gap: 8px; align-items: baseline"><span style="font-weight: 500">{{it.label}}</span><span style="font-size: 12px; color: var(--dim)">{{it.agent}}</span></span>
+                      <span class="mono" style="font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{it.cmd}}</span>
+                    </span>
+                    <span style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px"><span style="{{it.resultStyle}}">{{it.result}}</span><span class="num mono" style="font-size: 11px; color: var(--dim)">{{it.time}}</span></span>
+                  </button>
+                </sc-if>
+              </div>
+            </sc-for>
+          </section>
+
+          <section aria-label="Step detail" style="flex: 1 1 420px; min-width: 0; padding: 18px 22px; display: flex; flex-direction: column; gap: 14px">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px">
+              <sc-if value="{{deep.following}}" hint-placeholder-val="{{true}}"><span style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--blueText)"><span class="live" style="width: 7px; height: 7px; border-radius: 50%; background: var(--blue)"></span>Following live</span></sc-if>
+              <sc-if value="{{deep.notFollowing}}" hint-placeholder-val="{{false}}"><button onClick="{{deep.followLive}}" style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border: 1px solid var(--line2); border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 12px; cursor: pointer"><span style="width: 7px; height: 7px; border-radius: 50%; background: var(--blue)"></span>Back to live</button></sc-if>
+              <button onClick="{{deep.ask}}" style="height: 30px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; cursor: pointer">Ask about this step</button>
+            </div>
+            <h3 style="margin: 0; font-size: 19px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em">{{deep.selLabel}}</h3>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--muted)">
+              <span style="{{deep.selAv}}">{{deep.selInitial}}</span>{{deep.selAgent}}<span style="{{deep.selStateStyle}}">{{deep.selState}}</span><span class="num mono" style="font-size: 12px">{{deep.selTime}}</span>
+            </div>
+            <div role="tablist" aria-label="Step views" style="display: flex; gap: 2px; border-bottom: 1px solid var(--line)">
+              <sc-for list="{{deep.tabs}}" as="t" hint-placeholder-count="3"><button role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+            </div>
+            <sc-if value="{{deep.isThink}}" hint-placeholder-val="{{true}}">
+              <p style="margin: 0; max-width: 64ch; font-size: 15px; line-height: 1.7; font-style: italic; color: var(--text2)">{{deep.thinkText}}<sc-if value="{{deep.typing}}" hint-placeholder-val="{{false}}"><span class="caret" aria-hidden="true"></span></sc-if></p>
+            </sc-if>
+            <sc-if value="{{deep.isRaw}}" hint-placeholder-val="{{false}}">
+              <pre class="mono" style="margin: 0; padding: 14px; border-radius: 10px; background: var(--sunk); border: 1px solid var(--line); font-size: 12px; line-height: 1.7; color: var(--text2); white-space: pre-wrap; overflow-x: auto">{{deep.raw}}</pre>
+            </sc-if>
+            <sc-if value="{{deep.isFiles}}" hint-placeholder-val="{{false}}">
+              <div style="display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; overflow: hidden">
+                <sc-for list="{{deep.files}}" as="fl" hint-placeholder-count="2">
+                  <div class="mono num" style="display: grid; grid-template-columns: minmax(0, 1fr) 56px 44px; gap: 10px; align-items: center; min-height: 40px; padding: 0 14px; border-bottom: 1px solid var(--line); font-size: 12px"><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{fl.path}}</span><span style="color: var(--greenText); text-align: right">{{fl.add}}</span><span style="color: var(--redText); text-align: right">{{fl.del}}</span></div>
+                </sc-for>
+                <sc-if value="{{deep.noFiles}}" hint-placeholder-val="{{false}}"><div style="padding: 14px; color: var(--muted); font-size: 13px">This step didn't change any files.</div></sc-if>
+              </div>
+            </sc-if>
+          </section>
+        </div>
+      </aside>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{cmdOpen}}" hint-placeholder-val="{{false}}">
+    <div onClick="{{closeCmd}}" style="position: fixed; inset: 0; z-index: 30; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; background: var(--scrim)">
+      <div role="dialog" aria-modal="true" aria-label="Command bar" onClick="{{stop}}" style="width: 100%; max-width: 640px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line2); box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--line)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="color: var(--muted)"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"></circle><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>
+          <input autoFocus="{{true}}" aria-label="Command" value="{{cmdQ}}" onChange="{{setCmdQ}}" onKeyDown="{{cmdKey}}" placeholder="Jump to a feature, answer a question, or run a command" style="flex: 1; height: 52px; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; font-size: 15px">
+          <kbd>esc</kbd>
+        </div>
+        <div role="listbox" aria-label="Results" style="max-height: 420px; overflow-y: auto; padding: 6px">
+          <sc-for list="{{cmds}}" as="c" hint-placeholder-count="6">
+            <div style="display: flex; flex-direction: column">
+              <sc-if value="{{c.isGroup}}" hint-placeholder-val="{{false}}"><div style="padding: 10px 10px 4px; font-size: 11px; font-weight: 600; color: var(--dim)">{{c.label}}</div></sc-if>
+              <sc-if value="{{c.isItem}}" hint-placeholder-val="{{true}}">
+                <button role="option" aria-selected="{{c.on}}" onClick="{{c.run}}" onMouseMove="{{c.hover}}" style="{{c.style}}">
+                  <span class="{{c.lightCls}}" style="{{c.light}}"></span>
+                  <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left"><span>{{c.label}}</span><sc-if value="{{c.hasHint}}" hint-placeholder-val="{{false}}"><span class="num" style="font-size: 12px; color: var(--dim)">{{c.hint}}</span></sc-if></span>
+                  <sc-if value="{{c.on}}" hint-placeholder-val="{{false}}"><kbd>↵</kbd></sc-if>
+                </button>
+              </sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{cmdEmpty}}" hint-placeholder-val="{{false}}"><div style="padding: 24px 12px; color: var(--muted); text-align: center">No match. Press ↵ to start a new feature called “{{cmdQ}}”.</div></sc-if>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 14px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--dim)">
+          <span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>↵</kbd> run</span><span><kbd>esc</kbd> close</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{hasToast}}" hint-placeholder-val="{{false}}">
+    <div role="status" class="toast" style="position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--inv); color: var(--invText); font-size: 13px; font-weight: 500; box-shadow: var(--shadow); z-index: 40">{{toast}}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark","section":"Start"},"home":{"editor":"enum","options":["board","focus"],"default":"board","section":"Start"},"density":{"editor":"enum","options":["comfortable","compact"],"default":"comfortable","section":"Start"},"tone":{"editor":"enum","options":["modern","soft"],"default":"modern","section":"Start"},"simulate":{"editor":"boolean","default":true,"section":"Start"},"speed":{"editor":"enum","options":["slow","normal","fast"],"default":"normal","section":"Start"},"$preview":{"width":1440,"height":1040}}'>
+var STEPS = ['tests', 'red', 'code', 'green', 'review', 'commit'];
+var STEP_NOTE = { tests: 'writing tests', red: 'showing red', code: 'writing code', green: 'showing green', review: 'two reviews', commit: 'committing' };
+var TODO = ['Write the tests', 'Show them red', 'Write the code', 'Show them green', 'Two reviews', 'Commit'];
+var CHECKS = ['security', 'architecture', 'acceptance', 'made-false', 'complexity', 'dead code', 'loosened tests'];
+var LIFE = {
+  tw: { n: 5, base: 40, pos0: 20, pr: 220, slug: 'workspaces', titles: ['Workspace model', 'Invite by email', 'Roles', 'Workspace switcher', 'Audit log'] },
+  alg: { n: 4, base: 60, pos0: 9, pr: 146, slug: 'search' },
+  price: { n: 4, base: 46, pos0: 2, pr: 219, slug: 'pricing' },
+  off: { n: 3, base: 16, pos0: 23, pr: 91, slug: 'drafts' },
+  tl: { n: 6, base: 10, pos0: 10, pr: 13, slug: 'timeline' },
+  push: { n: 3, base: 22, pos0: 0, pr: 92, slug: 'push' },
+  api: { n: 5, base: 0, pos0: 0, pr: 147, slug: 'versions' },
+  pdf: { n: 4, base: 50, pos0: 0, pr: 223, slug: 'invoice-pdf' },
+  seat: { n: 3, base: 54, pos0: 0, pr: 224, slug: 'seats' }
+};
+function clk(t) { var s = 10 * 3600 + 44 * 60 + t * 11; var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return h + ':' + (m < 10 ? '0' : '') + m + ':' + (x < 10 ? '0' : '') + x; }
+function life(L, pos) {
+  var se = L.n * 6, bar = [], i;
+  if (pos < se) { var d = Math.floor(pos / 6); for (i = 0; i < L.n; i++) bar.push(i < d ? 2 : i === d ? 1 : 0); return { phase: 'story', d: d, si: pos % 6, step: STEPS[pos % 6], bar: bar, num: L.base + d + 1 }; }
+  for (i = 0; i < L.n; i++) bar.push(2);
+  var q = pos - se;
+  if (q < 7) return { phase: 'panel', check: q + 1, bar: bar };
+  if (q < 9) return { phase: 'prove', bar: bar };
+  return { phase: 'pr', age: q - 9, bar: bar };
+}
+function sha(n) { return ((n * 2654435761) >>> 0).toString(16).slice(0, 7); }
+
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = { theme: null, home: null, screen: 'home', fid: 'tw', scope: 'all', twAns: null, approved: false,
+      planA: { q1: 'r', q2: null, q3: 'r' }, fixed: false, parked: false, merged: false, paused: {}, tab: 'session', thread: 'orch',
+      draft: '', chat: {}, newOpen: false, newText: '', newProject: 'billing-service', added: [], toast: '', focusIdx: 0, events: [],
+      tick: 0, start: { price: 0, off: 0, tl: 0 }, movedAt: {}, hover: null,
+      cmdOpen: false, cmdQ: '', cmdSel: 0, typeKey: '', chars: 0,
+      cOpen: null, cText: '', planEdits: {}, planVer: 3,
+      deepOpen: false, follow: true, dSel: null, dTab: 'think', seen: {}, dkey: '', dchars: 0 };
+  }
+  componentDidMount() {
+    var self = this;
+    var ms = { slow: 3600, normal: 2200, fast: 1100 }[this.props.speed || 'normal'] || 2200;
+    this._iv = setInterval(function () { if (self.props.simulate !== false) self.step(true); }, ms);
+    this._fast = setInterval(function () { self.typeTick(); }, 35);
+    this._mountAt = Date.now();
+    this._sec = setInterval(function () { if (self.state.deepOpen) self.forceUpdate(); }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._iv); clearInterval(this._fast); clearInterval(this._sec); clearTimeout(this._tt); }
+  typeTick() {
+    var s = this.state;
+    if (s.deepOpen) {
+      if (this._dKey !== s.dkey) { this.setState({ dkey: this._dKey, dchars: 0 }); return; }
+      if (s.dchars < (this._dLen || 0)) this.setState({ dchars: s.dchars + 2 });
+      return;
+    }
+    if (s.screen !== 'run' || s.tab !== 'session') return;
+    if (this._typeKey !== s.typeKey) { this.setState({ typeKey: this._typeKey, chars: 0 }); return; }
+    if (s.chars < (this._typeLen || 0)) this.setState({ chars: s.chars + 2 });
+  }
+  say(t, extra, cb) {
+    var self = this; clearTimeout(this._tt);
+    this.setState(Object.assign({ toast: t }, extra || {}), cb);
+    this._tt = setTimeout(function () { self.setState({ toast: '' }); }, 2600);
+  }
+  ev(list, text, kind, t) { return [{ text: text, t: clk(t), kind: kind, at: t }].concat(list).slice(0, 30); }
+  posOf(s, id) {
+    var L = LIFE[id], st = s.start[id];
+    if (st == null) return null;
+    var now = s.paused[id] != null ? s.paused[id] : s.tick;
+    return L.pos0 + Math.max(0, now - st);
+  }
+  feats(s) {
+    var self = this, R = [];
+    var open = 0; for (var k in s.planA) if (!s.planA[k]) open++;
+    var live = function (o) {
+      var L = LIFE[o.id], p = self.posOf(s, o.id), lc = life(L, p);
+      o.pos = p; o.lc = lc; o.auto = true; o.pr = L.pr;
+      if (lc.phase === 'pr') { o.col = 'pr'; o.k = 'pr'; o.bar = null; o.note = 'PR #' + L.pr + (lc.age < 2 ? ' · checks running' : ' · checks pass · ready to merge'); }
+      else {
+        o.col = 'run'; o.k = 'live'; o.bar = lc.bar;
+        o.note = lc.phase === 'story' ? 'Story ' + lc.num + ' · ' + STEP_NOTE[lc.step] : lc.phase === 'panel' ? 'Feature panel · ' + lc.check + ' of 7 checks' : 'Prove it · on the real app';
+        if (s.paused[o.id] != null) o.note = 'Paused · ' + o.note;
+      }
+      return o;
+    };
+    var tw = s.twAns ? live({ id: 'tw', name: 'Team workspaces', project: 'billing-service' })
+      : { id: 'tw', name: 'Team workspaces', project: 'billing-service', col: 'run', k: 'ask', note: 'Question on story 44 · 4 min ago', bar: [2, 2, 2, 3, 0], need: 'question' };
+    R.push(tw);
+    if (s.parked) R.push({ id: 'alg', name: 'Search with Algolia', project: 'docs-site', col: 'next', k: 'wait', note: 'Parked by you', parkedFlag: true });
+    else if (s.fixed) R.push(live({ id: 'alg', name: 'Search with Algolia', project: 'docs-site' }));
+    else R.push({ id: 'alg', name: 'Search with Algolia', project: 'docs-site', col: 'run', k: 'bad', note: 'Stuck on story 62 · test key missing', bar: [2, 4, 0, 0], need: 'stuck' });
+    var price = live({ id: 'price', name: 'Usage-based pricing', project: 'billing-service' }); R.push(price);
+    R.push(live({ id: 'off', name: 'Offline drafts', project: 'mobile-app' }));
+    R.push(live({ id: 'tl', name: 'Run timeline view', project: 'harness-ui' }));
+    R.push(s.start.push != null ? live({ id: 'push', name: 'Push notifications', project: 'mobile-app' })
+      : { id: 'push', name: 'Push notifications', project: 'mobile-app', col: 'next', k: 'wait', note: 'Ready · starts at the next free slot', ready: true });
+    if (s.start.api != null) R.push(live({ id: 'api', name: 'Versioned API docs', project: 'docs-site', kind: 'plan' }));
+    else R.push({ id: 'api', name: 'Versioned API docs', project: 'docs-site', col: 'next', kind: 'plan', k: s.approved ? 'wait' : 'ask', ready: s.approved,
+      note: s.approved ? 'Plan approved · next free slot' : 'Plan ready · ' + open + (open === 1 ? ' question open' : ' questions open'), need: s.approved ? null : 'plan' });
+    var gate = function (o, blocker) {
+      if (s.start[o.id] != null) return live(o);
+      var free = blocker.col === 'pr' || blocker.col === 'done';
+      o.col = 'next'; o.k = 'wait'; o.depId = blocker.id; o.ready = free;
+      o.note = free ? 'Ready · ' + blocker.name + ' reached its PR' : 'Starts after ' + blocker.name;
+      o.dep = free ? 'ready' : 'after ' + blocker.name;
+      return o;
+    };
+    R.push(gate({ id: 'pdf', name: 'Invoice PDF redesign', project: 'billing-service' }, tw));
+    R.push(gate({ id: 'seat', name: 'Seat-based billing', project: 'billing-service' }, price));
+    s.added.forEach(function (a) { R.push({ id: a.id, name: a.name, project: a.project, col: 'next', kind: 'plan', writing: true, k: 'live', note: 'Writing the plan…', num: a.num }); });
+    R.push({ id: 'wh', name: 'Stripe webhooks', project: 'billing-service', col: s.merged ? 'done' : 'pr', k: s.merged ? 'done' : 'pr', note: s.merged ? 'Merged just now' : 'PR #212 · all checks pass · ready to merge', pr: 212 });
+    R.push({ id: 'dark', name: 'Dark mode', project: 'mobile-app', col: 'pr', k: 'pr', note: 'PR #88 · fixing 2 review comments', pr: 88 });
+    R.push({ id: 'log', name: 'Changelog page', project: 'docs-site', col: 'done', k: 'done', note: 'Merged 2 h ago', pr: 140 });
+    return R;
+  }
+  step(advance) {
+    var s = this.state, t = s.tick + (advance ? 1 : 0);
+    if (advance) this._tickAt = Date.now();
+    var prevF = this.feats(s);
+    var st = Object.assign({}, s.start), mv = Object.assign({}, s.movedAt), ev = s.events;
+    var F = this.feats(Object.assign({}, s, { tick: t, start: st }));
+    var prev = {}; prevF.forEach(function (f) { prev[f.id] = f; });
+    var self = this;
+    F.forEach(function (f) {
+      var p = prev[f.id]; if (!p || !advance) return;
+      if (p.col === 'run' && f.col === 'pr') { mv[f.id] = t; ev = self.ev(ev, f.name + ' opened PR #' + f.pr, 'pr', t); }
+      if (p.lc && f.lc && p.lc.phase === 'story' && (f.lc.phase !== 'story' || f.lc.d > p.lc.d)) ev = self.ev(ev, f.name + ': story ' + p.lc.num + ' committed', 'done', t);
+    });
+    var holders = F.filter(function (f) { return f.col === 'run'; }).length;
+    var q = F.filter(function (f) { return f.col === 'next' && f.ready; });
+    while (holders < 5 && q.length) { var f = q.shift(); st[f.id] = t; mv[f.id] = t; holders++; ev = self.ev(ev, f.name + ' started in a free slot', 'live', t); }
+    this.setState({ tick: t, start: st, movedAt: mv, events: ev });
+  }
+  renderVals() {
+    var self = this, s = this.state, P = this.props;
+    var theme = s.theme || P.theme || 'dark';
+    var home = s.home || P.home || 'board';
+    var compact = (P.density || 'comfortable') === 'compact';
+    var sim = P.simulate !== false;
+    var LC = { ask: 'var(--amber)', live: 'var(--blue)', pr: 'var(--violet)', done: 'var(--done)', bad: 'var(--red)' };
+    var light = function (k, size) {
+      var z = size || 8;
+      return k === 'wait' ? 'width: ' + z + 'px; height: ' + z + 'px; flex: none; border-radius: 50%; border: 1.5px solid var(--hollow); box-sizing: border-box'
+        : 'width: ' + z + 'px; height: ' + z + 'px; flex: none; border-radius: ' + (k === 'bad' ? '2px' : '50%') + '; background: ' + LC[k];
+    };
+    var lcls = function (k) { return k === 'ask' ? 'ask' : k === 'live' ? 'live' : ''; };
+    var BC = ['var(--raised)', 'var(--blue)', 'var(--done)', 'var(--amber)', 'var(--red)'];
+    var bar = function (b) { return (b || []).map(function (v) { return { s: 'flex: 1; height: 4px; border-radius: 2px; background: ' + BC[v] }; }); };
+    var go = function (f) { return function () {
+      if (f.kind === 'plan' && !(s.start[f.id] != null)) self.setState({ screen: 'plan', fid: f.id, draft: '', newOpen: false, cmdOpen: false, cOpen: null });
+      else self.setState({ screen: 'run', fid: f.id, tab: 'session', thread: 'orch', draft: '', newOpen: false, cmdOpen: false });
+    }; };
+    var after = function () { self.step(false); };
+    var btn = function (primary, tone) {
+      var bg = primary ? (tone === 'amber' ? 'var(--amber)' : 'var(--inv)') : 'transparent';
+      var fg = primary ? (tone === 'amber' ? '#1A1206' : 'var(--invText)') : 'var(--text)';
+      return 'min-height: 36px; padding: 0 12px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: ' + (primary ? 600 : 500) + '; cursor: pointer; background: ' + bg + '; color: ' + fg + '; border: 1px solid ' + (primary ? bg : 'var(--line2)');
+    };
+    var bigBtn = function (primary) { return btn(primary).replace('min-height: 36px', 'min-height: 44px').replace('font-size: 13px', 'font-size: 14px').replace('padding: 0 12px', 'padding: 0 16px'); };
+
+    var answerTw = function (choice) { return function () {
+      var st = Object.assign({}, s.start); st.tw = s.tick;
+      self.say('Sent. Story 44 is back to coding.', { twAns: choice, start: st, cmdOpen: false, events: self.ev(s.events, 'You answered: switcher goes in ' + (choice === 'nav' ? 'the top nav' : 'Settings'), 'done', s.tick) }, after);
+    }; };
+    var fixAlg = function () { var st = Object.assign({}, s.start); st.alg = s.tick;
+      self.say('Retrying story 62 with the key.', { fixed: true, start: st, cmdOpen: false, events: self.ev(s.events, 'Search with Algolia: retrying with the new key', 'live', s.tick) }, after); };
+    var parkAlg = function () { self.say('Parked. The free slot goes to the next in line.', { parked: true, cmdOpen: false, events: self.ev(s.events, 'You parked Search with Algolia', 'done', s.tick) }, after); };
+
+    var F = this.feats(s);
+    var scope = s.scope;
+    var vis = F.filter(function (f) { return scope === 'all' || f.project === scope; });
+    var byId = {}; F.forEach(function (f) { byId[f.id] = f; });
+
+    var needOf = function (f) {
+      if (f.need === 'question') return { kind: 'Question', body: 'Story 44 puts the workspace switcher in the top nav. The design doc puts it under Settings.', question: 'Where should the workspace switcher live?',
+        actions: [{ label: 'Top nav · recommended', go: answerTw('nav'), p: true }, { label: 'Under Settings', go: answerTw('settings') }, { label: 'Open chat', go: go(f) }] };
+      if (f.need === 'plan') { var n = 0; for (var k in s.planA) if (!s.planA[k]) n++;
+        return { kind: 'Plan gate', body: '5 stories, every spec line covered. ' + (n ? n + ' question still open.' : 'All questions answered.'), question: 'The plan for Versioned API docs is ready for you.',
+          actions: [{ label: 'Review the plan', go: go(f), p: true }] }; }
+      if (f.need === 'stuck') return { kind: 'Stuck', body: 'Story 62 failed 3 times. ALGOLIA_ADMIN_KEY is missing from .env.test.', question: 'Search with Algolia is stuck on a missing test key.',
+        actions: [{ label: 'I added it · retry', go: fixAlg, p: true }, { label: 'Park it, free the slot', go: parkAlg }, { label: 'Open', go: go(f) }] };
+      return null;
+    };
+    var needList = vis.filter(function (f) { return f.need; });
+    var needs = needList.map(function (f) {
+      var n = needOf(f), bad = f.need === 'stuck';
+      return { name: f.name, project: f.project, kind: n.kind, body: n.body, open: go(f), light: light(f.k), lightCls: lcls(f.k),
+        kindStyle: 'font-weight: 600; color: ' + (bad ? 'var(--redText)' : 'var(--amberText)'),
+        box: 'display: flex; flex-direction: column; gap: 8px; padding: ' + (compact ? '12px' : '16px') + '; border-radius: 12px; background: ' + (bad ? 'var(--redBg)' : 'var(--amberSoft)') + '; border: 1px solid ' + (bad ? 'var(--redLine)' : 'var(--amberLine)'),
+        actions: n.actions.map(function (a) { return { label: a.label, go: a.go, style: btn(a.p, bad ? '' : 'amber') }; }) };
+    });
+
+    // hover: dependency links
+    var hov = s.hover ? byId[s.hover] : null;
+    var rel = {};
+    if (hov) {
+      if (hov.depId && byId[hov.depId]) rel[hov.depId] = 'Blocks ' + hov.name;
+      F.forEach(function (x) { if (x.depId === hov.id) rel[x.id] = 'Waits on this'; });
+      if (Object.keys(rel).length) rel[hov.id] = rel[hov.id] || (hov.depId ? 'Waiting on ' + byId[hov.depId].name : 'Blocking ' + F.filter(function (x) { return x.depId === hov.id; }).map(function (x) { return x.name; }).join(', '));
+    }
+
+    var orderN = 0;
+    var COLS = [
+      { id: 'next', title: 'Up next', k: 'wait', hint: 'In order. Hover one to see what it waits on', empty: 'Nothing queued.' },
+      { id: 'run', title: 'Running', k: 'live', empty: 'Nothing running here.' },
+      { id: 'pr', title: 'In PR', k: 'pr', hint: 'Checked every 5 min until you merge', empty: 'No open PRs.' },
+      { id: 'done', title: 'Merged', k: 'done', hint: 'Moves to Completed after a day', empty: 'Nothing merged today.' }
+    ];
+    var runCount = F.filter(function (f) { return f.col === 'run'; }).length;
+    var cols = COLS.map(function (c) {
+      var cards = vis.filter(function (f) { return f.col === c.id; }).map(function (f) {
+        var ord = c.id === 'next' && !f.parkedFlag ? String(++orderN) : '';
+        var fresh = s.movedAt[f.id] != null && s.tick - s.movedAt[f.id] < 2;
+        var hl = !!rel[f.id];
+        var edge = hl || fresh ? 'var(--blue)' : f.k === 'ask' ? 'var(--amberLine)' : f.k === 'bad' ? 'var(--redLine)' : 'var(--line)';
+        return { name: f.name, project: f.project, note: f.note, light: light(f.k), lightCls: lcls(f.k), open: go(f),
+          enter: function () { if (s.hover !== f.id) self.setState({ hover: f.id }); }, leave: function () { self.setState({ hover: null }); },
+          cls: 'card' + (fresh ? ' rise' : ''), hasBadge: hl, badge: rel[f.id] || '',
+          hasOrder: !!ord, order: ord, hasBar: !!f.bar, bar: bar(f.bar),
+          noteStyle: 'font-size: 12px; line-height: 1.4; text-align: left; color: ' + (f.k === 'ask' ? 'var(--amberText)' : f.k === 'bad' ? 'var(--redText)' : 'var(--muted)'),
+          box: 'width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: ' + (compact ? '6px' : '8px') + '; padding: ' + (compact ? '9px 10px' : '12px') + '; border-radius: 10px; font: inherit; cursor: pointer; color: var(--text); background: var(--surface); border: 1px solid ' + edge + (hl || fresh ? '; box-shadow: 0 0 0 1px var(--blue)' : '') + (f.k === 'done' ? '; opacity: .75' : '') + (hov && !hl && Object.keys(rel).length ? '; opacity: .55' : '') };
+      });
+      return { title: c.title, count: String(cards.length), hint: c.id === 'run' ? runCount + ' of 5 slots in use. One story at a time inside each' : c.hint,
+        dot: light(c.k, 7), cards: cards, empty: cards.length === 0, emptyText: c.empty };
+    });
+
+    var PRJ = ['all', 'billing-service', 'docs-site', 'mobile-app', 'harness-ui'];
+    var rank = ['bad', 'ask', 'live', 'pr', 'wait', 'done'];
+    var worst = function (id) { var mine = F.filter(function (f) { return id === 'all' || f.project === id; });
+      for (var i = 0; i < rank.length; i++) { if (mine.some(function (f) { return f.k === rank[i]; })) return [rank[i], mine]; } return ['done', mine]; };
+    var projects = PRJ.map(function (id) {
+      var w = worst(id), on = id === scope;
+      return { name: id === 'all' ? 'All projects' : id, count: w[1].filter(function (f) { return f.col !== 'done'; }).length, light: light(w[0]), lightCls: lcls(w[0]),
+        pick: function () { self.setState({ scope: id, focusIdx: 0, screen: s.screen === 'run' || s.screen === 'plan' ? 'home' : s.screen }); },
+        style: 'display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; font: inherit; cursor: pointer; color: ' + (on ? 'var(--text)' : 'var(--text2)') + '; background: ' + (on ? 'var(--sel)' : 'transparent') + '; font-weight: ' + (on ? 600 : 400) };
+    });
+    var navStyle = function (on) { return 'display: flex; justify-content: space-between; align-items: center; min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; font: inherit; cursor: pointer; text-align: left; color: ' + (on ? 'var(--text)' : 'var(--text2)') + '; background: ' + (on ? 'var(--sel)' : 'transparent'); };
+
+    var fi = needList.length ? Math.min(s.focusIdx, needList.length - 1) : 0;
+    var ff = needList[fi];
+    var fc = ff ? (function () { var n = needOf(ff), bad = ff.need === 'stuck';
+      return { name: ff.name, project: ff.project, kind: n.kind, question: n.question, body: n.body, light: light(ff.k, 9), lightCls: lcls(ff.k),
+        kindStyle: 'font-weight: 600; color: ' + (bad ? 'var(--redText)' : 'var(--amberText)'),
+        actions: n.actions.map(function (a) { return { label: a.label, go: a.go, bigStyle: bigBtn(a.p) }; }) }; })() : { actions: [] };
+
+    var EV = s.events.concat([
+      { text: 'Story 43 committed after 2 review rounds', t: '10:35', kind: 'done' },
+      { text: 'Search with Algolia stuck after 3 tries', t: '10:12', kind: 'bad' },
+      { text: 'PR #212 checks all passed', t: '10:05', kind: 'pr' },
+      { text: 'Usage-based pricing started story 47', t: '9:58', kind: 'live' }
+    ]);
+    var events = EV.slice(0, 8).map(function (e) { return { text: e.text, t: e.t, cls: e.at != null && s.tick - e.at < 2 ? 'rise' : '', mark: light(e.kind, 8) + '; transform: translateY(-1px)' }; });
+
+    var VIS = { 'billing-service': 'Billing that small teams set up once and never think about again.', 'docs-site': 'Docs that answer the question before the reader opens a ticket.', 'mobile-app': 'Write anywhere, even with no signal.', 'harness-ui': 'See every run at a glance, and step in only when it matters.' };
+    var visions = PRJ.slice(1).filter(function (p) { return scope === 'all' || p === scope; }).map(function (p) {
+      return { project: p, text: VIS[p], feats: F.filter(function (f) { return f.project === p; }).map(function (f) {
+        return { name: f.name, light: light(f.k), lightCls: lcls(f.k), open: go(f), dep: f.dep || (f.col === 'run' ? 'running' : f.col === 'pr' ? 'in PR' : f.col === 'done' ? 'merged' : f.k === 'ask' ? 'needs you' : 'ready') };
+      }) };
+    });
+    var doneRows = F.filter(function (f) { return f.col === 'done'; }).map(function (f) { return { name: f.name, project: f.project, pr: '#' + f.pr, stories: f.id === 'wh' ? '4' : '2', when: f.id === 'wh' ? 'Just now' : 'Today' }; })
+      .concat([{ name: 'Usage dashboard', project: 'billing-service', pr: '#198', stories: '6', when: 'Mon' }, { name: 'Sign in with GitHub', project: 'harness-ui', pr: '#4', stories: '3', when: 'Last week' }]);
+
+    // ---------- run screen ----------
+    var f = byId[s.fid] || F[0];
+    var L = LIFE[f.id];
+    var paused = s.paused[f.id] != null;
+    var chat = (s.chat[f.id] || []).map(function (m) { return { text: m.text, mine: m.who === 'you', theirs: m.who !== 'you' }; });
+    var B = function (type, text, extra) { return Object.assign({ isText: type === 'text', isTool: type === 'tool', isUser: type === 'user', isLive: type === 'live', isDivider: type === 'div', text: text, verb: '', result: '', detail: '', resultStyle: '', time: '', typing: false, cls: '', dotCls: 'live' }, extra || {}); };
+    var tool = function (verb, text, result, tone, detail, time, fresh) { return B('tool', text, { verb: verb, result: result, detail: detail || '', time: time || '', cls: fresh ? 'rise' : '', resultStyle: 'margin-left: auto; white-space: nowrap; color: ' + (tone === 'bad' ? 'var(--redText)' : tone === 'ok' ? 'var(--greenText)' : 'var(--dim)') }); };
+    var stepTool = function (p, fresh) {
+      var se = L.n * 6, at = s.start[f.id] + (p - L.pos0), tm = clk(at);
+      if (p < se) {
+        var d = Math.floor(p / 6), k = p % 6, num = L.base + d + 1, out = [];
+        if (k === 0) out.push(B('div', 'Story ' + num + (L.titles ? ' · ' + L.titles[d] : '') + ' · ' + tm, { cls: fresh ? 'rise' : '' }));
+        var c = 3 + num % 5;
+        out.push([
+          tool('Write', 'tests/' + L.slug + '-' + num + '.test.ts', '+' + (30 + num % 40), 'ok', c + ' tests for story ' + num, tm, fresh),
+          tool('Bash', 'npm test -- ' + L.slug + '-' + num, c + ' failed', 'bad', 'Red, as expected. Nothing is built yet.', tm, fresh),
+          tool('Edit', 'src/' + L.slug + '/story-' + num + '.ts', '+' + (40 + num * 3 % 90) + ' −' + (num % 12), 'ok', 'Smallest change that makes the tests pass.', tm, fresh),
+          tool('Bash', 'npm test -- ' + L.slug + '-' + num, c + ' passed', 'ok', 'Green.', tm, fresh),
+          tool('Agent', 'story-reviewer × 2', '2 of 2 pass', 'ok', 'No changes asked.', tm, fresh),
+          tool('Bash', 'git commit -m "Story: #' + num + '"', sha(num), '', 'One commit per story on the feature branch.', tm, fresh)
+        ][k]);
+        return out;
+      }
+      var q = p - se;
+      if (q < 7) return (q === 0 ? [B('div', 'Feature panel · whole branch · ' + tm)] : []).concat([tool('Agent', 'panel · ' + CHECKS[q], 'pass', 'ok', 'No findings.', tm, fresh)]);
+      if (q === 7) return [B('div', 'Prove it · ' + tm), tool('Bash', 'prove · launch the app, screenshot, read-only checks', 'pass', 'ok', 'Every acceptance line seen working.', tm, fresh)];
+      return [tool('Bash', 'gh pr create --base main', '#' + L.pr, '', 'One PR for the whole feature.', tm, fresh)];
+    };
+    var sentence = function (lc) {
+      if (lc.phase === 'story') return ({ tests: 'Writing the tests for story ' + lc.num + ' first.', red: 'Running them. They should fail.', code: 'They fail as expected. Writing the code now.', green: 'Running the tests again.', review: 'Two reviewers are reading the change.', commit: 'Both passed. Committing story ' + lc.num + '.' })[lc.step];
+      if (lc.phase === 'panel') return 'Check ' + lc.check + ' of 7 on the whole branch: ' + CHECKS[lc.check - 1] + '.';
+      if (lc.phase === 'prove') return 'Proving it on the real app.';
+      return '';
+    };
+    var gen = function (from) {
+      var out = [], se = L.n * 6, end = Math.min(f.pos, se + 9);
+      for (var p = from; p < end; p++) out = out.concat(stepTool(p, p === f.pos - 1));
+      if (f.lc.phase === 'pr') {
+        out.push(B('text', 'PR #' + L.pr + ' is open. I check it every 5 minutes, fix review comments, and move this to Completed once you merge.'));
+        out.push(tool('Bash', 'gh pr checks ' + L.pr, f.lc.age < 2 ? 'running' : '8 of 8 pass', f.lc.age < 2 ? '' : 'ok', 'build · lint · unit · e2e · typecheck · security · preview · size', clk(s.tick)));
+        out.push(B('live', 'Next check in 5 min', { dotCls: '' }));
+        self._typeKey = f.id + ':pr'; self._typeLen = 0;
+        return out;
+      }
+      var text = sentence(f.lc), key = f.id + ':' + f.pos;
+      self._typeKey = key; self._typeLen = text.length;
+      var ch = s.typeKey === key ? s.chars : 0;
+      if (paused) { out.push(B('live', 'Paused by you', { dotCls: '' })); return out; }
+      out.push(B('text', text.slice(0, ch), { typing: ch < text.length }));
+      out.push(B('live', f.lc.phase === 'story' ? STEP_NOTE[f.lc.step] + ' …' : 'working …'));
+      return out;
+    };
+    var blocks = [], showAsk = false, askActions = [], askKind = '', askText = '', askTone = 'amber', todos = [], todoTitle = '', showTodo = false;
+    var td = function (label, k) { var b = 'width: 14px; height: 14px; flex: none; border-radius: 4px; box-sizing: border-box; ';
+      return { label: label, box: k === 'done' ? b + 'background: var(--done)' : k === 'now' ? b + 'border: 1.5px solid var(--blue); background: linear-gradient(90deg, var(--blue) 50%, transparent 50%)' : b + 'border: 1.5px solid var(--hollow)',
+        text: k === 'done' ? 'color: var(--muted); text-decoration: line-through' : k === 'now' ? 'font-weight: 500' : 'color: var(--text2)' }; };
+    var todoFor = function (si) { return TODO.map(function (x, i) { return td(x, i < si ? 'done' : i === si ? 'now' : 'todo'); }); };
+    self._typeKey = f.id + ':static'; self._typeLen = 0;
+    if (f.id === 'tw') {
+      blocks = [B('div', 'Story 44 · Workspace switcher · 10:36'), B('text', 'Starting story 44. Tests first, then I’ll show them failing before I write any code.'),
+        tool('Read', 'src/components/TopNav.tsx', '142 lines', '', 'Nav already has a right-side slot for the account menu.', '10:36:40'),
+        tool('Write', 'tests/workspace-switcher.test.ts', '+84', 'ok', '6 tests: lists workspaces · marks current · switches on click · keeps the route · hides with one workspace · opens from the keyboard', '10:37:12'),
+        tool('Bash', 'npm test -- workspace-switcher', '6 failed', 'bad', 'Red, as expected. Nothing is built yet.', '10:41:03')];
+      if (!s.twAns) { showTodo = true; todoTitle = 'story 44'; todos = todoFor(2).map(function (x, i) { return i === 2 ? td(TODO[2], 'todo') : x; });
+        showAsk = true; askKind = 'Question · scope change'; askText = 'Before I write code: the story puts the switcher in the top nav, but the design doc puts it under Settings. Which one?';
+        askActions = [{ label: 'Top nav · recommended', go: answerTw('nav'), style: btn(true, 'amber') }, { label: 'Under Settings', go: answerTw('settings'), style: btn(false) }]; }
+      else { blocks = blocks.concat([B('user', s.twAns === 'nav' ? 'Top nav. The doc is out of date.' : 'Put it under Settings, like the doc says.'), B('text', 'Got it. I noted it in the plan.')]).concat(gen(L.pos0));
+        if (f.lc.phase === 'story') { showTodo = true; todoTitle = 'story ' + f.lc.num; todos = todoFor(f.lc.si); } }
+    } else if (f.id === 'alg' && !s.fixed) {
+      blocks = [B('div', 'Story 62 · Index docs on publish · 10:01'), tool('Bash', 'npm test -- search-index', '3 failed', 'bad', 'Error: ALGOLIA_ADMIN_KEY is not set', '10:03:20'),
+        tool('Bash', 'npm test -- search-index', '3 failed', 'bad', 'Second try, same error', '10:07:51'), tool('Bash', 'npm test -- search-index', '3 failed', 'bad', 'Third try, same error', '10:12:09')];
+      if (!s.parked) { showAsk = true; askTone = 'red'; askKind = 'Stuck · 3 tries'; askText = 'I can’t fix this myself: the test env needs ALGOLIA_ADMIN_KEY in .env.test. Add it and I’ll retry, or park the feature to free its slot.';
+        askActions = [{ label: 'I added it · retry', go: fixAlg, style: btn(true) }, { label: 'Park it', go: parkAlg, style: btn(false) }]; }
+      else blocks.push(B('text', 'Parked. The slot went to the next feature in line. Say the word and I’ll pick this up again.'));
+    } else if (f.auto) {
+      var se0 = L.n * 6, from;
+      if (f.id === 'alg') { blocks = [B('div', 'Story 62 · Index docs on publish'), tool('Bash', 'npm test -- search-index', '3 failed', 'bad', 'Third try: ALGOLIA_ADMIN_KEY is not set', '10:12:09'), B('user', 'Added the key.')]; from = L.pos0; }
+      else {
+        from = f.pos < se0 ? Math.max(L.pos0, f.pos - f.pos % 6) : Math.max(L.pos0, se0);
+        if (from > L.pos0 || L.pos0 > 0) blocks.push(B('text', (f.pos < se0 ? 'Earlier stories are committed.' : 'All ' + L.n + ' stories are committed.') + ' Open the Plan tab for the full list.'));
+      }
+      blocks = blocks.concat(gen(from));
+      if (f.lc.phase === 'story') { showTodo = true; todoTitle = 'story ' + f.lc.num; todos = todoFor(f.lc.si); }
+    } else if (f.col === 'pr') {
+      blocks = [B('div', 'PR #' + f.pr + ' opened'), B('text', 'PR #' + f.pr + ' is open. I check it every 5 minutes, fix review comments, and move this to Completed once you merge.'),
+        tool('Bash', 'gh pr checks ' + f.pr, '8 of 8 pass', 'ok', 'build · lint · unit · e2e · typecheck · security · preview · size', '10:05:12'),
+        tool('Bash', 'gh pr view ' + f.pr + ' --comments', f.id === 'dark' ? '2 open' : '0 open', f.id === 'dark' ? 'bad' : 'ok', f.id === 'dark' ? 'Reviewer asked to rename the toggle and add a test for system theme.' : 'No open comments.', '10:05:14'),
+        B('live', f.id === 'dark' ? 'Fixing review comment 1 of 2 …' : 'Next check in 3 min', { dotCls: f.id === 'dark' ? 'live' : '' })];
+      if (f.id === 'wh') { showAsk = true; askTone = 'violet'; askKind = 'Ready to merge'; askText = 'Every check passes and there are no comments left. Merge on GitHub when you’re happy; I’ll see it on the next check.';
+        askActions = [{ label: 'Open PR on GitHub', go: function () { self.say('Opens PR #212 on GitHub'); }, style: btn(true) }, { label: 'Simulate the merge (prototype)', go: function () { self.say('Merged. Moved to Completed.', { merged: true, events: self.ev(s.events, 'Stripe webhooks merged', 'done', s.tick) }); }, style: btn(false) }]; }
+    } else if (f.col === 'done') {
+      blocks = [B('div', 'Merged'), B('text', 'Merged into main. Branch deleted, tracker card closed. This moves to Completed after a day.')];
+    } else {
+      blocks = [B('text', 'Not started. ' + f.note + '.'), B('text', f.depId ? 'It waits for ' + byId[f.depId].name + ' to reach its PR, then takes the next free slot.' : 'It starts on its own when a slot frees up. Nothing to do here.')];
+    }
+    var askStyles = { amber: ['var(--amberSoft)', 'var(--amberLine)', 'var(--amberText)', 'var(--amber)'], red: ['var(--redBg)', 'var(--redLine)', 'var(--redText)', 'var(--red)'], violet: ['var(--violetBg)', 'var(--line2)', 'var(--violetText)', 'var(--violet)'] }[askTone];
+    var lineDot = function (k) { var b = 'width: 12px; height: 12px; flex: none; border-radius: 50%; box-sizing: border-box; margin-top: 3px; ';
+      return k === 'done' ? b + 'background: var(--done)' : k === 'ask' ? b + 'background: var(--amber)' : k === 'bad' ? b + 'background: var(--red); border-radius: 3px' : k === 'live' ? b + 'background: var(--blue)' : k === 'pr' ? b + 'background: var(--violet)' : k === 'gate' ? b + 'border: 1.5px dashed var(--hollow); border-radius: 3px' : b + 'border: 1.5px solid var(--hollow)'; };
+    var Ln = function (label, sub, k, last) { return { label: label, sub: sub, dot: lineDot(k), cls: lcls(k), wire: last ? 'display: none' : 'flex: 1; width: 1.5px; min-height: 18px; background: ' + (k === 'done' ? 'var(--hollow)' : 'var(--line)'),
+      labelStyle: 'font-size: 13px; ' + (k === 'ask' || k === 'live' || k === 'bad' || k === 'pr' ? 'font-weight: 600' : k === 'done' ? 'color: var(--text2)' : 'color: var(--muted)') }; };
+    var ph = f.lc ? f.lc.phase : (f.col === 'pr' || f.col === 'done' ? 'pr' : 'story');
+    var post = ph === 'pr' || f.col === 'done';
+    var base = L ? L.base : (f.num || 0);
+    var stLine = (f.bar || []).map(function (v, i) { var k = v === 2 ? 'done' : v === 1 ? 'live' : v === 3 ? 'ask' : v === 4 ? 'bad' : 'todo';
+      var nm = L && L.titles ? (base + i + 1) + ' ' + L.titles[i] : 'Story ' + (base + i + 1);
+      return Ln(nm, k === 'done' ? sha(base + i + 1) : k === 'live' ? (f.lc ? STEP_NOTE[f.lc.step] : 'in progress') : k === 'ask' ? 'question waiting' : k === 'bad' ? 'stuck' : 'next', k); });
+    if (!stLine.length) stLine = post ? [Ln('Stories', 'all committed', 'done')] : [Ln('Stories', 'not started', 'todo')];
+    var line = [Ln('Plan gate', f.kind === 'plan' && !s.approved ? 'waiting on you' : 'approved', f.kind === 'plan' && !s.approved ? 'ask' : 'done')].concat(stLine, [
+      Ln('Panel · 7 checks', ph === 'panel' ? 'check ' + f.lc.check + ' of 7' : ph === 'prove' || post ? 'passed' : 'whole branch', ph === 'panel' ? 'live' : ph === 'prove' || post ? 'done' : 'gate'),
+      Ln('Prove it', ph === 'prove' ? 'on the real app' : post ? 'passed' : 'real system', ph === 'prove' ? 'live' : post ? 'done' : 'gate'),
+      Ln('PR', f.col === 'pr' ? '#' + f.pr + ' · watching' : f.col === 'done' ? 'merged' : 'then watch until merged', f.col === 'pr' ? 'pr' : f.col === 'done' ? 'done' : 'gate', true)]);
+    var statusOf = (function () {
+      if (paused) return ['Paused', 'var(--raised)', 'var(--text2)', 'wait'];
+      if (f.k === 'ask') return ['Waiting on you', 'var(--amberBg)', 'var(--amberText)', 'ask'];
+      if (f.k === 'bad') return ['Stuck', 'var(--redBg)', 'var(--redText)', 'bad'];
+      if (f.k === 'live') return ['Building', 'var(--blueBg)', 'var(--blueText)', 'live'];
+      if (f.k === 'pr') return ['PR open · watching', 'var(--violetBg)', 'var(--violetText)', 'pr'];
+      if (f.k === 'done') return ['Merged', 'var(--raised)', 'var(--text2)', 'done'];
+      return ['Waiting', 'var(--raised)', 'var(--text2)', 'wait'];
+    })();
+    var pill = function (st) { return 'display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: ' + st[1] + '; color: ' + st[2]; };
+    var TH = [{ id: 'orch', name: 'Orchestrator', meta: 'main' }, { id: 'builder', name: 'story-builder', meta: 'story' }, { id: 'review', name: 'story-reviewer × 2', meta: 'reviews' }, { id: 'runner', name: 'suite-runner', meta: 'tests' }];
+    var threads = TH.map(function (t) { var on = s.thread === t.id;
+      return { name: t.name, meta: t.meta, cls: t.id === 'orch' ? lcls(f.k) : '', dot: t.id === 'orch' ? light(f.k, 7) : light('wait', 7),
+        pick: function () { self.setState({ thread: t.id }); },
+        style: 'display: flex; align-items: center; gap: 10px; min-height: 34px; padding: 0 8px; border: 0; border-radius: 6px; font: inherit; cursor: pointer; color: var(--text2); background: ' + (on ? 'var(--sel)' : 'transparent') }; });
+    var threadName = TH.filter(function (t) { return t.id === s.thread; })[0].name;
+    var TB = [['session', 'Session'], ['diff', 'Changes'], ['plan', 'Plan']];
+    var tabs = TB.map(function (t) { var on = s.tab === t[0];
+      return { label: t[1], on: on, pick: function () { self.setState({ tab: t[0] }); },
+        style: 'height: 38px; padding: 0 12px; border: 0; border-bottom: 2px solid ' + (on ? 'var(--blue)' : 'transparent') + '; background: transparent; color: ' + (on ? 'var(--text)' : 'var(--muted)') + '; font: inherit; font-weight: ' + (on ? 500 : 400) + '; cursor: pointer' }; });
+    var slug = L ? L.slug : f.id;
+    var files = f.id === 'tw' ? [['src/components/TopNav.tsx', '+12', '−3'], ['src/components/WorkspaceSwitcher.tsx', '+96', '−0'], ['src/workspaces/model.ts', '+141', '−0'], ['src/workspaces/roles.ts', '+88', '−14'], ['tests/workspace-switcher.test.ts', '+84', '−0']]
+      : [['src/' + slug + '/service.ts', '+32', '−4'], ['src/' + slug + '/routes.ts', '+18', '−2'], ['tests/' + slug + '.test.ts', '+61', '−0']];
+    var testsList = f.id === 'tw' ? [['lists workspaces', s.twAns ? 'running' : 'red'], ['marks the current one', s.twAns ? 'running' : 'red'], ['switches on click', 'red'], ['keeps the route', 'red'], ['hides with one workspace', 'red'], ['opens from the keyboard', 'red']]
+      : f.id === 'alg' ? [['indexes on publish', s.fixed ? 'green' : 'error'], ['removes deleted pages', s.fixed ? 'green' : 'error'], ['ranks titles first', s.fixed ? 'green' : 'error']]
+      : [['happy path', 'green'], ['bad input', 'green'], ['permissions', 'green']];
+    var tc = { red: 'var(--red)', error: 'var(--red)', green: 'var(--done)', running: 'var(--blue)' };
+    var committed = f.bar ? f.bar.filter(function (v) { return v === 2; }).length + ' of ' + f.bar.length + ' committed' : post ? 'all committed' : '—';
+    var run = {
+      name: f.name, project: f.project, status: statusOf[0], pill: pill(statusOf), pillDot: light(statusOf[3], 7), lightCls: paused ? '' : lcls(statusOf[3]),
+      canPause: f.col === 'run' && f.k === 'live', pauseLabel: paused ? 'Resume' : 'Pause run', line: line, blocks: blocks, chat: chat,
+      showTodo: showTodo, todos: todos, todoTitle: todoTitle,
+      showAsk: showAsk, askKind: askKind, askText: askText, askActions: askActions, askCls: askTone === 'amber' ? 'ask' : '',
+      askBox: 'display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 10px; background: ' + askStyles[0] + '; border: 1px solid ' + askStyles[1],
+      askHead: 'display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: ' + askStyles[2],
+      askDot: 'width: 7px; height: 7px; border-radius: 50%; background: ' + askStyles[3],
+      files: files.map(function (x) { return { path: x[0], add: x[1], del: x[2] }; }),
+      tests: testsList.map(function (x) { return { name: x[0], state: x[1], dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + tc[x[1]] }; }),
+      planLines: L && L.titles ? L.titles.map(function (x, i) { return { text: (L.base + i + 1) + ' ' + x + (i === 3 && s.twAns ? ' — in the ' + (s.twAns === 'nav' ? 'top nav' : 'Settings page') + ' (your call)' : '') }; })
+        : L ? Array.apply(null, Array(L.n)).map(function (x, i) { return { text: 'Story ' + (L.base + i + 1) }; }) : [{ text: f.note }],
+      term: '$ claude --agent orchestrator\n[harness] event=run-started feature=' + f.id + '\n[harness] event=phase step=' + (f.lc ? (f.lc.step || f.lc.phase) : f.col) + '\n' + (paused ? '[harness] event=run-paused by=you' : '[harness] working…'),
+      glance: [{ k: 'Branch', v: 'feature/' + (L ? L.base + '-' : '') + slug }, { k: 'Stories', v: committed }, { k: 'Tests', v: f.k === 'bad' ? '3 failing' : 'green' }, { k: 'Context', v: f.id === 'tw' ? '39%' : '22%' }, { k: 'Started', v: s.start[f.id] != null ? clk(s.start[f.id]) : '—' }]
+    };
+
+    // ---------- dig deeper ----------
+    var AG = { orch: 'Orchestrator', builder: 'story-builder', runner: 'suite-runner', review: 'story-reviewer' };
+    var AI = { orch: 'O', builder: 'B', runner: 'S', review: 'R' };
+    var AORDER = ['orch', 'builder', 'runner', 'review'];
+    var canDig = !!L && (!!f.auto || f.id === 'tw' || (f.id === 'alg' && !s.parked));
+    var deep = { open: false };
+    var curP = 0;
+    var avatar = function (big) { var z = big ? 32 : 24; return 'width: ' + z + 'px; height: ' + z + 'px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: ' + (big ? 13 : 11) + 'px; font-weight: 600; background: var(--raised); color: var(--text2); border: 1px solid var(--line2)'; };
+    var openDeep = function () { self._tickAt = self._tickAt || Date.now(); self.setState({ deepOpen: true, follow: true, dSel: null, dTab: 'think', cmdOpen: false }); };
+    var closeDeep = function () { var sn = Object.assign({}, s.seen); sn[f.id] = curP; self.setState({ deepOpen: false, seen: sn }); };
+    if (canDig) {
+      var se1 = L.n * 6, secs = Math.max(0, Math.floor((Date.now() - (self._tickAt || self._mountAt || Date.now())) / 1000));
+      var special = f.id === 'tw' && !s.twAns ? 'waiting' : f.id === 'alg' && !s.fixed ? 'stuck' : null;
+      curP = special === 'waiting' ? 20 : special === 'stuck' ? 12 : f.pos;
+      var atOf = special ? function (p) { return s.tick - (curP - p) * 2; } : function (p) { return s.start[f.id] + (p - L.pos0); };
+      var mk = function (p) {
+        var at = atOf(p);
+        if (special === 'stuck' && p >= 9) {
+          if (p < 12) return { p: p, at: at, agent: 'runner', label: 'Run tests · try ' + (p - 8), verb: 'Bash', cmd: 'npm test -- search-index', result: '3 failed', tone: 'bad', kind: 'fail', mark: '' };
+          return { p: p, at: at, agent: 'orch', label: 'Stopped: test key missing', verb: 'Stop', cmd: 'ALGOLIA_ADMIN_KEY is not set in .env.test', result: 'needs you', tone: 'bad', kind: 'stuck', mark: '' };
+        }
+        if (special === 'waiting' && p === 20) return { p: p, at: at, agent: 'orch', label: 'Asked you where the switcher goes', verb: 'Ask', cmd: 'scope change · story 44', result: 'waiting', tone: '', kind: 'waiting', mark: '' };
+        if (p < se1) {
+          var d = Math.floor(p / 6), k = p % 6, num = L.base + d + 1, c = 3 + num % 5;
+          var D = [['builder', 'Write the tests', 'Write', 'tests/' + L.slug + '-' + num + '.test.ts', '+' + (30 + num % 40) + ' · ' + c + ' tests', 'ok', 'tests'],
+            ['runner', 'Show them red', 'Bash', 'npm test -- ' + L.slug + '-' + num, c + ' failed, as expected', 'red', 'red'],
+            ['builder', 'Write the code', 'Edit', 'src/' + L.slug + '/story-' + num + '.ts', '+' + (40 + num * 3 % 90) + ' −' + (num % 12), 'ok', 'code'],
+            ['runner', 'Show them green', 'Bash', 'npm test -- ' + L.slug + '-' + num, c + ' passed', 'ok', 'green'],
+            ['review', 'Two reviews', 'Agent', 'story-reviewer × 2 · story ' + num, '2 of 2 pass', 'ok', 'review'],
+            ['orch', 'Commit', 'Bash', 'git commit -m "Story: #' + num + '"', sha(num), '', 'commit']][k];
+          return { p: p, at: at, agent: D[0], label: D[1] + ' · story ' + num, verb: D[2], cmd: D[3], result: D[4], tone: D[5], kind: D[6], num: num, c: c, mark: k === 0 ? 'Story ' + num : '' };
+        }
+        var q = p - se1;
+        if (q < 7) return { p: p, at: at, agent: 'review', label: 'Panel · ' + CHECKS[q], verb: 'Agent', cmd: CHECKS[q] + ' check on main...feature', result: 'pass', tone: 'ok', kind: 'panel', check: CHECKS[q], mark: q === 0 ? 'Panel' : '' };
+        if (q === 7) return { p: p, at: at, agent: 'runner', label: 'Prove it on the real app', verb: 'Bash', cmd: 'launch · click through the Demo · screenshot', result: 'pass', tone: 'ok', kind: 'prove', mark: 'Prove it' };
+        if (q === 8) return { p: p, at: at, agent: 'orch', label: 'Open the PR', verb: 'Bash', cmd: 'gh pr create --base main', result: '#' + L.pr, tone: '', kind: 'pr', mark: 'PR' };
+        return { p: p, at: at, agent: 'orch', label: 'Check the PR', verb: 'Bash', cmd: 'gh pr checks ' + L.pr, result: '8 of 8 pass', tone: 'ok', kind: 'watch', mark: '' };
+      };
+      var from = Math.max(0, curP - 23), W = curP - from + 1;
+      var steps = []; for (var pp = from; pp <= curP; pp++) steps.push(mk(pp));
+      var cur = steps[steps.length - 1];
+      var watching = !!(f.lc && f.lc.phase === 'pr');
+      var curState = special === 'waiting' ? 'Waiting on you' : special === 'stuck' ? 'Stuck' : paused ? 'Paused' : watching ? 'Watching' : 'Working';
+      var following = s.follow !== false || s.dSel == null;
+      var selP = following ? curP : s.dSel;
+      if (selP < from || selP > curP) { selP = curP; following = true; }
+      var sel = steps[selP - from];
+      var pct = function (p) { return ((p - from) / W * 100).toFixed(3) + '%'; };
+      var ago = function (t) { var x = Math.max(0, (s.tick - t) * 11); return x < 60 ? x + 's ago' : Math.floor(x / 60) + 'm ' + (x % 60) + 's ago'; };
+      var curTone = special === 'waiting' ? ['var(--amberBg)', 'var(--amberText)'] : special === 'stuck' ? ['var(--redBg)', 'var(--redText)'] : paused ? ['var(--raised)', 'var(--text2)'] : watching ? ['var(--violetBg)', 'var(--violetText)'] : ['var(--blueBg)', 'var(--blueText)'];
+      var lanes = AORDER.map(function (a) {
+        var mine = steps.filter(function (x) { return x.agent === a; });
+        var last = mine.filter(function (x) { return x.p !== curP; }).pop();
+        var isCur = cur.agent === a;
+        return { name: AG[a], initial: AI[a], av: avatar(), meta: isCur ? curState.toLowerCase() + ' now' : last ? 'last ' + ago(last.at) : 'idle',
+          metaStyle: 'font-size: 12px; color: ' + (isCur ? curTone[1] : 'var(--dim)'),
+          blocks: mine.map(function (x) {
+            var on = x.p === selP, isC = x.p === curP;
+            var bg = isC ? (special === 'waiting' ? 'background: var(--amber)' : special === 'stuck' ? 'background: var(--red)' : paused ? 'background: var(--hollow)' : watching ? 'background: var(--violet)' : 'outline: 1px solid var(--blue); outline-offset: -1px')
+              : x.kind === 'fail' ? 'outline: 1px solid var(--red); outline-offset: -1px' : x.tone === 'red' ? 'background: var(--redLine)' : 'background: var(--line2)';
+            return { tip: AG[a] + ' · ' + x.label + ' · ' + clk(x.at),
+              pick: function () { self.setState({ dSel: x.p, follow: x.p === curP }); },
+              cls: isC && !special && !paused && !watching ? 'pole' : x.kind === 'fail' ? 'hatch-red' : (isC && special === 'waiting' ? 'ask' : ''),
+              style: 'position: absolute; top: 7px; height: 20px; left: ' + pct(x.p) + '; width: calc(' + (100 / W).toFixed(3) + '% - 3px); min-width: 6px; border-radius: 4px; padding: 0; border: 0; cursor: pointer; ' + bg + (on ? '; box-shadow: 0 0 0 2px var(--text)' : '') };
+          }) };
+      });
+      var marks = steps.filter(function (x) { return x.mark; }).map(function (x) { return { label: x.mark,
+        style: 'position: absolute; left: ' + pct(x.p) + '; top: 0; font-size: 11px; font-weight: 600; color: var(--muted); white-space: nowrap',
+        rule: 'position: absolute; left: ' + pct(x.p) + '; top: 0; bottom: 0; border-left: 1px dashed var(--line2)' }; });
+      var ticks = [0, 1, 2].map(function (i) { var p = from + Math.round(i * (W - 1) / 3); return { label: clk(atOf(p)).slice(0, -3), style: 'position: absolute; left: ' + pct(p) + '; top: 4px; font-size: 11px; color: var(--dim); white-space: nowrap' }; });
+      var seenP = s.seen[f.id] != null ? s.seen[f.id] : (special ? curP - 2 : L.pos0);
+      var newCount = steps.filter(function (x) { return x.p > seenP && x.p !== curP; }).length;
+      var items = [], placed = false;
+      steps.slice().reverse().forEach(function (x) {
+        if (!placed && newCount > 0 && x.p <= seenP) { items.push({ isDivider: true, isStep: false, label: newCount + ' new since you last looked' }); placed = true; }
+        var on = x.p === selP, isC = x.p === curP;
+        items.push({ isDivider: false, isStep: true, initial: AI[x.agent], av: avatar(), agent: AG[x.agent], label: x.label, cmd: x.verb + ' · ' + x.cmd, result: isC ? curState : x.result, time: clk(x.at),
+          resultStyle: 'font-size: 12px; white-space: nowrap; padding: 2px 8px; border-radius: 6px; ' + (isC ? 'font-weight: 500; background: ' + curTone[0] + '; color: ' + curTone[1] : 'color: ' + (x.tone === 'bad' || x.tone === 'red' ? 'var(--redText)' : x.tone === 'ok' ? 'var(--greenText)' : 'var(--muted)')),
+          pick: function () { self.setState({ dSel: x.p, follow: isC }); },
+          style: 'width: 100%; display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 12px; border: 0; border-radius: 8px; font: inherit; text-align: left; cursor: pointer; color: var(--text); background: ' + (on ? 'var(--sel)' : 'transparent') });
+      });
+      var think = function (x) {
+        var n = x.num;
+        return ({
+          tests: 'Story ' + n + ' gets pinned down by tests first: one per acceptance line, plus the empty case. Keeping each one small, so a failure points at exactly one thing.',
+          red: 'Running only the new tests. They have to fail for the right reason, a missing piece and not a typo in the test. ' + x.c + ' of ' + x.c + ' fail the right way.',
+          code: 'The tests ask for one new piece behind the existing interface. Writing the smallest change that turns them green. Nothing outside story ' + n + ' gets touched.',
+          green: 'Running the story’s tests, then every suite that touches the same files, so nothing nearby breaks quietly.',
+          review: 'Two reviewers read the diff against story ' + n + '’s acceptance lines, looking for missed cases, unclear names, dead code, and any test that got loosened.',
+          commit: 'Green, and both reviews passed. One commit with the trailer Story: #' + n + ', so the PR maps back to the tracker.',
+          panel: 'Whole-branch check: ' + x.check + '. Reading git diff main...feature, not just the last story.',
+          prove: 'Launching the real app, clicking through the Demo, and taking a screenshot for every acceptance line.',
+          pr: 'Every criterion is met. Opening one PR for the whole feature, with the plan, coverage and receipts in the description.',
+          watch: 'Checking the PR every 5 minutes. Nothing to do until a check fails or a reviewer comments.',
+          waiting: 'Story 44 and the design doc disagree on where the switcher goes. That’s a scope call, so I stopped and asked instead of picking one. The tests are written and red, ready for either answer.',
+          stuck: 'Three runs failed the same way: ALGOLIA_ADMIN_KEY isn’t set in .env.test. Code can’t fix this; it needs a secret from you. I stopped so I don’t burn tokens retrying.',
+          fail: 'The tests error before they run: the search client can’t start without ALGOLIA_ADMIN_KEY. Trying once more in case the env just loaded late.'
+        })[x.kind] || '';
+      };
+      var full = think(sel);
+      var typing = sel.p === curP && !special && !paused && !watching;
+      var dkey = typing ? f.id + ':' + curP : 'static';
+      self._dKey = dkey; self._dLen = typing ? full.length : 0;
+      var dch = typing ? (s.dkey === dkey ? s.dchars : 0) : full.length;
+      var dfiles = sel.kind === 'tests' ? [[sel.cmd, '+' + (30 + sel.num % 40), '−0']] : sel.kind === 'code' ? [[sel.cmd, '+' + (40 + sel.num * 3 % 90), '−' + (sel.num % 12)], ['src/' + L.slug + '/index.ts', '+2', '−0']] : [];
+      var storiesDone = Math.min(L.n, Math.floor(curP / 6)), testsPassed = 0;
+      for (var dd = 0; dd < storiesDone; dd++) testsPassed += 3 + (L.base + dd + 1) % 5;
+      var mmss = function (x) { return Math.floor(x / 60) + ':' + (x % 60 < 10 ? '0' : '') + (x % 60); };
+      var clockSecs = special === 'waiting' ? 240 + secs : special === 'stuck' ? 1920 + secs : secs;
+      var chip = special === 'waiting' ? ['Waiting on you', 'var(--amberBg)', 'var(--amberText)', 'var(--amber)', 'ask']
+        : special === 'stuck' ? ['Stuck after 3 tries', 'var(--redBg)', 'var(--redText)', 'var(--red)', '']
+        : paused ? ['Paused by you', 'var(--raised)', 'var(--text2)', 'var(--hollow)', '']
+        : watching ? ['Watching the PR', 'var(--violetBg)', 'var(--violetText)', 'var(--violet)', '']
+        : secs >= 15 ? ['No new step for ' + secs + 's', 'var(--amberBg)', 'var(--amberText)', 'var(--amber)', 'ask']
+        : ['Last step ' + secs + 's ago', 'var(--raised)', 'var(--text2)', 'var(--blue)', 'live'];
+      var dTab = s.dTab || 'think';
+      var DT = [['think', 'Thinking'], ['raw', 'Raw'], ['files', 'Files']];
+      deep = {
+        open: !!s.deepOpen, name: f.name,
+        curInitial: AI[cur.agent], curAv: avatar(true), curAgent: AG[cur.agent], curState: curState, curLabel: cur.verb + ' · ' + cur.cmd,
+        chipText: chip[0], chipCls: chip[4],
+        chip: 'display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 500; background: ' + chip[1] + '; color: ' + chip[2],
+        chipDot: 'width: 7px; height: 7px; border-radius: 50%; background: ' + chip[3],
+        clock: mmss(clockSecs),
+        stats: [{ k: 'Story', v: (special ? Math.floor(curP / 6) + 1 : f.lc && f.lc.phase === 'story' ? f.lc.d + 1 : L.n) + ' of ' + L.n }, { k: 'Steps', v: String(curP + 1) }, { k: 'Files changed', v: String(storiesDone * 2 + 1) }, { k: 'Tests passed', v: String(testsPassed) }],
+        lanes: lanes, marks: marks, ticks: ticks, items: items.slice(0, 40),
+        following: following, notFollowing: !following,
+        followLive: function () { self.setState({ follow: true, dSel: null }); },
+        selLabel: sel.label, selAgent: AG[sel.agent], selInitial: AI[sel.agent], selAv: avatar(), selTime: clk(sel.at),
+        selState: sel.p === curP ? curState : 'Done',
+        selStateStyle: 'font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; background: ' + (sel.p === curP ? curTone[0] : 'var(--raised)') + '; color: ' + (sel.p === curP ? curTone[1] : 'var(--text2)'),
+        tabs: DT.map(function (t) { var on = dTab === t[0]; return { label: t[1], on: on, pick: function () { self.setState({ dTab: t[0] }); },
+          style: 'height: 36px; padding: 0 12px; border: 0; border-bottom: 2px solid ' + (on ? 'var(--blue)' : 'transparent') + '; background: transparent; color: ' + (on ? 'var(--text)' : 'var(--muted)') + '; font: inherit; font-weight: ' + (on ? 500 : 400) + '; cursor: pointer' }; }),
+        isThink: dTab === 'think', isRaw: dTab === 'raw', isFiles: dTab === 'files',
+        thinkText: full.slice(0, dch), typing: typing && dch < full.length,
+        raw: '{\n  "agent": "' + AG[sel.agent] + '",\n  "tool": "' + sel.verb + '",\n  "input": ' + JSON.stringify(sel.cmd) + ',\n  "result": ' + JSON.stringify(sel.result) + ',\n  "at": "' + clk(sel.at) + '"\n}',
+        files: dfiles.map(function (x) { return { path: x[0], add: x[1], del: x[2] }; }), noFiles: !dfiles.length,
+        ask: function () { var sn = Object.assign({}, s.seen); sn[f.id] = curP; self.setState({ deepOpen: false, seen: sn, thread: 'orch', tab: 'session', draft: 'About ' + AG[sel.agent] + '’s step “' + sel.label + '”: ' }); }
+      };
+    }
+    var deepKey = function (e) { if (e.key === 'Escape') { e.preventDefault(); closeDeep(); } };
+
+    // ---------- agents: chat with the orchestrator, peek at sub-agents ----------
+    var AORD = ['orch', 'builder', 'runner', 'review'];
+    var AGL = { orch: 'Orchestrator', builder: 'story-builder', runner: 'suite-runner', review: 'story-reviewer × 2' };
+    var ROLE = { orch: 'Main agent', builder: 'Writes the tests, then the code', runner: 'Runs the tests', review: 'Two reviewers read each change' };
+    var peekA = s.thread && s.thread !== 'orch' ? s.thread : null;
+    var info = {}, peekBlocks = [];
+    AORD.forEach(function (a) { info[a] = { k: 'wait', meta: f.col === 'next' ? 'not started' : (f.col === 'pr' || f.col === 'done') ? 'finished its work' : 'idle' }; });
+    info.orch = { k: f.k === 'done' ? 'done' : f.k, meta: statusOf[0].toLowerCase() };
+    if (canDig) {
+      AORD.forEach(function (a) {
+        var mine = steps.filter(function (x) { return x.agent === a; });
+        var last = mine.filter(function (x) { return x.p !== curP; }).pop();
+        var isCur = cur.agent === a;
+        var k = isCur ? (special === 'waiting' ? 'ask' : special === 'stuck' ? 'bad' : paused ? 'wait' : watching ? 'pr' : 'live') : 'wait';
+        var meta = isCur ? (special ? curState.toLowerCase() : paused ? 'paused' : 'working · ' + cur.label.split(' · ')[0].toLowerCase())
+          : last ? last.label.split(' · ')[0].toLowerCase() + ' · ' + ago(last.at) : 'not used yet';
+        info[a] = { k: k, meta: meta };
+      });
+      if (cur.agent !== 'orch') info.orch = { k: paused ? 'wait' : 'live', meta: paused ? 'paused' : 'handed off to ' + AG[cur.agent] };
+      if (peekA) {
+        var lastNum = null;
+        steps.filter(function (x) { return x.agent === peekA; }).forEach(function (x) {
+          var isC = x.p === curP;
+          var head = x.num ? 'Story ' + x.num : x.kind === 'panel' ? 'Feature panel' : x.kind === 'prove' ? 'Prove it' : '';
+          if (head && head !== lastNum) { peekBlocks.push(B('div', head + ' · ' + clk(x.at))); lastNum = head; }
+          peekBlocks.push(B('text', think(x)));
+          peekBlocks.push(tool(x.verb, x.cmd, isC ? curState.toLowerCase() : x.result, isC ? '' : (x.tone === 'red' ? 'bad' : x.tone), x.label, clk(x.at)));
+          if (isC && !special && !paused && !watching) peekBlocks.push(B('live', x.label.split(' · ')[0].toLowerCase() + ' …'));
+        });
+      }
+    }
+    if (peekA) {
+      self._typeKey = 'peek'; self._typeLen = 0;
+      run.blocks = peekBlocks.length ? peekBlocks : [B('text', AGL[peekA] + ' hasn’t done anything in this run yet. Its steps show up here as soon as the orchestrator hands it work.')];
+      run.showTodo = false; run.showAsk = false; run.chat = [];
+    }
+    var agents = AORD.map(function (a, i) {
+      var on = (peekA || 'orch') === a, it = info[a];
+      return { name: AGL[a], meta: a === 'orch' ? 'You talk here · ' + it.meta : it.meta, isOrch: a === 'orch', isSub: a !== 'orch', isFirstSub: i === 1,
+        aria: a === 'orch' ? 'Chat with the orchestrator' : 'Peek at ' + AGL[a] + ', view only',
+        dot: light(it.k, 8), cls: lcls(it.k),
+        metaStyle: 'font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ' + (it.k === 'live' ? 'var(--blueText)' : it.k === 'ask' ? 'var(--amberText)' : it.k === 'bad' ? 'var(--redText)' : 'var(--dim)'),
+        pick: function () { self.setState({ thread: a, tab: 'session' }); },
+        style: 'width: 100%; display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 8px; border: 0; border-radius: 8px; font: inherit; text-align: left; cursor: pointer; color: var(--text); background: ' + (on ? 'var(--sel)' : 'transparent') };
+    });
+
+    // ---------- plan screen ----------
+    var pf = byId[s.fid] || byId.api;
+    var open = 0; for (var k2 in s.planA) if (!s.planA[k2]) open++;
+    var QS = [
+      { id: 'q1', text: 'Keep v1 docs editable, or freeze them?', opts: [['r', 'Freeze · recommended'], ['x', 'Keep editable']] },
+      { id: 'q2', text: 'When a page has no match in the other version, where should the jump go?', opts: [['r', 'That version’s home · recommended'], ['x', 'A "not in this version" page']] },
+      { id: 'q3', text: 'Banner wording on old versions: use the copy from the spec?', opts: [['r', 'Use the spec copy · recommended'], ['x', 'Let me write it']] }
+    ];
+    var PSD = [['s1', '1', 'Version-prefixed routes', '/v1, /v2 · redirects from old links', ''], ['s2', '2', 'Build each version from its git tag', 'after 1', ''], ['s3a', '3a', 'Version picker', 'after 2', 'changed'], ['s3b', '3b', 'Jump to the same page in another version', 'after 3a', 'new'], ['s4', '4', 'Banner on old versions', 'after 2', '']];
+    var tagSt = function (kind) { return 'padding: 3px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap; background: ' + (kind === 'new' || kind === 'edited' ? 'var(--greenBg)' : kind === 'changed' ? 'var(--raised)' : 'transparent') + '; color: ' + (kind === 'new' || kind === 'edited' ? 'var(--greenText)' : 'var(--text2)'); };
+    var submitC = function (sid, label) { return function () {
+      var txt = (s.cText || '').trim(); if (!txt) return;
+      var pe = Object.assign({}, s.planEdits); pe[sid] = { text: txt, ver: s.planVer + 1 };
+      var c = Object.assign({}, s.chat); c[pf.id] = (c[pf.id] || []).concat([{ who: 'you', text: 'On story ' + label + ': ' + txt }, { who: 'claude', text: 'Done. Story ' + label + ' is updated and marked in the plan (v' + (s.planVer + 1) + '). Coverage still holds.' }]);
+      self.setState({ planEdits: pe, planVer: s.planVer + 1, cOpen: null, cText: '', chat: c });
+    }; };
+    var locked = open > 0;
+    var pst = pf.writing ? ['Writing the plan', 'var(--blueBg)', 'var(--blueText)', 'live'] : s.approved ? ['Approved', 'var(--raised)', 'var(--text2)', 'wait'] : ['Plan gate', 'var(--amberBg)', 'var(--amberText)', 'ask'];
+    var plan = {
+      name: pf.name, project: pf.project, writing: !!pf.writing, ready: !pf.writing, status: pst[0], pill: pill(pst), pillDot: light(pst[3], 7), lightCls: lcls(pst[3]), ver: s.planVer,
+      commentHint: s.approved ? 'Locked after approval' : 'Comment on any line to change it',
+      stories: PSD.map(function (d) {
+        var ed = s.planEdits[d[0]], isOpen = s.cOpen === d[0], kind = ed ? 'edited' : d[4];
+        return { n: d[1], title: d[2], sub: ed ? 'Changed from your note: ' + ed.text : d[3], subStyle: 'font-size: 12px; color: ' + (ed ? 'var(--greenText)' : 'var(--muted)'),
+          tag: ed ? 'changed in v' + ed.ver : d[4], tagStyle: tagSt(kind), cls: ed && ed.ver === s.planVer ? 'rise' : '',
+          canComment: !s.approved, isOpen: isOpen && !s.approved, cLabel: 'Comment on story ' + d[1], cText: s.cText,
+          openC: function () { self.setState({ cOpen: isOpen ? null : d[0], cText: '' }); },
+          setC: function (e) { self.setState({ cText: e.target.value }); },
+          keyC: function (e) { if (e.key === 'Enter') { e.preventDefault(); submitC(d[0], d[1])(); } else if (e.key === 'Escape') self.setState({ cOpen: null }); },
+          submitC: submitC(d[0], d[1]), cancelC: function () { self.setState({ cOpen: null, cText: '' }); },
+          box: 'display: grid; grid-template-columns: 36px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 10px 10px 14px; border-radius: 10px; background: var(--surface); border: 1px solid ' + (isOpen ? 'var(--blue)' : kind ? 'var(--line2)' : 'var(--line)') };
+      }),
+      coverage: [{ line: 'Each version has its own URL prefix', story: '1' }, { line: 'Version picker on every page', story: '3a' }, { line: 'Jump to the same page in another version', story: '3b' }, { line: 'Banner on old versions', story: '4' }],
+      answered: 3 - open, locked: locked, approved: s.approved, notApproved: !s.approved,
+      hint: s.approved ? 'Approved. It starts on its own when a slot frees up.' : locked ? 'Answer the open question to approve. Nothing is built until you do.' : 'All answered. After this it runs to the PR and only stops for something new.',
+      tail: locked ? 'One question left: where the jump goes when a page has no match. My pick is that version’s home page.' : 'Nothing left. You can approve.',
+      chat: (s.chat[pf.id] || []).map(function (m) { return { text: m.text, mine: m.who === 'you', theirs: m.who !== 'you' }; }),
+      approveStyle: 'height: 42px; padding: 0 18px; border: 0; border-radius: 10px; font: inherit; font-weight: 600; background: ' + (locked ? 'var(--raised)' : 'var(--inv)') + '; color: ' + (locked ? 'var(--dim)' : 'var(--invText)') + '; cursor: ' + (locked ? 'not-allowed' : 'pointer'),
+      qs: QS.map(function (qq) { var isOpen = !s.planA[qq.id];
+        return { text: qq.text, box: 'display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px; background: ' + (isOpen ? 'var(--amberSoft)' : 'var(--surface)') + '; border: 1px solid ' + (isOpen ? 'var(--amberLine)' : 'var(--line)'),
+          opts: qq.opts.map(function (o) { var on = s.planA[qq.id] === o[0];
+            return { label: o[1], off: s.approved, pick: function () { var na = Object.assign({}, s.planA); na[qq.id] = o[0]; self.setState({ planA: na }); },
+              style: 'min-height: 36px; padding: 0 12px; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; color: ' + (on ? 'var(--invText)' : 'var(--text)') + '; background: ' + (on ? 'var(--inv)' : 'transparent') + '; border: 1px solid ' + (on ? 'var(--inv)' : 'var(--line2)') }; }) }; })
+    };
+
+    // ---------- command bar ----------
+    var cq = (s.cmdQ || '').toLowerCase().trim();
+    var match = function (t) { return !cq || t.toLowerCase().indexOf(cq) >= 0; };
+    var groups = [];
+    var acts = [];
+    if (!s.twAns) acts.push({ label: 'Answer: switcher in the top nav', hint: 'Team workspaces · recommended', k: 'ask', run: answerTw('nav') }, { label: 'Answer: switcher under Settings', hint: 'Team workspaces', k: 'ask', run: answerTw('settings') });
+    if (!s.fixed && !s.parked) acts.push({ label: 'Algolia: I added the key, retry', hint: 'Search with Algolia', k: 'bad', run: fixAlg }, { label: 'Algolia: park it, free the slot', hint: 'Search with Algolia', k: 'bad', run: parkAlg });
+    if (!s.approved) acts.push({ label: 'Review the plan: Versioned API docs', hint: 'Plan gate', k: 'ask', run: go(byId.api) });
+    groups.push(['Needs you', acts]);
+    if (s.screen === 'run' && canDig) groups.push(['This run', [{ label: 'Dig deeper into ' + f.name, hint: 'Agents over time, every step, live thinking', k: f.k, run: openDeep }]]);
+    groups.push(['Features', F.map(function (x) { return { label: x.name, hint: x.project + ' · ' + x.note, k: x.k, run: go(x) }; })]);
+    var cmdGo = function (fn) { return function () { self.setState({ cmdOpen: false, cmdQ: '', cmdSel: 0 }); fn(); }; };
+    groups.push(['Commands', [
+      { label: 'New feature…', k: '', run: function () { self.setState({ newOpen: true, screen: 'home', newText: s.cmdQ || '' }); } },
+      { label: theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode', k: '', run: function () { self.setState({ theme: theme === 'light' ? 'dark' : 'light' }); } },
+      { label: (s.tone || P.tone || 'modern') === 'soft' ? 'Theme style: Modern' : 'Theme style: Soft', k: '', run: function () { self.setState({ tone: (s.tone || P.tone || 'modern') === 'soft' ? 'modern' : 'soft' }); } },
+      { label: 'Go to Board', k: '', run: function () { self.setState({ home: 'board', screen: 'home' }); } },
+      { label: 'Go to Focus', k: '', run: function () { self.setState({ home: 'focus', screen: 'home' }); } },
+      { label: 'Go to Vision & roadmap', k: '', run: function () { self.setState({ screen: 'vision' }); } },
+      { label: 'Go to Completed', k: '', run: function () { self.setState({ screen: 'done' }); } }
+    ].concat(PRJ.map(function (p) { return { label: 'Show ' + (p === 'all' ? 'all projects' : p), k: '', run: function () { self.setState({ scope: p, screen: 'home' }); } }; }))]);
+    var items = [], cmds = [];
+    groups.forEach(function (g) {
+      var list = g[1].filter(function (c) { return match(c.label) || match(c.hint || ''); });
+      if (!cq && g[0] === 'Features') list = list.slice(0, 6);
+      if (!list.length) return;
+      cmds.push({ isGroup: true, isItem: false, label: g[0] });
+      list.forEach(function (c) { var idx = items.length; items.push(c);
+        cmds.push({ isGroup: false, isItem: true, label: c.label, hint: c.hint || '', hasHint: !!c.hint, light: c.k ? light(c.k) : 'width: 8px; flex: none', lightCls: c.k ? lcls(c.k) : '',
+          on: false, idx: idx, run: cmdGo(c.run), hover: function () { if (s.cmdSel !== idx) self.setState({ cmdSel: idx }); } }); });
+    });
+    var sel = items.length ? Math.min(s.cmdSel, items.length - 1) : 0;
+    cmds.forEach(function (c) { if (c.isItem) { c.on = c.idx === sel;
+      c.style = 'width: 100%; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 10px; border: 0; border-radius: 8px; font: inherit; cursor: pointer; color: var(--text); background: ' + (c.on ? 'var(--sel)' : 'transparent'); } });
+    var cmdKey = function (e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); self.setState({ cmdSel: items.length ? (sel + 1) % items.length : 0 }); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); self.setState({ cmdSel: items.length ? (sel - 1 + items.length) % items.length : 0 }); }
+      else if (e.key === 'Escape') { e.preventDefault(); self.setState({ cmdOpen: false, cmdQ: '' }); }
+      else if (e.key === 'Enter') { e.preventDefault();
+        if (items.length) cmdGo(items[sel].run)();
+        else if (cq) { self.setState({ cmdOpen: false, newOpen: true, screen: 'home', newText: s.cmdQ, cmdQ: '' }); } }
+    };
+
+    var needCount = F.filter(function (x) { return x.need; }).length;
+    var draftEmpty = !(s.draft || '').trim();
+    var seg = function (on) { return 'height: 28px; padding: 0 12px; border: 0; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; background: ' + (on ? 'var(--surface)' : 'transparent') + '; color: ' + (on ? 'var(--text)' : 'var(--muted)') + '; font-weight: ' + (on ? 600 : 400) + (on ? '; box-shadow: var(--shadow)' : ''); };
+    var vc = function (c) { return vis.filter(function (x) { return x.col === c; }).length; };
+    var isHomeScreen = s.screen === 'home';
+    var newEmpty = !(s.newText || '').trim();
+    var send = function () { if (draftEmpty) return; var id = s.screen === 'plan' ? pf.id : f.id; var c = Object.assign({}, s.chat);
+      var reply = s.screen === 'plan' ? 'Got it. I updated the plan; the change is marked.' : 'Got it. I’ll pass that on at the next step.';
+      c[id] = (c[id] || []).concat([{ who: 'you', text: s.draft.trim() }, { who: 'claude', text: reply }]); self.setState({ chat: c, draft: '' }); };
+
+    return {
+      themeCls: (theme === 'light' ? 't-light' : 't-dark') + ((s.tone || P.tone || 'modern') === 'soft' ? ' tone-soft' : ''), isDark: theme !== 'light', isLight: theme === 'light',
+      themeLabel: theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode',
+      toggleTheme: function () { self.setState({ theme: theme === 'light' ? 'dark' : 'light' }); },
+      simLabel: sim ? 'Live' : 'Frozen', simTitle: sim ? 'The prototype is simulating runs' : 'Simulation is off in Tweaks', simCls: '',
+      simDot: 'width: 7px; height: 7px; border-radius: 50%; background: ' + (sim ? 'var(--blue)' : 'var(--hollow)'),
+      homeBoard: function () { self.setState({ home: 'board', screen: 'home' }); }, homeFocus: function () { self.setState({ home: 'focus', screen: 'home' }); },
+      isBoardHome: home === 'board', isFocusHome: home === 'focus', homeBoardStyle: seg(home === 'board'), homeFocusStyle: seg(home === 'focus'),
+      homeName: home === 'board' ? 'Board' : 'Focus',
+      openCmd: function () { self.setState({ cmdOpen: true, cmdQ: '', cmdSel: 0 }); }, closeCmd: function () { self.setState({ cmdOpen: false, cmdQ: '' }); },
+      stop: function (e) { e.stopPropagation(); },
+      cmdOpen: s.cmdOpen, cmdQ: s.cmdQ, setCmdQ: function (e) { self.setState({ cmdQ: e.target.value, cmdSel: 0 }); }, cmdKey: cmdKey, cmds: cmds, cmdEmpty: items.length === 0,
+      goHome: function () { self.setState({ screen: 'home', draft: '' }); },
+      goVision: function () { self.setState({ screen: 'vision' }); }, goDone: function () { self.setState({ screen: 'done' }); },
+      goNeeds: function () { self.setState({ screen: 'home', focusIdx: 0 }); },
+      needLabel: needCount ? needCount + ' need you' : 'All clear',
+      needPill: 'display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; border: 0; border-radius: 999px; font: inherit; font-weight: 500; cursor: pointer; background: ' + (needCount ? 'var(--amberBg)' : 'var(--raised)') + '; color: ' + (needCount ? 'var(--amberText)' : 'var(--text2)'),
+      needDot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + (needCount ? 'var(--amber)' : 'var(--done)'), needDotCls: needCount ? 'ask' : '',
+      addRepo: function () { self.say('Opens a folder picker to add a repo'); },
+      openNew: function () { self.setState({ newOpen: true, screen: s.screen === 'run' || s.screen === 'plan' ? 'home' : s.screen, newProject: scope === 'all' ? 'billing-service' : scope }); },
+      closeNew: function () { self.setState({ newOpen: false }); }, newOpen: s.newOpen && s.screen !== 'run' && s.screen !== 'plan',
+      newText: s.newText, setNewText: function (e) { self.setState({ newText: e.target.value }); },
+      newProject: s.newProject, setNewProject: function (e) { self.setState({ newProject: e.target.value }); },
+      newEmpty: newEmpty,
+      createStyle: 'height: 40px; padding: 0 16px; border: 0; border-radius: 8px; font: inherit; font-weight: 600; background: ' + (newEmpty ? 'var(--raised)' : 'var(--inv)') + '; color: ' + (newEmpty ? 'var(--dim)' : 'var(--invText)') + '; cursor: ' + (newEmpty ? 'not-allowed' : 'pointer'),
+      createFeature: function () { if (newEmpty) return; var id = 'n' + (s.added.length + 1);
+        self.say('Planning started. It’ll turn amber when the plan is ready.', { added: s.added.concat([{ id: id, name: s.newText.trim(), project: s.newProject, num: 70 + s.added.length }]), newText: '', newOpen: false, movedAt: Object.assign({}, s.movedAt, { [id]: s.tick }), events: self.ev(s.events, 'Started planning: ' + s.newText.trim(), 'live', s.tick) }); },
+      showRail: isHomeScreen || s.screen === 'vision' || s.screen === 'done',
+      isBoard: isHomeScreen && home === 'board', isFocus: isHomeScreen && home === 'focus', isVision: s.screen === 'vision', isDone: s.screen === 'done',
+      isRun: s.screen === 'run', isPlan: s.screen === 'plan',
+      navHome: navStyle(isHomeScreen), navVision: navStyle(s.screen === 'vision'), navDone: navStyle(s.screen === 'done'),
+      doneCount: String(31 + (s.merged ? 1 : 0)),
+      projects: projects, scopeTitle: scope === 'all' ? 'All projects' : scope,
+      summary: vc('run') + ' running · ' + needList.length + ' need you · ' + vc('next') + ' up next · ' + vc('pr') + ' in PR',
+      needs: needs, noNeeds: needs.length === 0, cols: cols,
+      hasFocus: !!ff, noFocus: !ff, fc: fc, focusPos: ff ? (fi + 1) + ' of ' + needList.length : '',
+      focusPrev: function () { self.setState({ focusIdx: (fi - 1 + needList.length) % Math.max(needList.length, 1) }); },
+      focusNext: function () { self.setState({ focusIdx: (fi + 1) % Math.max(needList.length, 1) }); },
+      focusHeadline: needList.length ? (needList.length === 1 ? 'One thing needs you. The rest is moving.' : needList.length + ' things need you. The rest is moving.') : 'All clear. Everything is moving.',
+      runningTitle: 'Running · ' + runCount + ' of 5 slots',
+      runningRows: vis.filter(function (x) { return x.col === 'run'; }).map(function (x) { var fresh = s.movedAt[x.id] != null && s.tick - s.movedAt[x.id] < 2;
+        return { name: x.name, note: x.project + ' · ' + x.note, light: light(x.k), lightCls: lcls(x.k), open: go(x), bar: bar(x.bar), cls: 'card' + (fresh ? ' rise' : '') }; }),
+      events: events, visions: visions, doneRows: doneRows,
+      run: run, plan: plan, threads: threads, threadName: threadName, subThread: s.thread !== 'orch', tabs: tabs,
+      tabSession: s.tab === 'session', tabDiff: s.tab === 'diff', tabTests: s.tab === 'tests', tabPlan: s.tab === 'plan', tabTerm: s.tab === 'term',
+      openVSCode: function () { self.say('Opens the feature branch in VS Code'); },
+      togglePause: function () { var np = Object.assign({}, s.paused), st = Object.assign({}, s.start);
+        if (paused) { st[f.id] = st[f.id] + (s.tick - np[f.id]); delete np[f.id]; } else np[f.id] = s.tick;
+        self.say(paused ? 'Resumed.' : 'Paused. It keeps its slot.', { paused: np, start: st }); },
+      approve: function () { if (locked) return; self.say('Approved. It takes the next free slot.', { approved: true, events: self.ev(s.events, 'You approved the plan for Versioned API docs', 'done', s.tick) }, after); },
+      draft: s.draft, setDraft: function (e) { self.setState({ draft: e.target.value }); }, draftEmpty: draftEmpty,
+      draftKey: function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } },
+      sendStyle: 'height: 32px; padding: 0 14px; border: 0; border-radius: 8px; font: inherit; font-weight: 600; background: ' + (draftEmpty ? 'var(--raised)' : 'var(--inv)') + '; color: ' + (draftEmpty ? 'var(--dim)' : 'var(--invText)') + '; cursor: ' + (draftEmpty ? 'not-allowed' : 'pointer'),
+      send: send,
+      agents: agents, isPeek: !!peekA, peekName: peekA ? AGL[peekA] : '', peekRole: peekA ? ROLE[peekA] : '',
+      backOrch: function () { self.setState({ thread: 'orch' }); },
+      askOrch: function () { self.setState({ thread: 'orch', draft: 'About ' + AGL[peekA] + '’s last step: ' }); },
+      composerBox: 'display: ' + (peekA ? 'none' : 'flex') + '; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 12px; background: var(--surface)',
+      canDig: canDig, deep: deep, openDeep: openDeep, closeDeep: closeDeep, deepKey: deepKey,
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>
