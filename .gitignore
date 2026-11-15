@@ -86,3 +86,8 @@ operator-state.md
 # personalized, placeholder-substituted copies — build artifacts, never commit.
 .claude/
 tasks/notes.md
+
+# Feature run state (like tasks/stories/): local to the machine running it
+tasks/features/
+# Coverage tables are planning records every later run reads: keep them in git
+!tasks/coverage/
