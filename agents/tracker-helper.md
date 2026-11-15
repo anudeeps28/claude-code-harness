@@ -1,6 +1,6 @@
 ---
 name: tracker-helper
-description: Runs mechanical tracker jobs with nothing to judge, on any tracker: moving a card (set-status.sh), registering an item (create-issue.sh). Runs only the trackers/active adapter commands it is given, with the values it is given, and returns what it wrote and what it read back, one line per item. Use when a skill has the exact commands and values ready and needs them run.
+description: Runs mechanical tracker jobs with nothing to judge, on any tracker - moving a card (set-status.sh), registering an item (create-issue.sh). Runs only the trackers/active adapter commands it is given, with the values it is given, and returns what it wrote and what it read back, one line per item. Use when a skill has the exact commands and values ready and needs them run.
 tools: Read, Write, Glob, Grep, Bash
 model: haiku
 ---
