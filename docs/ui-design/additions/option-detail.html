@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Option detail mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../tokens.css">
+<style>
+  html, body { margin: 0; }
+  body { font-family: var(--font-ui); font-size: var(--fs-base); background: var(--bg); color: var(--text); }
+  #app { min-height: 100vh; background: var(--bg); color: var(--text); }
+  button { font: inherit; }
+  .mono { font-family: var(--font-mono); }
+
+  /* review strip (not part of the design) */
+  .review { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px dashed var(--line2); background: var(--rail); font-size: 12px; color: var(--muted); }
+  .review b { color: var(--text2); font-weight: 600; }
+  .review button { min-height: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line2); background: transparent; color: var(--text); cursor: pointer; }
+  .review button[aria-pressed="true"] { background: var(--sel); }
+  .review .sp { flex: 1; }
+
+  .shot-label { margin: 28px clamp(16px, 4vw, 48px) 10px; font-size: 12px; color: var(--dim); }
+  .frame { margin: 0 clamp(16px, 4vw, 48px); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg); }
+
+  /* ---- plan gate (matches Prototype.dc.html §4.5) ---- */
+  .gate { display: flex; flex-wrap: wrap; }
+  .gate main { flex: 999 1 540px; min-width: 0; border-right: 1px solid var(--line); padding: 28px clamp(16px, 4vw, 48px); display: flex; flex-direction: column; gap: 10px; }
+  .gate h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text2); }
+  .q { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
+  .q.open { background: var(--amberSoft); border-color: var(--amberLine); }
+  .q .text { line-height: 1.5; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { min-height: 36px; padding: 0 12px; border-radius: 8px; font-size: 13px; cursor: pointer; color: var(--text); background: transparent; border: 1px solid var(--line2); transition: background var(--dur-hover) var(--ease-out), border-color var(--dur-hover) var(--ease-out); }
+  .opt:hover { background: var(--raised); }
+  .opt.peek { border-color: var(--blue); }
+  .opt.on { color: var(--invText); background: var(--inv); border-color: var(--inv); }
+
+  .gate aside { flex: 1 1 340px; max-width: 440px; display: flex; flex-direction: column; background: var(--rail); min-height: 460px; }
+  .aside-head { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .aside-head h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+  .aside-head span { font-size: 12px; color: var(--dim); }
+  .aside-body { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .chatline { margin: 0; line-height: 1.6; color: var(--text2); }
+
+  /* ---- the new option detail ---- */
+  .detail { display: flex; flex-direction: column; gap: 16px; }
+  .detail .for { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .detail h3 { margin: 0; font-size: var(--fs-lg); font-weight: 600; letter-spacing: -0.01em; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .tag-rec { padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--amberBg); color: var(--amberText); }
+  .detail p { margin: 0; line-height: 1.6; color: var(--text2); }
+  .detail h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .detail ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .detail li { display: grid; grid-template-columns: 14px 1fr; gap: 8px; line-height: 1.5; color: var(--text2); }
+  .mark { width: 14px; height: 14px; margin-top: 3px; }
+  .pro .mark { color: var(--greenText); }
+  .con .mark { color: var(--redText); }
+  .when { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .when > div { padding: 10px 12px; border-radius: 8px; background: var(--sunk); border: 1px solid var(--line); line-height: 1.5; color: var(--text2); font-size: 13px; }
+  .when h4 { margin-bottom: 4px; }
+  .detail-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-top: 4px; }
+  .pick { min-height: 36px; padding: 0 14px; border-radius: 8px; border: 0; background: var(--inv); color: var(--invText); font-weight: 600; cursor: pointer; }
+  .back { min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: transparent; color: var(--text); cursor: pointer; }
+  .hint { font-size: 12px; color: var(--dim); }
+
+  /* ---- board card (matches §4.1 Needs you) ---- */
+  .board { padding: 24px clamp(16px, 4vw, 48px) 32px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  .card { flex: 0 1 420px; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 10px; background: var(--amberSoft); border: 1px solid var(--amberLine); }
+  .card .top { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--amberText); font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); flex: none; }
+  .card .name { font-size: 12px; color: var(--muted); }
+  .card .text { line-height: 1.5; font-weight: 500; }
+  .card .body { line-height: 1.5; color: var(--text2); font-size: 13px; }
+  .pop { flex: 1 1 340px; max-width: 420px; padding: 18px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line2); box-shadow: var(--shadow); }
+  .pop.empty { box-shadow: none; border-style: dashed; background: transparent; color: var(--dim); font-size: 13px; line-height: 1.5; }
+
+  @media (max-width: 720px) {
+    .when { grid-template-columns: 1fr; }
+    .gate aside { max-width: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app" class="t-dark">
+  <div class="review" role="region" aria-label="Review controls (not part of the design)">
+    <b>Design addition · option detail</b>
+    <span>Hover or Tab to an answer to read about it. Clicking answers in one click, as before, and keeps its detail open.</span>
+    <span class="sp"></span>
+    <button data-theme="t-dark" aria-pressed="true">Dark</button>
+    <button data-theme="t-light" aria-pressed="false">Light</button>
+    <button id="tone" aria-pressed="false">Soft tone</button>
+  </div>
+
+  <p class="shot-label">1 · Plan gate: the right column ("Talk it through") shows the detail while you look at an option, then returns to the chat.</p>
+  <div class="frame">
+    <div class="gate">
+      <main>
+        <h2 class="num">Questions · <span id="answered">1</span> of 3 answered</h2>
+        <div id="qs"></div>
+      </main>
+      <aside aria-label="Talk about the plan" aria-live="polite">
+        <div class="aside-head"><h2 id="asideTitle">Talk it through</h2><span id="asideNote">changes land in the plan</span></div>
+        <div class="aside-body" id="asideBody"></div>
+      </aside>
+    </div>
+  </div>
+
+  <p class="shot-label">2 · Board, "Needs you" card: there is no right column here, so the detail opens beside the card. Same content, same rules.</p>
+  <div class="frame">
+    <div class="board">
+      <div class="card">
+        <span class="top"><span class="dot ask" aria-hidden="true"></span>Question</span>
+        <span class="name">billing-service · Team workspaces</span>
+        <span class="text">Where should the workspace switcher live?</span>
+        <span class="body">Story 44 puts the workspace switcher in the top nav. The design doc puts it under Settings.</span>
+        <div class="opts" id="cardOpts"></div>
+      </div>
+      <div class="pop empty" id="pop">Point at an answer to see what it means, its pros and cons, and when to pick it.</div>
+    </div>
+  </div>
+  <div style="height: 40px"></div>
+</div>
+
+<script>
+const CHECK = '<svg class="mark" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CROSS = '<svg class="mark" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+// Same shape /implement would write to questions.json (Decision 11).
+const QUESTIONS = [
+  { id: 'q1', text: 'Keep v1 docs editable, or freeze them?', answer: 'r', options: [
+    { id: 'r', label: 'Freeze', recommended: true,
+      means: 'v1 pages become read-only. Fixes only land in the newest version.',
+      pros: ['One place to edit, so versions never drift apart', 'Smaller build: old versions are built once and cached'],
+      cons: ['A typo in v1 stays until someone unfreezes it'],
+      pickIf: 'Most readers are on v2 and v1 is on its way out.',
+      skipIf: 'Customers stay on v1 for years and need it corrected.' },
+    { id: 'x', label: 'Keep editable',
+      means: 'Every version stays open for edits, and each is rebuilt when it changes.',
+      pros: ['Old docs can still be corrected'],
+      cons: ['Fixes have to be copied by hand between versions', 'Longer builds, and more ways for versions to disagree'],
+      pickIf: 'You support v1 under contract.',
+      skipIf: 'Nobody is assigned to keep old versions correct.' } ] },
+  { id: 'q2', text: 'When a page has no match in the other version, where should the jump go?', answer: null, options: [
+    { id: 'r', label: "That version's home", recommended: true,
+      means: "The reader lands on the other version's start page, with a note saying the page doesn't exist there.",
+      pros: ['Nothing new to build or maintain', 'The reader is never stuck on a dead end'],
+      cons: ['They lose their place and have to search again'],
+      pickIf: 'Missing pages are rare.',
+      skipIf: 'Versions differ a lot, so readers hit this often.' },
+    { id: 'x', label: 'A "not in this version" page',
+      means: 'A dedicated page explains the page is missing and links to the closest match.',
+      pros: ['Keeps the reader oriented', 'Can suggest the nearest page'],
+      cons: ['One more story to build', 'Needs a way to find the "closest match"'],
+      pickIf: 'Versions differ a lot.',
+      skipIf: 'You want this Feature small.' } ] },
+  { id: 'q3', text: 'Banner wording on old versions: use the copy from the spec?', answer: null, options: [
+    { id: 'r', label: 'Use the spec copy', recommended: true,
+      means: 'The banner says exactly what the spec says: "You’re reading docs for an older version."',
+      pros: ['Already reviewed', 'No waiting on you'],
+      cons: ['Generic: it doesn’t say which version is current'],
+      pickIf: 'You’re happy with the spec as written.',
+      skipIf: 'You want the banner to name the current version.' },
+    { id: 'x', label: 'Let me write it',
+      means: 'The story waits for your wording before it is built.',
+      pros: ['Exactly the words you want'],
+      cons: ['The run stops on this story until you reply'],
+      pickIf: 'The banner is customer-facing copy you care about.',
+      skipIf: 'You want the run to go straight to the PR.' } ] }
+];
+
+const CARD_Q = { id: 'tw', text: 'Where should the workspace switcher live?', answer: null, options: [
+  { id: 'nav', label: 'Top nav', recommended: true,
+    means: 'The switcher sits in the header, next to the account menu, on every page.',
+    pros: ['One click from anywhere', 'Matches how story 44 is written, so no rework'],
+    cons: ['Adds to a header that is already busy on small screens'],
+    pickIf: 'People switch workspaces several times a day.',
+    skipIf: 'Most people only ever use one workspace.' },
+  { id: 'settings', label: 'Under Settings',
+    means: 'The switcher lives on the Settings page, as the design doc says.',
+    pros: ['Follows the design doc', 'Keeps the header clean'],
+    cons: ['Three clicks to switch', 'Story 44 has to change before it is built'],
+    pickIf: 'Switching is rare.',
+    skipIf: 'Switching is part of the daily flow.' } ] };
+
+const state = { peek: null, pinned: null, cardPeek: null, cardPinned: null };
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]); }
+
+function detailHTML(q, o, chosen) {
+  return `<div class="detail">
+    <span class="for">${esc(q.text)}</span>
+    <h3>${esc(o.label)}${o.recommended ? '<span class="tag-rec">Recommended</span>' : ''}</h3>
+    <p>${esc(o.means)}</p>
+    <div class="pro"><h4>For</h4><ul>${o.pros.map(p => `<li>${CHECK}<span>${esc(p)}</span></li>`).join('')}</ul></div>
+    <div class="con"><h4>Against</h4><ul>${o.cons.map(p => `<li>${CROSS}<span>${esc(p)}</span></li>`).join('')}</ul></div>
+    <div class="when"><div><h4>Pick it if</h4>${esc(o.pickIf)}</div><div><h4>Skip it if</h4>${esc(o.skipIf)}</div></div>
+    <div class="detail-foot">
+      ${chosen ? '<span class="hint">Your answer.</span>' : `<button class="pick" data-pick="${q.id}:${o.id}">Pick ${esc(o.label)}</button>`}
+      <button class="back" data-close="1">Back to the chat</button>
+    </div>
+  </div>`;
+}
+
+function chatHTML() {
+  const open = QUESTIONS.filter(q => !q.answer).length;
+  return `<p class="chatline">Plan's ready: 5 stories, every spec line covered, 3 questions with my pick on each.</p>
+    <p class="chatline">${open ? `${open} question${open > 1 ? 's' : ''} left. Point at any answer to see what it means and why I'd pick it.` : 'Nothing left. You can approve.'}</p>`;
+}
+
+function render() {
+  const qs = document.getElementById('qs');
+  qs.innerHTML = QUESTIONS.map(q => `<div class="q ${q.answer ? '' : 'open'}"><span class="text">${esc(q.text)}</span><div class="opts">${
+    q.options.map(o => {
+      const key = q.id + ':' + o.id, on = q.answer === o.id, peek = (state.pinned || state.peek) === key;
+      return `<button class="opt ${on ? 'on' : ''} ${peek && !on ? 'peek' : ''}" data-key="${key}" aria-pressed="${on}" aria-describedby="asideTitle">${esc(o.label)}${o.recommended ? ' · recommended' : ''}</button>`;
+    }).join('')}</div></div>`).join('');
+  document.getElementById('answered').textContent = QUESTIONS.filter(q => q.answer).length;
+
+  const active = state.pinned || state.peek;
+  const title = document.getElementById('asideTitle'), note = document.getElementById('asideNote'), body = document.getElementById('asideBody');
+  if (active) {
+    const [qid, oid] = active.split(':'); const q = QUESTIONS.find(x => x.id === qid); const o = q.options.find(x => x.id === oid);
+    title.textContent = 'About this answer'; note.textContent = state.pinned ? 'pinned · Esc to close' : 'click to pin';
+    body.innerHTML = detailHTML(q, o, q.answer === o.id);
+  } else { title.textContent = 'Talk it through'; note.textContent = 'changes land in the plan'; body.innerHTML = chatHTML(); }
+
+  const co = document.getElementById('cardOpts');
+  co.innerHTML = CARD_Q.options.map(o => {
+    const on = CARD_Q.answer === o.id, peek = (state.cardPinned || state.cardPeek) === o.id;
+    return `<button class="opt ${on ? 'on' : ''} ${peek && !on ? 'peek' : ''}" data-card="${o.id}" aria-pressed="${on}">${esc(o.label)}${o.recommended ? ' · recommended' : ''}</button>`;
+  }).join('') + '<button class="opt">Open chat</button>';
+  const pop = document.getElementById('pop'), cact = state.cardPinned || state.cardPeek;
+  if (cact) { const o = CARD_Q.options.find(x => x.id === cact); pop.className = 'pop'; pop.innerHTML = detailHTML(CARD_Q, o, CARD_Q.answer === o.id).replace('Back to the chat', 'Close'); }
+  else { pop.className = 'pop empty'; pop.textContent = 'Point at an answer to see what it means, its pros and cons, and when to pick it.'; }
+}
+
+document.addEventListener('mouseover', e => {
+  const b = e.target.closest('[data-key]'); if (b && !state.pinned && state.peek !== b.dataset.key) { state.peek = b.dataset.key; render(); }
+  const c = e.target.closest('[data-card]'); if (c && !state.cardPinned && state.cardPeek !== c.dataset.card) { state.cardPeek = c.dataset.card; render(); }
+});
+document.addEventListener('focusin', e => {
+  const b = e.target.closest('[data-key]'); if (b && !state.pinned && state.peek !== b.dataset.key) { state.peek = b.dataset.key; render(); document.querySelector(`[data-key="${b.dataset.key}"]`).focus(); }
+  const c = e.target.closest('[data-card]'); if (c && !state.cardPinned && state.cardPeek !== c.dataset.card) { state.cardPeek = c.dataset.card; render(); document.querySelector(`[data-card="${c.dataset.card}"]`).focus(); }
+});
+document.querySelector('.gate main').addEventListener('mouseleave', () => { if (!state.pinned && state.peek) { state.peek = null; render(); } });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-key]');
+  // Clicking an answer still answers in one click (DESIGN.md §1.2) and pins its detail.
+  if (b) { const [qid, oid] = b.dataset.key.split(':'); QUESTIONS.find(q => q.id === qid).answer = oid; state.pinned = b.dataset.key; state.peek = b.dataset.key; render(); return; }
+  const c = e.target.closest('[data-card]');
+  if (c) { CARD_Q.answer = c.dataset.card; state.cardPinned = c.dataset.card; state.cardPeek = c.dataset.card; render(); return; }
+  const p = e.target.closest('[data-pick]');
+  if (p) { const [qid, oid] = p.dataset.pick.split(':');
+    if (qid === 'tw') { CARD_Q.answer = oid; } else { QUESTIONS.find(q => q.id === qid).answer = oid; state.pinned = null; state.peek = null; }
+    render(); return; }
+  if (e.target.closest('[data-close]')) { if (e.target.closest('#pop')) { state.cardPinned = null; state.cardPeek = null; } else { state.pinned = null; state.peek = null; } render(); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { state.pinned = state.peek = state.cardPinned = state.cardPeek = null; render(); } });
+
+// review controls
+const app = document.getElementById('app');
+document.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', () => {
+  app.classList.remove('t-dark', 't-light'); app.classList.add(b.dataset.theme);
+  document.querySelectorAll('[data-theme]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.body.style.background = getComputedStyle(app).getPropertyValue('--bg');
+}));
+document.getElementById('tone').addEventListener('click', e => {
+  const on = app.classList.toggle('tone-soft'); e.currentTarget.setAttribute('aria-pressed', String(on));
+  document.body.style.background = getComputedStyle(app).getPropertyValue('--bg');
+});
+document.body.style.background = getComputedStyle(app).getPropertyValue('--bg');
+render();
+</script>
+</body>
+</html>
