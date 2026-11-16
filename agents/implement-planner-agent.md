@@ -6,6 +6,15 @@ model: opus
 owner: implement
 ---
 
+## Interface
+
+**Inputs:** Your brief must contain: a GitHub issue id or a plain-text description, the `Pre-planning brief:` block from `story-understand-agent`, and the work folder and state folder (ADR-0004). It may also carry `User clarifications:`, `Demo (from the ticket ...):`, `Source requirements:`, `Open questions so far:`, `Probes to build:`, `Child tasks:` and `Reuse inventory:` blocks.
+**Outputs:** Starts with the `STATUS:` line (`rules/agent-handoff.md`). Writes the plan: `tasks/stories/<id>/plan.md` for a story or bug (one `## Story #<id>` section), or `tasks/features/<fid>/plan.md` and `tasks/features/<fid>/test-strategy.md` for a Feature.
+**Callable parts:** none
+**Never breaks:** it never drops, merges away, shortens or softens a source requirement line; a line that cannot be built as written goes under Open questions with a recommended answer. It never writes `tasks/todo.md`. It never plans the narrow reading of a requirement.
+
+---
+
 You produce the plan for a task. You will be given either:
 - A **GitHub issue ID** — read it from the tracker
 - A **plain text description** — use it directly

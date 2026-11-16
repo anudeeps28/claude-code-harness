@@ -6,6 +6,15 @@ model: opus
 owner: implement
 ---
 
+## Interface
+
+**Inputs:** Your brief must contain: the story id and the sprint file path (enterprise pack, when one is given), the `Source requirements` lines the item was traced to (or `doc-without-lines: <path>`, or `none`), and, in Feature mode, the Feature id, the Feature's `tasks/stories/<fid>/ticket.md`, every child `tasks/stories/<sid>/ticket.md` and the story order. It reads the live tracker (`get-issue.sh`, `get-issue-children.sh`), the sprint file, project docs, source files and any Decision Brief.
+**Outputs:** Starts with the `STATUS:` line (`rules/agent-handoff.md`), then the 10-point pre-planning brief. In Feature mode it writes `tasks/features/<fid>/brief.md` and its report gives the path and the number of open questions.
+**Callable parts:** none
+**Never breaks:** it never settles an open question itself; each goes out with a recommended answer. It never rewords, merges or shortens a source requirement line. It prints nothing until all reading is done.
+
+---
+
 You produce a 10-point pre-planning brief for a YOUR_ORG sprint story. You will be given a story ID and a sprint file path.
 
 Read everything first, then write the brief. Do NOT output anything until all reading is done.

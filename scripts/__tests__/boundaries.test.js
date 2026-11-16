@@ -4,7 +4,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { agentOwners, checkOwners, checkRulesTable } = require('../lib/boundaries.js');
+const {
+  agentOwners, checkOwners, checkRulesTable,
+  readInterface, checkInterfaces, checkPending, namedFiles, checkCallableParts, checkAgentOutputs,
+} = require('../lib/boundaries.js');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 
@@ -153,4 +156,229 @@ test('a bare mention in the rules section is not a table entry (AC8)', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+// ---- Story #6j2mgm8WpCqR6rgR: Interface blocks ----
+
+// Modules still without an Interface block. Later stories shrink this; the last one deletes it.
+const PENDING = [
+  'skills/architect', 'skills/architect-critique', 'skills/babysit-pr', 'skills/calibrate',
+  'skills/coverage-audit', 'skills/debug', 'skills/decision-brief', 'skills/deploy',
+  'skills/design-artifacts', 'skills/evaluate', 'skills/explain-in-parts', 'skills/grill-me',
+  'skills/grill-with-docs', 'skills/hackathon', 'skills/improve-codebase-architecture',
+  'skills/improve-harness', 'skills/local-test', 'skills/pa', 'skills/plan', 'skills/plan-features',
+  'skills/prd-critique', 'skills/prototype', 'skills/ralph-prd', 'skills/research',
+  'skills/sprint-plan', 'skills/sync-tasks', 'skills/sync-tracker', 'skills/tdd', 'skills/triage',
+  'skills/update-harness', 'skills/wayfinder', 'skills/zoom-out',
+  'agents/babysit-pr-analyst', 'agents/babysit-pr-fixer', 'agents/build-session',
+  'agents/chief-operator', 'agents/coverage-auditor-agent', 'agents/debug-agent',
+  'agents/evaluator-agent', 'agents/review-session', 'agents/sprint-plan-docs-reader',
+  'agents/sprint-plan-gap-analyzer', 'agents/sprint-plan-tracker-reader',
+];
+// rules/modules.md "Known exception": skills/frontend-design is a bundle of sub-skills, not one skill.
+const EXEMPT_SKILLS = ['frontend-design'];
+
+const FM = '---\nname: x\ndescription: d\n---\n';
+const block = (over = {}) => {
+  const parts = {
+    Inputs: 'a file', Outputs: 'a report', 'Callable parts': 'none', 'Never breaks': 'a promise', ...over,
+  };
+  return '## Interface\n\n' + Object.entries(parts)
+    .filter(([, v]) => v !== null)
+    .map(([k, v]) => `**${k}:** ${v}`).join('\n') + '\n';
+};
+const withBlock = (over, body = '\n# Title\n\nbody\n') => FM + '\n' + block(over) + body;
+
+function inFixture(files, fn) {
+  const root = fixture(files);
+  try {
+    return fn(root);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test('every skill and agent has a 4-part Interface block (AC1, AC14, AC3, AC4, AC7, AC9, AC11)', () => {
+  const skills = fs.readdirSync(path.join(repoRoot, 'skills'), { withFileTypes: true })
+    .filter((d) => d.isDirectory()).map((d) => d.name);
+  assert.ok(skills.includes('implement'), 'skills/implement must be found');
+  assert.deepEqual(checkInterfaces(repoRoot, { pending: PENDING, exempt: EXEMPT_SKILLS }), []);
+});
+
+test('interface check names a module whose block is missing, misplaced or lacks a part (AC1, AC2, AC6, AC8, AC13, AC14)', () => {
+  inFixture({
+    'agents/prover.md': FM + 'body only\n',
+    'skills/x/SKILL.md': FM + '\n# x\n\n' + block(),
+    'agents/y.md': withBlock({ 'Never breaks': null }),
+    'agents/empty.md': withBlock({ Inputs: '' }),
+    'agents/five.md': withBlock({ 'Depends on': 'skills/x' }),
+    'agents/twice.md': withBlock({}, '\n# T\n\n' + block()),
+    'agents/good.md': withBlock({}),
+    'skills/pend/SKILL.md': FM + 'nothing\n',
+    'skills/frontend-design/SKILL.md': FM + 'nothing\n',
+  }, (root) => {
+    const problems = checkInterfaces(root, { pending: ['skills/pend'], exempt: ['frontend-design'] });
+    const has = (id, word) => problems.some((p) => p.includes(id) && (!word || p.includes(word)));
+    assert.ok(has('agents/prover.md', 'Interface'), problems.join('\n'));
+    assert.ok(has('skills/x', 'right after the frontmatter'), problems.join('\n'));
+    assert.ok(has('agents/y.md', 'Never breaks'), problems.join('\n'));
+    assert.ok(has('agents/empty.md', 'Inputs'), problems.join('\n'));
+    assert.ok(has('agents/five.md', 'Depends on'), problems.join('\n'));
+    assert.ok(has('agents/twice.md', 'more than one'), problems.join('\n'));
+    assert.ok(!has('agents/good.md'), 'a correct block must not be reported: ' + problems.join('\n'));
+    assert.ok(!has('skills/pend'), 'a pending module is skipped: ' + problems.join('\n'));
+    assert.ok(!has('frontend-design'), 'an exempt skill is skipped: ' + problems.join('\n'));
+    assert.equal(problems.length, 6, problems.join('\n'));
+  });
+});
+
+test('interface block must sit right after the frontmatter, not within some line count (AC6)', () => {
+  inFixture({
+    'agents/late.md': FM + 'a\nb\n\n' + block(),
+    'agents/first.md': FM + '\n\n' + block(),
+  }, (root) => {
+    const problems = checkInterfaces(root, { pending: [], exempt: [] });
+    assert.ok(problems.some((p) => p.includes('agents/late.md')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('agents/first.md')), 'blank lines before the block are fine: ' + problems.join('\n'));
+  });
+});
+
+test('readInterface reads the four parts of the block that follows the frontmatter (AC1, AC8, AC10, AC11)', () => {
+  const r = readInterface(withBlock({ Inputs: 'arg one', Outputs: 'file two', 'Callable parts': 'bin/a.js', 'Never breaks': 'never pushes to main' }));
+  assert.equal(r.found, true);
+  assert.equal(r.firstAfterFrontmatter, true);
+  assert.equal(r.parts.inputs.trim(), 'arg one');
+  assert.equal(r.parts.outputs.trim(), 'file two');
+  assert.equal(r.parts.callable.trim(), 'bin/a.js');
+  assert.equal(r.parts.neverBreaks.trim(), 'never pushes to main');
+  const none = readInterface(FM + 'body\n');
+  assert.equal(none.found, false);
+});
+
+test('every skill\'s Callable parts list the files other modules name (AC2, AC5, AC10, AC15)', () => {
+  const named = namedFiles(repoRoot, 'implement');
+  assert.ok(named.includes('bin/worktree.js'), 'worktree.js is named by rules/wave-execution.md: ' + named.join(','));
+  assert.deepEqual(checkCallableParts(repoRoot, { pending: PENDING, exempt: EXEMPT_SKILLS }), []);
+});
+
+test('callable parts check finds pointers from rules, hooks and templates and requires them in the Callable parts label (AC5, AC10, AC15)', () => {
+  inFixture({
+    'skills/s/SKILL.md': withBlock({ Inputs: 'uses skills/s/bin/inprose.js', 'Callable parts': 'bin/listed.js' }),
+    'skills/s/bin/listed.js': '// x\n',
+    'skills/s/bin/inprose.js': '// x\n',
+    'skills/s/bin/fromhook.js': '// x\n',
+    'skills/s/bin/fromtpl.js': '// x\n',
+    'skills/s/bin/own.js': '// skills/s/bin/own.js names itself\n',
+    'rules/r.md': 'Run `skills/s/bin/listed.js` and `skills/s/bin/inprose.js` and skills/s/bin/ghost.js\n',
+    'hooks/h.js': "require('../skills/s/bin/fromhook.js'); // skills/s/bin/fromhook.js\n",
+    'templates/t.md': 'see skills/s/bin/fromtpl.js\n',
+  }, (root) => {
+    assert.deepEqual(namedFiles(root, 's').sort(), ['bin/fromhook.js', 'bin/fromtpl.js', 'bin/inprose.js', 'bin/listed.js']);
+    const problems = checkCallableParts(root, { pending: [], exempt: [] });
+    const has = (w) => problems.some((p) => p.includes(w));
+    assert.ok(has('skills/s/bin/inprose.js'), 'a name in Inputs is not in Callable parts: ' + problems.join('\n'));
+    assert.ok(has('skills/s/bin/fromhook.js') && has('hooks/h.js'), problems.join('\n'));
+    assert.ok(has('skills/s/bin/fromtpl.js'), problems.join('\n'));
+    assert.ok(!has('listed.js'), 'a listed file is not reported: ' + problems.join('\n'));
+    assert.ok(!has('ghost.js') && !has('own.js'), problems.join('\n'));
+    assert.equal(problems.length, 3, problems.join('\n'));
+  });
+});
+
+test('/implement Never breaks cites the accepted ADRs (AC2, AC11, AC15)', () => {
+  const text = fs.readFileSync(path.join(repoRoot, 'skills', 'implement', 'SKILL.md'), 'utf8');
+  const { parts } = readInterface(text);
+  assert.ok(parts.neverBreaks && parts.neverBreaks.length > 0, 'implement has a Never breaks part');
+  for (const adr of ['ADR-0001', 'ADR-0004', 'ADR-0005', 'ADR-0006']) {
+    assert.ok(parts.neverBreaks.includes(adr), `${adr} missing from Never breaks`);
+  }
+  assert.ok(!parts.neverBreaks.includes('ADR-0002') && !parts.neverBreaks.includes('ADR-0003'), 'superseded ADRs must not be cited');
+  assert.ok(!/ADR-000[1456]/.test(parts.inputs + parts.outputs), 'the ids must be in Never breaks, not elsewhere');
+});
+
+test('pending list names only modules still without a block (AC3, AC16)', () => {
+  assert.ok(PENDING.length > 0 && PENDING.includes('agents/debug-agent'));
+  assert.deepEqual(checkPending(repoRoot, PENDING), []);
+  inFixture({
+    'agents/done.md': withBlock({}),
+    'agents/todo.md': FM + 'body\n',
+  }, (root) => {
+    const problems = checkPending(root, ['agents/done', 'agents/todo', 'agents/ghost']);
+    assert.ok(problems.some((p) => p.includes('agents/done') && p.includes('has an Interface block') && p.includes('remove it from PENDING')), problems.join('\n'));
+    assert.ok(problems.some((p) => p.includes('agents/ghost') && p.includes('does not exist')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('agents/todo')), problems.join('\n'));
+    assert.equal(problems.length, 2, problems.join('\n'));
+  });
+});
+
+test('every agent\'s Outputs give its STATUS: line (AC3, AC9)', () => {
+  assert.deepEqual(checkAgentOutputs(repoRoot, { pending: PENDING }), []);
+  inFixture({
+    'agents/ok.md': withBlock({ Outputs: 'starts with the STATUS: line' }),
+    'agents/elsewhere.md': withBlock({ Inputs: 'STATUS: here', Outputs: 'a report' }, '\nSTATUS: DONE in the body\n'),
+    'agents/pend.md': FM + 'x\n',
+  }, (root) => {
+    const problems = checkAgentOutputs(root, { pending: ['agents/pend'] });
+    assert.ok(problems.some((p) => p.includes('agents/elsewhere.md')), problems.join('\n'));
+    assert.equal(problems.length, 1, problems.join('\n'));
+  });
+});
+
+// ---- Review fixes ----
+
+test('namedFiles resolves <skill-dir> and bare bin/ pointers in an owner agent (finding 1)', () => {
+  inFixture({
+    'skills/s/SKILL.md': withBlock({}),
+    'skills/s/bin/x.js': '// x\n',
+    'skills/s/bin/y.js': '// y\n',
+    'skills/s/bin/z.js': '// z\n',
+    'skills/s/bin/folderonly.js': '// f\n',
+    'skills/s/reference/r.md': 'r\n',
+    'skills/t/SKILL.md': withBlock({}),
+    'skills/t/bin/t.js': '// t\n',
+    'agents/a.md': withBlock({}, '\nRun `<skill-dir>/bin/x.js` and `bin/y.js`, see reference/r.md and ${CLAUDE_SKILL_DIR}/bin/z.js; scripts in `<skill-dir>/bin`.\n').replace('name: x', 'name: x\nowner: s'),
+    'agents/shared.md': withBlock({}, '\nuse bin/t.js and <skill-dir>/bin/t.js\n').replace('name: x', 'name: x\nowner: shared'),
+    'rules/two.md': 'The <skill-dir> is the /s skill folder here and the /t skill folder there. <skill-dir>/bin/t.js and <skill-dir>/bin/x.js\n',
+    'rules/one.md': 'The <skill-dir> is the /t skill folder. Run <skill-dir>/bin/t.js\n',
+  }, (root) => {
+    assert.deepEqual(namedFiles(root, 's').sort(), ['bin/x.js', 'bin/y.js', 'bin/z.js', 'reference/r.md']);
+    assert.deepEqual(namedFiles(root, 't'), ['bin/t.js']);
+    const problems = checkCallableParts(root, { pending: [], exempt: [] });
+    assert.ok(problems.some((p) => p.includes('skills/s/bin/y.js') && p.includes('agents/a.md')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('skills/s/') && p.includes('rules/two.md')), 'an ambiguous <skill-dir> is not attributed: ' + problems.join('\n'));
+    assert.ok(problems.some((p) => p.includes('skills/t/bin/t.js') && p.includes('rules/one.md')), problems.join('\n'));
+  });
+});
+
+test('agent Outputs must name STATUS: as the start of the report (finding 3)', () => {
+  inFixture({
+    'agents/neg.md': withBlock({ Outputs: 'no STATUS: line' }),
+    'agents/start.md': withBlock({ Outputs: 'The report starts with a `STATUS:` line' }),
+    'agents/first.md': withBlock({ Outputs: 'STATUS: line, then findings' }),
+    'agents/neg2.md': withBlock({ Outputs: 'does not start with `STATUS:`' }),
+    'agents/neg3.md': withBlock({ Outputs: 'no line that starts with STATUS:' }),
+    'agents/begins.md': withBlock({ Outputs: 'begins with the `STATUS:` line' }),
+  }, (root) => {
+    const problems = checkAgentOutputs(root, { pending: [] });
+    assert.ok(problems.some((p) => p.includes('agents/neg.md')), problems.join('\n'));
+    assert.ok(problems.some((p) => p.includes('agents/neg2.md')), problems.join('\n'));
+    assert.ok(problems.some((p) => p.includes('agents/neg3.md')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('agents/start.md') || p.includes('agents/first.md') || p.includes('agents/begins.md')), problems.join('\n'));
+    assert.equal(problems.length, 3, problems.join('\n'));
+  });
+});
+
+test('readInterface rejects a duplicated label and ignores headings in code fences (finding 4)', () => {
+  inFixture({
+    'agents/dup.md': withBlock({}, '\nmore\n').replace('**Outputs:**', '**Inputs:** again\n**Outputs:**'),
+    'agents/fence.md': withBlock({}, '\n```\n## Interface\n```\n'),
+  }, (root) => {
+    const problems = checkInterfaces(root, { pending: [], exempt: [] });
+    assert.ok(problems.some((p) => p.includes('agents/dup.md') && p.includes('Inputs') && p.includes('more than once')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('agents/fence.md')), problems.join('\n'));
+    assert.equal(problems.length, 1, problems.join('\n'));
+  });
+  const fenced = readInterface(FM + '\n```\n## Interface\n```\n\n' + block());
+  assert.equal(fenced.firstAfterFrontmatter, false);
+  assert.equal(fenced.headings, 1);
 });
