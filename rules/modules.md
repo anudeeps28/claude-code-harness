@@ -93,6 +93,9 @@ when something other modules rely on breaks.
 - **A promise between modules** (for example "every review agent's report starts with a `STATUS:`
   line") is checked against the Interface blocks, because that is where the promise is written.
 
+The boundary check itself reads module bodies: that is its job, a carve-out from the rules above, which
+govern every other test.
+
 ---
 
 ## Who owns an agent
@@ -220,8 +223,10 @@ agents and links. These arrive later: the standard folder shape (item 4) with F2
 #6j2mgp3qGcrM58q2, private insides beyond that scan scope (item 2) with F2 story #6j2mgmqmpx9pJVq2,
 test locality (item 5) with F2 story #6j2mgp8CJ6mRHW32, and the map's **Depends on** column (item 6)
 with F2 story #6j2mgp5G2xvFP6Q2 (F2 is #6j2mgjrhw5VCqMMR; the plan lines, the builder's brief and the
-pre-PR docs check are F3, #6j2mgjwMgrvf3fwR). The boundary check itself reads module bodies: that is its
-job, a carve-out from "Tests check the interface", which governs every other test.
+pre-PR docs check are F3, #6j2mgjwMgrvf3fwR).
+
+The boundary check lives in `scripts/__tests__/boundaries-*.test.js` (one file per check family), which
+`npm test` runs.
 
 ---
 

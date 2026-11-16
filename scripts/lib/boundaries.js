@@ -2,7 +2,8 @@
 // Private to the scripts module: the checks behind scripts/__tests__/boundaries-*.test.js.
 // Each takes a repo root and returns a list of problem strings naming the module.
 // The owner and rules-table checks live here; the Interface-block checks are in ./interface.js and
-// the file-pointer checks in ./pointers.js. Everything is re-exported from here.
+// the file-pointer checks in ./pointers.js. The public part of each family module is re-exported from
+// here; context.js's cell helpers and common.js stay private.
 
 const fs = require('node:fs');
 const path = require('node:path');

@@ -5,8 +5,8 @@ started it, and what that session does with the report.
 
 **Location:** `rules/agent-handoff.md` (installed alongside `.claude/skills/`; the `.claude/` copy is
 a symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md`, `skills/sprint-plan/SKILL.md`, `skills/babysit-pr/SKILL.md`
-and every agent an orchestrator starts: the agents `/implement` starts, directly or through `/debug` and
+**Referenced by:** `skills/implement/SKILL.md` and
+every agent an orchestrator starts: the agents `/implement` starts, directly or through `/debug` and
 `/coverage-audit`, and those `/sprint-plan` and `/babysit-pr` start (the files in `agents/`).
 
 ---

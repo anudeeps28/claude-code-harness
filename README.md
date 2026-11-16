@@ -588,7 +588,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `safety-check.js` | PreToolUse (Bash\|Write) | Blocks destructive git/file/cloud operations + Write of hardcoded secrets |
 | `catalog-trigger.js` | PostToolUse (Write/Edit) | Rebuilds SKILLS_CATALOG.md when skills change |
 | `drift-check.js` | PostToolUse (Write/Edit) | Detects cross-file drift in task files and project artifacts (PRD, ARCHITECTURE.md, ADRs) — 11 invariants covering enum consistency, cross-references, NFR coverage, ADR contradictions, and more |
-| `todo-render-trigger.js` | PostToolUse (Write/Edit) | Re-renders `tasks/todo.md` when a file under `tasks/issues/` is edited directly (local tracker mode only) |
+| `todo-render-trigger.js` | PostToolUse (Write/Edit), not wired by the installer; add by hand (CONFIGURE.md) | Re-renders `tasks/todo.md` when a file under `tasks/issues/` is edited directly (local tracker mode only) |
 | `pre-compact.js` | PreCompact | Saves in-progress state before context compression |
 | `tracker-sync.js` | SessionStart + SessionEnd | Tracker sync sweep — on start, flags open items that look delivered; on end, closes items with explicit written evidence (merged PRs with closing keywords). Never auto-acts on ambiguous evidence |
 | `session-log.js` | SessionEnd | Appends session metadata to sessions.jsonl |
