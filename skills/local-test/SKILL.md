@@ -19,7 +19,7 @@ argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev serve
 
 ---
 
-You run local verification at the requested level. If no level is given, default to **Level 2**. `e2e` is a distinct capability (not a numeric level) — the goal gate `/implement` runs before its PR.
+You verify locally at the requested level. If no level is given, default to **Level 2**. `e2e` is a distinct capability (not a numeric level) — the goal gate `/implement` runs before its PR.
 
 **First:** Read `YOUR_PROJECT_ROOT/tasks/lessons.md` to find the project's test configuration. If `lessons.md` does not exist, read `YOUR_PROJECT_ROOT/tasks/notes.md` instead — solo projects store the same test commands there under the "Test Commands" section. All commands come from one of these two files — nothing is hardcoded.
 

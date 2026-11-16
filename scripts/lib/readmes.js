@@ -146,4 +146,4 @@ function checkReadmeCallable(root, options = {}) {
   return problems;
 }
 
-module.exports = { CODE_MODULES, checkReadmes, requiredExports, checkReadmeCallable };
+module.exports = { CODE_MODULES, checkReadmes, requiredExports, checkReadmeCallable, jsFiles, moduleOf, scanRequires, resolveTarget };

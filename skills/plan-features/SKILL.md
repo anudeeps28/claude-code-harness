@@ -1117,9 +1117,9 @@ flowchart LR
 **Parallelism:** the Phase 4 waves with real ids — what can start now, and what starts after what.
 
 **Coverage:** `tasks/coverage/<doc-slug>.md`, real ids filled in — when the last item closes,
-`/sync-tracker` runs `/coverage-audit` on it (input was a document).
+`/coverage-audit` audits it, driven by `/sync-tracker` (input was a document).
 
-**Next step:** Run `/implement #<feature-id>` (or `/work-feature <feature-id>`) to build it.
+**Next step:** `/implement #<feature-id>` (or `/work-feature <feature-id>`) builds it.
 ~~~
 
 **Be explicit about what kind of edge was actually written** — this is the one line a reader must not

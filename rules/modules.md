@@ -220,11 +220,11 @@ Interface lists, and a path to a main file followed by a quoted or bold heading 
 each code module's `README.md`; every non-test `.js` file's relative imports into another module,
 against that module's Interface (a code module's `README.md`, a skill's `SKILL.md`) (item 1); the ADR `Modules:`
 lines and the ADRs cited in Interface blocks (item 7); and the architecture map's rows, kinds, private
-agents and links; and the standard folder shape (item 4): every skill, agent and code module holds only
-the entries its shape allows. These arrive later:
-test locality (item 5) with F2 story #6j2mgp8CJ6mRHW32, and the map's **Depends on** column (item 6)
-with F2 story #6j2mgp5G2xvFP6Q2 (F2 is #6j2mgjrhw5VCqMMR; the plan lines,
-the builder's brief and the pre-PR docs check are F3, #6j2mgjwMgrvf3fwR).
+agents and links; the standard folder shape (item 4): every skill, agent and code module holds only
+the entries its shape allows; and the map's **Depends on** column (item 6) against imports, pointers, agent
+use and skill invocation. Test locality (item 5) arrives later with F2 story #6j2mgp8CJ6mRHW32 (F2 is
+#6j2mgjrhw5VCqMMR; the plan lines, the builder's brief and the pre-PR docs check are F3,
+#6j2mgjwMgrvf3fwR).
 
 The boundary check lives in `scripts/__tests__/boundaries-*.test.js` (one file per check family), which
 `npm test` runs.

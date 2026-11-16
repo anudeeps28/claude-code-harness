@@ -233,7 +233,7 @@ Once written, the learning enters the proactive loop automatically:
 3. **Auto-archive**: learnings that drop to score ≤ -2 are moved to `archived/`
 4. **Promotion**: learnings with score ≥ 5 are flagged by `/calibrate` as candidates for permanent rules
 
-Report what was written: `Wrote <N> learnings (<P> project, <G> global). Run /calibrate to see their effectiveness over time.`
+Report what was written: `Wrote <N> learnings (<P> project, <G> global). Next: /calibrate — shows their effectiveness over time.`
 
 ---
 

@@ -16,6 +16,7 @@ const adrs = require('./adrs.js');
 const context = require('./context.js');
 const agents = require('./agents.js');
 const shape = require('./shape.js');
+const depends = require('./depends.js');
 
 function checkOwners(root, options = {}) {
   checkOptions(options);
@@ -63,6 +64,7 @@ module.exports = {
   ...adrs,
   ...agents,
   ...shape,
+  checkDependsOn: depends.checkDependsOn,
   readArchitectureMap: context.readArchitectureMap,
   checkContextMap: context.checkContextMap,
 };

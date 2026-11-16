@@ -64,7 +64,8 @@ function exemptSet(options = {}) {
 
 // The markdown files that make file and heading pointers (check 2): every .md under skills/ (tests
 // excluded), agents/*.md and rules/*.md. Each is { rel, lines } with the lines inside ``` code fences
-// blanked, so a line number is still the real one. A file over 2 MB is skipped.
+// blanked, so a line number is still the real one; `raw` is the same lines with the fences kept (check 6
+// reads a command in a fence as a real call). A file over 2 MB is skipped.
 const MAX_POINTER_BYTES = 2 * 1024 * 1024;
 
 function* mdUnder(dir) {
@@ -88,6 +89,7 @@ function pointerSources(root) {
     const mask = fenceMask(lines);
     return {
       rel: path.relative(root, f).split(path.sep).join('/'),
+      raw: lines,
       lines: lines.map((l, i) => (mask[i] ? '' : l)),
     };
   });
