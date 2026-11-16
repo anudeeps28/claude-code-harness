@@ -57,7 +57,7 @@ of execution). Seeding it after work has begun defeats the purpose.
   when you start it.
 - **A story is `completed` only when it is done, not when its tests go green.** Done means the story's
   review **and the e2e gate** have passed. Until then its item stays `in_progress`; a review finding
-  keeps it there. `/implement` defines the saved `step` and `round` in its "State and progress"
+  keeps it there. `/implement` names the saved `step` and `round` (in `executor-state.md`) in its Interface
   section. In a Feature, the orchestrator marks a story's item `completed` when its commit is made and
   the Feature panel and Prove it are separate items after the stories.
 - A fixed-step skill (`/deploy`, `/tdd`) has no review step: mark a step `completed` when it genuinely

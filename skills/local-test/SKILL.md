@@ -68,7 +68,7 @@ The end-to-end gate for the current feature — the terminal check `/implement` 
    - **Domain-specific graded eval:** the project's eval runner (defined in the project's own skills/docs, not here).
    - **Structured human acceptance** (no machine oracle): there is no command to run — instead surface the ACTUAL behavior using each criterion's **Seen by** line (API response, log, screenshot, read-only query; never a raw prod DB read) and report it for a human sign-off. Show the **shape** of the evidence only — status codes, row counts, ids, field names — never row contents or response bodies, which on regulated projects can hold PHI/PII. Do NOT declare PASS yourself.
 3. **Run it and report** PASS/FAIL against each acceptance criterion (the criteria ARE the gate). For the human-acceptance case, report "AWAITING HUMAN SIGN-OFF" with the evidence shown, and wait: it never becomes PASS without the sign-off.
-4. **Never fix on failure** — report the failure back to the caller (`/implement` Phase 3 owns the diagnostic re-approach).
+4. **Never fix on failure** — report the failure back to the caller (the caller owns the diagnostic re-approach).
 
 **No command, no Demo: NOT SET UP.** If no `E2E command` is declared and the modality is not structured human acceptance, report **NOT SET UP** — never anything that reads as a pass or a skip. It counts as a **fail**: nobody has seen the Demo happen, so the item is not done. Name what is needed:
 

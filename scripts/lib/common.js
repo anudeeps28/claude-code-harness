@@ -49,4 +49,35 @@ function exemptSet(options = {}) {
   return new Set(options.exempt || []);
 }
 
-module.exports = { PATH_BOUNDARY, mdFiles, skillFolders, fenceMask, unfenced, checkOptions, exemptSet };
+// The markdown files that make file and heading pointers (check 2): every .md under skills/ (tests
+// excluded), agents/*.md and rules/*.md. Each is { rel, lines } with the lines inside ``` code fences
+// blanked, so a line number is still the real one. A file over 2 MB is skipped.
+const MAX_POINTER_BYTES = 2 * 1024 * 1024;
+
+function* mdUnder(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === '__tests__' || e.name === 'node_modules' || e.name === '.git') continue;
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) yield* mdUnder(full);
+    else if (e.isFile() && e.name.endsWith('.md')) yield full;
+  }
+}
+
+function pointerSources(root) {
+  const files = [
+    ...mdUnder(path.join(root, 'skills')),
+    ...mdFiles(path.join(root, 'agents')).map((f) => path.join(root, 'agents', f)),
+    ...mdFiles(path.join(root, 'rules')).map((f) => path.join(root, 'rules', f)),
+  ];
+  return files.filter((f) => fs.statSync(f).size <= MAX_POINTER_BYTES).map((f) => {
+    const lines = fs.readFileSync(f, 'utf8').split(/\r?\n/);
+    const mask = fenceMask(lines);
+    return {
+      rel: path.relative(root, f).split(path.sep).join('/'),
+      lines: lines.map((l, i) => (mask[i] ? '' : l)),
+    };
+  });
+}
+
+module.exports = { PATH_BOUNDARY, mdFiles, skillFolders, fenceMask, unfenced, checkOptions, exemptSet, pointerSources };

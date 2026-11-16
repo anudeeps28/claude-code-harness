@@ -45,8 +45,7 @@ Source: [path of the source document, or "none"]
 1. [question] — Recommended: [answer, and why in one line]
 
 <!-- One story section, no task XML. Every story is test first: the story loop writes the tests
-     from the criteria, sees them fail, then writes the code (see skills/implement/SKILL.md,
-     "The story loop", and rules/test-philosophy.md). A bug's first test reproduces the bug. -->
+     from the criteria, sees them fail, then writes the code (see rules/test-philosophy.md). A bug's first test reproduces the bug. -->
 
 ## Corrections from YOUR_NAME
 

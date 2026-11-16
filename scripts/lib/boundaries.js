@@ -10,6 +10,7 @@ const path = require('node:path');
 const iface = require('./interface.js');
 const { mdFiles, checkOptions } = require('./common.js');
 const pointers = require('./pointers.js');
+const headings = require('./headings.js');
 const readmes = require('./readmes.js');
 const adrs = require('./adrs.js');
 const context = require('./context.js');
@@ -55,6 +56,7 @@ module.exports = {
   checkRulesTable,
   ...iface,
   ...pointers,
+  ...headings,
   ...readmes,
   ...adrs,
   readArchitectureMap: context.readArchitectureMap,

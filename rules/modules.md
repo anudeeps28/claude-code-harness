@@ -214,17 +214,17 @@ wording can slip past the check; the architect reviewer remains the backstop for
 ### What runs today
 
 Not every item above is enforced yet. `npm test` enforces today: agent owners (item 3); every skill's
-and agent's Interface block with its four parts, and the skill files other modules point at being listed
-in its Callable parts, within the scan scope of the pointer check (`agents/`, `rules/`, `skills/`,
-`hooks/`, `install/`, `templates/`, `trackers/` and `code-platform/`, tests skipped; part of item 2);
+and agent's Interface block with its four parts; file pointers (item 2): a skill file another module points
+at is listed in its Callable parts, a path into a code module or an agent is a main file or one its
+Interface lists, and a path to a main file followed by a quoted or bold heading names `"Interface"`;
 each code module's `README.md`; every non-test `.js` file's relative imports into another module,
 against that module's Interface (a code module's `README.md`, a skill's `SKILL.md`) (item 1); the ADR `Modules:`
 lines and the ADRs cited in Interface blocks (item 7); and the architecture map's rows, kinds, private
-agents and links. These arrive later: the standard folder shape (item 4) with F2 story
-#6j2mgp3qGcrM58q2, private insides beyond that scan scope (item 2) with F2 story #6j2mgmqmpx9pJVq2,
+agents and links. These arrive later:
+the standard folder shape (item 4) with F2 story #6j2mgp3qGcrM58q2,
 test locality (item 5) with F2 story #6j2mgp8CJ6mRHW32, and the map's **Depends on** column (item 6)
-with F2 story #6j2mgp5G2xvFP6Q2 (F2 is #6j2mgjrhw5VCqMMR; the plan lines, the builder's brief and the
-pre-PR docs check are F3, #6j2mgjwMgrvf3fwR).
+with F2 story #6j2mgp5G2xvFP6Q2 (F2 is #6j2mgjrhw5VCqMMR; the plan lines,
+the builder's brief and the pre-PR docs check are F3, #6j2mgjwMgrvf3fwR).
 
 The boundary check lives in `scripts/__tests__/boundaries-*.test.js` (one file per check family), which
 `npm test` runs.

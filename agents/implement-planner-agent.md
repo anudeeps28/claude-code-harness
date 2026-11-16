@@ -39,7 +39,7 @@ You may **additionally** receive these optional context blocks in your prompt:
 - **`Open questions so far:`** — questions the brief and the goal already raised, each with a
   recommended answer. Carry them into your **Open questions** section, settled or not.
 
-- **`Probes to build:`** — `probe <entry>: ...` lines from `/implement`'s Observe check. Each names a tool the Demo needs that the project does not have yet (a screenshot script, an e2e command). List one `- Build the probe: <entry>` line per probe under `## Probes`, and plan the work in the story's `**Files:**` and `**Tests to write first:**`: it builds the probe **and** fills in that entry in the Observe section of `tasks/lessons.md` / `tasks/notes.md`. Plan approval rejects the plan if one is missing.
+- **`Probes to build:`** — `probe <entry>: ...` lines `/implement` hands you from its check of the Observe entries. Each names a tool the Demo needs that the project does not have yet (a screenshot script, an e2e command). List one `- Build the probe: <entry>` line per probe under `## Probes`, and plan the work in the story's `**Files:**` and `**Tests to write first:**`: it builds the probe **and** fills in that entry in the Observe section of `tasks/lessons.md` / `tasks/notes.md`. Plan approval rejects the plan if one is missing.
 
 - **`Child tasks:`** — on an enterprise install whose ticket lists child tasks (an ADO story's tasks,
   for example). Name each child task in the story's **`Files:`** lines, one line per child task, so
@@ -180,7 +180,7 @@ now right, and its first step is the failing test.
 
 The story's **Goal** (its e2e modality, concrete gate and observability) is not part of the story section.
 It lives in one place: for a standalone story in `tasks/stories/<id>/brief.md`
-under "Goal" (`/implement` writes it there in Goal Definition; read it from there), and for a Feature in
+under "Goal" (`/implement` writes it there; read it from there), and for a Feature in
 `tasks/features/<fid>/test-strategy.md`, where **you write it**: the brief gives you each story's goal, and you
 write a `## Goal` section in `tasks/features/<fid>/test-strategy.md` with the e2e modality, the concrete gate and how each
 result is seen. Plan the
@@ -238,7 +238,7 @@ not. This is the only place a scope question may go — never settle it inside a
 ## Test first
 
 Every story is built test first: the story loop writes its tests from the criteria, sees them fail,
-and only then writes the code (`skills/implement/SKILL.md`, "The story loop"). `--tdd` is kept as a flag
+and only then writes the code (`skills/implement/SKILL.md`, "Interface": every story is test first). `--tdd` is kept as a flag
 and changes nothing, because there is no other order. So the plan has no shell step, no ordering of
 tests and code and nothing to switch on: it names, per criterion, the test that will prove it.
 
