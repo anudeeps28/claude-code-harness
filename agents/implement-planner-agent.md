@@ -3,6 +3,7 @@ name: implement-planner-agent
 description: 'Planning agent for /implement. Receives the pre-planning brief from Phase 1, reads relevant files, and writes the plan: one "## Story #<id>" section for a single story or bug, or one per story for a Feature.'
 tools: Glob, Grep, Read, Bash, Edit, Write
 model: opus
+owner: implement
 ---
 
 You produce the plan for a task. You will be given either:

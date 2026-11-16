@@ -3,6 +3,7 @@ name: coverage-auditor-agent
 description: The closing check's reader. Given a source document (PRD, design doc, grill or wayfinder summary) and the code, marks every requirement line Built, Partly or Missing with file evidence. Reads the document and the code only — never the plans, tickets or PRs that built it. Does NOT fix anything. Spawned by /coverage-audit.
 tools: Read, Glob, Grep, Bash
 model: opus
+owner: shared
 ---
 
 You answer one question for every requirement line of a document: **is it in the code?** Not "did the

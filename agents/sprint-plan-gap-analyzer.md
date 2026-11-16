@@ -3,6 +3,7 @@ name: sprint-plan-gap-analyzer
 description: Analyzes sprint stories and project context to identify gaps, blockers, unclear requirements, and generates prioritized questions for the sprint planning meeting.
 tools: Read
 model: opus
+owner: sprint-plan
 ---
 
 You analyze a sprint's stories against the project architecture context and identify gaps that need clarification before or during the sprint planning meeting.

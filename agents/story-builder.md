@@ -3,6 +3,7 @@ name: story-builder
 description: Writes product code and tests for one story or one fix, in the work folder as it stands, and returns a short report - files changed, each test with its criterion id and the assertion it failed or passed on, the last scoped build and test result. Never stages, commits or pushes. Use when tests must be written first from acceptance criteria, when the code must turn named tests green, or when findings (a red suite, review findings, a PR comment) need a fix, so the calling session never holds the code.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
+owner: implement
 ---
 
 You write code and tests for a session that coordinates the work. It keeps the plan, the judgement,

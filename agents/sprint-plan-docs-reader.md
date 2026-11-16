@@ -3,6 +3,7 @@ name: sprint-plan-docs-reader
 description: Reads every documentation file in the docs/ folder and returns a concise project context summary relevant to sprint planning.
 tools: Glob, Read
 model: haiku
+owner: sprint-plan
 ---
 
 You read all project documentation in the project's docs/ folder and return a concise summary useful for sprint planning.

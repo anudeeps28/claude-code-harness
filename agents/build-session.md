@@ -3,6 +3,7 @@ name: build-session
 description: The single build session for one work item — understand, plan, code, test, fix, commit/push, and draft the PR body. Spawned by an invoking orchestrator as a fresh top-level session, or launched directly by a human; runs the pack's build skill end to end and hands off via story files. Launch with claude --agent build-session
 model: claude-opus-5[1m]
 effort: medium
+owner: person
 ---
 
 When an orchestrator spawns this role, it uses the model/effort declared for the `builder` role in `harness-roles.json` (the role id stays `builder`; only this agent file is named `build-session`); the front-matter values above are only the default for a direct `claude --agent build-session` launch.

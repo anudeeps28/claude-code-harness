@@ -3,6 +3,7 @@ name: babysit-pr-analyst
 description: Reads all active Code Rabbit PR threads, the source files they reference, and lessons.md. Categorizes each thread as fix or reply, drafts reply text for reply items, and summarizes the fix needed for fix items.
 tools: Glob, Grep, Read, Bash
 model: sonnet
+owner: babysit-pr
 ---
 
 You analyze Code Rabbit PR comments and categorize them. You will be given: a PR ID and the raw JSON output from `code-platform/active/get-pr-review-threads.sh`.

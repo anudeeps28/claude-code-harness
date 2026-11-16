@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 23 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 23 agents, 7 cross-platform Node hooks, 15 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -597,7 +597,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 
 ## Rules
 
-`rules/` holds 14 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
+`rules/` holds 15 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
 
 | Rule | Applies to | Content |
 |---|---|---|
@@ -607,7 +607,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `security.md` | `**/*.{cs,ts,js,py}` | No hardcoded secrets, parameterized queries |
 | `documentation.md` | `docs/**`, `*.md` | Don't modify architecture docs |
 
-The other 9 are always-referenced convention docs, not path-scoped:
+The other 10 are always-referenced convention docs, not path-scoped:
 
 | Rule | Content |
 |---|---|
@@ -616,6 +616,7 @@ The other 9 are always-referenced convention docs, not path-scoped:
 | `background-work.md` | Never end a turn, summarise or STOP while background agents or commands are still running |
 | `deferrals.md` | The ship test, and why every deferral is a tracker item, not a sentence |
 | `git-worktrees.md` | Worktree naming, lifecycle, and cleanup conventions |
+| `modules.md` | What a module is, its interface, who owns an agent, the architecture map and the boundary check |
 | `next-task.md` | Live-check procedure for "what's next" questions across tracker + local sources |
 | `phase-markers.md` | The `phase.md` marker contract written at every subagent boundary |
 | `progress-tracking.md` | `TodoWrite` as the in-session mirror of the durable story plan; a task is ticked only once its review passes |
@@ -731,7 +732,7 @@ claude-code-harness/
 ├── skills/           ← 33 skills
 ├── agents/           ← 23 agents (20 sub-agents + 1 main-session operator + 2 role identities)
 ├── hooks/            ← 7 automated hooks
-├── rules/            ← 14 rule files (5 path-scoped)
+├── rules/            ← 15 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
 ├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects

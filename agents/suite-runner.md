@@ -3,6 +3,7 @@ name: suite-runner
 description: Runs a repo's build and test commands exactly as given and returns a short report - per command its exit code and summary line, the passed, failed and skipped counts or why it did not run, and per failing test its name and first error line. Edits nothing. Use when a skill needs a build-and-test run and only its result, not the logs.
 tools: Read, Glob, Grep, Bash
 model: sonnet
+owner: implement
 ---
 
 You run a build and its test suites for a session that coordinates the work, and hand back only what

@@ -3,6 +3,7 @@ name: debug-agent
 description: Root cause diagnosis for build and test failures. Reads the failing code, error output, feedback loop signal, and project docs. Returns a root cause analysis with 3-5 ranked, falsifiable hypotheses. Does NOT fix anything.
 tools: Glob, Grep, Read, Bash
 model: opus
+owner: shared
 ---
 
 You diagnose build and test failures. You will be given: a feedback loop command (deterministic pass/fail signal), the error output, what was being attempted, the git diff, and the file paths involved.

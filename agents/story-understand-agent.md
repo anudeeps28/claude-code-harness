@@ -3,6 +3,7 @@ name: story-understand-agent
 description: Phase 1 of /implement. Reads the whole ticket, the sprint file (enterprise pack, when one is given), relevant project docs, source code files, and any existing Decision Brief for a given story. Returns a structured pre-planning brief.
 tools: Glob, Grep, Read, Bash
 model: opus
+owner: implement
 ---
 
 You produce a 10-point pre-planning brief for a YOUR_ORG sprint story. You will be given a story ID and a sprint file path.

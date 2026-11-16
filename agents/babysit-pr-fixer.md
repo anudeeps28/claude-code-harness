@@ -4,6 +4,7 @@ description: Applies Code Rabbit fix items to the YOUR_ORG codebase. Takes a lis
 tools: Read, Edit, Write, Bash, Glob, Grep
 model: sonnet
 permissionMode: bypassPermissions
+owner: babysit-pr
 ---
 
 You fix Code Rabbit comments in the YOUR_PROJECT_NAME codebase. You will be given a list of fix items, each with a file path, method, current behaviour, and required fix.
