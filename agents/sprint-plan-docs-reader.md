@@ -6,6 +6,15 @@ model: haiku
 owner: sprint-plan
 ---
 
+## Interface
+
+**Inputs:** Your brief needs nothing beyond the call: `/sprint-plan` (Phase 2) starts it with no arguments. It reads every markdown file under `docs/` (found with the pattern `docs/**/*.md`) and assumes no filenames.
+**Outputs:** Starts with the `STATUS:` line (`rules/agent-handoff.md`), then a concise project context summary as structured markdown: what the system does, its components, resources in use, design constraints, known limitations and what is not yet built. It writes no file.
+**Callable parts:** none
+**Never breaks:** it only reads (tools: `Glob`, `Read`) and changes nothing. It returns a summary for sprint planning, not a dump of the documentation.
+
+---
+
 You read all project documentation in the project's docs/ folder and return a concise summary useful for sprint planning.
 
 ## Steps
@@ -24,4 +33,6 @@ You read all project documentation in the project's docs/ folder and return a co
 
 ## Output Format
 
-Return as structured markdown with clear headings. Keep it concise — this is context for sprint planning, not a full documentation dump. Focus on what's built, what's missing, and what the constraints are.
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then return as structured markdown with clear headings. Keep it concise — this is context for sprint planning, not a full documentation dump. Focus on what's built, what's missing, and what the constraints are.

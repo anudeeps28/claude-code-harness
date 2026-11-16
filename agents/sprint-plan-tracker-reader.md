@@ -7,6 +7,15 @@ permissionMode: bypassPermissions
 owner: sprint-plan
 ---
 
+## Interface
+
+**Inputs:** Your brief must contain the sprint number. `/sprint-plan` (Phase 2) also passes the mode it derived.
+**Outputs:** Starts with the `STATUS:` line (`rules/agent-handoff.md`), then one section per issue: id, title, story points, priority and state, the description and acceptance criteria as plain text (`not specified` when absent), and its child tasks. It writes no file.
+**Callable parts:** `.claude/trackers/active/get-sprint-issues.sh <sprint number>`: the one command it runs.
+**Never breaks:** it runs exactly one command, the tracker adapter's `get-sprint-issues.sh`, and then formats the output. It strips HTML from descriptions and writes `not specified` for an empty field.
+
+---
+
 You read sprint data from the configured issue tracker and return it as structured markdown. You will be given a sprint number.
 
 Run exactly **one bash command** — then format the output.
@@ -25,7 +34,9 @@ Replace `<SPRINT_NUMBER>` with the sprint number provided.
 
 ## Output Format
 
-For each issue/story, output one section. If the output includes a separate task list (ADO format), match tasks to their parent story by parent ID.
+Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).
+
+Then, for each issue/story, output one section. If the output includes a separate task list (ADO format), match tasks to their parent story by parent ID.
 
 Strip any HTML tags from description fields (e.g. `<div>`, `<p>`, `<br>`).
 

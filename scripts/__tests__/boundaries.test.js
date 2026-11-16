@@ -7,6 +7,7 @@ const path = require('node:path');
 const {
   agentOwners, checkOwners, checkRulesTable,
   readInterface, checkInterfaces, checkPending, namedFiles, checkCallableParts, checkAgentOutputs,
+  callersOf, checkSharedInputs,
 } = require('../lib/boundaries.js');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -170,10 +171,6 @@ const PENDING = [
   'skills/prd-critique', 'skills/prototype', 'skills/ralph-prd', 'skills/research',
   'skills/sprint-plan', 'skills/sync-tasks', 'skills/sync-tracker', 'skills/tdd', 'skills/triage',
   'skills/update-harness', 'skills/wayfinder', 'skills/zoom-out',
-  'agents/babysit-pr-analyst', 'agents/babysit-pr-fixer', 'agents/build-session',
-  'agents/chief-operator', 'agents/coverage-auditor-agent', 'agents/debug-agent',
-  'agents/evaluator-agent', 'agents/review-session', 'agents/sprint-plan-docs-reader',
-  'agents/sprint-plan-gap-analyzer', 'agents/sprint-plan-tracker-reader',
 ];
 // rules/modules.md "Known exception": skills/frontend-design is a bundle of sub-skills, not one skill.
 const EXEMPT_SKILLS = ['frontend-design'];
@@ -297,7 +294,6 @@ test('/implement Never breaks cites the accepted ADRs (AC2, AC11, AC15)', () => 
 });
 
 test('pending list names only modules still without a block (AC3, AC16)', () => {
-  assert.ok(PENDING.length > 0 && PENDING.includes('agents/debug-agent'));
   assert.deepEqual(checkPending(repoRoot, PENDING), []);
   inFixture({
     'agents/done.md': withBlock({}),
@@ -307,6 +303,89 @@ test('pending list names only modules still without a block (AC3, AC16)', () => 
     assert.ok(problems.some((p) => p.includes('agents/done') && p.includes('has an Interface block') && p.includes('remove it from PENDING')), problems.join('\n'));
     assert.ok(problems.some((p) => p.includes('agents/ghost') && p.includes('does not exist')), problems.join('\n'));
     assert.ok(!problems.some((p) => p.includes('agents/todo')), problems.join('\n'));
+    assert.equal(problems.length, 2, problems.join('\n'));
+  });
+});
+
+test('no agent is pending and the exempt list is only frontend-design (AC1, AC3)', () => {
+  // The one non-empty sentinel for PENDING: drop it when PENDING reaches zero (story 5, the last skills).
+  assert.ok(PENDING.length > 0, 'the skills are still pending, so the filter below has something to filter');
+  assert.deepEqual(PENDING.filter((id) => id.startsWith('agents/')), []);
+  assert.deepEqual(EXEMPT_SKILLS, ['frontend-design']);
+});
+
+test('every shared agent\'s Inputs name each calling skill (AC2)', () => {
+  assert.deepEqual(callersOf(repoRoot, 'evaluator-agent').sort(), ['evaluate', 'implement']);
+  assert.deepEqual(checkSharedInputs(repoRoot, { pending: PENDING }), []);
+  const shared = (inputs) => withBlock({ Inputs: inputs }).replace('name: x', 'name: x\nowner: shared');
+  inFixture({
+    'skills/implement/SKILL.md': 'spawns `shared-a` and `shared-b`\n',
+    'skills/debug/SKILL.md': 'spawns shared-a\n',
+    'agents/shared-a.md': shared('from /implement: a plan path'),
+    'agents/shared-b.md': shared('from /implement: a plan path'),
+    'agents/own.md': withBlock({ Inputs: 'a plan path' }).replace('name: x', 'name: x\nowner: implement'),
+    // owner: shared with a block that omits a caller: only the pending guard keeps it out of the report.
+    'agents/pend.md': shared('a plan path'),
+    'skills/pendcaller/SKILL.md': 'Spawn `pend` here\n',
+  }, (root) => {
+    assert.deepEqual(callersOf(root, 'shared-a').sort(), ['debug', 'implement']);
+    const problems = checkSharedInputs(root, { pending: ['agents/pend'] });
+    assert.ok(problems.some((p) => p.includes('agents/shared-a.md') && p.includes('/debug')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('agents/pend.md')), problems.join('\n'));
+    assert.equal(problems.length, 1, problems.join('\n'));
+    assert.equal(checkSharedInputs(root, { pending: [] }).filter((p) => p.includes('agents/pend.md')).length, 1);
+  });
+});
+
+test('the real callers of the shared and sprint-plan agents are found (finding 1)', () => {
+  assert.deepEqual(callersOf(repoRoot, 'evaluator-agent').sort(), ['evaluate', 'implement']);
+  assert.deepEqual(callersOf(repoRoot, 'coverage-auditor-agent').sort(), ['coverage-audit', 'implement']);
+  assert.deepEqual(callersOf(repoRoot, 'debug-agent').sort(), ['debug', 'implement']);
+  for (const a of ['sprint-plan-docs-reader', 'sprint-plan-tracker-reader', 'sprint-plan-gap-analyzer']) {
+    assert.deepEqual(callersOf(repoRoot, a), ['sprint-plan'], a);
+  }
+});
+
+test('callersOf finds launch, start, run, "Agent X:" and a name on the line after the verb, not examples (finding 1)', () => {
+  inFixture({
+    'skills/l/SKILL.md': 'Launch a `shared-b` with a brief\n',
+    'skills/n/SKILL.md': 'Spawn the reviewer:\n`shared-b` (foreground)\n',
+    'skills/s/SKILL.md': 'Start `shared-b`\n',
+    'skills/r/SKILL.md': 'Then run the `shared-b` agent\n',
+    'skills/a/SKILL.md': '**Agent A: `shared-b`** (foreground)\n',
+    'skills/ex/SKILL.md': '- **Skill or agent:** [e.g., story-builder, shared-b]\n\nThe brief of `shared-b` names a path.\n',
+    'skills/path/SKILL.md': 'Spawn from `agents/shared-b.md`\n',
+  }, (root) => {
+    assert.deepEqual(callersOf(root, 'shared-b').sort(), ['a', 'l', 'n', 'r', 's']);
+  });
+});
+
+test('a skill named only inside a path does not satisfy the calling-skill check (finding 2)', () => {
+  const shared = (inputs) => withBlock({ Inputs: inputs }).replace('name: x', 'name: x\nowner: shared');
+  inFixture({
+    'skills/debug/SKILL.md': 'Spawn `shared-p` and `shared-q`\n',
+    'agents/shared-p.md': shared('reads skills/debug/SKILL.md and rules/debug'),
+    'agents/shared-q.md': shared('from `/debug`: a path'),
+  }, (root) => {
+    const problems = checkSharedInputs(root, { pending: [] });
+    assert.ok(problems.some((p) => p.includes('agents/shared-p.md') && p.includes('/debug')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('agents/shared-q.md')), problems.join('\n'));
+    assert.equal(problems.length, 1, problems.join('\n'));
+  });
+});
+
+test('none (person-launched) satisfies the STATUS check only for owner: person (AC3)', () => {
+  const withOwner = (owner, outputs) => withBlock({ Outputs: outputs }).replace('name: x', `name: x\nowner: ${owner}`);
+  inFixture({
+    'agents/ok-person.md': withOwner('person', 'none (person-launched); the person sees a summary'),
+    'agents/bad-shared.md': withOwner('shared', 'none (person-launched)'),
+    'agents/bad-skill.md': withOwner('implement', 'none (person-launched)'),
+    'agents/person-status.md': withOwner('person', 'starts with the STATUS: line'),
+  }, (root) => {
+    const problems = checkAgentOutputs(root, { pending: [] });
+    assert.ok(!problems.some((p) => p.includes('agents/ok-person.md')), problems.join('\n'));
+    assert.ok(problems.some((p) => p.includes('agents/bad-shared.md')), problems.join('\n'));
+    assert.ok(problems.some((p) => p.includes('agents/bad-skill.md')), problems.join('\n'));
     assert.equal(problems.length, 2, problems.join('\n'));
   });
 });

@@ -26,6 +26,10 @@ Every agent's report starts with exactly one of these lines, and the brief says 
 - `STATUS: BLOCKED`
 - `STATUS: NEEDS_CONTEXT`
 
+This applies to the agents an orchestrator starts. An agent a person launches reports to no
+orchestrator, so it is the exception: it has `owner: person` and writes `none (person-launched)` in its
+Interface Outputs instead of a `STATUS:` line.
+
 The status is about the agent's **job**, not the code. A reviewer that returns findings, or a test
 that failed when it was meant to fail, is `STATUS: DONE`.
 
