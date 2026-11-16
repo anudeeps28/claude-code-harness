@@ -10,6 +10,7 @@ const { mdFiles, agentOwners, ...iface } = require('./interface.js');
 const pointers = require('./pointers.js');
 const readmes = require('./readmes.js');
 const adrs = require('./adrs.js');
+const context = require('./context.js');
 
 function checkOwners(root) {
   const problems = [];
@@ -62,4 +63,9 @@ module.exports = {
   checkAdrModules: adrs.checkAdrModules,
   checkAdrCitations: adrs.checkAdrCitations,
   checkAcceptedAdrsCited: adrs.checkAcceptedAdrsCited,
+  readArchitectureMap: context.readArchitectureMap,
+  checkContextMap: context.checkContextMap,
+  bare: context.bare,
+  linkTarget: context.linkTarget,
+  cellNames: context.cellNames,
 };

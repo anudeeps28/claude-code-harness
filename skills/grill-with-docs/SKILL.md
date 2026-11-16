@@ -34,7 +34,7 @@ Glob: CONTEXT.md
 
 If it does not exist:
 
-> "This skill requires a CONTEXT.md file — a domain glossary and module map that anchors the grilling in your team's shared vocabulary. Run the harness installer (`node install/install.js`) and accept the CONTEXT.md + ADR option, or create one manually from `templates/CONTEXT.md.template`."
+> "This skill requires a CONTEXT.md file — a domain glossary and architecture map that anchors the grilling in your team's shared vocabulary. Run the harness installer (`node install/install.js`) and accept the CONTEXT.md + ADR option, or create one manually from `templates/CONTEXT.md.template`."
 
 **STOP.** Do not proceed without CONTEXT.md. *(Gate type: pre-flight)*
 
@@ -60,7 +60,7 @@ Read both before touching the input:
 
 1. **Read CONTEXT.md** — extract:
    - Domain glossary (all terms and definitions)
-   - Module map (what each module owns and doesn't own)
+   - Architecture map (what each module owns, what it uses and where its Interface is)
    - Codebase conventions
 
 2. **Read ADRs** — scan `docs/adr/` for all `.md` files (excluding README.md):
