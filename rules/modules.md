@@ -194,7 +194,7 @@ boundary automatically, it does.
 
 ## The boundary check
 
-`boundaries.test.js` runs inside `npm test`, so CI fails a PR that crosses a boundary. It checks:
+`scripts/__tests__/boundaries-*.test.js` runs inside `npm test`, so CI fails a PR that crosses a boundary. It checks:
 
 1. **Code imports** — a JS file imports from another module only what that module's README lists.
 2. **File pointers** — a skill, agent or rule names another module's main file (`SKILL.md`, the agent's
