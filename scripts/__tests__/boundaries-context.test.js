@@ -189,7 +189,7 @@ function repoModules() {
   return { skills, owners: agentOwners(repoRoot) };
 }
 
-test('CONTEXT.md maps every module (AC1)', () => {
+test('check 6 — CONTEXT.md maps every module (AC1)', () => {
   // The repo's own map passes the check ...
   assert.deepEqual(checkContextMap(repoRoot, { exempt: EXEMPT_SKILLS }), []);
 

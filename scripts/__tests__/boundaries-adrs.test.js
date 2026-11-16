@@ -81,7 +81,7 @@ test('the ADR template must carry a Modules: line, and its placeholder is accept
   inFixture(adrBase(), (root) => assert.deepEqual(checkAdrModules(root), []));
 });
 
-test('every ADR cited in an Interface block exists and is not superseded (AC4, AC7, L205)', () => {
+test('check 7 — every ADR cited in an Interface block exists and is not superseded (AC4, AC7, L205)', () => {
   assert.deepEqual(checkAdrCitations(repoRoot, { exempt: EXEMPT_SKILLS }), []);
 });
 

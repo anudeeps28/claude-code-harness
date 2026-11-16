@@ -44,7 +44,7 @@ test('owner is read from the frontmatter, not the body (AC2)', () => {
   }
 });
 
-test('agent owners match who uses them (AC3, AC4, AC5, AC7)', () => {
+test('check 3 — agent owners match who uses them (AC3, AC4, AC5, AC7)', () => {
   const actual = {};
   for (const { name, owner } of agentOwners(repoRoot)) actual[name] = owner;
   assert.deepEqual(actual, EXPECTED_OWNERS);

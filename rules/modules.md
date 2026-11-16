@@ -217,7 +217,8 @@ Not every item above is enforced yet. `npm test` enforces today: agent owners (i
 and agent's Interface block with its four parts, and the skill files other modules point at being listed
 in its Callable parts, within the scan scope of the pointer check (`agents/`, `rules/`, `skills/`,
 `hooks/`, `install/`, `templates/`, `trackers/` and `code-platform/`, tests skipped; part of item 2);
-each code module's `README.md` and the files other modules require from it (item 1); the ADR `Modules:`
+each code module's `README.md`; every non-test `.js` file's relative imports into another module,
+against that module's Interface (a code module's `README.md`, a skill's `SKILL.md`) (item 1); the ADR `Modules:`
 lines and the ADRs cited in Interface blocks (item 7); and the architecture map's rows, kinds, private
 agents and links. These arrive later: the standard folder shape (item 4) with F2 story
 #6j2mgp3qGcrM58q2, private insides beyond that scan scope (item 2) with F2 story #6j2mgmqmpx9pJVq2,

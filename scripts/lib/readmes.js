@@ -1,5 +1,5 @@
 'use strict';
-// Private to the scripts module: the code-module README checks behind scripts/__tests__/boundaries-*.test.js
+// Private to the scripts module: the README and SKILL.md Interface checks behind scripts/__tests__/boundaries-*.test.js
 // (rules/modules.md, "Where an interface is written"). Each takes a repo root and returns problem strings.
 
 const fs = require('node:fs');
@@ -61,7 +61,12 @@ function jsFiles(dir, rel = '') {
   return out;
 }
 
-const moduleOf = (rel) => rel.split('/')[0];
+// A skill is its own module: skills/<name>/... belongs to skills/<name>, anything else to its top folder.
+const moduleOf = (rel) => {
+  const parts = rel.split('/');
+  return parts[0] === 'skills' && parts.length > 2 ? `skills/${parts[1]}` : parts[0];
+};
+const depth = (module) => module.split('/').length;
 
 const lineOf = (text, index) => text.slice(0, index).split('\n').length;
 const isRelative = (spec) => /^\.{1,2}\//.test(spec);
@@ -99,7 +104,7 @@ function requiredExports(root, module) {
     for (const { spec } of scanRequires(fs.readFileSync(path.join(root, rel), 'utf8'))) {
       if (spec === null || !isRelative(spec)) continue;
       const target = resolveTarget(root, rel, spec);
-      if (!target || moduleOf(target) !== module || target.split('/').length < 2) continue;
+      if (!target || moduleOf(target) !== module || target.split('/').length <= depth(module)) continue;
       if (!found.has(target)) found.set(target, new Set());
       found.get(target).add(rel);
     }
@@ -123,13 +128,18 @@ function unresolvedRequires(root) {
 function checkReadmeCallable(root, options = {}) {
   checkOptions(options);
   const problems = unresolvedRequires(root);
-  for (const mod of CODE_MODULES) {
-    const file = path.join(root, mod, 'README.md');
+  const skillsDir = path.join(root, 'skills');
+  const skills = fs.existsSync(skillsDir)
+    ? fs.readdirSync(skillsDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => `skills/${e.name}`).sort()
+    : [];
+  for (const mod of [...CODE_MODULES, ...skills]) {
+    const iface = mod.startsWith('skills/') ? `${mod}/SKILL.md` : `${mod}/README.md`;
+    const file = path.join(root, iface);
     const callable = fs.existsSync(file) ? readInterface(fs.readFileSync(file, 'utf8')).parts.callable : '';
     for (const { file: target, requiredBy } of requiredExports(root, mod)) {
       const inModule = target.slice(mod.length + 1);
       if (!callable.includes(`\`${inModule}\``) && !callable.includes(`\`${target}\``)) {
-        problems.push(`${mod}/README.md: Callable parts does not list ${target} (required by ${requiredBy.join(', ')})`);
+        problems.push(`${iface}: Callable parts does not list ${target} (required by ${requiredBy.join(', ')})`);
       }
     }
   }

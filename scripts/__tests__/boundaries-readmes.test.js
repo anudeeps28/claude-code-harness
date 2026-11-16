@@ -80,7 +80,7 @@ test('requiredExports finds files another module requires, including relative pa
   });
 });
 
-test('every code module\'s Callable parts list what other modules require from it (AC4)', () => {
+test('check 1 — code imports only what the target\'s Interface lists (AC4, AC5)', () => {
   assert.deepEqual(checkReadmeCallable(repoRoot), []);
   const hooks = requiredExports(repoRoot, 'hooks');
   assert.ok(hooks.some((f) => f.file === 'hooks/lib/walk.js' && f.requiredBy.includes('install/lib/copy.js')),
@@ -201,3 +201,92 @@ test('the real repo has no non-literal require outside __tests__ (AC4)', () => {
   assert.ok(requiredExports(repoRoot, 'hooks').length > 0, 'the scan found hooks files required elsewhere');
 });
 
+// ---- Check 1 (story 6j2mgmmR5QPhFc52): fixtures for the unlisted, skill and wide-scan cases ----
+
+const skillText = (callable) => `---\nname: x\ndescription: d\n---\n\n## Interface\n\n**Inputs:** i\n\n**Outputs:** o\n\n**Callable parts:** ${callable}\n\n**Never breaks:** n\n`;
+
+test('check 1 passes a require of a listed file (AC6)', () => {
+  inFixture({
+    ...allReadmes({ hooks: readmeText({ 'Callable parts': '`lib/walk.js`' }) }),
+    'hooks/lib/walk.js': 'module.exports = {};\n',
+    'install/lib/copy.js': "const w = require('../../hooks/lib/walk.js');\n",
+  }, (root) => assert.deepEqual(checkReadmeCallable(root), []));
+});
+
+test('check 1 names both files for an unlisted require (AC1, AC4, AC6)', () => {
+  inFixture({
+    ...allReadmes({ hooks: readmeText({ 'Callable parts': '`lib/walk.js`' }) }),
+    'hooks/lib/walk.js': 'module.exports = {};\n',
+    'hooks/lib/artifact-parsers.js': 'module.exports = {};\n',
+    'install/lib/copy.js': "const w = require('../../hooks/lib/walk.js');\nconst a = require('../../hooks/lib/artifact-parsers');\n",
+  }, (root) => {
+    const problems = checkReadmeCallable(root);
+    assert.equal(problems.length, 1, problems.join('\n'));
+    assert.ok(problems[0].includes('install/lib/copy.js') && problems[0].includes('hooks/lib/artifact-parsers.js'), problems.join('\n'));
+  });
+});
+
+test('check 1 checks a require into a skill against its SKILL.md Callable parts (AC4, AC7)', () => {
+  inFixture({
+    ...allReadmes(),
+    'skills/a/SKILL.md': skillText('none'),
+    'skills/b/SKILL.md': skillText('none'),
+    'skills/b/bin/y.js': 'module.exports = {};\n',
+    'skills/a/bin/x.js': "require('../../b/bin/y.js');\n",
+  }, (root) => {
+    const problems = checkReadmeCallable(root);
+    assert.equal(problems.length, 1, problems.join('\n'));
+    assert.ok(problems[0].includes('skills/a/bin/x.js') && problems[0].includes('skills/b/bin/y.js'), problems.join('\n'));
+  });
+  inFixture({
+    ...allReadmes(),
+    'skills/a/SKILL.md': skillText('none'),
+    'skills/b/SKILL.md': skillText('`bin/y.js`'),
+    'skills/b/bin/y.js': 'module.exports = {};\n',
+    'skills/a/bin/x.js': "require('../../b/bin/y.js');\n",
+  }, (root) => assert.deepEqual(checkReadmeCallable(root), []));
+});
+
+test('check 1 scans JS outside the five code modules (AC2)', () => {
+  inFixture({
+    ...allReadmes(),
+    'hooks/lib/private.js': 'module.exports = {};\n',
+    'docs/tool.js': "require('../hooks/lib/private.js');\n",
+  }, (root) => {
+    const problems = checkReadmeCallable(root);
+    assert.equal(problems.length, 1, problems.join('\n'));
+    assert.ok(problems[0].includes('docs/tool.js') && problems[0].includes('hooks/lib/private.js'), problems.join('\n'));
+  });
+});
+
+test('check 1 lets a skill require its own files (AC7)', () => {
+  inFixture({
+    ...allReadmes(),
+    'skills/a/SKILL.md': skillText('none'),
+    'skills/a/bin/y.js': 'module.exports = {};\n',
+    'skills/a/bin/x.js': "require('./y.js');\n",
+  }, (root) => assert.deepEqual(checkReadmeCallable(root), []));
+});
+
+// ---- AC8 (FQ34): the repo-level test of each enforced numbered check is titled `check <n> — …` ----
+
+// n is the item's number in rules/modules.md "The boundary check". Check 2 (file pointers), check 5
+// (tests) arrive in later stories; this maps the checks enforced today to the file that tests each.
+const CHECK_TITLE_FILES = {
+  1: 'boundaries-readmes.test.js',
+  3: 'boundaries-owners.test.js',
+  4: 'boundaries-interface.test.js',
+  6: 'boundaries-context.test.js',
+  7: 'boundaries-adrs.test.js',
+};
+
+test('each enforced numbered check has a repo-level test titled "check <n> — " (AC8)', () => {
+  const missing = [];
+  for (const [n, file] of Object.entries(CHECK_TITLE_FILES)) {
+    const text = fs.readFileSync(path.join(__dirname, file), 'utf8');
+    assert.ok(text.length > 0, `${file} is not empty`);
+    const re = new RegExp(`^test\\(\\s*(['"\`])check ${n} — `, 'm');
+    if (!re.test(text)) missing.push(`${file}: no test titled "check ${n} — "`);
+  }
+  assert.deepEqual(missing, []);
+});
