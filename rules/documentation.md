@@ -27,7 +27,7 @@ These rules apply when reading or modifying documentation and markdown files.
 - Don't duplicate content between CLAUDE.md and rules files
 
 ## CONTEXT.md (if present)
-- Lives in the project root — domain glossary, module map, and codebase conventions
+- Lives in the project root — architecture map, domain glossary, and codebase conventions
 - Update it when a term stabilizes, a module's scope changes, or a convention is adopted
 - Read it before proposing refactors or architecture changes — use the vocabulary it defines
 - Do not write ADR-level reasoning here; that goes in `docs/adr/`

@@ -3,6 +3,15 @@ name: architect-critique
 description: Run 5 critique axes on an ARCHITECTURE.md — NFR-architecture fit, failure modes, cost stress-test, security posture, operability. Reports severity-tagged findings. Read-only — does not modify the architecture doc. Usage: /architect-critique <path-to-ARCHITECTURE.md> [--prd <path-to-PRD>]
 ---
 
+## Interface
+
+**Inputs:** `/architect-critique <path-to-ARCHITECTURE.md> [--prd <path-to-PRD>]`. Reads the architecture doc, the PRD when given, `tasks/notes.md` and `tasks/compliance-owners.md`.
+**Outputs:** a report of severity-tagged findings with proposed fixes, and an in-progress breadcrumb in `tasks/notes.md` that it marks done.
+**Callable parts:** none.
+**Never breaks:** it is read-only and never modifies the architecture doc; it only reports findings and proposed fixes. It never skips axes 2-5, which always run. It never writes its breadcrumb to `todo.md`, a generated dashboard.
+
+---
+
 **Core Philosophy:** An architecture doc that passes all 5 axes is deployable. One that fails is a wish list. Find the failures before engineering starts.
 
 **Triggers:** "critique this architecture", "review the architecture doc", "stress-test the architecture", "architecture review", "/architect-critique"

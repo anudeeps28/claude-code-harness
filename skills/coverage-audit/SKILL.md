@@ -4,6 +4,15 @@ description: The closing check for work planned from a document. When the last s
 argument-hint: "tasks/coverage/weekly-review-design.md, or docs/weekly-review-design.md --now"
 ---
 
+## Interface
+
+**Inputs:** `/coverage-audit <coverage file or source doc> [--ref <folder>] [--building <id,id>] [--now]`. Reads the coverage table `tasks/coverage/<slug>.md`, the source document it names, the state of each mapped item from the tracker, and the code in `--ref`.
+**Outputs:** `tasks/coverage/<slug>.audit.md` (newest audit at the top) and the Audit cell of each row of `tasks/coverage/<slug>.md`, marked Built, Partly or Missing. Its report lists the open lines.
+**Callable parts:** none.
+**Never breaks:** the auditor gets the document and the code, never the plans, tickets or PRs that built it. Every in-scope line gets a mark with file evidence, and Partly is never rounded up to Built. No item closes while a line mapped to it is Partly or Missing. An open line becomes new stories or an owner-approved out-of-scope row, never a silent drop and never the run's own decision. It is read-only on code and changes nothing but `tasks/coverage/`.
+
+---
+
 **Core Philosophy:** A document is done when its lines are in the code, not when its tickets are
 closed. Every story can pass its own checks while the document as a whole loses requirements
 between them; this is the one check that reads the document against the code at the end.

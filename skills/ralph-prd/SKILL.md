@@ -5,6 +5,15 @@ context: fork
 model: opus
 ---
 
+## Interface
+
+**Inputs:** `/prd <feature description>`. Reads `prd_mode` from the `## PRD Configuration` section of `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo), and asks clarifying questions before writing.
+**Outputs:** no tasks/ files. `PRD.md` and `progress.txt` in the current directory (per `prd_mode`, `PRD.md` may be a mirror of, or the canonical copy against, a tracker issue), and the PRD shown in the report.
+**Callable parts:** none (the loop runners `ralph.sh` and `ralph.ps1` sit in this skill folder; the body only shows how a person runs them, and no other module names them).
+**Never breaks:** it asks clarifying questions before writing and sizes every story to one context window. In `tracker` mode it creates neither `PRD.md` nor `progress.txt`. In a `both` mode it marks the non-canonical copy as a mirror. Each loop iteration of `ralph.sh` or `ralph.ps1` spawns a fresh `claude -p` instance, and the loop prompt tells that instance to commit only if its verify command passes (the scripts never run `git commit` themselves, so this is an instruction to the instance, not something they enforce). Both scripts run that instance with `--dangerously-skip-permissions`, so it runs without permission prompts.
+
+---
+
 **Core Philosophy:** Ask before writing, then size every story to one context window — a PRD that can't be executed autonomously is just decoration.
 
 **Triggers:** "create a PRD", "write a spec for", "plan this feature", "requirements for", "I need a PRD for", "spec out this feature"

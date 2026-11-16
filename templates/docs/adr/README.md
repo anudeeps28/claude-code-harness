@@ -17,7 +17,7 @@ Routine implementation choices don't need ADRs. If you're unsure, ask: "Would so
 
 Use CONTEXT.md when:
 - A term is being used in a new or project-specific way (glossary update)
-- A module's responsibilities have shifted (module map update)
+- A module's responsibilities have shifted (architecture map update)
 - A convention has been adopted across the codebase (conventions update)
 
 ADRs explain decisions; CONTEXT.md explains current state. Both can be true at once.

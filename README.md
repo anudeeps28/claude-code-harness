@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 23 agents, 7 cross-platform Node hooks, 14 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 23 agents, 12 cross-platform Node hook scripts, 15 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -268,7 +268,7 @@ The installer asks:
 4. **Where do your pull requests live?** — GitHub / GitHub Enterprise, Azure Repos, or none. Picks the code-platform adapter, independent of the tracker.
 5. **Your details** — Name, org, project paths. Fills in all placeholders automatically.
 6. **PRD output mode** — File only, tracker only, or both (with canonical source choice)
-7. **CONTEXT.md + ADR** (project only) — Copies a domain glossary template and ADR convention to your project root.
+7. **CONTEXT.md + ADR** (project only) — Copies a CONTEXT.md template (architecture map, domain glossary and codebase conventions) and the ADR convention to your project root.
 
 Then:
 - **Solo:** `/implement #42` or `/plan`
@@ -588,16 +588,21 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `safety-check.js` | PreToolUse (Bash\|Write) | Blocks destructive git/file/cloud operations + Write of hardcoded secrets |
 | `catalog-trigger.js` | PostToolUse (Write/Edit) | Rebuilds SKILLS_CATALOG.md when skills change |
 | `drift-check.js` | PostToolUse (Write/Edit) | Detects cross-file drift in task files and project artifacts (PRD, ARCHITECTURE.md, ADRs) — 11 invariants covering enum consistency, cross-references, NFR coverage, ADR contradictions, and more |
-| `todo-render-trigger.js` | PostToolUse (Write/Edit) | Re-renders `tasks/todo.md` when a file under `tasks/issues/` is edited directly (local tracker mode only) |
+| `todo-render-trigger.js` | PostToolUse (Write/Edit), not wired by the installer; add by hand (CONFIGURE.md) | Re-renders `tasks/todo.md` when a file under `tasks/issues/` is edited directly (local tracker mode only) |
 | `pre-compact.js` | PreCompact | Saves in-progress state before context compression |
 | `tracker-sync.js` | SessionStart + SessionEnd | Tracker sync sweep — on start, flags open items that look delivered; on end, closes items with explicit written evidence (merged PRs with closing keywords). Never auto-acts on ambiguous evidence |
 | `session-log.js` | SessionEnd | Appends session metadata to sessions.jsonl |
+| `inventory-check.js` | PreToolUse (Bash) | On `git commit`, blocks a new skill or agent with no README row and README counts or `VERSION` and CHANGELOG that disagree with the tree |
+| `session-start-msg.js` | SessionStart | Prints a tracker-aware startup message from `.claude/.harness-manifest.json` |
+| `session-context.js` | SessionStart | Injects the top learnings as a soft hint |
+| `session-router.js` | SessionStart | Detects a new or active project and injects a next-step hint |
+| `catalog-skills.js` | spawned by `catalog-trigger.js` | Scans skills, agents and hooks and writes SKILLS_CATALOG.md |
 
 ---
 
 ## Rules
 
-`rules/` holds 14 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
+`rules/` holds 15 `.md` files. 5 are **path-scoped** — they carry `paths:` front-matter and activate only when Claude reads matching files:
 
 | Rule | Applies to | Content |
 |---|---|---|
@@ -607,7 +612,7 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `security.md` | `**/*.{cs,ts,js,py}` | No hardcoded secrets, parameterized queries |
 | `documentation.md` | `docs/**`, `*.md` | Don't modify architecture docs |
 
-The other 9 are always-referenced convention docs, not path-scoped:
+The other 10 are always-referenced convention docs, not path-scoped:
 
 | Rule | Content |
 |---|---|
@@ -616,6 +621,7 @@ The other 9 are always-referenced convention docs, not path-scoped:
 | `background-work.md` | Never end a turn, summarise or STOP while background agents or commands are still running |
 | `deferrals.md` | The ship test, and why every deferral is a tracker item, not a sentence |
 | `git-worktrees.md` | Worktree naming, lifecycle, and cleanup conventions |
+| `modules.md` | What a module is, its interface, who owns an agent, the architecture map and the boundary check |
 | `next-task.md` | Live-check procedure for "what's next" questions across tracker + local sources |
 | `phase-markers.md` | The `phase.md` marker contract written at every subagent boundary |
 | `progress-tracking.md` | `TodoWrite` as the in-session mirror of the durable story plan; a task is ticked only once its review passes |
@@ -730,13 +736,15 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 claude-code-harness/
 ├── skills/           ← 33 skills
 ├── agents/           ← 23 agents (20 sub-agents + 1 main-session operator + 2 role identities)
-├── hooks/            ← 7 automated hooks
-├── rules/            ← 14 rule files (5 path-scoped)
+├── hooks/            ← 12 hook scripts
+├── rules/            ← 15 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
 ├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects
 ├── examples/         ← filled-in examples (GitHub + .NET)
 ├── install/          ← interactive installer
+├── scripts/          ← maintainer tooling: dogfood links and the boundary checks `npm test` runs
+├── CONTEXT.md        ← architecture map, domain glossary and codebase conventions
 ├── LICENSE           ← MIT
 ├── VERSION           ← current version number
 ├── CHANGELOG.md      ← release history

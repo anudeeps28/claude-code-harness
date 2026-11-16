@@ -3,6 +3,15 @@ name: improve-harness
 description: Self-improvement loop for the harness. Reads recent sessions, evaluations, blockers, and lessons, surfaces recurring friction patterns, and proposes specific harness edits. Never auto-applies. Usage: /improve-harness [days]
 ---
 
+## Interface
+
+**Inputs:** `/improve-harness [days]` (default 7-day lookback). Reads `tasks/sessions.jsonl`, `tasks/lessons.md`, `tasks/flags-and-notes.md`, `tasks/stories/*/evaluation.md`, and per story `tasks/stories/<id>/acceptance.md` and `tasks/stories/<id>/executor-state.md`.
+**Outputs:** `tasks/improve-harness-<YYYY-MM-DD>.md` (the proposal for the person to review), and, once they agree, an update to the marker in `tasks/lessons.md`. Its report names the proposal file and the proposal count.
+**Callable parts:** none.
+**Never breaks:** it never auto-applies a proposal; the person decides what lands in the harness repo. It proposes edits to the harness source (skills, agents, hooks, rules), never to the project's `tasks/` files, and never re-includes previous `tasks/improve-harness-*.md` proposals in its reads.
+
+---
+
 **Core Philosophy:** The harness should learn from its own use. Friction patterns are signal — surface them with evidence, propose concrete edits, and let the user decide what lands in the harness repo.
 
 **Triggers:** User runs `/improve-harness` (default 7-day lookback) or `/improve-harness <N>` (custom days).

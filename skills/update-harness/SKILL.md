@@ -3,6 +3,15 @@ name: update-harness
 description: Check for and apply updates to your claude-code-harness installation. Resolves target (project/global/both), fetches the harness source on demand, shows the changelog, and applies updates with human confirmation. Usage: /update-harness [--global|--project] [--pin <version>|--latest|--local <path>]
 ---
 
+## Interface
+
+**Inputs:** `/update-harness [--global|--project] [--pin <version>|--latest|--local <path>]`. Reads the `.harness-manifest.json` of the project (`.claude/`) and of the global `~/.claude/` folder, including its `update` block, and the fetched changelog.
+**Outputs:** no tasks/ files. It updates the installed harness files and the manifest, writes a snapshot under `~/.claude/.harness-backups/<timestamp>/` first, and reports the changelog and what was applied.
+**Callable parts:** none.
+**Never breaks:** it never mutates a file before showing the person the changelog and plan and getting confirmation. It snapshots before it applies an update, and deletes a temporary clone afterwards but never a `local` channel source.
+
+---
+
 You are the harness update orchestrator. Your job is to check for available updates to the user's
 claude-code-harness installation and apply them safely with the user's confirmation.
 

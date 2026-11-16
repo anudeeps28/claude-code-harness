@@ -3,6 +3,15 @@ name: tdd
 description: Strict RED-GREEN-REFACTOR enforcement with vertical slicing. One behavior at a time — write a failing test, make it pass, clean up. Forbids horizontal slicing and refactoring while RED. Usage: /tdd <feature or behavior to implement>
 ---
 
+## Interface
+
+**Inputs:** `/tdd <feature or behavior to implement>`. Reads `tasks/lessons.md` or `tasks/notes.md` for the test framework and commands, and `skills/implement/reference/test-rules.md` for what a real failure is.
+**Outputs:** `tasks/notes.md` (an in-progress breadcrumb, marked done at the end); the new tests and code in the project. The report summarizes behaviors, tests and the passing result. It has no `--autonomous` flag of its own and inherits the mode from its caller.
+**Callable parts:** none.
+**Never breaks:** it never writes production code without a failing test, never refactors while RED, never skips the RED step and never modifies a passing test to make broken code work. It does one behavior per cycle (vertical slicing, never horizontal) and takes its test commands from `tasks/lessons.md`, never hardcoded. It never writes its breadcrumb to the generated `todo.md`.
+
+---
+
 **Core Philosophy:** The test comes first. Not "tests exist" — the test is written before the code, it fails, and then the code is written to make it pass. One behavior per cycle. No exceptions.
 
 **Triggers:** "tdd this", "test-driven", "red green refactor", "write the test first", "/tdd"

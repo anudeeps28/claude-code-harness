@@ -3,6 +3,15 @@ name: prototype
 description: Throwaway prototyping — creates 1-3 candidate approaches in _prototype/<feature>/, writes a decision.md comparing trade-offs, and cleans up losers after the user picks a winner. Usage: /prototype <feature or question to explore>
 ---
 
+## Interface
+
+**Inputs:** `/prototype <feature or question to explore>`. Reads `tasks/lessons.md` or `tasks/notes.md` for project conventions, and the code it prototypes against.
+**Outputs:** `tasks/notes.md` (an in-progress breadcrumb, marked done at the end), and outside tasks/: 1-3 candidate approaches and a `decision.md` under `_prototype/<feature-slug>/`; the losers are deleted after the person picks a winner.
+**Callable parts:** none.
+**Never breaks:** everything it builds goes in `_prototype/` and never in `src/` or the main codebase. It cleans up the losing candidates after the person picks and leaves no dead candidates behind. It never writes its breadcrumb to the generated `todo.md`.
+
+---
+
 **Core Philosophy:** Test taste and approach before committing. A prototype is disposable by design — it exists to answer a question, not to ship. Build fast, compare honestly, pick one, delete the rest.
 
 **Triggers:** "prototype this", "spike this out", "try a few approaches", "compare approaches", "throwaway implementation", "test this idea", "/prototype"

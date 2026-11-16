@@ -3,6 +3,15 @@ name: grill-with-docs
 description: Stress-test an architectural plan or design against CONTEXT.md and ADRs. Like /grill-me but anchored in documented domain language, glossary terms, and prior decisions. Updates CONTEXT.md with resolved terms and proposes ADRs when decisions are hard-to-reverse + surprising + trade-off-driven. Usage: /grill-with-docs <plan or design to stress-test>
 ---
 
+## Interface
+
+**Inputs:** `/grill-with-docs <plan or design to stress-test>`. Reads `CONTEXT.md`, the ADRs in `docs/adr/` and `tasks/notes.md`.
+**Outputs:** approved updates to `CONTEXT.md`, approved ADR files in `docs/adr/`, and an in-progress breadcrumb in `tasks/notes.md` that it marks done.
+**Callable parts:** none.
+**Never breaks:** it asks one question at a time, each with a lettered recommendation and a doc anchor. It stops without CONTEXT.md and never resolves a fork on the person's behalf. It updates CONTEXT.md only with the person's approval and proposes an ADR only when all 3 criteria are met. It never writes its breadcrumb to `todo.md`.
+
+---
+
 **Core Philosophy:** Same serial questioning discipline as `/grill-me`, but every challenge is anchored in the project's documented domain language (CONTEXT.md) and prior decisions (ADRs). Vague language gets challenged against the glossary. New proposals get checked against existing ADRs. The codebase is the tiebreaker.
 
 **Triggers:** "grill with docs", "stress-test against our docs", "challenge this against our architecture decisions", "grill this with context", "/grill-with-docs"
@@ -25,7 +34,7 @@ Glob: CONTEXT.md
 
 If it does not exist:
 
-> "This skill requires a CONTEXT.md file — a domain glossary and module map that anchors the grilling in your team's shared vocabulary. Run the harness installer (`node install/install.js`) and accept the CONTEXT.md + ADR option, or create one manually from `templates/CONTEXT.md.template`."
+> "This skill requires a CONTEXT.md file — a domain glossary and architecture map that anchors the grilling in your team's shared vocabulary. Run the harness installer (`node install/install.js`) and accept the CONTEXT.md + ADR option, or create one manually from `templates/CONTEXT.md.template`."
 
 **STOP.** Do not proceed without CONTEXT.md. *(Gate type: pre-flight)*
 
@@ -51,7 +60,7 @@ Read both before touching the input:
 
 1. **Read CONTEXT.md** — extract:
    - Domain glossary (all terms and definitions)
-   - Module map (what each module owns and doesn't own)
+   - Architecture map (what each module owns, what it uses and where its Interface is)
    - Codebase conventions
 
 2. **Read ADRs** — scan `docs/adr/` for all `.md` files (excluding README.md):

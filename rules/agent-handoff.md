@@ -5,8 +5,9 @@ started it, and what that session does with the report.
 
 **Location:** `rules/agent-handoff.md` (installed alongside `.claude/skills/`; the `.claude/` copy is
 a symlink to this file).
-**Referenced by:** `skills/implement/SKILL.md` and every agent that `/implement` starts, directly or
-through `/debug` and `/coverage-audit` (the files in `agents/`).
+**Referenced by:** `skills/implement/SKILL.md` and
+every agent an orchestrator starts: the agents `/implement` starts, directly or through `/debug` and
+`/coverage-audit`, and those `/sprint-plan` and `/babysit-pr` start (the files in `agents/`).
 
 ---
 
@@ -19,12 +20,16 @@ all again, so every report starts with one line that says how the job went.
 
 ## The status line
 
-Every agent's report starts with exactly one of these lines, and the brief says so:
+Every agent an orchestrator starts reports with exactly one of these lines as its first line, and the brief says so:
 
 - `STATUS: DONE`
 - `STATUS: DONE_WITH_CONCERNS`
 - `STATUS: BLOCKED`
 - `STATUS: NEEDS_CONTEXT`
+
+This applies to the agents an orchestrator starts. An agent a person launches reports to no
+orchestrator, so it is the exception: it has `owner: person` and writes `none (person-launched)` in its
+Interface Outputs instead of a `STATUS:` line.
 
 The status is about the agent's **job**, not the code. A reviewer that returns findings, or a test
 that failed when it was meant to fail, is `STATUS: DONE`.
@@ -40,6 +45,13 @@ Route on the status line before reading the rest of the report. The rows below a
 | `STATUS: DONE_WITH_CONCERNS` | Read the concerns first. A concern about correctness or scope is dealt with before going on. An observation goes in the decisions log. |
 | `STATUS: NEEDS_CONTEXT` | Give the agent what it asked for, from what the run has already read, and relaunch it. If only a person has it, ask (in an autonomous run, this is a pause-anyway trigger in `rules/autonomous-mode.md`). |
 | `STATUS: BLOCKED` | When BLOCKED for missing context, relaunch it on the same model with the context added; when the job needs more reasoning, relaunch it fresh with `model: opus`, told what the first attempt tried. On a second BLOCKED, or when only a person can clear it, stop and ask. |
+
+## A person agent
+
+An agent with `owner: person` (`build-session`, `review-session`, `chief-operator`) is launched by a person, or
+spawned by an external orchestrator as a fresh top-level session for a role. It reports no `STATUS:` line
+(its Interface says "none (person-launched)"). An external orchestrator that spawns one routes on what it
+leaves behind (its story files and its phase marker, `rules/phase-markers.md`), not on the table above.
 
 ## No status line
 
@@ -61,7 +73,7 @@ agent call naming the one test or criterion, or a read of the few lines one find
 
 ## One-line pattern for skills
 
-> Every agent's report starts with a `STATUS:` line (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED` or
+> Every agent an orchestrator starts reports with a `STATUS:` line (`DONE`, `DONE_WITH_CONCERNS`, `BLOCKED` or
 > `NEEDS_CONTEXT`); route on it per `rules/agent-handoff.md`, treat a missing line as
 > `DONE_WITH_CONCERNS`, never relaunch the same brief on the same model unchanged, and never re-read
 > the agent's work.

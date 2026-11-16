@@ -3,6 +3,7 @@
 - **Status:** proposed | accepted | superseded by ADR-XXXX
 - **Date:** YYYY-MM-DD
 - **Decided by:** [Name / team]
+- **Modules:** [module, module]
 
 ## Context
 

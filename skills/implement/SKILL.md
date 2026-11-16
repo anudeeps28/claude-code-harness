@@ -5,6 +5,15 @@ argument-hint: "#42, 'Build login flow', 'add dark mode to settings page', --rew
 model: sonnet
 ---
 
+## Interface
+
+**Inputs:** `/implement <feature-id | #42 | task title | description>` with the flags `--standalone`, `--discuss`, `--research`, `--quick`, `--step`, `--auto`, `--full`, `--autonomous`, `--tdd`, `--no-ship`, `--rework <PR#> '<note>'` and `--resume <id|fid>`. Reads `tasks/stories/<id>/ticket.md`, `tasks/lessons.md` (or `tasks/notes.md` in the solo pack), `.claude/.harness-manifest.json`, and the saved state of a run being resumed.
+**Outputs:** `tasks/stories/<id>/{brief,plan,executor-state,phase,decisions-log}.md` and `tasks/stories/<id>/.tree-baseline`; for a Feature `tasks/features/<fid>/{brief,plan,test-strategy,feature-state,phase,decisions-log,prove-it,pr-body}.md`, `claim`, `stories.json` and `progress.log`. One commit per story, then the PR. It starts each agent with a brief that asks for a `STATUS:` line (`rules/agent-handoff.md`).
+**Callable parts:** `bin/worktree.js`, `bin/feature-state.js`, `bin/test-lock.js`, `bin/red-evidence.js`, `bin/source-lines.js`, `bin/demo.js`, `bin/observe-check.js`, `bin/proof-check.js`, `bin/claims-check.js`, `bin/pr-gate.js`, `bin/loosened-scan.js`, `bin/migration-check.js`, `reference/test-rules.md`.
+**Never breaks:** it is the one build skill (ADR-0001). Code is built in the work folder and state is written to the home folder's `tasks/`, never inside a worktree (ADR-0004). Stories are built one after another, one commit per story (ADR-0005). One session works one Feature (ADR-0006). It never pushes to main and never force-pushes. It asks its questions once, at the one plan gate. It never reads a requirement more narrowly than written.
+
+---
+
 **Core Philosophy:** Understand it, plan it, ask everything once, then build it, check it, ship it — one human gate (the plan), then straight to the PR. The one build skill in both packs (ADR-0001): a Feature, a story or bug, or a plain description.
 
 **Triggers:** "implement this", "build this feature", "work on issue 42", "implement #42", "build this", "pick up this issue"

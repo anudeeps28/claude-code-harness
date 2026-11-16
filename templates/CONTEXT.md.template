@@ -1,9 +1,19 @@
 # CONTEXT.md
 
-Domain glossary, module map, and codebase conventions.
+Architecture map, domain glossary, and codebase conventions.
 Read by Claude Code agents before grilling, architecture proposals, or refactor sessions — so they anchor suggestions in the team's shared vocabulary.
 
 **How to maintain:** Update as understanding evolves. Add terms when they stabilize. ADRs record *why* decisions were made; this file records *what* is true now.
+
+---
+
+## Architecture map
+
+One row per module: a skill, a shared or person agent, or a code module. An agent a skill owns is listed in that skill's Private agents cell and has no row of its own. Link each module's Interface, the one place its contract is written (`rules/modules.md`).
+
+| Module | Kind | Owns | Private agents | Depends on | Interface |
+|---|---|---|---|---|---|
+| _Module_ | _skill / agent (shared) / agent (person) / code module_ | _What it owns, in one line_ | _Agents only it uses, or —_ | _Modules it uses, or —_ | _path/to/file.md#interface_ |
 
 ---
 
@@ -12,16 +22,6 @@ Read by Claude Code agents before grilling, architecture proposals, or refactor 
 | Term | Definition |
 |---|---|
 | _Term_ | _Definition — what it means in this specific codebase, not the general concept_ |
-
----
-
-## Module map
-
-One line per module or service. What it owns and what it explicitly does not.
-
-| Module / Service | Owns | Does NOT own |
-|---|---|---|
-| _Module_ | _Responsibilities_ | _Explicit boundaries_ |
 
 ---
 

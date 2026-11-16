@@ -3,6 +3,7 @@
 - **Status:** accepted (2026-10-06): built in F4–F7; `/story` and `/run-tasks` retired in F7 #64 after the inventory in [docs/story-retirement-inventory.md](../story-retirement-inventory.md)
 - **Date:** 2026-10-05
 - **Decided by:** Anudeep Sharma (grill session 2026-09-30, Q1–Q2, Q12)
+- **Modules:** implement, install, story-understand-agent, story-pr-agent
 
 ## Context
 

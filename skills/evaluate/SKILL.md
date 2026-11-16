@@ -6,6 +6,15 @@ context: fork
 model: opus
 ---
 
+## Interface
+
+**Inputs:** `/evaluate [<story id|branch>] [--quick]`. Reads `tasks/stories/<id>/plan.md` when it exists, the branch's changes, and runs the build and tests.
+**Outputs:** `tasks/stories/<story-id>/phase.md` (the phase marker, only when there is a story workspace, per `rules/phase-markers.md`) and the evaluator's full report with its verdict: NO, YES, or YES with caveats.
+**Callable parts:** none.
+**Never breaks:** it never skips the evaluator agent, even when the changes look trivial. It never overrides a hard gate failure: when the build or tests fail the verdict is NO. It applies the ship test of `rules/deferrals.md` before presenting a finding as skippable.
+
+---
+
 **Triggers:** "evaluate this", "check my changes", "review before PR", "run evaluator", "quality check"
 
 ---

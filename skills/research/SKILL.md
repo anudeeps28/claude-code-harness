@@ -3,6 +3,15 @@ name: research
 description: Research an external API, integration, or unfamiliar library and cache findings in research.md with provenance-tagged claims. Future agents (planner, builder) read this file for context. Usage: /research <topic> [--urls <url1> <url2> ...]
 ---
 
+## Interface
+
+**Inputs:** `/research <topic> [--urls <url1> <url2> ...]`. Reads `tasks/notes.md` for the breadcrumb, and an existing `research.md` at the target location, which it updates instead of overwriting.
+**Outputs:** `tasks/stories/<id>/research.md` when `tasks/stories/` exists and a story id is given, otherwise `research.md` in the repo root; plus `tasks/notes.md` (an in-progress breadcrumb, marked done at the end). Every claim in it carries a provenance tag: verified, cited or assumed.
+**Callable parts:** none.
+**Never breaks:** every claim in `research.md` carries a provenance tag. It researches external APIs, integrations and unfamiliar libraries and never the codebase itself. It never overwrites an existing `research.md` without reading it first, and never writes its breadcrumb to the generated `todo.md`.
+
+---
+
 **Core Philosophy:** Training data is a hypothesis, not a fact. Every claim must carry a provenance tag — verified, cited, or assumed. The cached research.md becomes the source of truth for downstream agents, so accuracy matters more than completeness.
 
 **Triggers:** "research this API", "look into this integration", "what do I need to know about X before we build", "cache research on X", "/research"

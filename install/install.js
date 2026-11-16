@@ -642,7 +642,7 @@ async function main() {
   // ── CONTEXT.md + ADR convention (project installs only) ───────────────────
   if (mode === 'project') {
     console.log('  Optional: CONTEXT.md + ADR convention\n');
-    console.log('    CONTEXT.md — domain glossary, module map, codebase conventions');
+    console.log('    CONTEXT.md — architecture map, domain glossary, codebase conventions');
     console.log('    docs/adr/  — lightweight records of hard-to-reverse decisions\n');
     const ctxChoice = (await prompt('  Set up CONTEXT.md + ADR convention? [y/N]: ', 'n')).trim().toLowerCase();
     console.log('');

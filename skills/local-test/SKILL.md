@@ -4,6 +4,15 @@ description: Run local build, tests, integration testing, and the feature's e2e 
 argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev server for manual testing, e2e=run the story's e2e goal gate). Default=2
 ---
 
+## Interface
+
+**Inputs:** `/local-test [1|2|3|e2e]` (level 1 = build and unit tests, 2 = plus integration, 3 = plus a dev server for manual testing, `e2e` = the story's e2e goal gate; default 2). Reads `tasks/lessons.md` (or `tasks/notes.md` in the solo pack) for the build, test and Observe commands; for `e2e` it reads `tasks/stories/<id>/brief.md` (the Goal) or `tasks/features/<fid>/test-strategy.md`.
+**Outputs:** no tasks/ files. A pass/fail report per level, or per acceptance criterion for the e2e gate (`NOT SET UP (fail)` when no E2E command is declared, `AWAITING HUMAN SIGN-OFF` for structured human acceptance). It reports back to its caller and never pauses for a human.
+**Callable parts:** none (the files in `examples/` are samples for a project's own `tasks/lessons.md`, and only the sample `examples/tasks/lessons.md` names them).
+**Never breaks:** it never modifies source code and never commits. It takes every command from `tasks/lessons.md` or `tasks/notes.md` and never guesses or hardcodes one. It never fixes a failure, only reports it to the caller. A missing e2e command is reported as NOT SET UP and counts as a fail, never as a pass or a skip.
+
+---
+
 **Core Philosophy:** Verify locally at the right level — Level 1 for quick build checks, Level 2 for full integration, Level 3 when you need to manually interact with the running application.
 
 **Triggers:** "run local tests", "verify build", "check everything works locally", "run the test suite", "local-test before committing", "verify before PR"

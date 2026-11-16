@@ -3,6 +3,15 @@ name: deploy
 description: Deploy to cloud and verify — branch-test before merge, or post-merge production verification. Use when deploying, verifying a deployment, re-ingesting data, or running smoke tests. Usage: /deploy [branch-test|post-merge|re-ingest|smoke-test]
 ---
 
+## Interface
+
+**Inputs:** `/deploy [branch-test|post-merge|re-ingest|smoke-test]`. Reads `tasks/tracker-config.md` for the resource names, the build and test commands and the smoke test queries.
+**Outputs:** no tasks/ files. The deployment, its verification and smoke test results, reported step by step.
+**Callable parts:** none.
+**Never breaks:** it stops when the build or tests fail and never goes on past them. It always reads resource names from `tasks/tracker-config.md` and never hardcodes them.
+
+---
+
 **Core Philosophy:** Deploy, verify, and smoke test in the right order — every gate prevents the mistakes we've made before.
 
 **Triggers:** "deploy", "deploy to test", "verify deployment", "run smoke tests", "test live", "redeploy"

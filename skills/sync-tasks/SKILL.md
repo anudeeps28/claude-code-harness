@@ -3,6 +3,15 @@ name: sync-tasks
 description: Detect and interactively resolve drift across the 7 enterprise task files and project artifacts (PRD, ARCHITECTURE.md, ADRs, work items). Invoked automatically when the drift-check hook hard-blocks on a contradiction. Usage: /sync-tasks [--report-only]
 ---
 
+## Interface
+
+**Inputs:** `/sync-tasks [--report-only]`. Reads `tasks/lessons.md`, `tasks/pr-queue.md`, `tasks/flags-and-notes.md`, `tasks/tracker-config.md`, `tasks/people.md` (optional), the highest-numbered `tasks/sprint<N>.md`, `tasks/stories/<story-id>/brief.md`, the generated `tasks/todo.md` (never as a source of work items), `.claude/.harness-manifest.json`, and the artifacts `PRD.md`, `ARCHITECTURE.md` and `docs/adr/`.
+**Outputs:** drift fixes written one at a time, each after the person confirms, to the task files above (not `tasks/todo.md`), `tasks/issues/<id>.md` task bodies in local mode, and the artifact files. With `--report-only` it writes no files and reports the drift found.
+**Callable parts:** none.
+**Never breaks:** it surfaces every drift and never batches fixes: each fix needs explicit user confirmation. It never edits `tasks/todo.md` (a generated dashboard) or any file outside the task files and artifacts. It never fabricates cross-reference text, never treats placeholder template values as drift, and does not re-run the drift hook itself.
+
+---
+
 **Core Philosophy:** Surface every drift, then walk the user through fixes one at a time. Never collapse a fix-everything call. The user owns the source of truth.
 
 **Triggers:** User runs `/sync-tasks`, or the `drift-check` hook reports a contradiction and directs them here.

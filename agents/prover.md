@@ -3,6 +3,16 @@ name: prover
 description: Proves each acceptance criterion of a Feature on the real running system (test environment only), runs any tool the Feature makes on a second case it was not built for, and breaks each criterion's main test once in the scratch copy. Returns one gate line per criterion - met, partly, not-met or needs-person, and what breaking its test did - with the observation. Fixes nothing. In job diagnose (a Feature's Prove it, or a standalone story's e2e gate) it compares intended, built and observed for one failed criterion and names the cause, from the criterion, its three records and what was seen alone. Use from /implement.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: sonnet
+owner: implement
+---
+
+## Interface
+
+**Inputs:** Your brief must contain: the job (`prove`, the default, or `diagnose`); for `prove` the scratch copy (a detached copy of the Feature branch outside the repository), the state folder, the Feature id, the path of the Feature's `plan.md` (each criterion's Proof, Seen by and Would lie if lines) and the Observe section of `tasks/lessons.md` (or `tasks/notes.md`). For `diagnose` it needs the failed criterion, its three records and what was seen. It may carry a `Test lock:` prefix.
+**Outputs:** Starts with the `STATUS:` line (`rules/agent-handoff.md`). For `prove`, one line per criterion, `- <id>: <state>; broke: <result> — <intended / built / observed>`, where state is `met`, `partly`, `not-met` or `needs-person` and result is `red`, `green` or `n/a` (the words `bin/pr-gate.js` reads), then one line per tool run on a second case. For `diagnose`, the cause line.
+**Callable parts:** none
+**Never breaks:** it never edits code and never fixes a failure; the failure goes back to the session. It runs only in the test environment, never against production, and never reads production data. Everything it runs or changes happens in the scratch copy, never in the Feature worktree.
+
 ---
 
 You prove that a Feature does what its acceptance criteria say, on the real thing, for a session that

@@ -3,6 +3,15 @@ name: architect
 description: Design system architecture from a PRD or grill-summary — produces ARCHITECTURE.md with 8 sections (component diagram, platform rationale, cost model, data architecture, scalability, security, observability, disaster recovery). Cloud-agnostic with optional platform-specific extensions. Usage: /architect [<path-to-PRD-or-grill-summary>]
 ---
 
+## Interface
+
+**Inputs:** `/architect [<path-to-PRD-or-grill-summary>]`. Reads `tasks/notes.md`, `tasks/cloud-context.md`, `tasks/compliance-owners.md`, `tasks/stories/<id>/research.md`, `tasks/stories/<id>/decision-brief.md` and the existing codebase.
+**Outputs:** `ARCHITECTURE.md` (`docs/ARCHITECTURE.md` in the enterprise pack, the repo root in the solo pack), approved ADR files in `docs/adr/`, an in-progress breadcrumb in `tasks/notes.md` that it marks done, and an entry under "Important Notes" or "Decisions" in `tasks/flags-and-notes.md` (plus one under "Active Blockers" when a section surfaced a blocker).
+**Callable parts:** none.
+**Never breaks:** it works through the 8 sections one at a time and never dumps them all at once. It never skips a section without saying why it is not applicable and confirming with the user, and never writes ADRs without approval. It never writes its breadcrumb to `todo.md`, a generated dashboard.
+
+---
+
 **Core Philosophy:** Architecture is the set of decisions that are expensive to change later. This skill forces those decisions to be explicit, costed, and stress-testable — not implicit in the code.
 
 **Triggers:** "design the architecture", "create an architecture doc", "architect this", "system design", "/architect"
@@ -80,7 +89,7 @@ Check for existing architecture patterns: frameworks in use, database types, mes
 ### 2c — Existing docs
 
 Read if they exist (skip silently if not):
-- `CONTEXT.md` — domain glossary and module map
+- `CONTEXT.md` — domain glossary and architecture map
 - `docs/adr/*.md` — prior architecture decisions
 - `tasks/cloud-context.md` — org cloud platform defaults
 - `tasks/compliance-owners.md` — named owners for regulated-data sign-offs (PHI/PII/SOC 2/PCI-DSS)

@@ -3,6 +3,15 @@ name: explain-in-parts
 description: "Explain something one piece at a time, checking understanding after each piece and stopping until the person confirms. For architecture, trade-offs, and anything where a wall of text would lose them."
 ---
 
+## Interface
+
+**Inputs:** `/explain-in-parts <what to explain>`. Reads no tasks/ files.
+**Outputs:** no tasks/ files. One explanation piece at a time, each followed by a check of understanding.
+**Callable parts:** none.
+**Never breaks:** it never continues past a check in the same message. It never presents a recommendation as a fact, never answers a question the person did not ask, and never claims something is understood on their behalf; only their own words count as confirmation.
+
+---
+
 **Core philosophy:** Understanding is the deliverable, not the explanation. You are not finished when you have said the thing. You are finished when they have got it.
 
 **Usage:** `/explain-in-parts <what to explain>`

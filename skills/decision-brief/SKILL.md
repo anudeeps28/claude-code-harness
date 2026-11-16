@@ -3,6 +3,15 @@ name: decision-brief
 description: Pre-PRD assumption pass — runs 4 inline phases (decompose, data-quality-audit, assumption-extract, evidence-rank) and produces a Decision Brief with tiered evidence thresholds and a risk-ranked test plan. Stops teams from building the wrong thing. Usage: /decision-brief
 ---
 
+## Interface
+
+**Inputs:** `/decision-brief`. Reads the research and idea the person supplies, `tasks/compliance-owners.md` and `tasks/notes.md`.
+**Outputs:** `tasks/stories/<id>/decision-brief.md` when that story folder exists, otherwise `decision-brief.md` in the repo root; an in-progress breadcrumb in `tasks/notes.md` that it marks done.
+**Callable parts:** none.
+**Never breaks:** it never skips the input gate (both inputs are required) or the tiering question, and never proceeds past Step 1 without a "yes" to it. It never marks a regulated-data assumption Validated without named Compliance Owner sign-off, and never invents evidence: a claim that cannot be cited is Weak.
+
+---
+
 **Core Philosophy:** Validate the riskiest assumptions before a line of code is written. A Decision Brief is not a design doc — it is an evidence register that forces every dealbreaker assumption into the open and assigns a pre-registered validation threshold.
 
 **Triggers:** "decision brief", "pre-PRD", "validate assumptions", "should we build this", "what are we assuming", "/decision-brief"

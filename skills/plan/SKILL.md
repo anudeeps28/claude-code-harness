@@ -4,6 +4,15 @@ description: Read open issues, prioritize your work, and create a simple plan. D
 argument-hint: "Optional milestone name to filter by"
 ---
 
+## Interface
+
+**Inputs:** `/plan [milestone-name]`. Reads `tasks/stories/current/plan.md` if present, `tasks/notes.md` for context, and the open issues from the tracker adapter.
+**Outputs:** `tasks/stories/current/plan.md`, written only after the person says yes, and a prioritized plan shown in the report.
+**Callable parts:** none.
+**Never breaks:** it never auto-saves a plan: it always asks first. It never starts implementing without explicit confirmation. It never deletes or overwrites a pre-existing `tasks/plan.md` (a legacy board) and offers `/sync-tracker --import-backup tasks/plan.md` instead.
+
+---
+
 **Core Philosophy:** Know what to work on next. Read your issues, sort by priority, and write it down — then pick one and `/implement` it.
 
 **Triggers:** "what should I work on", "plan my work", "prioritize", "what's next", "plan this week"

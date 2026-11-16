@@ -3,6 +3,15 @@ name: pa
 description: Personal assistant — answers questions about sprint status, blockers, PRs, and todos from your task files, then offers to update them in sync. Usage: /pa <question>. E.g. "/pa what's blocking me?", "/pa status of #10167", "/pa mark the N8N blocker resolved"
 ---
 
+## Interface
+
+**Inputs:** `/pa <question>` (for example `/pa what's blocking me?`, `/pa status of #10167`, `/pa mark the N8N blocker resolved`). Reads, as the question needs, `tasks/flags-and-notes.md`, `tasks/people.md`, `tasks/pr-queue.md`, `tasks/admin.md`, `tasks/notes.md`, `tasks/lessons.md`, `tasks/tracker-config.md`, the latest `tasks/sprint*.md`, and the open work list from the tracker adapter (`list-issues.sh`, `get-sprint-issues.sh`). Closing a tracked task runs `close-issue.sh` (every mode), then `render-todo.sh` after the close in both mode and on request in local mode; tracker mode has no `tasks/issues` or `tasks/todo.md`.
+**Outputs:** those task files, edited only after the person confirms: `tasks/flags-and-notes.md`, `tasks/people.md`, `tasks/pr-queue.md`, `tasks/admin.md` and the current `tasks/sprint<N>.md`; an ID-less session breadcrumb is appended to `tasks/notes.md`; closing a tracked task changes the task file under `tasks/issues` through `close-issue.sh` in local mode only (in both and tracker mode it closes the external item and writes no local file), and `render-todo.sh` regenerates `tasks/todo.md` when run (after the close in both mode, on request in local mode; tracker mode has no `tasks/issues` or `todo.md`). The report is a short synthesized answer, never a dump of file contents.
+**Callable parts:** none.
+**Never breaks:** it never updates a file without showing the proposed change and getting confirmation. It never updates one file in isolation: every affected file is changed together. It answers from the task files and never from memory, and never hand-edits the generated `tasks/todo.md`.
+
+---
+
 **Core Philosophy:** Answer from the task files, not from memory — then offer to update everything in sync, never one file in isolation.
 
 **Triggers:** "what's blocking", "status of #10167", "what am I working on today", "catch me up", "mark the N8N blocker resolved", "what's going on this sprint"

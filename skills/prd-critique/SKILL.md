@@ -3,6 +3,15 @@ name: prd-critique
 description: Run 6 critique checks on a PRD — metric validity, NFR specificity, failure-mode coverage, assumption traceability, rollback plan, intent clarity. Reports severity-tagged findings. Read-only — does not modify the PRD. Usage: /prd-critique <path-to-PRD> [--brief <path-to-decision-brief>]
 ---
 
+## Interface
+
+**Inputs:** `/prd-critique <path-to-PRD> [--brief <path-to-decision-brief>]`. Reads the PRD, the optional decision brief, and `tasks/notes.md` for the in-progress breadcrumb.
+**Outputs:** `tasks/notes.md` only: one in-progress breadcrumb appended at the start and marked done at the end. The report is the severity-tagged findings from the 6 critique checks with proposed fixes.
+**Callable parts:** none.
+**Never breaks:** it is read-only on the PRD and never modifies it: it only reports findings and proposed fixes. Checks 1-3, 5 and 6 always run. It never writes its breadcrumb to, or marks it in, the generated `todo.md`.
+
+---
+
 **Core Philosophy:** A PRD that passes all 6 checks is implementable. One that fails is decoration. Find the failures before engineering starts.
 
 **Triggers:** "critique this PRD", "review the PRD", "check the PRD for gaps", "PRD review", "/prd-critique"
