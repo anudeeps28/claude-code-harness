@@ -213,7 +213,7 @@ wording can slip past the check; the architect reviewer remains the backstop for
 
 ### What runs today
 
-Not every item above is enforced yet. `npm test` enforces today: agent owners (item 3); every skill's
+Not every item above is enforced yet. `npm test` enforces today: agent owners, and that a skill launching an agent owns it or it is shared (item 3); every skill's
 and agent's Interface block with its four parts; file pointers (item 2): a skill file another module points
 at is listed in its Callable parts, a path into a code module or an agent is a main file or one its
 Interface lists, and a path to a main file followed by a quoted or bold heading names `"Interface"`;

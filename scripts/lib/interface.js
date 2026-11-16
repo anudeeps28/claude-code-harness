@@ -6,7 +6,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { parse } = require('../../hooks/lib/frontmatter.js');
-const { PATH_BOUNDARY, mdFiles, skillFolders, fenceMask, checkOptions, exemptSet } = require('./common.js');
+const { PATH_BOUNDARY, escapeRe, isLaunchLine, mdFiles, skillFolders, fenceMask, checkOptions, exemptSet } = require('./common.js');
 
 function agentFiles(root) {
   return mdFiles(path.join(root, 'agents'));
@@ -145,22 +145,15 @@ function checkAgentOutputs(root, options = {}) {
   return problems;
 }
 
-function escapeRe(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 // The skills whose SKILL.md starts the agent. The agent is named as a bare word, not as a path such
 // as `agents/<name>.md` (a pointer to the file), and one of these holds: its line has a start verb
 // (spawn, launch, start, run); its line introduces it as "Agent <X>:" or "Agent <X> —"; or the line
 // before has a start verb (the name on the next line). An example mention has none of these.
-const START_VERB_RE = /\b(?:spawn|launch|start|run)(?:s|es|ed|ing)?\b/i;
-const AGENT_INTRO_RE = /\bAgent [A-Z0-9]+\s*[:—–-]/;
 function callersOf(root, agent) {
   const re = new RegExp(`${PATH_BOUNDARY}${escapeRe(agent)}(?![A-Za-z0-9_-])`);
   const spawns = (text) => {
     const lines = text.split(/\r?\n/);
-    return lines.some((l, i) => re.test(l) &&
-      (START_VERB_RE.test(l) || AGENT_INTRO_RE.test(l) || (i > 0 && START_VERB_RE.test(lines[i - 1]))));
+    return lines.some((l, i) => re.test(l) && isLaunchLine(lines, i));
   };
   return listModules(root)
     .filter((m) => m.kind === 'skill' && fs.existsSync(path.join(root, m.file)))

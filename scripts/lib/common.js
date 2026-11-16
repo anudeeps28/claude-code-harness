@@ -8,6 +8,11 @@ const path = require('node:path');
 // A `/` or a name must not follow one of these: it would be part of a path (`skills/debug/...`).
 const PATH_BOUNDARY = '(?<![A-Za-z0-9_./-])';
 
+// Text as a literal inside a RegExp.
+function escapeRe(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // The `.md` files directly in a folder, sorted; a missing folder has none.
 function mdFiles(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -34,6 +39,14 @@ function fenceMask(lines) {
 function unfenced(lines) {
   const mask = fenceMask(lines);
   return lines.filter((_, i) => !mask[i]);
+}
+
+// A line that starts an agent: it has a start verb (spawn, launch, start, run), it introduces the agent
+// as "Agent <X>:" or "Agent <X> —", or the line before has a start verb (the name on the next line).
+const START_VERB_RE = /\b(?:spawn|launch|start|run)(?:s|es|ed|ing)?\b/i;
+const AGENT_INTRO_RE = /\bAgent [A-Z0-9]+\s*[:—–-]/;
+function isLaunchLine(lines, i) {
+  return START_VERB_RE.test(lines[i]) || AGENT_INTRO_RE.test(lines[i]) || (i > 0 && START_VERB_RE.test(lines[i - 1]));
 }
 
 // The one option a check takes is `exempt`, the skill folders whose block is not required. Any other
@@ -80,4 +93,4 @@ function pointerSources(root) {
   });
 }
 
-module.exports = { PATH_BOUNDARY, mdFiles, skillFolders, fenceMask, unfenced, checkOptions, exemptSet, pointerSources };
+module.exports = { PATH_BOUNDARY, escapeRe, mdFiles, skillFolders, fenceMask, unfenced, checkOptions, exemptSet, pointerSources, isLaunchLine };
