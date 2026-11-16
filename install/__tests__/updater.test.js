@@ -246,3 +246,235 @@ test('Retired_OnlyAHookRemoved_PrintsNoEmptyReplacementParentheses', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+// ── Story 6j2mgp3qGcrM58q2 AC3, AC20, AC21, AC22: the renames and the update ──
+
+const RENAMED_OLD = [
+  'skills/plan-features/references/story-template.md',
+  'skills/ralph-prd/ralph.sh',
+  'skills/local-test/examples/local-test-dotnet.ps1',
+  'hooks/SECURITY.md',
+];
+const RENAMED_NEW = [
+  'skills/plan-features/reference/story-template.md',
+  'skills/ralph-prd/bin/ralph.sh',
+  'skills/local-test/templates/local-test-dotnet.ps1',
+  'hooks/README.md',
+];
+
+const crypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
+const SECURITY_BASE = 'the security note as the base release shipped it\n';
+const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
+// The real list, with the SECURITY.md entry's hash swapped for the hash of this test's content.
+const RENAMED_FOR_TEST = () => updater.RENAMED.map(([o, n, h]) => (o === 'hooks/SECURITY.md' ? [o, n, sha(SECURITY_BASE)] : [o, n, h]));
+
+// An old install with every old path planted unchanged (the bytes the harness has at the new path), and the
+// harness source it is updated from. `edited` lists old paths the person changed.
+function renameFixture({ backfilled = false, edited = [] } = {}) {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'renamed-'));
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), 'renamed-source-'));
+  const put = (root, rel, text) => {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), text);
+  };
+  RENAMED_OLD.forEach((old, i) => {
+    const text = old === 'hooks/SECURITY.md' ? SECURITY_BASE : `content of ${RENAMED_NEW[i]}`;
+    put(source, RENAMED_NEW[i], `content of ${RENAMED_NEW[i]}`);
+    put(target, RENAMED_NEW[i], `content of ${RENAMED_NEW[i]}`);
+    put(target, old, edited.includes(old) ? `${text}\nmy own edit` : text);
+  });
+  put(target, 'skills/implement/SKILL.md', 'content of skill');
+  fs.writeFileSync(path.join(target, '.harness-manifest.json'), JSON.stringify(backfilled
+    ? { backfilled: true, installedFiles: RENAMED_OLD }
+    : { installedFiles: RENAMED_OLD }));
+  return { target, source, done: () => { fs.rmSync(target, { recursive: true, force: true }); fs.rmSync(source, { recursive: true, force: true }); } };
+}
+function captureLog(fn) {
+  const logged = [];
+  const orig = console.log;
+  console.log = (...a) => logged.push(a.join(' '));
+  try { fn(); } finally { console.log = orig; }
+  return logged;
+}
+const removeRenamed = (fx) => {
+  assert.equal(typeof updater.removeRenamed, 'function', 'updater.js must export removeRenamed');
+  return captureLog(() => updater.removeRenamed(fx.target, fx.source, [], RENAMED_FOR_TEST()));
+};
+
+test('Renamed_UpdateRemovesTheRenamedFoldersFromAnExistingInstall (AC20, AC21, AC22)', () => {
+  const fx = renameFixture();
+  try {
+    const logged = removeRenamed(fx);
+    const gone = [...RENAMED_OLD, 'skills/plan-features/references', 'skills/local-test/examples'];
+    for (const g of gone) assert.ok(!fs.existsSync(path.join(fx.target, g)), `${g} still exists`);
+    for (const kept of [...RENAMED_NEW, 'skills/implement/SKILL.md']) {
+      assert.ok(fs.existsSync(path.join(fx.target, kept)), `${kept} was removed`);
+    }
+    // One moved: line per entry, printed without any verbose option.
+    const moved = logged.filter((l) => /moved: /.test(l));
+    assert.equal(moved.length, 4, logged.join('\n'));
+    for (const old of RENAMED_OLD) {
+      assert.ok(moved.some((l) => l.includes(old)), `no moved: line names ${old}`);
+    }
+  } finally {
+    fx.done();
+  }
+});
+
+test('Renamed_UpdateNeverRemovesAnEditedPathOrOneReachedThroughALink (AC20)', () => {
+  // The person edited two of them. Both are recorded in the old manifest, and both are kept, with a note.
+  const editedOld = ['skills/local-test/examples/local-test-dotnet.ps1', 'hooks/SECURITY.md'];
+  for (const backfilled of [false, true]) {
+    const fx = renameFixture({ backfilled, edited: editedOld });
+    try {
+      const logged = removeRenamed(fx);
+      for (const rel of editedOld) {
+        assert.ok(fs.existsSync(path.join(fx.target, rel)), `an edited ${rel} was removed (backfilled: ${backfilled})`);
+        assert.ok(logged.some((l) => /left/.test(l) && l.includes(rel)), `no note named the kept ${rel}: ${logged.join('\n')}`);
+      }
+      assert.ok(!fs.existsSync(path.join(fx.target, 'skills/ralph-prd/ralph.sh')), 'an unchanged old file stayed');
+      assert.ok(!fs.existsSync(path.join(fx.target, 'skills/plan-features/references')), 'an unchanged old folder stayed');
+    } finally {
+      fx.done();
+    }
+  }
+
+  // skills/ is a link into the harness source: nothing behind it may be touched.
+  const fx = renameFixture();
+  const behind = fs.mkdtempSync(path.join(os.tmpdir(), 'renamed-src-'));
+  try {
+    fs.cpSync(path.join(fx.target, 'skills'), path.join(behind, 'skills'), { recursive: true });
+    fs.rmSync(path.join(fx.target, 'skills'), { recursive: true, force: true });
+    fs.symlinkSync(path.join(behind, 'skills'), path.join(fx.target, 'skills'), 'dir');
+    removeRenamed(fx);
+    assert.ok(fs.existsSync(path.join(behind, 'skills/ralph-prd/ralph.sh')), 'a file behind a link was removed');
+    assert.ok(fs.existsSync(path.join(behind, 'skills/local-test/examples/local-test-dotnet.ps1')), 'a file behind a link was removed');
+  } finally {
+    fx.done();
+    fs.rmSync(behind, { recursive: true, force: true });
+  }
+});
+
+test('Renamed_UpdateRemovesAnUnchangedOldFileEvenFromABackfilledManifest (AC20)', () => {
+  const fx = renameFixture({ backfilled: true, edited: ['skills/ralph-prd/ralph.sh'] });
+  try {
+    const logged = removeRenamed(fx);
+    for (const gone of ['skills/local-test/examples/local-test-dotnet.ps1', 'skills/plan-features/references', 'hooks/SECURITY.md']) {
+      assert.ok(!fs.existsSync(path.join(fx.target, gone)), `${gone} stayed although it is the harness's own content`);
+    }
+    assert.ok(fs.existsSync(path.join(fx.target, 'skills/ralph-prd/ralph.sh')), 'an edited file was removed');
+    assert.ok(logged.some((l) => l.includes('skills/ralph-prd/ralph.sh') && /left/.test(l)), logged.join('\n'));
+  } finally {
+    fx.done();
+  }
+});
+
+test('Renamed_AnOldFileThatIsTheSourceWithItsPlaceholdersFilledInIsTheHarnessOwn (AC20)', () => {
+  const fx = renameFixture();
+  try {
+    const subs = [['YOUR_PROJECT_NAME', 'My Project']];
+    const rel = 'skills/local-test/templates/docker-compose-dotnet.yml';
+    const old = 'skills/local-test/examples/docker-compose-dotnet.yml';
+    const put = (root, r, text) => { fs.mkdirSync(path.dirname(path.join(root, r)), { recursive: true }); fs.writeFileSync(path.join(root, r), text); };
+    put(fx.source, rel, '# emulators for YOUR_PROJECT_NAME\n');
+    put(fx.target, old, '# emulators for My Project\n');
+    put(fx.target, 'skills/local-test/examples/other.yml', '# emulators for My Project and my own edit\n');
+    put(fx.source, 'skills/local-test/templates/other.yml', '# emulators for YOUR_PROJECT_NAME\n');
+    const logged = captureLog(() => updater.removeRenamed(fx.target, fx.source, subs, RENAMED_FOR_TEST()));
+    assert.ok(!fs.existsSync(path.join(fx.target, old)), 'a filled-in unchanged old file stayed');
+    assert.ok(fs.existsSync(path.join(fx.target, 'skills/local-test/examples/other.yml')), 'an edited filled-in file was removed');
+    assert.ok(logged.some((l) => /left/.test(l) && l.includes('other.yml')), logged.join('\n'));
+  } finally {
+    fx.done();
+  }
+});
+
+test('Renamed_TheBaseReleaseHashOfHooksSecurityIsTheRealFilesHash', (t) => {
+  let base;
+  try {
+    base = execFileSync('git', ['show', '321f444:hooks/SECURITY.md'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch { t.skip('the base release is not in this clone'); return; }
+  const entry = updater.RENAMED.find(([o]) => o === 'hooks/SECURITY.md');
+  assert.ok(entry && entry[2], 'hooks/SECURITY.md carries the hash of its base-release content');
+  assert.equal(entry[2], crypto.createHash('sha256').update(base).digest('hex'));
+});
+
+// ── through the installer: a removed call must turn these red ────────────────
+
+const REPO = path.resolve(__dirname, '..', '..');
+const INSTALL_JS = path.join(REPO, 'install', 'install.js');
+const runInstallJs = (args, home) => execFileSync('node', [INSTALL_JS, ...args], {
+  timeout: 60_000, stdio: ['pipe', 'pipe', 'pipe'], input: '', encoding: 'utf8',
+  env: { ...process.env, HOME: home, USERPROFILE: home },
+});
+// The yml carries a YOUR_PROJECT_NAME placeholder the installer fills in, so its installed copy differs from the source's.
+const OLD_FILES = {
+  'skills/ralph-prd/ralph.sh': 'skills/ralph-prd/bin/ralph.sh',
+  'skills/local-test/examples/local-test-dotnet.ps1': 'skills/local-test/templates/local-test-dotnet.ps1',
+  'skills/local-test/examples/docker-compose-dotnet.yml': 'skills/local-test/templates/docker-compose-dotnet.yml',
+};
+const EDITED_OLD = 'skills/local-test/examples/local-test-dotnet.ps1';
+const SUBSTITUTED_OLD = 'skills/local-test/examples/docker-compose-dotnet.yml';
+
+function installedProject() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'renamed-e2e-'));
+  const src = path.join(root, 'src');
+  for (const part of ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform', 'templates', 'VERSION', 'CHANGELOG.md']) {
+    if (fs.existsSync(path.join(REPO, part))) fs.cpSync(path.join(REPO, part), path.join(src, part), { recursive: true });
+  }
+  const project = path.join(root, 'project');
+  fs.mkdirSync(path.join(project, '.git'), { recursive: true });
+  runInstallJs(['--yes', '--project', project, '--name', 'Tester', '--project-name', 'renamed', '--local', src], root);
+  return { root, src, project, claude: path.join(project, '.claude') };
+}
+function plantOld(claude, record) {
+  for (const [old, now] of Object.entries(OLD_FILES)) {
+    const dest = path.join(claude, ...old.split('/'));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(path.join(claude, ...now.split('/')), dest);
+  }
+  fs.appendFileSync(path.join(claude, ...EDITED_OLD.split('/')), '\n# my own edit\n');
+  if (record) {
+    const mp = path.join(claude, '.harness-manifest.json');
+    const m = JSON.parse(fs.readFileSync(mp, 'utf8'));
+    m.installedFiles = [...m.installedFiles, ...Object.keys(OLD_FILES)];
+    fs.writeFileSync(mp, JSON.stringify(m, null, 2));
+  }
+}
+const manifestFiles = (claude) => JSON.parse(fs.readFileSync(path.join(claude, '.harness-manifest.json'), 'utf8')).installedFiles;
+const exists = (claude, rel) => fs.existsSync(path.join(claude, ...rel.split('/')));
+
+test('Renamed_RunUpdateRemovesAnUnchangedOldFileAndKeepsAnEditedOneAcrossTwoUpdates (AC3, AC20)', () => {
+  const { root, src, project, claude } = installedProject();
+  try {
+    plantOld(claude, true);
+    const update = () => runInstallJs(['--update', '--project', project, '--source', src, '--local', src, '--yes'], root);
+    const first = update();
+    assert.ok(!exists(claude, 'skills/ralph-prd/ralph.sh'), 'an unchanged old file stayed after --update');
+    assert.ok(!exists(claude, SUBSTITUTED_OLD), 'an unchanged old file whose placeholders the installer filled in stayed after --update');
+    assert.ok(exists(claude, EDITED_OLD), 'an edited old file was removed by --update');
+    assert.match(first, /left skills\/local-test\/examples\/local-test-dotnet\.ps1/, 'no note named the kept file');
+    assert.ok(!manifestFiles(claude).includes(EDITED_OLD), 'a kept old file was recorded as the harness\'s own');
+
+    update();
+    assert.ok(exists(claude, EDITED_OLD), 'the kept file was removed by the second --update');
+    assert.ok(!manifestFiles(claude).includes(EDITED_OLD), 'a kept old file is in the second manifest');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Renamed_FreshInstallOverAnOldInstallRemovesAnUnchangedOldFile (AC3, AC20)', () => {
+  const { root, src, project, claude } = installedProject();
+  try {
+    plantOld(claude, false);
+    runInstallJs(['--yes', '--project', project, '--name', 'Tester', '--project-name', 'renamed', '--local', src], root);
+    assert.ok(!exists(claude, 'skills/ralph-prd/ralph.sh'), 'an unchanged old file stayed after install over it');
+    assert.ok(!exists(claude, SUBSTITUTED_OLD), 'an unchanged old file whose placeholders the installer filled in stayed after install over it');
+    assert.ok(exists(claude, EDITED_OLD), 'an edited old file was removed by install');
+    assert.ok(!manifestFiles(claude).includes(EDITED_OLD), 'a kept old file was recorded as the harness\'s own');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -109,7 +109,7 @@ Before doing anything else:
 
 1. **How items get to the board.** If `trackers/active/create-issue.sh` exists (a claude-code-harness
    install), use the adapter scripts throughout. If it does not, the board is Azure DevOps reached
-   directly with `az`: read `references/ado-commands.md` now and use its commands wherever this file
+   directly with `az`: read `reference/ado-commands.md` now and use its commands wherever this file
    names an adapter script. Neither — no adapter and no `az` on PATH — halt: *"No way to reach a board:
    install the harness's tracker adapter, or the Azure CLI with the azure-devops extension (`az login`)."*
 2. Check that the active backend's CLI is actually callable — `gh` for GitHub, `az` for ADO, `td` (or
@@ -126,7 +126,7 @@ Read `.claude/.harness-manifest.json`:
 
 If no manifest or no tracker configured, fall back to `tasks/tracker-config.md` `**Type:**` field or
 adapter script detection in `.claude/trackers/active/`. With no adapter at all (gate step 1), the backend
-is `ado` through `references/ado-commands.md`.
+is `ado` through `reference/ado-commands.md`.
 
 Record the backend — subsequent phases branch on it. Item creation and linking (`create-issue.sh`,
 `create-sub-issue.sh`, `add-blocker.sh`) are portable across all four shipped backends; Phases 5a/5b/5c
@@ -140,7 +140,7 @@ each as yes/no:
 | Hierarchy — can a story be linked to a parent? | `create-sub-issue.sh` | Create stories flat via `create-issue.sh` and note it in the summary. |
 | Dependency — can a blocked-by edge be written? | `add-blocker.sh` | Fall back to prose edges (Phase 6c). |
 
-**All four shipped adapters implement both**, and so does `references/ado-commands.md`, so both probes
+**All four shipped adapters implement both**, and so does `reference/ado-commands.md`, so both probes
 normally pass. Probe anyway rather than inferring from the backend name — a hand-rolled or trimmed
 adapter may be missing one, and a custom backend gains support the moment someone drops the script in.
 
@@ -213,7 +213,7 @@ The rule: every Feature and every story carries a CC or SD change ticket. An ite
 without one is tagged **`no-CC/SD`** (Phase 6). Before planning anything new, list those items — the
 open ones in this project, from any earlier run:
 
-- ADO: the "Items still missing a CC/SD" query in `references/ado-commands.md`.
+- ADO: the "Items still missing a CC/SD" query in `reference/ado-commands.md`.
 - GitHub / Todoist / local: `list-issues.sh`, filtered to the `no-CC/SD` label.
 
 If there are any, ask once, listing them (id, type, title):
@@ -236,7 +236,7 @@ question comes back on the next run. Never drop an item from the list without a 
 | 4 | `research.md` | External tech constraints, API shapes, gotchas |
 | 5 | `decision-brief.md` | Risk-ranked assumptions, dealbreaker flags |
 | 6 | `PRD.md`, or the PRD the argument names | Detailed user stories and requirements |
-| 7 | `features/*.md` the argument names | A feature spec (see the feature-file shape in `references/story-template.md`) |
+| 7 | `features/*.md` the argument names | A feature spec (see the feature-file shape in `reference/story-template.md`) |
 
 Also check `tasks/stories/<id>/` variants of each file. When called from another run, the proposal it
 was given is the input.
@@ -252,7 +252,7 @@ was given is the input.
    folders it names or implies. Confirm names exist rather than guessing them; note what each story
    will touch (Phase 3.5 needs it).
 4. **The board**: open Features whose titles overlap the plan (`list-issues.sh`, or the ADO search in
-   `references/ado-commands.md`) — if the work is already there, say so in Phase 4 instead of making it
+   `reference/ado-commands.md`) — if the work is already there, say so in Phase 4 instead of making it
    again. Also read the **open stories of the other open Features** in the same project, with their
    titles and what they touch. A new story that waits on one of them gets an edge to it (Phase 3.5),
    and its Feature an edge to that Feature. This matters most with `--parent`, when the run would
@@ -316,7 +316,7 @@ Free-text input (a brainstorm, a line in chat) has no document to number: skip t
 
 ## Phase 3 — Decompose into vertical slices (stories)
 
-Read `references/story-template.md` and `references/phase-classification.md` now.
+Read `reference/story-template.md` and `reference/phase-classification.md` now.
 
 ### Features first, when the work is bigger than one
 
@@ -348,9 +348,9 @@ For each story, prepare:
 | Field | Content |
 |---|---|
 | **Title** | Imperative verb phrase, ≤ 60 characters |
-| **What it delivers** | 1–2 sentences describing the end-to-end behavior (the story body, in the voice `references/story-template.md` gives) |
+| **What it delivers** | 1–2 sentences describing the end-to-end behavior (the story body, in the voice `reference/story-template.md` gives) |
 | **Source** | Which input this derives from (e.g., "grill-summary § Resolved fork #3", "the brainstorm in chat") |
-| **Source requirements** | Input was a document: the lines mapped to this story (Phase 2.5), **verbatim**, each with its id. Each is quoted, id and all, at the start of the criterion that tests it — the Given/When/Then may add detail below it, never replace it (`references/story-template.md`) |
+| **Source requirements** | Input was a document: the lines mapped to this story (Phase 2.5), **verbatim**, each with its id. Each is quoted, id and all, at the start of the criterion that tests it — the Given/When/Then may add detail below it, never replace it (`reference/story-template.md`) |
 | **Risk flags** | Any of: `security-sensitive`, `performance-sensitive`, `customer-data-touching`, `regulated-data` |
 | **QAble** | `QAble` when QA can observe the change (a screen, an API, a file or report, a queryable result); else `Not QAble` — see the template |
 | **Acceptance criteria** | QAble stories: Given/When/Then, each business-testable, tagged `[UI]` / `[API]` / `[DB Query]`, numbered `AC1`, `AC2`… per story (template rules). Not QAble: none — the developer checks go in Technical Requirements |
@@ -974,7 +974,7 @@ human-readable mirror of the real link, so keep both in step.>
 ```
 
 On ADO, a story's acceptance criteria also go into the work item's own Acceptance Criteria field when
-the type has one (`references/ado-commands.md`) — the build skills read them there.
+the type has one (`reference/ado-commands.md`) — the build skills read them there.
 
 Report where each task landed by parsing the adapter's stdout, per backend:
 - **github / todoist / ado** — the adapter prints a URL; print the number/id + URL.
@@ -1016,7 +1016,7 @@ later, this skill starts writing real edges with no further change.
 ### 6c2 — Points
 
 Set each story's points where the board keeps them: on ADO the `points_field` from the settings
-(`references/ado-commands.md`); elsewhere a `points:<n>` label (`add-label.sh`). The `## Points` section
+(`reference/ado-commands.md`); elsewhere a `points:<n>` label (`add-label.sh`). The `## Points` section
 of the body carries the same number either way.
 
 ### 6d — Create child items for the breakdown (only if --with-tasks)
@@ -1054,7 +1054,7 @@ Do NOT call `add-to-project.sh` on any other backend — it exists only under `t
 ### 6e — Write the stories back into the feature file
 
 Only when the input was a feature file (`features/<id>.md`). Insert or replace its `## User Stories`
-section with the stories in the canonical block format of `references/story-template.md`, each with its
+section with the stories in the canonical block format of `reference/story-template.md`, each with its
 `- **ADO:** #<id>` line, and the Feature's id as `ado-feature: <id>` in the file's frontmatter — the
 format `work-feature` parses. Keep every original section; a re-run replaces the section in place. The
 file is in git, so the change is reviewed like any other.
@@ -1062,7 +1062,7 @@ file is in git, so the change is reviewed like any other.
 ## Phase 6S — Scrum Master mode: plan-<feature>.md instead of the board
 
 Only in `board_mode: scrum-master`. **This skill writes nothing to the board in this mode — not here,
-not anywhere.** Read `references/scrum-master-plan.md` now; it has the exact `plan-<feature>.md` layout.
+not anywhere.** Read `reference/scrum-master-plan.md` now; it has the exact `plan-<feature>.md` layout.
 
 1. Write the feature-file stories (6e, without ids yet) when the input was a feature file, then
    `plan-<feature>.md` at the repo root (a slug of the Feature's title, e.g. `plan-release-train-mine.md` —
@@ -1072,7 +1072,7 @@ not anywhere.** Read `references/scrum-master-plan.md` now; it has the exact `pl
    Master needs nothing else.
 2. Stop with: **"This is the plan: `plan-<feature>.md`. Tell me when it has been created on the board and I'll
    pick the ids up."**
-3. When told it was done, find each item **read-only** (`references/scrum-master-plan.md` has the
+3. When told it was done, find each item **read-only** (`reference/scrum-master-plan.md` has the
    queries), write the ids into the feature file (6e) and the coverage table (Phase 2.5), and report anything not found. A re-run later
    resumes here.
 

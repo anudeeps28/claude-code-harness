@@ -70,7 +70,7 @@ test('PlanFeatures_StoriesCarryTheirLinesVerbatimAndTheApprovalShowsCoverage', (
   mustMatch(PLAN_FEATURES, /## Coverage\n/, 'the Feature body carries its coverage rows');
   mustMatch(section(PLAN_FEATURES, '## Phase 4'), /\*\*Coverage\*\*[\s\S]{0,400}Out of scope/, 'Phase 4 shows coverage and every out-of-scope line for approval');
   mustMatch(PLAN_FEATURES, /--gaps/, 'gaps found by the closing check become stories through the same table');
-  mustMatch(read('skills', 'plan-features', 'references', 'story-template.md'), /never replaces or narrows the quote/, 'the template keeps the quote ahead of the Given/When/Then');
+  mustMatch(read('skills', 'plan-features', 'reference', 'story-template.md'), /never replaces or narrows the quote/, 'the template keeps the quote ahead of the Given/When/Then');
 });
 
 // ── 2. the source lines are the finish line ───────────────────────────

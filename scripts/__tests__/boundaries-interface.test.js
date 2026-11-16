@@ -6,7 +6,7 @@ const path = require('node:path');
 const { repoRoot, EXEMPT_SKILLS, FM, block, withBlock, inFixture } = require('./helpers.js');
 const { readInterface, checkInterfaces, checkAgentOutputs, callersOf, checkSharedInputs, checkSkillUsage } = require('../lib/boundaries.js');
 
-test('check 4 — every skill and agent has a 4-part Interface block (AC1, AC14, AC3, AC4, AC7, AC9, AC11)', () => {
+test('check 4 — every skill and agent has an Interface block (AC1, AC14, AC3, AC4, AC7, AC9, AC11)', () => {
   const skills = fs.readdirSync(path.join(repoRoot, 'skills'), { withFileTypes: true })
     .filter((d) => d.isDirectory()).map((d) => d.name);
   assert.ok(skills.includes('implement'), 'skills/implement must be found');

@@ -15,6 +15,7 @@ const readmes = require('./readmes.js');
 const adrs = require('./adrs.js');
 const context = require('./context.js');
 const agents = require('./agents.js');
+const shape = require('./shape.js');
 
 function checkOwners(root, options = {}) {
   checkOptions(options);
@@ -61,6 +62,7 @@ module.exports = {
   ...readmes,
   ...adrs,
   ...agents,
+  ...shape,
   readArchitectureMap: context.readArchitectureMap,
   checkContextMap: context.checkContextMap,
 };

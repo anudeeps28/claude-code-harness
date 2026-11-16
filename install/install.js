@@ -19,7 +19,7 @@ const {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck: runCheckImpl, runUpdate: runUpdateImpl,
   runSwitchTracker: runSwitchTrackerImpl, backfillManifest: backfillManifestImpl,
-  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS, removeRetired, warnRetiredElsewhere,
+  HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS, removeRetired, removeRenamed, withoutRenamedOld, warnRetiredElsewhere,
 } = require('./lib/updater.js');
 const { DEFAULT_REPO_URL } = require('./lib/source.js');
 
@@ -544,6 +544,28 @@ async function main() {
     if (go !== 'y') { console.log('  Aborted.'); if (rl) rl.close(); return; }
   }
 
+  // ── Path variables for placeholders ────────────────────────────────────────
+  const hooksUnix = mode === 'global'
+    ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
+    : toUnixPath(path.join(target, 'hooks'));
+  const hooksWin  = toWinPath(mode === 'global'
+    ? path.join(os.homedir(), '.claude', 'hooks')
+    : path.join(target, 'hooks'));
+
+  const projectRootBash = mode === 'global' ? '$(pwd)' : toUnixPath(projectDir);
+
+  const substitutions = buildSubstitutions({
+    hooksUnix, hooksWin, projectRootBash,
+    projectName, userName,
+    adoProject, adoRepo, adoOrgPath,
+    orgName, leadDev, infraPerson, devopsPerson, qaPerson,
+    // YOUR_HARNESS_REPO_PATH is only meaningful for a local clone (improve-harness).
+    // On latest/pinned channels there is no clone, so fall back to the repo URL.
+    harnessRepoPath: update.localPath || update.repoUrl,
+    todoistProject, workRoot, isGlobal: mode === 'global',
+    prdMode,
+  });
+
   // ── Copy files ─────────────────────────────────────────────────────────────
   const installedFiles = [];
   for (const d of ['skills', 'agents', 'hooks', 'rules', 'trackers/active', 'code-platform/active']) {
@@ -555,6 +577,7 @@ async function main() {
   installedFiles.push(...copyDirsWithLog(path.join(REPO_DIR, 'skills'), path.join(target, 'skills'), 'skills', skillSkip));
   // Installing over an older install: retired skills and agents go (F7 #64).
   removeRetired(target);
+  removeRenamed(target, REPO_DIR, substitutions);
   warnRetiredElsewhere(target);
 
   console.log(`  Copying tracker adapter (${tracker})...`);
@@ -697,31 +720,9 @@ async function main() {
     }
   }
 
-  // ── Path variables for placeholders ────────────────────────────────────────
-  const hooksUnix = mode === 'global'
-    ? `${os.homedir().replace(/\\/g, '/')}/.claude/hooks`
-    : toUnixPath(path.join(target, 'hooks'));
-  const hooksWin  = toWinPath(mode === 'global'
-    ? path.join(os.homedir(), '.claude', 'hooks')
-    : path.join(target, 'hooks'));
-
-  const projectRootBash = mode === 'global' ? '$(pwd)' : toUnixPath(projectDir);
-
   // ── Placeholder substitution ───────────────────────────────────────────────
   console.log('');
   console.log('  Configuring placeholders...');
-
-  const substitutions = buildSubstitutions({
-    hooksUnix, hooksWin, projectRootBash,
-    projectName, userName,
-    adoProject, adoRepo, adoOrgPath,
-    orgName, leadDev, infraPerson, devopsPerson, qaPerson,
-    // YOUR_HARNESS_REPO_PATH is only meaningful for a local clone (improve-harness).
-    // On latest/pinned channels there is no clone, so fall back to the repo URL.
-    harnessRepoPath: update.localPath || update.repoUrl,
-    todoistProject, workRoot, isGlobal: mode === 'global',
-    prdMode,
-  });
 
   const sedDirs = ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform']
     .map((d) => path.join(target, d))
@@ -762,7 +763,7 @@ async function main() {
       workRoot,
     },
     update,
-    installedFiles: installedFiles.sort(),
+    installedFiles: withoutRenamedOld(installedFiles).sort(),
     now,
   });
   const manifestFile = path.join(target, '.harness-manifest.json');

@@ -9,7 +9,7 @@ model: opus
 
 **Inputs:** `/prd <feature description>`. Reads `prd_mode` from the `## PRD Configuration` section of `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo), and asks clarifying questions before writing.
 **Outputs:** no tasks/ files. `PRD.md` and `progress.txt` in the current directory (per `prd_mode`, `PRD.md` may be a mirror of, or the canonical copy against, a tracker issue), and the PRD shown in the report.
-**Callable parts:** none (the loop runners `ralph.sh` and `ralph.ps1` sit in this skill folder; the body only shows how a person runs them, and no other module names them).
+**Callable parts:** none (the loop runners `bin/ralph.sh` and `bin/ralph.ps1` sit in this skill's `bin/`; the body only shows how a person runs them, and no other module names them).
 **Never breaks:** it asks clarifying questions before writing and sizes every story to one context window. In `tracker` mode it creates neither `PRD.md` nor `progress.txt`. In a `both` mode it marks the non-canonical copy as a mirror. Each loop iteration of `ralph.sh` or `ralph.ps1` spawns a fresh `claude -p` instance, and the loop prompt tells that instance to commit only if its verify command passes (the scripts never run `git commit` themselves, so this is an instruction to the instance, not something they enforce). Both scripts run that instance with `--dangerously-skip-permissions`, so it runs without permission prompts.
 
 ---
@@ -315,20 +315,20 @@ Report which mode was used and where the PRD was written:
 
 ## Running the Ralph Loop
 
-Once `PRD.md` and `progress.txt` exist, execute the loop runner from this skill folder:
+Once `PRD.md` and `progress.txt` exist, execute the loop runner from this skill's `bin/` folder:
 
 **macOS / Linux:**
 ```bash
-./ralph.sh                                  # 10 iterations, defaults
-./ralph.sh --max 25 --sleep 5               # custom budget
-./ralph.sh --prd specs/PRD.md --progress specs/progress.txt
+./bin/ralph.sh                              # 10 iterations, defaults
+./bin/ralph.sh --max 25 --sleep 5           # custom budget
+./bin/ralph.sh --prd specs/PRD.md --progress specs/progress.txt
 ```
 
 **Windows / cross-platform PowerShell:**
 ```powershell
-./ralph.ps1                                 # 10 iterations, defaults
-./ralph.ps1 -MaxIterations 25 -SleepSeconds 5
-./ralph.ps1 -PrdPath specs/PRD.md -ProgressPath specs/progress.txt
+./bin/ralph.ps1                             # 10 iterations, defaults
+./bin/ralph.ps1 -MaxIterations 25 -SleepSeconds 5
+./bin/ralph.ps1 -PrdPath specs/PRD.md -ProgressPath specs/progress.txt
 ```
 
 Each iteration spawns a fresh `claude -p` instance that picks the first user story with unchecked `[ ]` acceptance criteria, implements it, runs the verify command from the criteria, and only commits if it passes. The loop terminates when Ralph emits `<promise>COMPLETE</promise>` or when `--max` is reached.
