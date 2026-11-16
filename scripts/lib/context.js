@@ -1,10 +1,11 @@
 'use strict';
-// Private to the scripts module: the architecture-map checks behind scripts/__tests__/boundaries.test.js
+// Private to the scripts module: the architecture-map checks behind scripts/__tests__/boundaries-*.test.js
 // (rules/modules.md, "The architecture map"). The map is the first table of CONTEXT.md.
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { agentOwners, skipSet, readInterface } = require('./interface.js');
+const { agentOwners, readInterface } = require('./interface.js');
+const { skillFolders, checkOptions, exemptSet } = require('./common.js');
 const { CODE_MODULES } = require('./readmes.js');
 
 const MAP_HEADING = 'Architecture map';
@@ -43,12 +44,6 @@ const linkTarget = (cell) => {
   const m = String(cell || '').match(/\]\(([^)]+)\)/);
   return bare(m ? m[1] : cell);
 };
-
-function skillFolders(root) {
-  const dir = path.join(root, 'skills');
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
-}
 
 // One clear problem when the first section is not the Architecture map or its table is missing or has
 // other columns; the row checks would only pile up noise after that.
@@ -137,6 +132,14 @@ function checkPrivateAgents(ctx) {
   return problems;
 }
 
+// A link is followed only when it is a relative path that stays inside the repo root.
+function insideRoot(rel) {
+  const file = rel.split('#')[0];
+  if (path.isAbsolute(file) || path.win32.isAbsolute(file)) return false;
+  const target = path.posix.normalize(file.split('\\').join('/'));
+  return target !== '..' && !target.startsWith('../');
+}
+
 // Every Interface link is the row's own main file and anchor, resolves to a file, and (unless the
 // skill is exempt) that file holds an `## Interface` block.
 function checkLinks(ctx) {
@@ -144,6 +147,10 @@ function checkLinks(ctx) {
   for (const e of ctx.entries) {
     const d = describe(e.id, ctx);
     const rel = linkTarget(e.row.Interface);
+    if (!insideRoot(rel)) {
+      problems.push(`CONTEXT.md:${e.line}: ${e.id} links ${rel}, which is absolute or outside the repo`);
+      continue;
+    }
     if (d && rel !== d.link) {
       problems.push(`CONTEXT.md:${e.line}: ${e.id} links ${rel || '(nothing)'}, expected ${d.link}`);
       continue;
@@ -162,7 +169,8 @@ function checkLinks(ctx) {
 // in that skill's Private agents cell and has no row. Each row has the Kind and the Interface link its
 // category gives it.
 function checkContextMap(root, options = {}) {
-  const exe = skipSet(options);
+  checkOptions(options);
+  const exe = exemptSet(options);
   const file = path.join(root, 'CONTEXT.md');
   if (!fs.existsSync(file)) return ['CONTEXT.md: missing, so there is no architecture map'];
   const map = readArchitectureMap(fs.readFileSync(file, 'utf8'));

@@ -9,7 +9,7 @@
 
 **Claude Code writes the code. This harness manages everything else — stories, plans, reviews, and the paper trail your team needs to trust it.**
 
-33 skills, 23 agents, 7 cross-platform Node hooks, 15 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
+33 skills, 23 agents, 12 cross-platform Node hook scripts, 15 rule files (5 path-scoped), tracker integration (ADO + GitHub + Todoist + Local). Install once, ship faster.
 
 See [CHANGELOG.md](CHANGELOG.md) for what's in v2.0.0.
 
@@ -268,7 +268,7 @@ The installer asks:
 4. **Where do your pull requests live?** — GitHub / GitHub Enterprise, Azure Repos, or none. Picks the code-platform adapter, independent of the tracker.
 5. **Your details** — Name, org, project paths. Fills in all placeholders automatically.
 6. **PRD output mode** — File only, tracker only, or both (with canonical source choice)
-7. **CONTEXT.md + ADR** (project only) — Copies a domain glossary template and ADR convention to your project root.
+7. **CONTEXT.md + ADR** (project only) — Copies a CONTEXT.md template (architecture map, domain glossary and codebase conventions) and the ADR convention to your project root.
 
 Then:
 - **Solo:** `/implement #42` or `/plan`
@@ -592,6 +592,11 @@ All hooks run on Node.js (>= 20). One cross-platform implementation.
 | `pre-compact.js` | PreCompact | Saves in-progress state before context compression |
 | `tracker-sync.js` | SessionStart + SessionEnd | Tracker sync sweep — on start, flags open items that look delivered; on end, closes items with explicit written evidence (merged PRs with closing keywords). Never auto-acts on ambiguous evidence |
 | `session-log.js` | SessionEnd | Appends session metadata to sessions.jsonl |
+| `inventory-check.js` | PreToolUse (Bash) | On `git commit`, blocks a new skill or agent with no README row and README counts or `VERSION` and CHANGELOG that disagree with the tree |
+| `session-start-msg.js` | SessionStart | Prints a tracker-aware startup message from `.claude/.harness-manifest.json` |
+| `session-context.js` | SessionStart | Injects the top learnings as a soft hint |
+| `session-router.js` | SessionStart | Detects a new or active project and injects a next-step hint |
+| `catalog-skills.js` | spawned by `catalog-trigger.js` | Scans skills, agents and hooks and writes SKILLS_CATALOG.md |
 
 ---
 
@@ -731,13 +736,15 @@ The harness works with any tech stack. Agents read conventions from `tasks/lesso
 claude-code-harness/
 ├── skills/           ← 33 skills
 ├── agents/           ← 23 agents (20 sub-agents + 1 main-session operator + 2 role identities)
-├── hooks/            ← 7 automated hooks
+├── hooks/            ← 12 hook scripts
 ├── rules/            ← 15 rule files (5 path-scoped)
 ├── trackers/         ← 4 tracker adapters: ado, github, todoist, local (8 scripts each; github is a 15-script superset)
 ├── code-platform/    ← 3 PR-review backends: github, azure-repos, none (3 scripts each)
 ├── templates/tasks/  ← blank task files for new projects
 ├── examples/         ← filled-in examples (GitHub + .NET)
 ├── install/          ← interactive installer
+├── scripts/          ← maintainer tooling: dogfood links and the boundary checks `npm test` runs
+├── CONTEXT.md        ← architecture map, domain glossary and codebase conventions
 ├── LICENSE           ← MIT
 ├── VERSION           ← current version number
 ├── CHANGELOG.md      ← release history

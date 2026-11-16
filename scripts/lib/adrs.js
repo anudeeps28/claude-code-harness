@@ -4,7 +4,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { readInterface, skipSet, listModules, mdFiles } = require('./interface.js');
+const { readInterface, listModules } = require('./interface.js');
+const { mdFiles, unfenced, checkOptions, exemptSet } = require('./common.js');
 const { CODE_MODULES } = require('./readmes.js');
 
 const PLACEHOLDER = '[module, module]';
@@ -12,15 +13,6 @@ const PLACEHOLDER = '[module, module]';
 // The module ids an ADR's Modules: line may name: skill folders, agent names and the code modules.
 function moduleIds(root) {
   return [...new Set([...listModules(root).map((m) => m.name), ...CODE_MODULES])].sort();
-}
-
-// Lines outside ``` code fences.
-function unfenced(lines) {
-  let fenced = false;
-  return lines.filter((l) => {
-    if (/^\s*```/.test(l)) { fenced = !fenced; return false; }
-    return !fenced;
-  });
 }
 
 // The one parser of an ADR's (or the template's) header: the lines before the first `## `, outside
@@ -78,9 +70,9 @@ function readAdrs(root) {
 }
 
 function checkAdrModules(root, options = {}) {
-  // Called only to refuse an unknown option by name; this check has nothing to exempt, because it
-  // reads ADRs, not Interface blocks, so the returned set is not used.
-  skipSet(options);
+  // Refuses an unknown option by name; this check has nothing to exempt, because it reads ADRs, not
+  // Interface blocks.
+  checkOptions(options);
   const known = new Set(moduleIds(root));
   const { adrs, problems } = readAdrs(root);
   for (const a of adrs) {
@@ -137,7 +129,8 @@ function scanAdrText(text) {
 }
 
 function checkAdrCitations(root, options = {}) {
-  const exe = skipSet(options);
+  checkOptions(options);
+  const exe = exemptSet(options);
   const byNumber = new Map(readAdrs(root).adrs.map((a) => [a.number, a]));
   const problems = [];
   for (const b of blocks(root, exe)) {
@@ -154,7 +147,8 @@ function checkAdrCitations(root, options = {}) {
 }
 
 function checkAcceptedAdrsCited(root, options = {}) {
-  const exe = skipSet(options);
+  checkOptions(options);
+  const exe = exemptSet(options);
   const cited = new Set(blocks(root, exe).flatMap((b) => scanAdrText(b.neverBreaks).cited));
   return readAdrs(root).adrs
     .filter((a) => a.word === 'accepted' && !cited.has(a.number))

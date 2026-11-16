@@ -42,7 +42,7 @@ Use the Edit tool — one targeted append. Do NOT rewrite the whole file.
 
 Read if they exist — refuse to run if CONTEXT.md is missing:
 
-- `CONTEXT.md` — **REQUIRED**. Domain glossary and module map. If missing:
+- `CONTEXT.md` — **REQUIRED**. Domain glossary and architecture map. If missing:
   > "This skill needs CONTEXT.md to anchor proposals in your domain vocabulary. Run the installer with the CONTEXT.md option, or create one from `templates/CONTEXT.md.template`."
   Stop. *(Gate type: pre-flight)*
 

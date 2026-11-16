@@ -37,7 +37,7 @@ If no input is provided, ask: "What part of the codebase do you want to zoom out
 ## Step 2 — Read context docs (silent)
 
 Read if they exist (skip silently if not):
-- `CONTEXT.md` — domain glossary and module map
+- `CONTEXT.md` — domain glossary and architecture map
 - `docs/ARCHITECTURE.md` or `ARCHITECTURE.md` — component topology
 - `docs/adr/*.md` — relevant architecture decisions
 

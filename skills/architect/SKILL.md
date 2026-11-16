@@ -89,7 +89,7 @@ Check for existing architecture patterns: frameworks in use, database types, mes
 ### 2c — Existing docs
 
 Read if they exist (skip silently if not):
-- `CONTEXT.md` — domain glossary and module map
+- `CONTEXT.md` — domain glossary and architecture map
 - `docs/adr/*.md` — prior architecture decisions
 - `tasks/cloud-context.md` — org cloud platform defaults
 - `tasks/compliance-owners.md` — named owners for regulated-data sign-offs (PHI/PII/SOC 2/PCI-DSS)

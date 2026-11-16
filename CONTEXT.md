@@ -3,7 +3,7 @@
 Architecture map, domain glossary and codebase conventions for the claude-code-harness repository.
 Read by Claude Code agents before grilling, architecture proposals, or refactor sessions, so they anchor suggestions in the team's shared vocabulary.
 
-**How to maintain:** Update as understanding evolves. Add terms when they stabilize. ADRs record *why* decisions were made; this file records *what* is true now. The map's **Depends on** column is filled by hand from each module's Interface and body; an automated check of it is planned (`rules/modules.md`, "The boundary check", item 6) and is not yet in place. `scripts/__tests__/boundaries.test.js` checks the rows, the Kind, the Private agents and the Interface links.
+**How to maintain:** Update as understanding evolves. Add terms when they stabilize. ADRs record *why* decisions were made; this file records *what* is true now. The map's **Depends on** column is filled by hand from each module's Interface and body; an automated check of it is planned (`rules/modules.md`, "The boundary check", item 6) and is not yet in place. `scripts/__tests__/boundaries-context.test.js` checks the rows, the Kind, the Private agents and the Interface links.
 
 ---
 
@@ -56,10 +56,10 @@ One row per skill, shared or person agent, and code module. An agent a skill own
 | `hooks` | code module | Node scripts that run on Claude Code tool events: safety checks, session state, drift and tracker sync. | — | trackers | [hooks/README.md#interface](hooks/README.md#interface) |
 | `trackers` | code module | Tracker adapter layer: the standard scripts skills call, with github, ado, todoist and local adapters. | — | code-platform, install | [trackers/README.md#interface](trackers/README.md#interface) |
 | `code-platform` | code module | Code-platform adapter layer for PR review-thread operations (github, azure-repos, none). | — | install, trackers | [code-platform/README.md#interface](code-platform/README.md#interface) |
-| `install` | code module | The installer: copies the harness into a project or ~/.claude, wires hooks, checks, updates and switches an install. | — | /coverage-audit, /implement, /sprint-plan, `coverage-auditor-agent`, `debug-agent`, `evaluator-agent`, hooks, trackers, code-platform, scripts | [install/README.md#interface](install/README.md#interface) |
-| `scripts` | code module | Maintainer tooling: the dogfood links and the boundary checks that npm test runs. | — | hooks, trackers, code-platform, install | [scripts/README.md#interface](scripts/README.md#interface) |
+| `install` | code module | The installer: copies the harness into a project or ~/.claude, wires hooks, checks, updates and switches an install. | — | /coverage-audit, /implement, /sprint-plan, `coverage-auditor-agent`, `debug-agent`, `evaluator-agent`, hooks, trackers, code-platform | [install/README.md#interface](install/README.md#interface) |
+| `scripts` | code module | Maintainer tooling: the dogfood links and the boundary checks that npm test runs. | — | hooks, trackers, code-platform | [scripts/README.md#interface](scripts/README.md#interface) |
 
-A module depends on another when it spawns that agent, invokes that skill, runs that code module's scripts, requires its files, or points at a file inside it (a path such as `skills/pa/SKILL.md` or `hooks/drift-check.js`); it does not depend on a module it only names in prose ("run /x", "see /x"), on a `tasks/` file another module writes, or on a module that calls it. An agent a skill owns counts as part of that skill, and a name in a list of removed files is not a pointer.
+A module depends on another when it spawns that agent, invokes that skill, runs that code module's scripts, requires its files, or points at a file inside it (a path such as `skills/pa/SKILL.md` or `hooks/drift-check.js`); it does not depend on a module it only names in prose ("run /x", "see /x"), on a `tasks/` file another module writes, on a require or a pointer that only a test file (`__tests__/`) or a code comment makes, or on a module that calls it. An agent a skill owns counts as part of that skill, and a name in a list of removed files is not a pointer.
 
 ---
 
@@ -81,7 +81,7 @@ A module depends on another when it spawns that agent, invokes that skill, runs 
 - Skills, agents and rules are Markdown; hooks, installer and scripts are dependency-free Node.js.
 - Every skill and agent carries an `## Interface` block right after its frontmatter; every code module has a `README.md` with the same four parts.
 - Each agent's frontmatter names its `owner:` (a skill, `shared` or `person`); a skill uses only its own and shared agents.
-- Agents report back with a `STATUS:` line (`rules/agent-handoff.md`).
+- Every agent an orchestrator starts reports back with a `STATUS:` line; a person agent (`owner: person`) reports none (`rules/agent-handoff.md`).
 
 ---
 

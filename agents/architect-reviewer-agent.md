@@ -45,7 +45,7 @@ Read all of these (skip silently if not found):
    ```
    Glob: docs/adr/*.md
    ```
-3. **CONTEXT.md** — domain glossary, module map, codebase conventions
+3. **CONTEXT.md** — domain glossary, architecture map (one row per module: what it **Owns**, what it **Depends on**, a link to its **Interface**), codebase conventions
    ```
    Glob: CONTEXT.md
    ```
@@ -67,7 +67,7 @@ git diff <base>...HEAD
 ```
 
 Read the full diff. For each changed file, note:
-- Which module/service/layer it belongs to (per CONTEXT.md module map or project structure)
+- Which module/service/layer it belongs to (per the CONTEXT.md architecture map's **Owns** column, or the project structure)
 - What responsibilities it touches
 - What data flows through it
 
@@ -79,7 +79,7 @@ For each changed file, check against the documented architecture:
 
 ### 3a — Module boundary violations
 
-Does any change put logic in a module that shouldn't own it (per CONTEXT.md module map or ARCHITECTURE.md component diagram)?
+Does any change put logic in a module that shouldn't own it (per the CONTEXT.md architecture map's **Owns** and **Depends on** columns, the module's `## Interface` block, or the ARCHITECTURE.md component diagram)? A change that reaches into another module instead of using what its Interface lists, or that adds a dependency the map's **Depends on** column does not show, is a boundary violation.
 
 Examples:
 - A controller directly accessing a database (bypassing the service layer)

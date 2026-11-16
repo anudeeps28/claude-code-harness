@@ -1,12 +1,13 @@
 'use strict';
 // Private to the scripts module: the "files other modules name" checks behind
-// scripts/__tests__/boundaries.test.js. Each check takes a repo root and returns a list of problem
+// scripts/__tests__/boundaries-*.test.js. Each check takes a repo root and returns a list of problem
 // strings naming the module.
 
 const fs = require('node:fs');
 const path = require('node:path');
 const { parse } = require('../../hooks/lib/frontmatter.js');
-const { skipSet, listModules, readModule } = require('./interface.js');
+const { listModules, readModule } = require('./interface.js');
+const { skillFolders, checkOptions, exemptSet } = require('./common.js');
 
 // Folders whose files may point at a skill's files. Tests (__tests__) are not pointers.
 const POINTER_DIRS = ['agents', 'rules', 'skills', 'hooks', 'install', 'templates', 'trackers', 'code-platform'];
@@ -36,15 +37,9 @@ const SKILL_DIR_RE = /(?:<skill-dir>|\$\{CLAUDE_SKILL_DIR\})\/([A-Za-z0-9_./-]+)
 const BARE_RE = /(?<![A-Za-z0-9_./<>}-])((?:bin|reference|templates)\/[A-Za-z0-9_./-]+)/g;
 const SKILL_FOLDER_RE = /\/([a-z0-9-]+) skill folder/g;
 
-function skillNames(root) {
-  const dir = path.join(root, 'skills');
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
-}
-
 // Scans every pointer file once. Returns Map skill -> Map rel -> Set of pointing files.
 function buildPointerIndex(root) {
-  const skills = new Set(skillNames(root));
+  const skills = new Set(skillFolders(root));
   const index = new Map([...skills].map((s) => [s, new Map()]));
   const record = (skill, relRaw, byFile) => {
     const rel = relRaw.replace(/[.\-/]+$/, '');
@@ -98,7 +93,8 @@ function mentions(text, rel) {
 }
 
 function checkCallableParts(root, options = {}) {
-  const exe = skipSet(options);
+  checkOptions(options);
+  const exe = exemptSet(options);
   const problems = [];
   const index = buildPointerIndex(root);
   for (const mod of listModules(root).filter((m) => m.kind === 'skill')) {

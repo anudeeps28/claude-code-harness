@@ -60,7 +60,7 @@ If either is missing, stop immediately:
 ## Step 2 — Gather context
 
 Read silently (skip if not found):
-- `CONTEXT.md` — domain glossary and module map
+- `CONTEXT.md` — domain glossary and architecture map
 - `docs/adr/*.md` — architecture decisions
 - `tasks/lessons.md` or `tasks/notes.md` — project conventions (frameworks, patterns)
 - `research.md` — cached external API research

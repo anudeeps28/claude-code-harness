@@ -208,6 +208,21 @@ boundary automatically, it does.
 A pointer to a heading written as a path followed by a quoted heading must name `"Interface"`. Free
 wording can slip past the check; the architect reviewer remains the backstop for what it cannot see.
 
+### What runs today
+
+Not every item above is enforced yet. `npm test` enforces today: agent owners (item 3); every skill's
+and agent's Interface block with its four parts, and the skill files other modules point at being listed
+in its Callable parts, within the scan scope of the pointer check (`agents/`, `rules/`, `skills/`,
+`hooks/`, `install/`, `templates/`, `trackers/` and `code-platform/`, tests skipped; part of item 2);
+each code module's `README.md` and the files other modules require from it (item 1); the ADR `Modules:`
+lines and the ADRs cited in Interface blocks (item 7); and the architecture map's rows, kinds, private
+agents and links. These arrive later: the standard folder shape (item 4) with F2 story
+#6j2mgp3qGcrM58q2, private insides beyond that scan scope (item 2) with F2 story #6j2mgmqmpx9pJVq2,
+test locality (item 5) with F2 story #6j2mgp8CJ6mRHW32, and the map's **Depends on** column (item 6)
+with F2 story #6j2mgp5G2xvFP6Q2 (F2 is #6j2mgjrhw5VCqMMR; the plan lines, the builder's brief and the
+pre-PR docs check are F3, #6j2mgjwMgrvf3fwR). The boundary check itself reads module bodies: that is its
+job, a carve-out from "Tests check the interface", which governs every other test.
+
 ---
 
 ## One-line pattern for skills

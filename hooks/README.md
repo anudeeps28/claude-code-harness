@@ -104,7 +104,7 @@ Read [SECURITY.md](SECURITY.md) before adding new safety rules or relying on the
 
 ## Hook wiring in settings.json
 
-The installer generates `.claude/settings.json` with all hooks wired up. Reference structure:
+The installer generates `.claude/settings.json` with the hooks wired up. This is the structure it writes; if it ever differs, `buildSettings` in `install/lib/substitution.js` is the source of truth:
 
 ```json
 {
@@ -116,6 +116,10 @@ The installer generates `.claude/settings.json` with all hooks wired up. Referen
       {
         "matcher": "Bash|Write",
         "hooks": [{ "type": "command", "command": "node \"/path/to/.claude/hooks/safety-check.js\"" }]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "node \"/path/to/.claude/hooks/inventory-check.js\"" }]
       }
     ],
     "PostToolUse": [
@@ -136,20 +140,28 @@ The installer generates `.claude/settings.json` with all hooks wired up. Referen
     "SessionStart": [
       {
         "matcher": "*",
-        "hooks": [{ "type": "command", "command": "echo \"SESSION START: read tasks/lessons.md, todo.md, pr-queue.md, flags-and-notes.md\"" }]
+        "hooks": [
+          { "type": "command", "command": "node \"/path/to/.claude/hooks/session-start-msg.js\"" },
+          { "type": "command", "command": "node \"/path/to/.claude/hooks/session-context.js\"" },
+          { "type": "command", "command": "node \"/path/to/.claude/hooks/session-router.js\"" },
+          { "type": "command", "command": "node \"/path/to/.claude/hooks/tracker-sync.js\" start" }
+        ]
       }
     ],
     "SessionEnd": [
       {
         "matcher": "*",
-        "hooks": [{ "type": "command", "command": "node \"/path/to/.claude/hooks/session-log.js\"" }]
+        "hooks": [
+          { "type": "command", "command": "node \"/path/to/.claude/hooks/session-log.js\"" },
+          { "type": "command", "command": "node \"/path/to/.claude/hooks/tracker-sync.js\" end" }
+        ]
       }
     ]
   }
 }
 ```
 
-Paths are filled in automatically by `install/install.sh`.
+The `env` block (`CLAUDE_HARNESS_WORK_ROOT`) is written only for a global install with a work root. Paths are filled in by the installer (`install/install.js`; `install/install.sh` forwards to it). `todo-render-trigger.js` and `catalog-skills.js` are not listed: the first is not wired by the installer and the second is spawned by `catalog-trigger.js`.
 
 ---
 

@@ -1,14 +1,13 @@
 'use strict';
-// Private to the scripts module: the code-module README checks behind scripts/__tests__/boundaries.test.js
+// Private to the scripts module: the code-module README checks behind scripts/__tests__/boundaries-*.test.js
 // (rules/modules.md, "Where an interface is written"). Each takes a repo root and returns problem strings.
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { readInterface, skipSet } = require('./interface.js');
+const { readInterface, PART_LABELS } = require('./interface.js');
+const { checkOptions } = require('./common.js');
 
 const CODE_MODULES = ['hooks', 'trackers', 'code-platform', 'install', 'scripts'];
-const PARTS = ['Inputs', 'Outputs', 'Callable parts', 'Never breaks'];
-const PART_KEYS = { Inputs: 'inputs', Outputs: 'outputs', 'Callable parts': 'callable', 'Never breaks': 'neverBreaks' };
 // Folders the require scan does not enter. node_modules and .git are skipped at any depth. tasks, .claude
 // and _local are skipped only at the repo root, where they hold run state, installed copies and scratch;
 // a nested folder that happens to share the name (skills/x/tasks/) is real code and is scanned.
@@ -28,7 +27,7 @@ function purposeLine(text) {
 }
 
 function checkReadmes(root, options = {}) {
-  skipSet(options);
+  checkOptions(options);
   const problems = [];
   for (const mod of CODE_MODULES) {
     const file = path.join(root, mod, 'README.md');
@@ -43,8 +42,8 @@ function checkReadmes(root, options = {}) {
       problems.push(`${mod}/README.md: no ## Interface section`);
       continue;
     }
-    for (const part of PARTS) {
-      if (!iface.parts[PART_KEYS[part]]) problems.push(`${mod}/README.md: Interface part "${part}" is missing or empty`);
+    for (const [part, key] of Object.entries(PART_LABELS)) {
+      if (!iface.parts[key]) problems.push(`${mod}/README.md: Interface part "${part}" is missing or empty`);
     }
   }
   return problems;
@@ -122,7 +121,7 @@ function unresolvedRequires(root) {
 }
 
 function checkReadmeCallable(root, options = {}) {
-  skipSet(options);
+  checkOptions(options);
   const problems = unresolvedRequires(root);
   for (const mod of CODE_MODULES) {
     const file = path.join(root, mod, 'README.md');

@@ -26,11 +26,21 @@ description: Short description (under 250 chars) — what it does and when to us
 argument-hint: Optional example arguments
 ---
 
+## Interface
+
+**Inputs:** the usage `/your-skill <args>` and the files it reads
+**Outputs:** the `tasks/` files it writes, or "no tasks/ files"; its report
+**Callable parts:** every `bin/`, `reference/` or `templates/` file other modules name, or "none"
+**Never breaks:** the promises it always keeps (cite the ADR when a promise came from one)
+
 Your skill instructions here...
 ```
 
-3. Add supporting files in the same folder if needed (templates, scripts, reference docs)
-4. Add your skill to the table in `README.md`
+3. Put the four-part `## Interface` block (`**Inputs:**`, `**Outputs:**`, `**Callable parts:**`, `**Never breaks:**`, none empty) right after the frontmatter, as above. It is the module's contract; see `rules/modules.md`.
+4. Add supporting files in the same folder if needed (templates, scripts, reference docs). A file another module points at must be listed in Callable parts.
+5. Add a `/your-skill` row to the Architecture map in `CONTEXT.md` (the first table; its Kind is `skill` and its Interface link is `skills/your-skill/SKILL.md#interface`)
+6. Add your skill to the table in `README.md`
+7. Run `npm test`: the boundary checks name any missing block part, map row or Callable parts entry
 
 ### Cross-phase task file convention
 
@@ -100,12 +110,24 @@ name: your-agent
 description: What this agent does (shown in agent catalog)
 tools: Read, Glob, Grep, Bash
 model: opus|sonnet|haiku
+owner: your-skill|shared|person
 ---
+
+## Interface
+
+**Inputs:** what its brief must contain
+**Outputs:** the report starts with the `STATUS:` line (`rules/agent-handoff.md`), then what it returns
+**Callable parts:** none
+**Never breaks:** the promises it always keeps
 
 Your agent instructions here...
 ```
 
-2. Add your agent to the table in `README.md`
+2. Set `owner:` in the frontmatter: the skill that uses it (an existing `skills/<name>/`), `shared` when more than one skill uses it, or `person` for an agent a person launches as a session. A skill uses only its own agents and shared ones.
+3. Put the four-part `## Interface` block right after the frontmatter, as above. Its Outputs start with the `STATUS:` line, except for `owner: person`, which may say "none (person-launched)". A shared agent's Inputs name every skill that calls it. See `rules/modules.md`.
+4. Add the agent to `CONTEXT.md`'s Architecture map: an agent owned by a skill goes in that skill's **Private agents** cell and has no row; a `shared` or `person` agent gets its own row (Kind `agent (shared)` or `agent (person)`, Interface link `agents/your-agent.md#interface`).
+5. Add your agent to the table in `README.md`
+6. Run `npm test`: the boundary checks name a missing owner, block part or map entry
 
 ### Agent guidelines
 

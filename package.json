@@ -9,7 +9,7 @@
     "test:hooks": "node --test hooks/__tests__/*.test.js",
     "test:trackers": "node --test trackers/__tests__/*.test.js",
     "test:code-platform": "node --test code-platform/__tests__/*.test.js",
-    "test:boundaries": "node --test scripts/__tests__/boundaries.test.js",
+    "test:boundaries": "node --test scripts/__tests__/boundaries-*.test.js",
     "test:install": "node --test install/__tests__/*.test.js",
     "test:skills": "node --test skills/*/__tests__/*.test.js",
     "test:coverage": "c8 --reporter=text --reporter=lcov node --test hooks/__tests__/*.test.js trackers/__tests__/*.test.js code-platform/__tests__/*.test.js install/__tests__/*.test.js skills/*/__tests__/*.test.js scripts/__tests__/*.test.js",

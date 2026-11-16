@@ -1,20 +1,22 @@
 'use strict';
-// Private to the scripts module: the checks behind scripts/__tests__/boundaries.test.js.
+// Private to the scripts module: the checks behind scripts/__tests__/boundaries-*.test.js.
 // Each takes a repo root and returns a list of problem strings naming the module.
 // The owner and rules-table checks live here; the Interface-block checks are in ./interface.js and
 // the file-pointer checks in ./pointers.js. Everything is re-exported from here.
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { mdFiles, agentOwners, ...iface } = require('./interface.js');
+const iface = require('./interface.js');
+const { mdFiles, checkOptions } = require('./common.js');
 const pointers = require('./pointers.js');
 const readmes = require('./readmes.js');
 const adrs = require('./adrs.js');
 const context = require('./context.js');
 
-function checkOwners(root) {
+function checkOwners(root, options = {}) {
+  checkOptions(options);
   const problems = [];
-  for (const { name, owner } of agentOwners(root)) {
+  for (const { name, owner } of iface.agentOwners(root)) {
     const file = `agents/${name}.md`;
     if (!owner) {
       problems.push(`${file}: no owner:`);
@@ -36,7 +38,8 @@ function rulesSection(readme) {
   return end === -1 ? rest : rest.slice(0, end);
 }
 
-function checkRulesTable(root) {
+function checkRulesTable(root, options = {}) {
+  checkOptions(options);
   const readmePath = path.join(root, 'README.md');
   const section = fs.existsSync(readmePath) ? rulesSection(fs.readFileSync(readmePath, 'utf8')) : '';
   return mdFiles(path.join(root, 'rules'))
@@ -44,28 +47,15 @@ function checkRulesTable(root) {
     .map((rule) => `README.md: rules section does not list rules/${rule}`);
 }
 
+// Each family module exports what other modules may use; the context family's cell helpers (bare,
+// linkTarget, cellNames) stay in ./context.js.
 module.exports = {
-  agentOwners, checkOwners, checkRulesTable,
-  readInterface: iface.readInterface,
-  checkInterfaces: iface.checkInterfaces,
-  checkAgentOutputs: iface.checkAgentOutputs,
-  callersOf: iface.callersOf,
-  checkSharedInputs: iface.checkSharedInputs,
-  checkSkillUsage: iface.checkSkillUsage,
-  namedFiles: pointers.namedFiles,
-  checkCallableParts: pointers.checkCallableParts,
-  buildPointerIndex: pointers.buildPointerIndex,
-  CODE_MODULES: readmes.CODE_MODULES,
-  checkReadmes: readmes.checkReadmes,
-  requiredExports: readmes.requiredExports,
-  checkReadmeCallable: readmes.checkReadmeCallable,
-  moduleIds: adrs.moduleIds,
-  checkAdrModules: adrs.checkAdrModules,
-  checkAdrCitations: adrs.checkAdrCitations,
-  checkAcceptedAdrsCited: adrs.checkAcceptedAdrsCited,
+  checkOwners,
+  checkRulesTable,
+  ...iface,
+  ...pointers,
+  ...readmes,
+  ...adrs,
   readArchitectureMap: context.readArchitectureMap,
   checkContextMap: context.checkContextMap,
-  bare: context.bare,
-  linkTarget: context.linkTarget,
-  cellNames: context.cellNames,
 };

@@ -1,16 +1,12 @@
 'use strict';
-// Private to the scripts module: the Interface-block checks behind scripts/__tests__/boundaries.test.js
+// Private to the scripts module: the Interface-block checks behind scripts/__tests__/boundaries-*.test.js
 // (rules/modules.md, "Where an interface is written"). Each check takes a repo root and returns a list
-// of problem strings naming the module. Also holds the module-listing helpers the other families share.
+// of problem strings naming the module. Also holds the module-listing helpers (agentOwners, listModules, readModule) and the part table the other families share.
 
 const fs = require('node:fs');
 const path = require('node:path');
 const { parse } = require('../../hooks/lib/frontmatter.js');
-
-function mdFiles(dir) {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort();
-}
+const { PATH_BOUNDARY, mdFiles, skillFolders, fenceMask, checkOptions, exemptSet } = require('./common.js');
 
 function agentFiles(root) {
   return mdFiles(path.join(root, 'agents'));
@@ -23,6 +19,8 @@ function agentOwners(root) {
   });
 }
 
+// The four parts of an Interface block, by label, and the key each is read into. The one table: the
+// README checks use it too.
 const PART_LABELS = {
   Inputs: 'inputs',
   Outputs: 'outputs',
@@ -45,11 +43,7 @@ function readInterface(text) {
   const body = stripFrontmatter(text);
   const isHeading = (l) => /^## Interface\s*$/.test(l);
   // A line inside a ``` code fence is never a heading.
-  let fenced = false;
-  const inFence = body.map((l) => {
-    if (/^\s*```/.test(l)) { fenced = !fenced; return true; }
-    return fenced;
-  });
+  const inFence = fenceMask(body);
   const headingAt = (i) => !inFence[i] && isHeading(body[i]);
   const headings = body.filter((_, i) => headingAt(i)).length;
   const first = body.findIndex((l) => l.trim() !== '');
@@ -83,21 +77,10 @@ function readInterface(text) {
   return result;
 }
 
-// The one option a check takes is `exempt`, the skill folders whose block is not required. Any other
-// key is refused by name, so a second list cannot come back under another name.
-function skipSet(options = {}) {
-  const unknown = Object.keys(options).filter((k) => k !== 'exempt');
-  if (unknown.length) throw new Error(`unknown check option "${unknown[0]}": a check takes only exempt`);
-  return new Set(options.exempt || []);
-}
-
 function listModules(root) {
   const modules = [];
-  const skillsDir = path.join(root, 'skills');
-  if (fs.existsSync(skillsDir)) {
-    for (const d of fs.readdirSync(skillsDir, { withFileTypes: true }).filter((e) => e.isDirectory())) {
-      modules.push({ id: `skills/${d.name}`, name: d.name, kind: 'skill', file: `skills/${d.name}/SKILL.md` });
-    }
+  for (const name of skillFolders(root)) {
+    modules.push({ id: `skills/${name}`, name, kind: 'skill', file: `skills/${name}/SKILL.md` });
   }
   for (const f of agentFiles(root)) {
     const name = f.replace(/\.md$/, '');
@@ -112,7 +95,8 @@ function readModule(root, mod) {
 }
 
 function checkInterfaces(root, options = {}) {
-  const exe = skipSet(options);
+  checkOptions(options);
+  const exe = exemptSet(options);
   const problems = [];
   for (const mod of listModules(root)) {
     if (mod.kind === 'skill' && exe.has(mod.name)) continue;
@@ -138,7 +122,12 @@ function checkInterfaces(root, options = {}) {
   return problems;
 }
 
-function checkAgentOutputs(root) {
+// A report that starts with the `STATUS:` line: it is the first thing the Outputs say, or they say the
+// report starts (or begins) with it.
+const STATUS_START_RE = /^`?STATUS:|\b(?:starts?|begins?) with (?:a |the |its )?(?:first )?(?:line )?`?STATUS:/i;
+
+function checkAgentOutputs(root, options = {}) {
+  checkOptions(options);
   const owners = new Map(agentOwners(root).map((a) => [a.name, a.owner]));
   const problems = [];
   for (const mod of listModules(root).filter((m) => m.kind === 'agent')) {
@@ -149,7 +138,7 @@ function checkAgentOutputs(root) {
     const negated = /\b(?:not|no|never|without)\b[^.\n]*\b(?:starts?|begins?) with\b/i.test(out);
     // A person-launched agent reports to no orchestrator, so it may say so instead of giving a STATUS: line.
     const personNone = owners.get(mod.name) === 'person' && /^none \(person-launched\)/.test(out);
-    if (!personNone && (negated || !/^`?STATUS:|\b(?:starts?|begins?) with (?:a |the |its )?(?:first )?(?:line )?`?STATUS:/i.test(out))) {
+    if (!personNone && (negated || !STATUS_START_RE.test(out))) {
       problems.push(`${mod.file}: Interface Outputs do not give the STATUS: line`);
     }
   }
@@ -167,7 +156,7 @@ function escapeRe(text) {
 const START_VERB_RE = /\b(?:spawn|launch|start|run)(?:s|es|ed|ing)?\b/i;
 const AGENT_INTRO_RE = /\bAgent [A-Z0-9]+\s*[:—–-]/;
 function callersOf(root, agent) {
-  const re = new RegExp(`(?<![A-Za-z0-9_./-])${escapeRe(agent)}(?![A-Za-z0-9_-])`);
+  const re = new RegExp(`${PATH_BOUNDARY}${escapeRe(agent)}(?![A-Za-z0-9_-])`);
   const spawns = (text) => {
     const lines = text.split(/\r?\n/);
     return lines.some((l, i) => re.test(l) &&
@@ -184,7 +173,7 @@ function callersOf(root, agent) {
 // must not run on into a longer name (`/name-x`), a path (`/name/x`) or a file (`/name.md`); a `.` that
 // ends a sentence is fine.
 function namesSkill(text, name) {
-  return new RegExp(`(?<![A-Za-z0-9_./-])/${escapeRe(name)}(?![A-Za-z0-9_/-]|\\.[A-Za-z0-9_])`).test(text);
+  return new RegExp(`${PATH_BOUNDARY}/${escapeRe(name)}(?![A-Za-z0-9_/-]|\\.[A-Za-z0-9_])`).test(text);
 }
 
 // The command a person types: the frontmatter `name:` when the SKILL.md has one, else the folder name.
@@ -194,7 +183,8 @@ function commandName(root, mod) {
   return typeof name === 'string' && name.trim() ? name.trim() : mod.name;
 }
 
-function checkSharedInputs(root) {
+function checkSharedInputs(root, options = {}) {
+  checkOptions(options);
   const problems = [];
   for (const { name, owner } of agentOwners(root)) {
     if (owner !== 'shared') continue;
@@ -214,8 +204,11 @@ function checkSharedInputs(root) {
 
 // Every skill with an Interface block: its Inputs name the usage `/<name>`, and its Outputs name a
 // tasks/ path or say "no tasks/ files". The `/` must not follow a path character.
+const TASKS_PATH_RE = new RegExp(`${PATH_BOUNDARY}tasks\\/\\S|^no tasks\\/ files\\b`);
+
 function checkSkillUsage(root, options = {}) {
-  const exe = skipSet(options);
+  checkOptions(options);
+  const exe = exemptSet(options);
   const problems = [];
   for (const mod of listModules(root).filter((m) => m.kind === 'skill')) {
     if (exe.has(mod.name)) continue;
@@ -226,7 +219,7 @@ function checkSkillUsage(root, options = {}) {
       problems.push(`${mod.file}: Interface Inputs do not give the usage /${command}`);
     }
     // "no tasks/ files" must open Outputs; a tasks/ path must not follow a path character.
-    if (!/(?<![A-Za-z0-9_./-])tasks\/\S|^no tasks\/ files\b/.test(iface.parts.outputs)) {
+    if (!TASKS_PATH_RE.test(iface.parts.outputs)) {
       problems.push(`${mod.file}: Interface Outputs name no tasks/ path and do not say "no tasks/ files"`);
     }
   }
@@ -234,7 +227,6 @@ function checkSkillUsage(root, options = {}) {
 }
 
 module.exports = {
-  checkSkillUsage,
-  mdFiles, agentOwners, skipSet, listModules, readModule,
-  readInterface, checkInterfaces, checkAgentOutputs, callersOf, checkSharedInputs,
+  agentOwners, listModules, readModule, PART_LABELS,
+  readInterface, checkInterfaces, checkAgentOutputs, callersOf, checkSharedInputs, checkSkillUsage,
 };
