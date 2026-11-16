@@ -10,8 +10,18 @@ const { spawn } = require('node:child_process');
 const INSTALL_JS = path.resolve(__dirname, '..', 'install.js');
 const REPO = path.resolve(__dirname, '..', '..');
 
-// Interactive project install: each prompt is answered when it appears ("2" to a numbered choice,
-// "y" to anything else), because the installer reads one answer per question and drops early lines.
+// Interactive project install: each prompt is answered when it appears, because the installer reads
+// one answer per question and drops early lines. The task list goes in local files and pull requests
+// nowhere, so the install needs no tracker CLI (td, gh, az) on the machine running the test; any
+// other numbered choice gets "2" and anything else "y" (which says yes to the CONTEXT.md offer).
+function answerFor(block) {
+  const question = block.split('\n').pop();
+  if (!/\[[\d/]+\]/.test(question)) return 'y';
+  if (/task list live/.test(block)) return '1';
+  if (/pull requests live/.test(block)) return '3';
+  return '2';
+}
+
 function installInteractive(dir, home) {
   return new Promise((resolve, reject) => {
     // HOME and USERPROFILE point at a temp folder, so the run never touches the developer's own home.
@@ -24,9 +34,9 @@ function installInteractive(dir, home) {
       pending += chunk;
       stdout += chunk;
       if (/[:\]] $/.test(pending)) {
-        const question = pending.split('\n').pop();
+        const answer = answerFor(pending);
         pending = '';
-        child.stdin.write(/\[[\d/]+\]/.test(question) ? '2\n' : 'y\n');
+        child.stdin.write(`${answer}\n`);
       }
     });
     child.on('error', reject);
