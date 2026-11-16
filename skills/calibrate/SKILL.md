@@ -3,6 +3,15 @@ name: calibrate
 description: Learning effectiveness dashboard. Shows how learnings are performing, promotes high-scoring ones to permanent rules, archives ineffective ones. Usage: /calibrate
 ---
 
+## Interface
+
+**Inputs:** `/calibrate`. Reads `tasks/sessions.jsonl` and the learnings in `.claude/learnings/*.json` and `~/.claude/learnings/*.json`, archived ones included.
+**Outputs:** no tasks/ files. A learning-effectiveness dashboard; a promotion edit to a rule file or an archive of a learning only after the person confirms.
+**Callable parts:** none.
+**Never breaks:** it never auto-promotes or auto-archives; it always asks first. It never fabricates data when `sessions.jsonl` or the learnings files do not exist.
+
+---
+
 **Core Philosophy:** The proactive learning loop should be transparent. This skill shows what the harness has learned, whether those learnings are helping, and lets you promote or prune them.
 
 **Triggers:** User runs `/calibrate`.

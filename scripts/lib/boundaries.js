@@ -49,6 +49,7 @@ module.exports = {
   checkAgentOutputs: iface.checkAgentOutputs,
   callersOf: iface.callersOf,
   checkSharedInputs: iface.checkSharedInputs,
+  checkSkillUsage: iface.checkSkillUsage,
   namedFiles: pointers.namedFiles,
   checkCallableParts: pointers.checkCallableParts,
   buildPointerIndex: pointers.buildPointerIndex,

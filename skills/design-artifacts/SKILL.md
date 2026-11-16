@@ -3,6 +3,15 @@ name: design-artifacts
 description: Generate the full project-level spec stack from ARCHITECTURE.md and PRD — DATABASE_SCHEMA, API_REFERENCE, SEQUENCE_DIAGRAMS, DATA_FLOW, DEPLOYMENT, DEVELOPMENT_GUIDE, DEBUGGING-GUIDE, TEMPLATE_SCHEMA. The missing link between DEFINE and BUILD. Usage: /design-artifacts [all | doc-name ...]
 ---
 
+## Interface
+
+**Inputs:** `/design-artifacts [all | doc-name ...]`. Reads ARCHITECTURE.md and the PRD, `tasks/lessons.md` or `tasks/notes.md` for conventions, and `tasks/compliance-owners.md`.
+**Outputs:** the spec stack docs (DATABASE_SCHEMA, API_REFERENCE, SEQUENCE_DIAGRAMS, DATA_FLOW, DEPLOYMENT, DEVELOPMENT_GUIDE, DEBUGGING-GUIDE, TEMPLATE_SCHEMA) at the paths its doc table gives, and an in-progress breadcrumb in `tasks/notes.md` that it marks done.
+**Callable parts:** none.
+**Never breaks:** it never generates a doc without grounding it in ARCHITECTURE.md and the PRD, so it invents no scope. It never regenerates an existing doc from scratch; it updates in place and preserves user edits. It never writes its breadcrumb to `todo.md`, a generated dashboard.
+
+---
+
 **Core Philosophy:** Agents during BUILD read whatever docs exist. If no specs exist, they guess. This skill generates the foundational docs that make /implement reliable — grounded in the architecture and PRD, not invented from scratch.
 
 **Triggers:** "generate design docs", "create the spec stack", "write the database schema doc", "set up project documentation", "design artifacts", "/design-artifacts"

@@ -4,6 +4,15 @@ description: Drive a PR to zero review threads — fetch, categorize, fix, reply
 argument-hint: "/babysit-pr 17009"
 ---
 
+## Interface
+
+**Inputs:** `/babysit-pr <PR_ID>`. Reads the PR's review threads and the commit format in `tasks/lessons.md`.
+**Outputs:** no tasks/ files. Fix commits on the PR branch, replies to review threads, and a report of the threads handled.
+**Callable parts:** none.
+**Never breaks:** it never skips a gate and always waits for the person's explicit word. It never commits without "commit" at Gate 2, never posts replies without "send" at Gate 3, and never adds a `Co-Authored-By` line to a commit message.
+
+---
+
 **Core Philosophy:** Drive a PR to zero review threads — analyze once, get your approval at every gate, fix and commit, and never post a reply or push code without your explicit word.
 
 **Triggers:** "babysit PR 17009", "fix Code Rabbit comments", "handle PR review", "clear review threads", "work through the CR cycle"

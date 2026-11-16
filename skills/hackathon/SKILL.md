@@ -4,6 +4,15 @@ description: Ship a queue of small changes fast, one at a time, each verified by
 argument-hint: Optional — the changes to work through (paste the list, or point at a queue file). If omitted, read the existing queue and continue.
 ---
 
+## Interface
+
+**Inputs:** `/hackathon [the list of changes, or a file that holds it]`. Reads the build and test commands from `tasks/lessons.md` (enterprise) or `tasks/notes.md` (solo), and the existing queue file when it continues.
+**Outputs:** `tasks/hackathon-<YYYY-MM-DD>.md` (the queue of requested changes), the code changes and their commits, and build fixes it records in `tasks/lessons.md` or `tasks/notes.md`.
+**Callable parts:** none.
+**Never breaks:** it never hands over a change it has not looked at running, and goes back to the start of the loop on feedback instead of batch-fixing blind. It never deletes a test to get green, never trusts a green run that followed a failed build, and never adds a `Co-Authored-By` trailer.
+
+---
+
 **Core philosophy:** One change, then eyes on the running app, then the next. The loop is
 *fix → build → launch → YOUR_NAME looks → next*. Speed comes from cutting **process**, never from
 cutting verification: the app still gets built, the tests still get run before a push, and every

@@ -7,7 +7,7 @@ const path = require('node:path');
 const {
   agentOwners, checkOwners, checkRulesTable,
   readInterface, checkInterfaces, checkPending, namedFiles, checkCallableParts, checkAgentOutputs,
-  callersOf, checkSharedInputs,
+  callersOf, checkSharedInputs, checkSkillUsage,
 } = require('../lib/boundaries.js');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -163,14 +163,10 @@ test('a bare mention in the rules section is not a table entry (AC8)', () => {
 
 // Modules still without an Interface block. Later stories shrink this; the last one deletes it.
 const PENDING = [
-  'skills/architect', 'skills/architect-critique', 'skills/babysit-pr', 'skills/calibrate',
-  'skills/coverage-audit', 'skills/debug', 'skills/decision-brief', 'skills/deploy',
-  'skills/design-artifacts', 'skills/evaluate', 'skills/explain-in-parts', 'skills/grill-me',
-  'skills/grill-with-docs', 'skills/hackathon', 'skills/improve-codebase-architecture',
-  'skills/improve-harness', 'skills/local-test', 'skills/pa', 'skills/plan', 'skills/plan-features',
-  'skills/prd-critique', 'skills/prototype', 'skills/ralph-prd', 'skills/research',
-  'skills/sprint-plan', 'skills/sync-tasks', 'skills/sync-tracker', 'skills/tdd', 'skills/triage',
-  'skills/update-harness', 'skills/wayfinder', 'skills/zoom-out',
+  'skills/local-test', 'skills/pa', 'skills/plan', 'skills/prd-critique', 'skills/prototype',
+  'skills/ralph-prd', 'skills/research', 'skills/sprint-plan', 'skills/sync-tasks',
+  'skills/sync-tracker', 'skills/tdd', 'skills/triage', 'skills/update-harness', 'skills/wayfinder',
+  'skills/zoom-out',
 ];
 // rules/modules.md "Known exception": skills/frontend-design is a bundle of sub-skills, not one skill.
 const EXEMPT_SKILLS = ['frontend-design'];
@@ -460,4 +456,81 @@ test('readInterface rejects a duplicated label and ignores headings in code fenc
   const fenced = readInterface(FM + '\n```\n## Interface\n```\n\n' + block());
   assert.equal(fenced.firstAfterFrontmatter, false);
   assert.equal(fenced.headings, 1);
+});
+
+// ---- Story #6j2mgmFRCfPR3H2R: the 17 skills from /plan-features and architect to improve-harness ----
+
+const STORY4_SKILLS = [
+  'plan-features', 'architect', 'architect-critique', 'babysit-pr', 'calibrate', 'coverage-audit',
+  'debug', 'decision-brief', 'deploy', 'design-artifacts', 'evaluate', 'explain-in-parts', 'grill-me',
+  'grill-with-docs', 'hackathon', 'improve-codebase-architecture', 'improve-harness',
+];
+
+test('none of the 17 skills of this story is pending any more (AC1, AC2, AC3)', () => {
+  assert.equal(STORY4_SKILLS.length, 17);
+  for (const name of STORY4_SKILLS) {
+    assert.ok(fs.existsSync(path.join(repoRoot, 'skills', name, 'SKILL.md')), `skills/${name}/SKILL.md exists`);
+    assert.ok(!PENDING.includes(`skills/${name}`), `skills/${name} is still in PENDING`);
+  }
+});
+
+test('every skill\'s Interface gives its usage and its tasks/ files (AC1, AC2, AC3)', () => {
+  assert.deepEqual(checkSkillUsage(repoRoot, { pending: PENDING, exempt: EXEMPT_SKILLS }), []);
+});
+
+test('skill usage check names a skill whose Inputs lack /<name> or whose Outputs name no tasks/ path (AC1, AC2, AC3)', () => {
+  const skill = (over) => withBlock(over);
+  inFixture({
+    'skills/good/SKILL.md': skill({ Inputs: 'run `/good <id>`; reads tasks/x.md', Outputs: 'writes tasks/good/out.md' }),
+    'skills/nofiles/SKILL.md': skill({ Inputs: '`/nofiles`', Outputs: 'no tasks/ files; a report' }),
+    'skills/nousage/SKILL.md': skill({ Inputs: 'a file under skills/nousage/ only', Outputs: 'writes tasks/n.md' }),
+    'skills/nooutput/SKILL.md': skill({ Inputs: '`/nooutput`', Outputs: 'a report only' }),
+    'skills/other/SKILL.md': skill({ Inputs: '`/another-one`', Outputs: 'writes tasks/o.md' }),
+  }, (root) => {
+    const problems = checkSkillUsage(root, { pending: [], exempt: [] });
+    const named = (n) => problems.filter((p) => p.includes(`skills/${n}`));
+    assert.equal(named('good').length, 0, problems.join('\n'));
+    assert.equal(named('nofiles').length, 0, problems.join('\n'));
+    assert.equal(named('nousage').length, 1, problems.join('\n'));
+    assert.equal(named('nooutput').length, 1, problems.join('\n'));
+    assert.equal(named('other').length, 1, problems.join('\n'));
+    assert.equal(problems.length, 3, problems.join('\n'));
+  });
+});
+
+test('skill usage check rejects path-like usages and loose tasks/ mentions, and keeps the real phrasings (AC1, AC2, AC3)', () => {
+  const skill = (over) => withBlock(over);
+  inFixture({
+    'skills/good/SKILL.md': skill({ Inputs: 'run `/good [<id|branch>]`.', Outputs: 'writes tasks/good/out.md' }),
+    'skills/dotend/SKILL.md': skill({ Inputs: 'Run `/dotend`. Or /dotend.', Outputs: 'no tasks/ files. A report.' }),
+    'skills/dotext/SKILL.md': skill({ Inputs: 'see /dotext.md', Outputs: 'writes tasks/d.md' }),
+    'skills/goodish/SKILL.md': skill({ Inputs: 'run /goodish-x', Outputs: 'writes tasks/g.md' }),
+    'skills/pathy/SKILL.md': skill({ Inputs: 'run /pathy/x', Outputs: 'writes tasks/p.md' }),
+    'skills/space/SKILL.md': skill({ Inputs: '`/space`', Outputs: 'writes tasks/ only' }),
+    'skills/sub/SKILL.md': skill({ Inputs: '`/sub`', Outputs: 'writes subtasks/x' }),
+    'skills/docs/SKILL.md': skill({ Inputs: '`/docs`', Outputs: 'writes docs/tasks/x and skills/x/tasks/y' }),
+    'skills/longer/SKILL.md': skill({ Inputs: '`/longer`', Outputs: 'a report; there are no tasks/ files missing' }),
+  }, (root) => {
+    const problems = checkSkillUsage(root, { pending: [], exempt: [] });
+    const named = (n) => problems.filter((p) => p.includes(`skills/${n}/`));
+    assert.equal(named('good').length, 0, problems.join('\n'));
+    assert.equal(named('dotend').length, 0, problems.join('\n'));
+    for (const n of ['dotext', 'goodish', 'pathy', 'space', 'sub', 'docs', 'longer']) {
+      assert.equal(named(n).length, 1, `${n}: ${problems.join('\n')}`);
+    }
+    assert.equal(problems.length, 7, problems.join('\n'));
+  });
+});
+
+test('shared-input check does not count a path-like mention of a calling skill (AC1)', () => {
+  const shared = (inputs) => withBlock({ Inputs: inputs }).replace('name: x', 'name: x\nowner: shared');
+  inFixture({
+    'skills/debug/SKILL.md': 'Spawn `shared-r` and `shared-s`\n',
+    'agents/shared-r.md': shared('see /debug/foo and /debug.md'),
+    'agents/shared-s.md': shared('from `/debug`. Then more'),
+  }, (root) => {
+    const problems = checkSharedInputs(root, { pending: [] });
+    assert.ok(problems.some((p) => p.includes('agents/shared-r.md') && p.includes('/debug')), problems.join('\n'));
+    assert.ok(!problems.some((p) => p.includes('agents/shared-s.md')), problems.join('\n'));
+  });
 });

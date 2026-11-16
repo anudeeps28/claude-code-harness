@@ -3,6 +3,15 @@ name: grill-me
 description: Decision-tree interrogation of a plan, design, or proposal. Asks serial questions with recommended answers until shared understanding is reached. Use when stress-testing a Decision Brief, PRD, architecture doc, or refactor proposal. Usage: /grill-me <plan or design to stress-test>
 ---
 
+## Interface
+
+**Inputs:** `/grill-me <plan or design to stress-test>`. Reads `tasks/notes.md` and the codebase claims it checks.
+**Outputs:** `grill-summary.md` in the repo root, or `tasks/stories/<id>/grill-summary.md` when a story context exists (overwritten each time); an in-progress breadcrumb in `tasks/notes.md` that it marks done.
+**Callable parts:** none.
+**Never breaks:** it asks one question at a time and never batches them. Every question carries a lettered recommendation, and it never speculates about code it has not read. It never resolves a fork on the person's behalf and never ends while a high-risk fork is unresolved. It never writes its breadcrumb to `todo.md`.
+
+---
+
 **Core Philosophy:** Relentless serial questioning until every fork in the decision tree is resolved. One question at a time, each carrying a concrete recommendation — not a list dump of concerns. Understanding is the artifact; a file is optional.
 
 **Triggers:** "grill me on this", "stress-test this plan", "challenge this design", "poke holes in this", "grill me", "interrogate this proposal", "/grill-me"

@@ -3,6 +3,15 @@ name: improve-codebase-architecture
 description: Find modules where the interface is as complex as the implementation, propose deepening refactors that increase locality and leverage. Reads CONTEXT.md and ADRs, applies the deletion test, updates the glossary with new terms. Usage: /improve-codebase-architecture [area or module]
 ---
 
+## Interface
+
+**Inputs:** `/improve-codebase-architecture [area or module]`. Reads `CONTEXT.md`, the ADRs in `docs/adr/`, `tasks/lessons.md` or `tasks/notes.md` for conventions, and the code.
+**Outputs:** a report of deepening refactor proposals, approved glossary updates to `CONTEXT.md`, approved ADR files in `docs/adr/` for rejected ideas, and an in-progress breadcrumb in `tasks/notes.md` that it marks done.
+**Callable parts:** none.
+**Never breaks:** it never auto-applies a refactor; it produces analysis, not code changes, and points to `/implement` for execution. It never proposes a refactor that contradicts an accepted ADR without flagging the contradiction. It proposes ADRs only for rejected ideas that meet all 3 criteria, and never writes its breadcrumb to `todo.md`.
+
+---
+
 **Core Philosophy:** A deep module hides complexity behind a simple interface. A shallow module just moves complexity around. This skill finds shallow modules and proposes refactors that make them deeper — increasing locality (fewer cross-module interactions) and leverage (more functionality per interface surface).
 
 **Triggers:** "improve the architecture", "find refactoring opportunities", "deepen the modules", "simplify the codebase", "where are the shallow modules", "architecture improvement", "/improve-codebase-architecture"

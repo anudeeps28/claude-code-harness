@@ -3,6 +3,15 @@ name: debug
 description: Root cause diagnosis when the 3-attempt rule triggers — stop retrying and diagnose. Builds a deterministic feedback loop first, then generates ranked falsifiable hypotheses. Mandates regression tests and instrumentation cleanup. Aliases: /debug, /diagnose. Usage: /debug
 ---
 
+## Interface
+
+**Inputs:** `/debug` (also `/diagnose`), run when the 3-attempt rule triggers or a person is stuck on an error. Reads `tasks/lessons.md` (or `tasks/notes.md` in the solo pack) for known fixes, and the code and failing output.
+**Outputs:** no tasks/ files. A diagnosis with ranked hypotheses, the fix, a regression test, and a report; under an autonomous run it self-selects hypotheses one at a time.
+**Callable parts:** none.
+**Never breaks:** it never proceeds to hypotheses without a deterministic feedback loop, and never tests more than one variable at a time. It never skips the regression test or leaves instrumentation behind, never retries an approach that already failed 3 times, and never proceeds past choosing a hypothesis without the user (outside an autonomous run).
+
+---
+
 **Core Philosophy:** Building the feedback loop IS the skill. Without a deterministic, agent-runnable pass/fail signal, diagnosis is guessing. Refuse to proceed without one.
 
 **Triggers:** "debug this", "diagnose this", "3-attempt rule triggered", "same error 3 times", "can't fix this", "stuck on a build error", "invoke /debug", "/debug", "/diagnose"

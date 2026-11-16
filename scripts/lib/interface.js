@@ -193,6 +193,13 @@ function callersOf(root, agent) {
     .sort();
 }
 
+// True when `text` gives the usage `/<name>`. The `/` must not follow a path character, and the name
+// must not run on into a longer name (`/name-x`), a path (`/name/x`) or a file (`/name.md`); a `.` that
+// ends a sentence is fine.
+function namesSkill(text, name) {
+  return new RegExp(`(?<![A-Za-z0-9_./-])/${escapeRe(name)}(?![A-Za-z0-9_/-]|\\.[A-Za-z0-9_])`).test(text);
+}
+
 function checkSharedInputs(root, { pending = [] } = {}) {
   const pend = skipSet(pending);
   const problems = [];
@@ -203,7 +210,7 @@ function checkSharedInputs(root, { pending = [] } = {}) {
     if (!iface.found) continue;
     for (const skill of callersOf(root, name)) {
       // The `/` must not follow a path character, so `skills/debug/...` and `rules/debug` do not count.
-      if (!new RegExp(`(?<![A-Za-z0-9_./-])/${escapeRe(skill)}(?![A-Za-z0-9-])`).test(iface.parts.inputs)) {
+      if (!namesSkill(iface.parts.inputs, skill)) {
         problems.push(`agents/${name}.md: Interface Inputs do not name calling skill /${skill}`);
       }
     }
@@ -211,7 +218,29 @@ function checkSharedInputs(root, { pending = [] } = {}) {
   return problems;
 }
 
+// Every skill with an Interface block: its Inputs name the usage `/<name>`, and its Outputs name a
+// tasks/ path or say "no tasks/ files". The `/` must not follow a path character.
+function checkSkillUsage(root, { pending = [], exempt = [] } = {}) {
+  const pend = skipSet(pending);
+  const exe = skipSet(exempt);
+  const problems = [];
+  for (const mod of listModules(root).filter((m) => m.kind === 'skill')) {
+    if (pend.has(mod.id) || exe.has(mod.name)) continue;
+    const iface = readModule(root, mod);
+    if (!iface || !iface.found) continue;
+    if (!namesSkill(iface.parts.inputs, mod.name)) {
+      problems.push(`${mod.file}: Interface Inputs do not give the usage /${mod.name}`);
+    }
+    // "no tasks/ files" must open Outputs; a tasks/ path must not follow a path character.
+    if (!/(?<![A-Za-z0-9_./-])tasks\/\S|^no tasks\/ files\b/.test(iface.parts.outputs)) {
+      problems.push(`${mod.file}: Interface Outputs name no tasks/ path and do not say "no tasks/ files"`);
+    }
+  }
+  return problems;
+}
+
 module.exports = {
+  checkSkillUsage,
   mdFiles, agentOwners, skipSet, listModules, readModule,
   readInterface, checkInterfaces, checkPending, checkAgentOutputs, callersOf, checkSharedInputs,
 };

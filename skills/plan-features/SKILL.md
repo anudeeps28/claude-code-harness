@@ -4,6 +4,15 @@ description: Turn any plan into Features and stories on the board, the way the S
 triggers: /plan-features
 ---
 
+## Interface
+
+**Inputs:** `/plan-features [<what to plan, or a path>] [--parent "<id>"] [--standalone] [--milestone "<name>"] [--project "<name>"] [--section "<name>"] [--dry-run] [--settings] [--gaps]`. Reads `tasks/tracker-config.md`, `tasks/notes.md`, `.claude/.harness-manifest.json`, the repo's docs, feature files and code, the `tasks/stories/<id>/` variants of each input file, `plan-features.settings.md` at the repo root, and with `--gaps` a coverage table `tasks/coverage/<slug>.md`.
+**Outputs:** `tasks/coverage/<doc-slug>.md` (the coverage table, when the input is a document); the Features and stories it creates on the active tracker (in local mode `tasks/issues/<id>.md`), `plan-features.settings.md` at the repo root (this repo's settings), or, in scrum-master mode, `plan-<feature>.md` at the repo root (a plan file for the Scrum Master, never over a file this skill did not write); the Feature and story view it shows for one approval.
+**Callable parts:** none.
+**Never breaks:** it creates nothing until every requirement line of a document is mapped to a story (carried verbatim) or approved as out of scope. A story is 1, 2 or 3 points (5 only with a written reason, never 8 or more). It never adds a blocked-by edge just to make the order look tidy, never uses a "related" link as a blocker, and never silently accepts an adapter default.
+
+---
+
 # /plan-features
 
 Turn whatever plan exists into Features and stories. Each story is an independently testable slice.

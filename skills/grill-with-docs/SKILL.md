@@ -3,6 +3,15 @@ name: grill-with-docs
 description: Stress-test an architectural plan or design against CONTEXT.md and ADRs. Like /grill-me but anchored in documented domain language, glossary terms, and prior decisions. Updates CONTEXT.md with resolved terms and proposes ADRs when decisions are hard-to-reverse + surprising + trade-off-driven. Usage: /grill-with-docs <plan or design to stress-test>
 ---
 
+## Interface
+
+**Inputs:** `/grill-with-docs <plan or design to stress-test>`. Reads `CONTEXT.md`, the ADRs in `docs/adr/` and `tasks/notes.md`.
+**Outputs:** approved updates to `CONTEXT.md`, approved ADR files in `docs/adr/`, and an in-progress breadcrumb in `tasks/notes.md` that it marks done.
+**Callable parts:** none.
+**Never breaks:** it asks one question at a time, each with a lettered recommendation and a doc anchor. It stops without CONTEXT.md and never resolves a fork on the person's behalf. It updates CONTEXT.md only with the person's approval and proposes an ADR only when all 3 criteria are met. It never writes its breadcrumb to `todo.md`.
+
+---
+
 **Core Philosophy:** Same serial questioning discipline as `/grill-me`, but every challenge is anchored in the project's documented domain language (CONTEXT.md) and prior decisions (ADRs). Vague language gets challenged against the glossary. New proposals get checked against existing ADRs. The codebase is the tiebreaker.
 
 **Triggers:** "grill with docs", "stress-test against our docs", "challenge this against our architecture decisions", "grill this with context", "/grill-with-docs"
