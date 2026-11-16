@@ -97,13 +97,12 @@ function mentions(text, rel) {
   }
 }
 
-function checkCallableParts(root, { pending = [], exempt = [] } = {}) {
-  const pend = skipSet(pending);
-  const exe = skipSet(exempt);
+function checkCallableParts(root, options = {}) {
+  const exe = skipSet(options);
   const problems = [];
   const index = buildPointerIndex(root);
   for (const mod of listModules(root).filter((m) => m.kind === 'skill')) {
-    if (pend.has(mod.id) || exe.has(mod.name)) continue;
+    if (exe.has(mod.name)) continue;
     const iface = readModule(root, mod);
     if (!iface || !iface.found) continue;
     for (const [rel, by] of [...(index.get(mod.name) || new Map())].sort((a, b) => a[0].localeCompare(b[0]))) {

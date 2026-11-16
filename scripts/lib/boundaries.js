@@ -45,7 +45,6 @@ module.exports = {
   agentOwners, checkOwners, checkRulesTable,
   readInterface: iface.readInterface,
   checkInterfaces: iface.checkInterfaces,
-  checkPending: iface.checkPending,
   checkAgentOutputs: iface.checkAgentOutputs,
   callersOf: iface.callersOf,
   checkSharedInputs: iface.checkSharedInputs,

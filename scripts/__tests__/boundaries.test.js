@@ -4,11 +4,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const boundaries = require('../lib/boundaries.js');
 const {
   agentOwners, checkOwners, checkRulesTable,
-  readInterface, checkInterfaces, checkPending, namedFiles, checkCallableParts, checkAgentOutputs,
+  readInterface, checkInterfaces, namedFiles, checkCallableParts, checkAgentOutputs,
   callersOf, checkSharedInputs, checkSkillUsage,
-} = require('../lib/boundaries.js');
+} = boundaries;
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 
@@ -161,13 +162,6 @@ test('a bare mention in the rules section is not a table entry (AC8)', () => {
 
 // ---- Story #6j2mgm8WpCqR6rgR: Interface blocks ----
 
-// Modules still without an Interface block. Later stories shrink this; the last one deletes it.
-const PENDING = [
-  'skills/local-test', 'skills/pa', 'skills/plan', 'skills/prd-critique', 'skills/prototype',
-  'skills/ralph-prd', 'skills/research', 'skills/sprint-plan', 'skills/sync-tasks',
-  'skills/sync-tracker', 'skills/tdd', 'skills/triage', 'skills/update-harness', 'skills/wayfinder',
-  'skills/zoom-out',
-];
 // rules/modules.md "Known exception": skills/frontend-design is a bundle of sub-skills, not one skill.
 const EXEMPT_SKILLS = ['frontend-design'];
 
@@ -195,7 +189,11 @@ test('every skill and agent has a 4-part Interface block (AC1, AC14, AC3, AC4, A
   const skills = fs.readdirSync(path.join(repoRoot, 'skills'), { withFileTypes: true })
     .filter((d) => d.isDirectory()).map((d) => d.name);
   assert.ok(skills.includes('implement'), 'skills/implement must be found');
-  assert.deepEqual(checkInterfaces(repoRoot, { pending: PENDING, exempt: EXEMPT_SKILLS }), []);
+  assert.ok(skills.includes('frontend-design'), 'the exempt folder is among the folders scanned');
+  for (const name of skills.filter((s) => !EXEMPT_SKILLS.includes(s))) {
+    assert.ok(fs.existsSync(path.join(repoRoot, 'skills', name, 'SKILL.md')), `skills/${name}/ has no SKILL.md`);
+  }
+  assert.deepEqual(checkInterfaces(repoRoot, { exempt: EXEMPT_SKILLS }), []);
 });
 
 test('interface check names a module whose block is missing, misplaced or lacks a part (AC1, AC2, AC6, AC8, AC13, AC14)', () => {
@@ -207,10 +205,9 @@ test('interface check names a module whose block is missing, misplaced or lacks 
     'agents/five.md': withBlock({ 'Depends on': 'skills/x' }),
     'agents/twice.md': withBlock({}, '\n# T\n\n' + block()),
     'agents/good.md': withBlock({}),
-    'skills/pend/SKILL.md': FM + 'nothing\n',
     'skills/frontend-design/SKILL.md': FM + 'nothing\n',
   }, (root) => {
-    const problems = checkInterfaces(root, { pending: ['skills/pend'], exempt: ['frontend-design'] });
+    const problems = checkInterfaces(root, { exempt: ['frontend-design'] });
     const has = (id, word) => problems.some((p) => p.includes(id) && (!word || p.includes(word)));
     assert.ok(has('agents/prover.md', 'Interface'), problems.join('\n'));
     assert.ok(has('skills/x', 'right after the frontmatter'), problems.join('\n'));
@@ -219,7 +216,6 @@ test('interface check names a module whose block is missing, misplaced or lacks 
     assert.ok(has('agents/five.md', 'Depends on'), problems.join('\n'));
     assert.ok(has('agents/twice.md', 'more than one'), problems.join('\n'));
     assert.ok(!has('agents/good.md'), 'a correct block must not be reported: ' + problems.join('\n'));
-    assert.ok(!has('skills/pend'), 'a pending module is skipped: ' + problems.join('\n'));
     assert.ok(!has('frontend-design'), 'an exempt skill is skipped: ' + problems.join('\n'));
     assert.equal(problems.length, 6, problems.join('\n'));
   });
@@ -230,7 +226,7 @@ test('interface block must sit right after the frontmatter, not within some line
     'agents/late.md': FM + 'a\nb\n\n' + block(),
     'agents/first.md': FM + '\n\n' + block(),
   }, (root) => {
-    const problems = checkInterfaces(root, { pending: [], exempt: [] });
+    const problems = checkInterfaces(root, { exempt: [] });
     assert.ok(problems.some((p) => p.includes('agents/late.md')), problems.join('\n'));
     assert.ok(!problems.some((p) => p.includes('agents/first.md')), 'blank lines before the block are fine: ' + problems.join('\n'));
   });
@@ -251,7 +247,7 @@ test('readInterface reads the four parts of the block that follows the frontmatt
 test('every skill\'s Callable parts list the files other modules name (AC2, AC5, AC10, AC15)', () => {
   const named = namedFiles(repoRoot, 'implement');
   assert.ok(named.includes('bin/worktree.js'), 'worktree.js is named by rules/wave-execution.md: ' + named.join(','));
-  assert.deepEqual(checkCallableParts(repoRoot, { pending: PENDING, exempt: EXEMPT_SKILLS }), []);
+  assert.deepEqual(checkCallableParts(repoRoot, { exempt: EXEMPT_SKILLS }), []);
 });
 
 test('callable parts check finds pointers from rules, hooks and templates and requires them in the Callable parts label (AC5, AC10, AC15)', () => {
@@ -267,7 +263,7 @@ test('callable parts check finds pointers from rules, hooks and templates and re
     'templates/t.md': 'see skills/s/bin/fromtpl.js\n',
   }, (root) => {
     assert.deepEqual(namedFiles(root, 's').sort(), ['bin/fromhook.js', 'bin/fromtpl.js', 'bin/inprose.js', 'bin/listed.js']);
-    const problems = checkCallableParts(root, { pending: [], exempt: [] });
+    const problems = checkCallableParts(root, { exempt: [] });
     const has = (w) => problems.some((p) => p.includes(w));
     assert.ok(has('skills/s/bin/inprose.js'), 'a name in Inputs is not in Callable parts: ' + problems.join('\n'));
     assert.ok(has('skills/s/bin/fromhook.js') && has('hooks/h.js'), problems.join('\n'));
@@ -289,30 +285,60 @@ test('/implement Never breaks cites the accepted ADRs (AC2, AC11, AC15)', () => 
   assert.ok(!/ADR-000[1456]/.test(parts.inputs + parts.outputs), 'the ids must be in Never breaks, not elsewhere');
 });
 
-test('pending list names only modules still without a block (AC3, AC16)', () => {
-  assert.deepEqual(checkPending(repoRoot, PENDING), []);
-  inFixture({
-    'agents/done.md': withBlock({}),
-    'agents/todo.md': FM + 'body\n',
-  }, (root) => {
-    const problems = checkPending(root, ['agents/done', 'agents/todo', 'agents/ghost']);
-    assert.ok(problems.some((p) => p.includes('agents/done') && p.includes('has an Interface block') && p.includes('remove it from PENDING')), problems.join('\n'));
-    assert.ok(problems.some((p) => p.includes('agents/ghost') && p.includes('does not exist')), problems.join('\n'));
-    assert.ok(!problems.some((p) => p.includes('agents/todo')), problems.join('\n'));
-    assert.equal(problems.length, 2, problems.join('\n'));
+test('only frontend-design is exempt (AC1)', () => {
+  // Read from the repo: without the exemption exactly the one bundle folder is reported, with it nothing.
+  const open = checkInterfaces(repoRoot, { exempt: [] });
+  assert.equal(open.length, 1, open.join('\n'));
+  assert.ok(open[0].startsWith('skills/frontend-design'), open[0]);
+  assert.deepEqual(checkInterfaces(repoRoot, { exempt: EXEMPT_SKILLS }), []);
+});
+
+// The word is assembled so that this file itself does not contain it.
+const WAITING_WORD = new RegExp('PEN' + 'DING', 'i');
+
+test('no check takes a skip list (AC2)', () => {
+  const files = ['scripts/__tests__/boundaries.test.js', 'scripts/lib/boundaries.js', 'scripts/lib/interface.js', 'scripts/lib/pointers.js'];
+  for (const rel of files) {
+    const text = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+    assert.ok(text.length > 0, `${rel} was read`);
+    assert.ok(!WAITING_WORD.test(text), `${rel} still has a list of modules without a block`);
+  }
+  // A list under another name, or passed another way, still needs a second parameter: every exported
+  // check takes the repo root alone (the options object is a defaulted parameter, which `.length` skips).
+  const checks = Object.entries(boundaries).filter(([name]) => name.startsWith('check'));
+  assert.ok(checks.length >= 7, 'the exports include the checks');
+  for (const [name, fn] of checks) assert.equal(fn.length, 1, `${name} takes more than the repo root`);
+  // And the options object takes `exempt` only.
+  inFixture({ 'skills/s/SKILL.md': withBlock({}) }, (root) => {
+    for (const fn of [checkInterfaces, checkCallableParts, checkSkillUsage]) {
+      assert.throws(() => fn(root, { skip: ['s'] }), /skip/, `${fn.name} accepted the option "skip"`);
+      assert.doesNotThrow(() => fn(root, { exempt: ['s'] }));
+    }
   });
 });
 
-test('no agent is pending and the exempt list is only frontend-design (AC1, AC3)', () => {
-  // The one non-empty sentinel for PENDING: drop it when PENDING reaches zero (story 5, the last skills).
-  assert.ok(PENDING.length > 0, 'the skills are still pending, so the filter below has something to filter');
-  assert.deepEqual(PENDING.filter((id) => id.startsWith('agents/')), []);
-  assert.deepEqual(EXEMPT_SKILLS, ['frontend-design']);
+test('a skill is named by its frontmatter name when it has one, else its folder (AC1)', () => {
+  const skill = (name, inputs) => `---\nname: ${name}\ndescription: d\n---\n\n` + block({ Inputs: inputs, Outputs: 'writes tasks/x.md' });
+  inFixture({
+    'skills/ralph-x/SKILL.md': skill('prd', '`/prd <feature>`'),
+    'skills/wrong-x/SKILL.md': skill('wname', '`/wrong-x <feature>`'),
+    'skills/same/SKILL.md': skill('same', '`/same`'),
+  }, (root) => {
+    const problems = checkSkillUsage(root, { exempt: [] });
+    assert.equal(problems.length, 1, problems.join('\n'));
+    assert.ok(problems[0].includes('skills/wrong-x') && problems[0].includes('/wname'), problems[0]);
+  });
+  inFixture({
+    'skills/ralph-x/SKILL.md': skill('prd', '`/prd`') + 'Spawn `shared-r`\n',
+    'agents/shared-r.md': withBlock({ Inputs: 'from `/prd`' }).replace('name: x', 'name: x\nowner: shared'),
+  }, (root) => {
+    assert.deepEqual(checkSharedInputs(root), []);
+  });
 });
 
 test('every shared agent\'s Inputs name each calling skill (AC2)', () => {
   assert.deepEqual(callersOf(repoRoot, 'evaluator-agent').sort(), ['evaluate', 'implement']);
-  assert.deepEqual(checkSharedInputs(repoRoot, { pending: PENDING }), []);
+  assert.deepEqual(checkSharedInputs(repoRoot), []);
   const shared = (inputs) => withBlock({ Inputs: inputs }).replace('name: x', 'name: x\nowner: shared');
   inFixture({
     'skills/implement/SKILL.md': 'spawns `shared-a` and `shared-b`\n',
@@ -320,16 +346,11 @@ test('every shared agent\'s Inputs name each calling skill (AC2)', () => {
     'agents/shared-a.md': shared('from /implement: a plan path'),
     'agents/shared-b.md': shared('from /implement: a plan path'),
     'agents/own.md': withBlock({ Inputs: 'a plan path' }).replace('name: x', 'name: x\nowner: implement'),
-    // owner: shared with a block that omits a caller: only the pending guard keeps it out of the report.
-    'agents/pend.md': shared('a plan path'),
-    'skills/pendcaller/SKILL.md': 'Spawn `pend` here\n',
   }, (root) => {
     assert.deepEqual(callersOf(root, 'shared-a').sort(), ['debug', 'implement']);
-    const problems = checkSharedInputs(root, { pending: ['agents/pend'] });
+    const problems = checkSharedInputs(root);
     assert.ok(problems.some((p) => p.includes('agents/shared-a.md') && p.includes('/debug')), problems.join('\n'));
-    assert.ok(!problems.some((p) => p.includes('agents/pend.md')), problems.join('\n'));
     assert.equal(problems.length, 1, problems.join('\n'));
-    assert.equal(checkSharedInputs(root, { pending: [] }).filter((p) => p.includes('agents/pend.md')).length, 1);
   });
 });
 
@@ -363,7 +384,7 @@ test('a skill named only inside a path does not satisfy the calling-skill check 
     'agents/shared-p.md': shared('reads skills/debug/SKILL.md and rules/debug'),
     'agents/shared-q.md': shared('from `/debug`: a path'),
   }, (root) => {
-    const problems = checkSharedInputs(root, { pending: [] });
+    const problems = checkSharedInputs(root);
     assert.ok(problems.some((p) => p.includes('agents/shared-p.md') && p.includes('/debug')), problems.join('\n'));
     assert.ok(!problems.some((p) => p.includes('agents/shared-q.md')), problems.join('\n'));
     assert.equal(problems.length, 1, problems.join('\n'));
@@ -378,7 +399,7 @@ test('none (person-launched) satisfies the STATUS check only for owner: person (
     'agents/bad-skill.md': withOwner('implement', 'none (person-launched)'),
     'agents/person-status.md': withOwner('person', 'starts with the STATUS: line'),
   }, (root) => {
-    const problems = checkAgentOutputs(root, { pending: [] });
+    const problems = checkAgentOutputs(root);
     assert.ok(!problems.some((p) => p.includes('agents/ok-person.md')), problems.join('\n'));
     assert.ok(problems.some((p) => p.includes('agents/bad-shared.md')), problems.join('\n'));
     assert.ok(problems.some((p) => p.includes('agents/bad-skill.md')), problems.join('\n'));
@@ -387,13 +408,12 @@ test('none (person-launched) satisfies the STATUS check only for owner: person (
 });
 
 test('every agent\'s Outputs give its STATUS: line (AC3, AC9)', () => {
-  assert.deepEqual(checkAgentOutputs(repoRoot, { pending: PENDING }), []);
+  assert.deepEqual(checkAgentOutputs(repoRoot), []);
   inFixture({
     'agents/ok.md': withBlock({ Outputs: 'starts with the STATUS: line' }),
     'agents/elsewhere.md': withBlock({ Inputs: 'STATUS: here', Outputs: 'a report' }, '\nSTATUS: DONE in the body\n'),
-    'agents/pend.md': FM + 'x\n',
   }, (root) => {
-    const problems = checkAgentOutputs(root, { pending: ['agents/pend'] });
+    const problems = checkAgentOutputs(root);
     assert.ok(problems.some((p) => p.includes('agents/elsewhere.md')), problems.join('\n'));
     assert.equal(problems.length, 1, problems.join('\n'));
   });
@@ -418,7 +438,7 @@ test('namedFiles resolves <skill-dir> and bare bin/ pointers in an owner agent (
   }, (root) => {
     assert.deepEqual(namedFiles(root, 's').sort(), ['bin/x.js', 'bin/y.js', 'bin/z.js', 'reference/r.md']);
     assert.deepEqual(namedFiles(root, 't'), ['bin/t.js']);
-    const problems = checkCallableParts(root, { pending: [], exempt: [] });
+    const problems = checkCallableParts(root, { exempt: [] });
     assert.ok(problems.some((p) => p.includes('skills/s/bin/y.js') && p.includes('agents/a.md')), problems.join('\n'));
     assert.ok(!problems.some((p) => p.includes('skills/s/') && p.includes('rules/two.md')), 'an ambiguous <skill-dir> is not attributed: ' + problems.join('\n'));
     assert.ok(problems.some((p) => p.includes('skills/t/bin/t.js') && p.includes('rules/one.md')), problems.join('\n'));
@@ -434,7 +454,7 @@ test('agent Outputs must name STATUS: as the start of the report (finding 3)', (
     'agents/neg3.md': withBlock({ Outputs: 'no line that starts with STATUS:' }),
     'agents/begins.md': withBlock({ Outputs: 'begins with the `STATUS:` line' }),
   }, (root) => {
-    const problems = checkAgentOutputs(root, { pending: [] });
+    const problems = checkAgentOutputs(root);
     assert.ok(problems.some((p) => p.includes('agents/neg.md')), problems.join('\n'));
     assert.ok(problems.some((p) => p.includes('agents/neg2.md')), problems.join('\n'));
     assert.ok(problems.some((p) => p.includes('agents/neg3.md')), problems.join('\n'));
@@ -448,7 +468,7 @@ test('readInterface rejects a duplicated label and ignores headings in code fenc
     'agents/dup.md': withBlock({}, '\nmore\n').replace('**Outputs:**', '**Inputs:** again\n**Outputs:**'),
     'agents/fence.md': withBlock({}, '\n```\n## Interface\n```\n'),
   }, (root) => {
-    const problems = checkInterfaces(root, { pending: [], exempt: [] });
+    const problems = checkInterfaces(root, { exempt: [] });
     assert.ok(problems.some((p) => p.includes('agents/dup.md') && p.includes('Inputs') && p.includes('more than once')), problems.join('\n'));
     assert.ok(!problems.some((p) => p.includes('agents/fence.md')), problems.join('\n'));
     assert.equal(problems.length, 1, problems.join('\n'));
@@ -466,20 +486,22 @@ const STORY4_SKILLS = [
   'grill-with-docs', 'hackathon', 'improve-codebase-architecture', 'improve-harness',
 ];
 
-test('none of the 17 skills of this story is pending any more (AC1, AC2, AC3)', () => {
+test('the 17 skills of story 4 exist and carry an Interface block (AC1)', () => {
   assert.equal(STORY4_SKILLS.length, 17);
   for (const name of STORY4_SKILLS) {
-    assert.ok(fs.existsSync(path.join(repoRoot, 'skills', name, 'SKILL.md')), `skills/${name}/SKILL.md exists`);
-    assert.ok(!PENDING.includes(`skills/${name}`), `skills/${name} is still in PENDING`);
+    const file = path.join(repoRoot, 'skills', name, 'SKILL.md');
+    assert.ok(fs.existsSync(file), `skills/${name}/SKILL.md exists`);
+    assert.equal(readInterface(fs.readFileSync(file, 'utf8')).found, true, `skills/${name} has an Interface block`);
   }
 });
 
 test('every skill\'s Interface gives its usage and its tasks/ files (AC1, AC2, AC3)', () => {
-  assert.deepEqual(checkSkillUsage(repoRoot, { pending: PENDING, exempt: EXEMPT_SKILLS }), []);
+  assert.deepEqual(checkSkillUsage(repoRoot, { exempt: EXEMPT_SKILLS }), []);
 });
 
 test('skill usage check names a skill whose Inputs lack /<name> or whose Outputs name no tasks/ path (AC1, AC2, AC3)', () => {
-  const skill = (over) => withBlock(over);
+  // no name: line, so the folder name is the command
+  const skill = (over) => withBlock(over).replace('name: x\n', '');
   inFixture({
     'skills/good/SKILL.md': skill({ Inputs: 'run `/good <id>`; reads tasks/x.md', Outputs: 'writes tasks/good/out.md' }),
     'skills/nofiles/SKILL.md': skill({ Inputs: '`/nofiles`', Outputs: 'no tasks/ files; a report' }),
@@ -487,7 +509,7 @@ test('skill usage check names a skill whose Inputs lack /<name> or whose Outputs
     'skills/nooutput/SKILL.md': skill({ Inputs: '`/nooutput`', Outputs: 'a report only' }),
     'skills/other/SKILL.md': skill({ Inputs: '`/another-one`', Outputs: 'writes tasks/o.md' }),
   }, (root) => {
-    const problems = checkSkillUsage(root, { pending: [], exempt: [] });
+    const problems = checkSkillUsage(root, { exempt: [] });
     const named = (n) => problems.filter((p) => p.includes(`skills/${n}`));
     assert.equal(named('good').length, 0, problems.join('\n'));
     assert.equal(named('nofiles').length, 0, problems.join('\n'));
@@ -499,7 +521,8 @@ test('skill usage check names a skill whose Inputs lack /<name> or whose Outputs
 });
 
 test('skill usage check rejects path-like usages and loose tasks/ mentions, and keeps the real phrasings (AC1, AC2, AC3)', () => {
-  const skill = (over) => withBlock(over);
+  // no name: line, so the folder name is the command
+  const skill = (over) => withBlock(over).replace('name: x\n', '');
   inFixture({
     'skills/good/SKILL.md': skill({ Inputs: 'run `/good [<id|branch>]`.', Outputs: 'writes tasks/good/out.md' }),
     'skills/dotend/SKILL.md': skill({ Inputs: 'Run `/dotend`. Or /dotend.', Outputs: 'no tasks/ files. A report.' }),
@@ -511,7 +534,7 @@ test('skill usage check rejects path-like usages and loose tasks/ mentions, and 
     'skills/docs/SKILL.md': skill({ Inputs: '`/docs`', Outputs: 'writes docs/tasks/x and skills/x/tasks/y' }),
     'skills/longer/SKILL.md': skill({ Inputs: '`/longer`', Outputs: 'a report; there are no tasks/ files missing' }),
   }, (root) => {
-    const problems = checkSkillUsage(root, { pending: [], exempt: [] });
+    const problems = checkSkillUsage(root, { exempt: [] });
     const named = (n) => problems.filter((p) => p.includes(`skills/${n}/`));
     assert.equal(named('good').length, 0, problems.join('\n'));
     assert.equal(named('dotend').length, 0, problems.join('\n'));
@@ -529,7 +552,7 @@ test('shared-input check does not count a path-like mention of a calling skill (
     'agents/shared-r.md': shared('see /debug/foo and /debug.md'),
     'agents/shared-s.md': shared('from `/debug`. Then more'),
   }, (root) => {
-    const problems = checkSharedInputs(root, { pending: [] });
+    const problems = checkSharedInputs(root);
     assert.ok(problems.some((p) => p.includes('agents/shared-r.md') && p.includes('/debug')), problems.join('\n'));
     assert.ok(!problems.some((p) => p.includes('agents/shared-s.md')), problems.join('\n'));
   });

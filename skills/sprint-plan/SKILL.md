@@ -4,6 +4,15 @@ description: Sprint planning — reads issues from your tracker and codebase, cr
 argument-hint: Sprint number e.g. 5
 ---
 
+## Interface
+
+**Inputs:** `/sprint-plan <N>` (the sprint number, which names `tasks/sprint<N>.md`). Reads `tasks/lessons.md`, `tasks/sprint-template.md`, `tasks/pr-queue.md` and an existing `tasks/sprint<N>.md`. It starts 3 agents: `sprint-plan-docs-reader` (brief: read every file in `docs/`; it returns a project context summary), `sprint-plan-tracker-reader` (brief: the sprint number and the tracker mode; it gathers the sprint issues through `get-sprint-issues.sh`) and `sprint-plan-gap-analyzer` (brief: the full sprint story data and the project context summary from the first two).
+**Outputs:** `tasks/sprint<N>.md`, created from `tasks/sprint-template.md` or updated in place, and finalized after the planning meeting. The report is the questions to raise at the sprint planning meeting.
+**Callable parts:** none.
+**Never breaks:** the sprint file stays local in every mode and is never migrated to a tracker. The two reader agents are launched together in the same message as foreground calls, and it does not go on until both have returned. It updates an existing sprint file instead of overwriting content that is already correct, keeping hand-written notes. It stops after the questions and waits for the meeting transcript.
+
+---
+
 **Core Philosophy:** Read the work registry and the docs before writing anything — the sprint file is a synthesis of both, not a copy-paste of ticket fields.
 
 **Mode detection (do this first):** Read `.claude/.harness-manifest.json` for the `tracker` and `trackerMirror` fields and derive the mode: `tracker === 'local'` → **local** mode; external tracker + `trackerMirror === true` → **both** mode; external tracker + no mirror → **tracker** mode. This governs where sprint candidate stories come from:

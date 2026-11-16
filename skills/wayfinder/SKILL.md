@@ -4,6 +4,15 @@ description: "Plan an effort too big for one session as a map of decision ticket
 argument-hint: "<loose idea> | <map ID> [<ticket ID>]"
 ---
 
+## Interface
+
+**Inputs:** `/wayfinder <loose idea> | /wayfinder <map ID> [<ticket ID>]`. Reads `.claude/.harness-manifest.json` (tracker and mirror), `tasks/tracker-config.md` as a fallback, and the map and its tickets through the tracker adapter.
+**Outputs:** no tasks/ files written by hand. The map (labelled `wayfinder:map`) and its decision tickets are tracker items created through the `trackers/active/` scripts, which in local mode land as `tasks/issues/*.md`. The resolved spec is handed to the build pipeline as a grill-summary in the report.
+**Callable parts:** none.
+**Never breaks:** it resolves one ticket per session (research tickets excepted). It never answers the human side of a grilling itself. All tracker access goes through the `trackers/active/` scripts, never a tracker CLI directly, and it never hand-edits `todo.md` or the frontmatter of `tasks/issues/*.md`. Decisions live on their ticket and the map only gists and links.
+
+---
+
 **Core Philosophy:** A loose idea too big for one agent session gets charted as a **shared map** on the tracker: one map item plus child **decision tickets** — questions whose resolution is a decision, not slices of a build. Each session resolves one ticket until the way to the destination is clear. Wayfinder **plans**; it does not build.
 
 **Triggers:** "chart this out", "this is too big to plan in one go", "create a wayfinder map", "work the map", "resolve the next ticket", "/wayfinder"

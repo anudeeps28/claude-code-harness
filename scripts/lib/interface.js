@@ -83,8 +83,12 @@ function readInterface(text) {
   return result;
 }
 
-function skipSet(list) {
-  return new Set(list || []);
+// The one option a check takes is `exempt`, the skill folders whose block is not required. Any other
+// key is refused by name, so a second list cannot come back under another name.
+function skipSet(options = {}) {
+  const unknown = Object.keys(options).filter((k) => k !== 'exempt');
+  if (unknown.length) throw new Error(`unknown check option "${unknown[0]}": a check takes only exempt`);
+  return new Set(options.exempt || []);
 }
 
 function listModules(root) {
@@ -107,12 +111,11 @@ function readModule(root, mod) {
   return fs.existsSync(abs) ? readInterface(fs.readFileSync(abs, 'utf8')) : null;
 }
 
-function checkInterfaces(root, { pending = [], exempt = [] } = {}) {
-  const pend = skipSet(pending);
-  const exe = skipSet(exempt);
+function checkInterfaces(root, options = {}) {
+  const exe = skipSet(options);
   const problems = [];
   for (const mod of listModules(root)) {
-    if (pend.has(mod.id) || (mod.kind === 'skill' && exe.has(mod.name))) continue;
+    if (mod.kind === 'skill' && exe.has(mod.name)) continue;
     const iface = readModule(root, mod);
     if (!iface) {
       problems.push(`${mod.file}: file is missing`);
@@ -135,26 +138,10 @@ function checkInterfaces(root, { pending = [], exempt = [] } = {}) {
   return problems;
 }
 
-function checkPending(root, pending = []) {
-  const problems = [];
-  for (const id of pending) {
-    const m = /^(skills|agents)\/([^/]+)$/.exec(id);
-    const file = m && (m[1] === 'skills' ? `skills/${m[2]}/SKILL.md` : `agents/${m[2]}.md`);
-    if (!file || !fs.existsSync(path.join(root, file))) {
-      problems.push(`${id}: does not exist`);
-    } else if (readInterface(fs.readFileSync(path.join(root, file), 'utf8')).found) {
-      problems.push(`${id}: has an Interface block — remove it from PENDING`);
-    }
-  }
-  return problems;
-}
-
-function checkAgentOutputs(root, { pending = [] } = {}) {
-  const pend = skipSet(pending);
+function checkAgentOutputs(root) {
   const owners = new Map(agentOwners(root).map((a) => [a.name, a.owner]));
   const problems = [];
   for (const mod of listModules(root).filter((m) => m.kind === 'agent')) {
-    if (pend.has(mod.id)) continue;
     const iface = readModule(root, mod);
     if (!iface || !iface.found) continue;
     // The `STATUS:` line must be named as the start of the report, so "no STATUS: line" fails.
@@ -200,18 +187,25 @@ function namesSkill(text, name) {
   return new RegExp(`(?<![A-Za-z0-9_./-])/${escapeRe(name)}(?![A-Za-z0-9_/-]|\\.[A-Za-z0-9_])`).test(text);
 }
 
-function checkSharedInputs(root, { pending = [] } = {}) {
-  const pend = skipSet(pending);
+// The command a person types: the frontmatter `name:` when the SKILL.md has one, else the folder name.
+function commandName(root, mod) {
+  const abs = path.join(root, mod.file);
+  const name = fs.existsSync(abs) ? parse(fs.readFileSync(abs, 'utf8')).name : '';
+  return typeof name === 'string' && name.trim() ? name.trim() : mod.name;
+}
+
+function checkSharedInputs(root) {
   const problems = [];
   for (const { name, owner } of agentOwners(root)) {
-    if (owner !== 'shared' || pend.has(`agents/${name}`)) continue;
+    if (owner !== 'shared') continue;
     const text = fs.readFileSync(path.join(root, 'agents', `${name}.md`), 'utf8');
     const iface = readInterface(text);
     if (!iface.found) continue;
     for (const skill of callersOf(root, name)) {
+      const command = commandName(root, { name: skill, file: `skills/${skill}/SKILL.md` });
       // The `/` must not follow a path character, so `skills/debug/...` and `rules/debug` do not count.
-      if (!namesSkill(iface.parts.inputs, skill)) {
-        problems.push(`agents/${name}.md: Interface Inputs do not name calling skill /${skill}`);
+      if (!namesSkill(iface.parts.inputs, command)) {
+        problems.push(`agents/${name}.md: Interface Inputs do not name calling skill /${command}`);
       }
     }
   }
@@ -220,16 +214,16 @@ function checkSharedInputs(root, { pending = [] } = {}) {
 
 // Every skill with an Interface block: its Inputs name the usage `/<name>`, and its Outputs name a
 // tasks/ path or say "no tasks/ files". The `/` must not follow a path character.
-function checkSkillUsage(root, { pending = [], exempt = [] } = {}) {
-  const pend = skipSet(pending);
-  const exe = skipSet(exempt);
+function checkSkillUsage(root, options = {}) {
+  const exe = skipSet(options);
   const problems = [];
   for (const mod of listModules(root).filter((m) => m.kind === 'skill')) {
-    if (pend.has(mod.id) || exe.has(mod.name)) continue;
+    if (exe.has(mod.name)) continue;
     const iface = readModule(root, mod);
     if (!iface || !iface.found) continue;
-    if (!namesSkill(iface.parts.inputs, mod.name)) {
-      problems.push(`${mod.file}: Interface Inputs do not give the usage /${mod.name}`);
+    const command = commandName(root, mod);
+    if (!namesSkill(iface.parts.inputs, command)) {
+      problems.push(`${mod.file}: Interface Inputs do not give the usage /${command}`);
     }
     // "no tasks/ files" must open Outputs; a tasks/ path must not follow a path character.
     if (!/(?<![A-Za-z0-9_./-])tasks\/\S|^no tasks\/ files\b/.test(iface.parts.outputs)) {
@@ -242,5 +236,5 @@ function checkSkillUsage(root, { pending = [], exempt = [] } = {}) {
 module.exports = {
   checkSkillUsage,
   mdFiles, agentOwners, skipSet, listModules, readModule,
-  readInterface, checkInterfaces, checkPending, checkAgentOutputs, callersOf, checkSharedInputs,
+  readInterface, checkInterfaces, checkAgentOutputs, callersOf, checkSharedInputs,
 };

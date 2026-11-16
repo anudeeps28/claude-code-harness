@@ -3,6 +3,15 @@ name: zoom-out
 description: High-level map of unfamiliar code — shows relevant modules, caller relationships, dependencies, and how a piece of code fits in the bigger picture. Conversational output, no file artifact. Usage: /zoom-out [file or module path]
 ---
 
+## Interface
+
+**Inputs:** `/zoom-out [file or module path]`. Reads the code at the path, its callers and dependencies, and `ARCHITECTURE.md` and the ADRs when they exist.
+**Outputs:** no tasks/ files. A conversational map of the module: its role, callers, dependencies and domain language, with no file artifact unless the person asks for one.
+**Callable parts:** none.
+**Never breaks:** it writes no file unless the person explicitly asks. It always verifies caller and dependency relationships by reading the code and never guesses them from names.
+
+---
+
 **Core Philosophy:** When you're lost in the details, zoom out. Understand the module's role, its callers, its dependencies, and the domain language around it before changing anything.
 
 **Triggers:** "zoom out", "give me the bigger picture", "where does this fit", "how does this module relate", "what calls this", "map this area of the codebase", "/zoom-out"

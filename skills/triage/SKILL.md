@@ -3,6 +3,15 @@ name: triage
 description: Route incoming issues through a 5-state workflow (needs-triage → needs-info / ready-for-agent / ready-for-human / wontfix) with bug/enhancement categorization. Applies labels, adds context notes, reproduces bugs. Usage: /triage <issue-id>
 ---
 
+## Interface
+
+**Inputs:** `/triage <issue-id>`. Reads the issue through the tracker adapter, and `triage_labels` overrides from `tasks/tracker-config.md` (enterprise) or `tasks/notes.md` (solo).
+**Outputs:** `tasks/issues/<ID>.md` (in local mode, the triage note appended to the task body after approval) or the tracker item in other modes; routing labels applied through the adapter, and a `- [TRIAGE] ...` line in `tasks/flags-and-notes.md`, or `tasks/notes.md` when the first is absent. The report names the state the issue was routed to.
+**Callable parts:** none.
+**Never breaks:** it handles one issue per invocation and never batches. It never posts a comment without the user approving the draft, never closes an issue (it only routes it), and never uses `create-issue.sh` to comment. It never hand-edits the generated `todo.md`.
+
+---
+
 **Core Philosophy:** Every incoming issue deserves a routing decision within one pass. Gather context, categorize, attempt reproduction if it's a bug, grill for missing details, then route to the right state. One issue per invocation.
 
 **Triggers:** "triage this issue", "route this issue", "categorize this bug", "what should we do with this issue", "/triage"
