@@ -4,6 +4,16 @@ Node.js scripts that run automatically on Claude Code tool events. The installer
 
 **Cross-platform:** All hooks run on Node.js (>= 20). One implementation for Windows, macOS, and Linux. No external dependencies — pure stdlib.
 
+## Interface
+
+**Inputs:** Each hook script is run by Claude Code on its event and reads one JSON object on **stdin** (tool-call context; see *Hook I/O protocol* below). Environment: `CLAUDE_HARNESS_WORK_ROOT` (required by `catalog-skills.js`) and `CLAUDE_HARNESS_DRIFT_LEVEL` (`mvp` default, or `full`). Running a hook by hand with no stdin works: it detects a TTY or empty stdin and exits cleanly.
+
+**Outputs:** JSON on **stdout** and/or an exit code: `{"decision":"deny","reason":"..."}` with exit 2 (PreToolUse), `{"decision":"block","reason":"..."}` (PostToolUse), or `{"hookSpecificOutput":{"hookEventName":"<event>","additionalContext":"..."}}` for a soft hint. Files written: a marker in `tasks/todo.md` (`pre-compact.js`), `tasks/sessions.jsonl` (`session-log.js`), `tasks/.learnings-injected-<session_id>.json` (`session-context.js`, read back and scored by `session-log.js`), `SKILLS_CATALOG.md` in the work root (`catalog-skills.js`), and `tasks/todo.md` re-rendered through `trackers/lib/render-todo.sh` (`todo-render-trigger.js`). The session hooks also read `.claude/.harness-manifest.json` (`session-start-msg.js`, `session-router.js`, `tracker-sync.js`) and the learnings folders `.claude/learnings/` and `~/.claude/learnings/` (`session-context.js`); `tracker-sync.js` calls `.claude/trackers/active/close-issue.sh` to close an item on explicit written evidence.
+
+**Callable parts:** The scripts in the table under *Scripts in this folder*. Every script there except `catalog-skills.js` (spawned by `catalog-trigger.js`) and `todo-render-trigger.js` is wired into `.claude/settings.json` by the installer (`install/lib/substitution.js`, `buildSettings`). `todo-render-trigger.js` is a `PostToolUse` hook on `Write|Edit`, but nothing in `install/` references it: the installer does not wire it, so it runs only if someone adds it to `settings.json` by hand. Files other modules require: `lib/walk.js` (`walk`, a recursive directory walk with a predicate filter; used by `install/lib`) and `lib/frontmatter.js` (`parse`, the minimal YAML frontmatter parser; used by `scripts/lib`).
+
+**Never breaks:** Pure Node.js stdlib, no runtime dependencies; runs on Node >= 20 on Windows, macOS and Linux. A hook never throws into Claude Code: `runHook` turns a timeout, exception or rejection into an envelope. The safety hook is accidental-command oversight, not a sandbox (`SECURITY.md`).
+
 ---
 
 ## Scripts in this folder
@@ -16,6 +26,12 @@ Node.js scripts that run automatically on Claude Code tool events. The installer
 | `drift-check.js` | `PostToolUse` | `Write\|Edit` | When one of the 7 enterprise task files is edited, checks cross-file invariants. Soft-warns on enum mismatches, hard-blocks on people.md ↔ flags-and-notes.md cross-reference drift (directs user to `/sync-tasks`). Set `CLAUDE_HARNESS_DRIFT_LEVEL=full` to also check branch naming + sprint story brief.md presence. |
 | `pre-compact.js` | `PreCompact` | `*` | Appends a timestamp marker to `tasks/todo.md` and injects a reminder for Claude to save its in-progress state |
 | `session-log.js` | `SessionEnd` | `*` | Appends a JSONL line to `tasks/sessions.jsonl` with timestamp, session ID, branch, and story ID |
+| `inventory-check.js` | `PreToolUse` | `Bash` | Fires only on `git commit`. Hard-blocks a new skill or agent with no README row, README skill or agent counts that differ from the tree, a `VERSION` bump with an empty CHANGELOG `[Unreleased]`, and `VERSION` and `package.json` disagreeing; soft-warns on changelog and landing-page drift. Reads the staged files; writes nothing. |
+| `session-start-msg.js` | `SessionStart` | `*` | Reads `.claude/.harness-manifest.json` (tracker, workflow pack, mirror) and prints a tracker-aware startup message, with a warning when a skill is shadowed. Writes nothing. |
+| `session-context.js` | `SessionStart` | `*` | Reads project and global learnings, injects the top 5 as a soft hint, and writes `tasks/.learnings-injected-<session_id>.json` so `session-log.js` can score them. |
+| `session-router.js` | `SessionStart` | `*` | Detects whether the project is new or active from the planning artifacts and open tracker items, and injects a next-step prompt. Writes nothing. |
+| `tracker-sync.js` | `SessionStart` (`start`), `SessionEnd` (`end`) | `*` | `start` reports open items that look delivered, notices `tasks/todo-manual-backup.md`, and regenerates the mirror in `both` mode; `end` closes items that have explicit written evidence (merged PRs with closing keywords or `Task:` trailers) through the active tracker's `close-issue.sh`, and regenerates the mirror in `both` mode only when it closed at least one item. |
+| `todo-render-trigger.js` | `PostToolUse` (not wired by the installer) | `Write\|Edit` | When a file under `tasks/issues/` is edited in `local` tracker mode, re-renders `tasks/todo.md` with `trackers/lib/render-todo.sh`. |
 | `lib/hook-io.js` | (shared lib) | — | stdin JSON read + stdout JSON write helpers |
 | `lib/frontmatter.js` | (shared lib) | — | Minimal YAML frontmatter parser for SKILL.md / agent.md |
 | `lib/walk.js` | (shared lib) | — | Recursive directory walk with predicate filter |

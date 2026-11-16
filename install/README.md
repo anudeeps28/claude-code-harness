@@ -1,0 +1,13 @@
+# Install
+
+The cross-platform installer that copies the harness into a project or `~/.claude/`, fills in its placeholders, wires the hooks into `settings.json`, and later checks, updates or switches that install.
+
+## Interface
+
+**Inputs:** `node install/install.js [--global | --project <path>]` (`install/install.sh` is a thin forwarder that checks for Node.js and passes its arguments on). Modes: `--check`, `--update`, `--switch-tracker <github|ado|todoist|local>`, `--backfill`, `--uninstall`, `--dry-run`, `--yes`/`-y`, `--help`/`-h`. Options: `--name`, `--project-name`, `--pack` (`solo`, `enterprise`), `--tracker`, `--prd-mode`, `--code-platform` (`github`, `azure-repos`, `none`), `--tracker-mirror`, `--ado-project`, `--ado-repo`, `--ado-org-path`, `--todoist-project`, `--org`, `--lead-dev`, `--infra-person`, `--devops-person`, `--qa-person`, `--work-root`, and for updates `--source`, `--pin <version>`, `--local <path>`, `--repo-url`, `--latest`, `--seed`. `--skip-pull` is accepted as a legacy no-op (there is nothing to pull; fetch is on demand) so older scripts and tests that pass it keep working. Reads the repo's `skills/`, `agents/`, `hooks/`, `rules/`, `trackers/`, `code-platform/` and `templates/`, and the project's `.claude/.harness-manifest.json` on an update.
+
+**Outputs:** A `.claude/` folder (skills, agents, hooks, rules, and the chosen adapters flattened into `trackers/active/` and `code-platform/active/`), `.claude/settings.json` with the hook wiring and `CLAUDE_HARNESS_WORK_ROOT`, `.claude/.harness-manifest.json`, and the `tasks/` and `templates/` files for the chosen pack. Progress and a summary go to stdout; a bad option value or a failed step prints an error and exits non-zero.
+
+**Callable parts:** `install.js` and `install.sh` as above. `update-harness` runs `install.js` with `--check`, `--update`, `--switch-tracker` and `--backfill`. The `lib/` files (`copy.js`, `source.js`, `substitution.js`, `updater.js`) are private: no other module requires them.
+
+**Never breaks:** Zero runtime dependencies (Node.js stdlib only) and the same behaviour on Windows, macOS and Linux. Files the person edited (such as `tasks/` notes) are not overwritten by a template copy. `--dry-run` writes nothing.

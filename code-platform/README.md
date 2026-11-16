@@ -2,6 +2,16 @@
 
 The **code platform** adapter layer handles PR review thread operations — fetching, replying to, and resolving review comments on pull requests. This is independent of the task tracker (where issues/tasks live).
 
+## Interface
+
+**Inputs:** Skills run `code-platform/active/<script>` (the installer copies the chosen platform there): `get-pr-review-threads.sh <PR_ID>`, `reply-pr-thread.sh <PR_ID> <THREAD_ID> "<text>"` (pass the numeric `id`), `resolve-pr-thread.sh <PR_ID> <THREAD_ID>` (pass the `threadId`). Needs `gh` (GitHub) or `az` with the `az devops` extension (Azure Repos).
+
+**Outputs:** `get-pr-review-threads.sh` prints the unresolved threads as a JSON array `[{id, threadId, file, line, content, author}]`; the other two print nothing special on success. Exit code 0 on success; on failure a non-zero exit with `{"error": "..."}` on stderr. The `none` platform fails every script this way.
+
+**Callable parts:** The three scripts above under `code-platform/active/`, and the shared shell libraries in `code-platform/lib/` that they source (`retry.sh`, `auth-check.sh`). No other module requires a JavaScript file from this module.
+
+**Never breaks:** Every platform implements the same three scripts with the same arguments and output schema. With no platform configured the scripts fail loudly rather than do nothing, so `/babysit-pr` never appears to succeed while doing nothing.
+
 ---
 
 ## How it works

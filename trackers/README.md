@@ -2,6 +2,16 @@
 
 Claude Code Kit uses a **tracker adapter layer** so that skills and agents never talk to a specific issue tracker directly. They call scripts from a standard interface, and the active adapter handles the tracker-specific API calls underneath.
 
+## Interface
+
+**Inputs:** Skills and agents run `trackers/active/<script>` (the installer copies the chosen adapter there). Every adapter takes the same arguments (full table under *Script interface*): `get-issue.sh <ID>`, `get-issue-children.sh <ID>`, `get-sprint-issues.sh <SPRINT_NUMBER>`, `create-issue.sh "<title>" "<body>" "<label>"`, `create-sub-issue.sh <PARENT_ID> "<title>" "<body>" "<label>"`, `add-label.sh` / `remove-label.sh <ID> "<label>"`, `close-issue.sh <ID> ["<reason>"]`, `list-issues.sh`, `assign-issue.sh <ID> ["<assignee>"]`, `comment-issue.sh <ID> "<text>"`, `add-blocker.sh <ID> <BLOCKER_ID>`, `get-blockers.sh <ID>`, `set-status.sh <ID> <status>` (`in-progress`, `in-review`, `needs-person`, `done`), `get-comments.sh <ID>`, `get-attachments.sh <ID> [<dest>]`. The GitHub adapter adds `setup-labels.sh`, `add-to-project.sh`, `create-project.sh` and `create-milestone.sh`. `trackers/github/` also holds `add-sub-issue.sh` and `get-sub-issues.sh`: GitHub-only helpers for native parent and child links (`add-sub-issue.sh <PARENT_NUMBER> <CHILD_NUMBER>`, `get-sub-issues.sh <ISSUE_NUMBER>`). They are not part of the shared interface: the other adapters do not have them, and no skill, agent or other script calls them. Environment: `TRACKER_ITEM_TYPE` (`Feature`, `Story`, `Bug` or `Task`) on `create-issue.sh` and `create-sub-issue.sh`, `TRACKER_ATTACHMENT_MAX_BYTES` on `get-attachments.sh`, plus the per-adapter overrides listed below.
+
+**Outputs:** `get-issue.sh` prints the item with a `**Type:**` line (one of the four types, or `Unknown`) and a `**Status:**` line (`None` until set). `create-issue.sh` prints the URL; `create-sub-issue.sh` prints `{"parent", "child", "url"}`; `list-issues.sh` prints `[{id, title, state, labels, assignees, url}]`; `get-blockers.sh` prints a JSON array of IDs; `get-comments.sh` prints `[{"author", "date", "text"}]`; `get-attachments.sh` prints `[{"name", "size", "saved_to", "skipped"}]`. Error contract: an unsupported operation or an invalid value (an unknown `TRACKER_ITEM_TYPE` or status) prints a clear error to stderr (`{"error": "..."}`), exits non-zero and creates or changes nothing.
+
+**Callable parts:** The scripts above under `trackers/active/`, and the shared shell libraries in `trackers/lib/` that adapters source (`retry.sh`, `auth-check.sh`, `render-todo.sh`, `item-type.sh`, `status.sh`, `ado-status-map.sh`, `ticket-content.sh`). No other module requires a JavaScript file from this module.
+
+**Never breaks:** Every adapter has the same scripts and signatures. Unsupported operations fail loudly and never pretend to succeed. A tracker's own type word is mapped onto the four item types and never passed through. Comment text and attachment names are cleaned as data before they reach an agent's brief, and attachments stay local under `tasks/stories/`.
+
 ---
 
 ## How it works
