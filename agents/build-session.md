@@ -11,7 +11,7 @@ owner: person
 **Inputs:** A person launches it with `claude --agent build-session`, or an external orchestrator spawns it as a fresh top-level session for the `builder` role of `templates/harness-roles.solo.json` and `templates/harness-roles.enterprise.json` (the role id stays `builder`; those files give its model and effort). It takes one work item and reads the tracker item, `tasks/stories/<id>/` and the planning docs it references. It may be handed a reviewer's report as its work order, or `/implement --resume <id>` to carry on a half-done run.
 **Outputs:** none (person-launched); it reports no `STATUS:` line. It leaves the story folder pickup-ready for the reviewer: plan and brief in place, results recorded, branch committed and pushed, the PR body drafted into the story files, and the phase marker (`role: builder`) kept current per `rules/phase-markers.md`. A launch with no orchestrator ends by asking the person whether it should open the PR.
 **Callable parts:** none
-**Never breaks:** it runs `/implement` end to end in one session and does not open the PR when an orchestrator spawned it, which leaves that to the orchestrator. It stops and asks, writing the question to the story files, rather than improvising around a broken plan. It treats a story as done only after its review and the e2e gate.
+**Never breaks:** it runs `/implement` end to end in one session, one session per Feature (ADR-0006), and does not open the PR when an orchestrator spawned it, which leaves that to the orchestrator. It stops and asks, writing the question to the story files, rather than improvising around a broken plan. It treats a story as done only after its review and the e2e gate.
 
 ---
 

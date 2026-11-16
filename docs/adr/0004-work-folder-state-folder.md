@@ -6,6 +6,7 @@
 - **Amended by F73 #83 (2026-11-04):** the per-story lock is gone: no story has a `tasks/stories/<sid>/.verify.lock` and the executor waves that held it are retired. The only lock left is `<state>/.verify.lock`, taken under `verify-lock: global` through `test-lock.js`; the default takes none.
 - **Date:** 2026-10-05
 - **Decided by:** Anudeep Sharma (ARCHITECTURE.md §2 #4, §4)
+- **Modules:** implement, story-builder, suite-runner, story-reviewer, implement-planner-agent, acceptance-test-agent, architect-reviewer-agent, security-reviewer-agent, evaluator-agent
 
 ## Context
 

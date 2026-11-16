@@ -11,7 +11,7 @@ owner: implement
 **Inputs:** Your brief must contain: the story id, the story's criteria with their tests and results, and the tracker mode. It reads `tasks/lessons.md` (or `tasks/notes.md`), `git status`, `git diff --stat HEAD` and `git log`.
 **Outputs:** Starts with the `STATUS:` line (`rules/agent-handoff.md`), then the Code Rabbit checklist table, the drafted PR description with the tracker's closing reference, and the one push command for the person to run. It may edit the "Worktree setup" section of `tasks/lessons.md` and, in the enterprise pack, the sprint Master Status Table.
 **Callable parts:** none
-**Never breaks:** it commits nothing and never pushes (the story loop already made the commits, ADR-0005). It never closes the tracker item itself. It never edits `tasks/todo.md`, which is a generated dashboard.
+**Never breaks:** it commits nothing and never pushes; the story loop already made the commits (ADR-0005). It never closes the tracker item itself. It never edits `tasks/todo.md`, which is a generated dashboard.
 
 ---
 

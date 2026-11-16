@@ -3,6 +3,7 @@
 - **Status:** accepted (2026-11-04): built in F73
 - **Date:** 2026-11-04
 - **Decided by:** Anudeep Sharma (F73 plan gate, answer 3)
+- **Modules:** implement, build-session
 - **Refines:** [ADR-0004](0004-work-folder-state-folder.md) (work folder and state folder) and the one-terminal rule in `rules/git-worktrees.md`
 
 ## Context

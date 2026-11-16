@@ -4,6 +4,7 @@
 - **Amended by F73 #83 (2026-11-04):** there are no waves and no executor in a standalone run either: it builds its one story with the same story loop (`story-builder`, `suite-runner`, `story-reviewer`) as a Feature, so the wave rules' pre-wave checks do not apply to it.
 - **Date:** 2026-11-03
 - **Decided by:** Anudeep Sharma (F72 plan gate)
+- **Modules:** implement, story-builder, suite-runner, story-reviewer, story-pr-agent
 - **Supersedes:** [ADR-0002](0002-story-worktrees.md) (a worktree per story) and [ADR-0003](0003-orchestrator-only-merger.md) (merge each story, tested, before commit)
 
 ## Context

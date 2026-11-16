@@ -3,6 +3,7 @@
 - **Status:** superseded by ADR-0005 (2026-11-03)
 - **Date:** 2026-10-05
 - **Decided by:** Anudeep Sharma (grill Q8–Q9; ARCHITECTURE.md §1–§2)
+- **Modules:** implement
 
 ## Context
 

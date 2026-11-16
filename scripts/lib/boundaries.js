@@ -9,6 +9,7 @@ const path = require('node:path');
 const { mdFiles, agentOwners, ...iface } = require('./interface.js');
 const pointers = require('./pointers.js');
 const readmes = require('./readmes.js');
+const adrs = require('./adrs.js');
 
 function checkOwners(root) {
   const problems = [];
@@ -57,4 +58,8 @@ module.exports = {
   checkReadmes: readmes.checkReadmes,
   requiredExports: readmes.requiredExports,
   checkReadmeCallable: readmes.checkReadmeCallable,
+  moduleIds: adrs.moduleIds,
+  checkAdrModules: adrs.checkAdrModules,
+  checkAdrCitations: adrs.checkAdrCitations,
+  checkAcceptedAdrsCited: adrs.checkAcceptedAdrsCited,
 };
