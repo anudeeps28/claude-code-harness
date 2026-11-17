@@ -387,8 +387,8 @@ reviews, the coverage audit, debugging), Sonnet for writing and running code and
 are a list, Haiku for tracker writes. This session runs on Sonnet (the `model:` in the frontmatter).
 **Every spawn states its model** (model: `<m>`, the row's model), because an agent that is spawned
 without one inherits this session's model. An agent may have several rows; its first row is its
-default and must equal the `model:` in its own file (`__tests__/model-per-job.probe.test.js` fails
-when they drift). A job that comes back BLOCKED and needs more reasoning is relaunched once on opus,
+default and must equal the `model:` in its own file (the boundary check's test
+`Model_AgentFilesAgreeWithTheTableDefaultRows` fails when they drift). A job that comes back BLOCKED and needs more reasoning is relaunched once on opus,
 told what the first attempt tried (`rules/agent-handoff.md`).
 
 Evidence for the frontmatter `model:`: the Claude Code docs, skills page, frontmatter table, say "The override applies for the rest of the current turn and isn't saved to settings". It holds for one turn only, so the Feature plan gate tells the person to approve by running `/implement --resume <fid>`, and the single-story gate tells them to run `/model sonnet` first. Checked against Claude Code 2.1.289 (`claude --version`).

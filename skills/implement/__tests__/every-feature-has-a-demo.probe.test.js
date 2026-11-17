@@ -7,15 +7,15 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
+// What the planner's own file says is asserted in agents/__tests__/agent-text.test.js, and what /local-test's
+// own file says about the e2e gate in skills/local-test/__tests__/e2e-gate.probe.test.js: a test of
+// /implement may not read another module's body (rules/modules.md, "Tests check the interface").
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8');
+const readTemplate = (...p) => fs.readFileSync(path.join(REPO_ROOT, 'templates', ...p), 'utf8');
 
-const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
-const PLANNER = read('agents', 'implement-planner-agent.md');
-const LOCAL_TEST = read('skills', 'local-test', 'SKILL.md');
-const PHILOSOPHY = read('rules', 'test-philosophy.md');
+const IMPLEMENT = fs.readFileSync(path.join(__dirname, '..', 'SKILL.md'), 'utf8');
+const PHILOSOPHY = fs.readFileSync(path.join(REPO_ROOT, 'rules', 'test-philosophy.md'), 'utf8');
 const { NEEDS, parseObserve } = require('../bin/observe-check.js');
-const { PROOF_KINDS } = require('../bin/proof-check.js');
 
 function section(content, heading) {
   const lines = content.split('\n');
@@ -38,7 +38,7 @@ const OBSERVE_ENTRIES = [...new Set(Object.values(NEEDS).flat().map(([entry]) =>
 
 for (const template of [['templates', 'tasks', 'lessons.md'], ['templates', 'tasks-solo', 'notes.md']]) {
   test(`Observe_TemplateDeclaresEveryEntry_${template[1]}`, () => {
-    const text = read(...template);
+    const text = readTemplate(...template.slice(1));
     const observe = section(text, '## Observe');
     assert.ok(observe, `${template.join('/')} must have a "## Observe" section`);
     for (const e of OBSERVE_ENTRIES) {
@@ -66,25 +66,13 @@ test('Observe_StartupCheckRunsAfterTheTicketRead', () => {
 
 test('Observe_PlannerBuildsTheProbes', () => {
   mustMatch(section(IMPLEMENT, '### Phase 1c — Plan'), /Probes to build/, 'the planner prompt carries the probe lines');
-  mustMatch(PLANNER, /Build the probe: <entry>/, 'the planner names each probe task "Build the probe: <entry>"');
+  // The planner's own side (Observe_PlannerBuildsTheProbes_Agent) is in agents/__tests__/agent-text.test.js.
 });
 
 // ── #39 a proof for every criterion ──────────────────────────────────
 
-test('Proof_PlannerWritesThreeLinesPerCriterion', () => {
-  const s = section(PLANNER, '### Goal and proofs');
-  mustMatch(s, /\*\*Acceptance criteria and their proofs:\*\*/, 'the planner writes the proof list');
-  for (const f of ['Proof:', 'Seen by:', 'Would lie if:']) assert.ok(s.includes(f), `the planner must write a "${f}" line`);
-  for (const k of PROOF_KINDS) assert.ok(s.includes(k), `the planner must list the "${k}" proof kind`);
-  mustMatch(s, /named mutation|missing assertion/i, '"Would lie if" must be concrete');
-});
-
-test('Proof_PlannerRestatesTheDemoNeverWeaker', () => {
-  const s = section(PLANNER, '### Demo');
-  assert.ok(s, 'expected a "### Demo" subsection in the planner');
-  mustMatch(s, /## Demo/, 'the plan carries a ## Demo section');
-  mustMatch(s, /never weaker/i, 'the Demo may be more precise, never weaker');
-});
+// Proof_PlannerWritesThreeLinesPerCriterion and Proof_PlannerRestatesTheDemoNeverWeaker read the planner's
+// own file: they live in agents/__tests__/agent-text.test.js.
 
 test('Proof_PlanApprovalRunsAllThreeChecks', () => {
   // Phase 1c runs to Phase 2; it has subheadings of its own ("### Implementation plan").
@@ -110,15 +98,8 @@ test('Proof_TestPhilosophyMatches', () => {
 
 // ── #40 never SKIPPED ────────────────────────────────────────────────
 
-test('NotSetUp_ReplacesSkippedForTheE2eGate', () => {
-  const e2e = section(LOCAL_TEST, '### e2e');
-  mustMatch(e2e, /NOT SET UP/, 'no e2e command reports NOT SET UP');
-  mustMatch(e2e, /NOT SET UP[\s\S]{0,300}fail/i, 'NOT SET UP counts as a fail');
-  mustMatch(e2e, /Observe → E2E command/, 'NOT SET UP names the Observe entry that is needed');
-  assert.ok(!/SKIPPED/.test(e2e), 'the e2e gate never reports SKIPPED');
-  mustMatch(e2e, /AWAITING HUMAN SIGN-OFF/, 'a structured human check still waits for a sign-off');
-  mustMatch(e2e, /shape/i, 'a human check shows the shape of the evidence, never PHI');
-});
+// NotSetUp_ReplacesSkippedForTheE2eGate reads /local-test's own SKILL.md: it lives in
+// skills/local-test/__tests__/e2e-gate.probe.test.js.
 
 test('NotSetUp_ImplementTreatsItAsRed', () => {
   mustMatch(IMPLEMENT, /NOT SET UP[\s\S]{0,200}(red|fail)/, '/implement treats NOT SET UP as a red gate');

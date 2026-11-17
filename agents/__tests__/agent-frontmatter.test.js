@@ -13,7 +13,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const agentsDir = path.join(__dirname, '..', '..', 'agents');
+const agentsDir = path.join(__dirname, '..');
 const files = fs.readdirSync(agentsDir).filter((f) => f.endsWith('.md'));
 
 function frontmatter(text) {

@@ -14,22 +14,19 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
+// What the other modules say lives in their own tests (a test of /implement may not read another module's
+// body, rules/modules.md "Tests check the interface"): /plan-features in skills/plan-features/__tests__/
+// coverage-table.probe.test.js, /coverage-audit and /sync-tracker in their closing-check probes, the
+// installer in install/__tests__/auditor-verified.test.js, and every agent's own text in
+// agents/__tests__/agent-text.test.js. This probe keeps what /implement and rules/ say.
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 // CRLF on a Windows checkout (core.autocrlf=true) would break every pattern that spans a line end.
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8').replace(/\r\n/g, '\n');
+const readRule = (name) => fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8').replace(/\r\n/g, '\n');
 
-const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
-const PLAN_FEATURES = read('skills', 'plan-features', 'SKILL.md');
-const AUTONOMOUS = read('rules', 'autonomous-mode.md');
-const DEFERRALS = read('rules', 'deferrals.md');
-const PLANNER = read('agents', 'implement-planner-agent.md');
-const UNDERSTAND = read('agents', 'story-understand-agent.md');
-const ACCEPTANCE = read('agents', 'acceptance-test-agent.md');
-const EVALUATOR = read('agents', 'evaluator-agent.md');
-const BUILDER = read('agents', 'story-builder.md');
-const AUDIT_SKILL = read('skills', 'coverage-audit', 'SKILL.md');
-const AUDITOR = read('agents', 'coverage-auditor-agent.md');
-const SYNC = read('skills', 'sync-tracker', 'SKILL.md');
+const IMPLEMENT = read('SKILL.md');
+const AUTONOMOUS = readRule('autonomous-mode.md');
+const DEFERRALS = readRule('deferrals.md');
 const { readRequired } = require('../bin/startup-check.js');
 
 function section(content, heading) {
@@ -53,25 +50,9 @@ function mustMatch(content, re, message) { assert.ok(content && re.test(content)
 
 // ── 1. /plan-features: the coverage table ─────────────────────────────
 
-test('PlanFeatures_NumbersEveryRequirementAndRefusesWhileUnmapped', () => {
-  const phase = section(PLAN_FEATURES, '## Phase 2.5');
-  assert.ok(phase, '/plan-features must have a Phase 2.5 that numbers the requirements of a document');
-  mustMatch(phase, /sub-bullet/i, 'every sub-bullet is its own requirement');
-  mustMatch(phase, /exactly one owner/i, 'each line maps to exactly one owner');
-  mustMatch(phase, /Out of scope — <reason>/, 'out of scope carries a reason the person approves');
-  mustMatch(phase, /tasks\/coverage\/<doc-slug>\.md/, 'the table is stored where later runs read it');
-  mustMatch(phase, /source-lines\.js"? coverage/, 'the coverage gate is the script, not a reading');
-  mustMatch(phase, /nothing is created while a line is unmapped/i, 'nothing is created while a line is unmapped');
-});
-
-test('PlanFeatures_StoriesCarryTheirLinesVerbatimAndTheApprovalShowsCoverage', () => {
-  mustMatch(PLAN_FEATURES, /## Source requirements\n/, 'the story body has a Source requirements section');
-  mustMatch(PLAN_FEATURES, /\*\*Source requirements\*\*[^\n]*verbatim/, 'the story field says verbatim');
-  mustMatch(PLAN_FEATURES, /## Coverage\n/, 'the Feature body carries its coverage rows');
-  mustMatch(section(PLAN_FEATURES, '## Phase 4'), /\*\*Coverage\*\*[\s\S]{0,400}Out of scope/, 'Phase 4 shows coverage and every out-of-scope line for approval');
-  mustMatch(PLAN_FEATURES, /--gaps/, 'gaps found by the closing check become stories through the same table');
-  mustMatch(read('skills', 'plan-features', 'reference', 'story-template.md'), /never replaces or narrows the quote/, 'the template keeps the quote ahead of the Given/When/Then');
-});
+// PlanFeatures_NumbersEveryRequirementAndRefusesWhileUnmapped and
+// PlanFeatures_StoriesCarryTheirLinesVerbatimAndTheApprovalShowsCoverage read /plan-features's own files:
+// they live in skills/plan-features/__tests__/coverage-table.probe.test.js.
 
 // ── 2. the source lines are the finish line ───────────────────────────
 
@@ -87,15 +68,14 @@ test('Implement_SourceLinesAreReadAndBecomeCriteriaVerbatim', () => {
   assert.ok(IMPLEMENT.includes('## Phase 2 — Build the story'), 'SKILL.md has "## Phase 2 — Build the story"');
   const plan = IMPLEMENT.slice(IMPLEMENT.indexOf('### Phase 1c — Plan'), IMPLEMENT.indexOf('## Phase 2 — Build the story'));
   mustMatch(plan, /source-lines\.js"? compare/, 'the plan check compares the lines with the test strategy');
-  mustMatch(PLANNER, /starts with its id and quotes the line verbatim/, 'the planner writes each line as an id-tagged criterion');
+  // The planner's own side (Implement_SourceLinesAreReadAndBecomeCriteriaVerbatim_Planner) is in agents/__tests__/agent-text.test.js.
 });
 
 test('Implement_ReviewersCheckTheLinesAsWritten', () => {
   const phase3 = section(IMPLEMENT, '## Phase 3 — Evaluate + PR');
   assert.equal((phase3.match(/Source requirements:/g) || []).length, 2, 'the evaluator and the acceptance agent both get the source requirements');
-  mustMatch(ACCEPTANCE, /line exactly as the source requirements state it/, 'the acceptance agent judges the line as written');
-  mustMatch(ACCEPTANCE, /PARTIAL\*\*, never PASS/, 'a line done in part is never PASS');
-  mustMatch(EVALUATOR, /Source lines \| ✅ PASS/, 'the evaluator has a source-lines hard gate');
+  // The acceptance agent's and the evaluator's own sides (Implement_ReviewersCheckTheLinesAsWritten_Agents)
+  // are in agents/__tests__/agent-text.test.js.
 });
 
 test('Implement_PlainDescriptionNamingADocumentGoesToPlanFeatures', () => {
@@ -116,13 +96,8 @@ test('NeverShrinkScope_IsNotSelfAnswerableAnywhere', () => {
   mustMatch(section(AUTONOMOUS, '## Pause-anyway triggers'), /\*\*Scope narrowing\*\*/, 'mid-build it is a pause-anyway trigger');
   mustMatch(DEFERRALS, /not the run's to defer/, 'deferrals.md: a requirement is never the run\'s to defer');
   mustMatch(IMPLEMENT, /\*\*Never shrink scope\.\*\*/, '/implement states it');
-  mustMatch(BUILDER, /Never shrink scope/, 'the story builder states it');
-  mustMatch(BUILDER, /Never shrink scope[\s\S]{0,500}?`STATUS: (NEEDS_CONTEXT|BLOCKED)`[\s\S]{0,200}?never (answer|settle|decide)/i,
-    'on a scope question the builder reports NEEDS_CONTEXT or BLOCKED and never answers it itself');
-  const scopeCheck = (t) => /Never shrink scope[\s\S]{0,500}?`STATUS: (NEEDS_CONTEXT|BLOCKED)`[\s\S]{0,200}?never (answer|settle|decide)/i.test(t);
-  assert.ok(!scopeCheck('Never shrink scope. When unsure which reading is meant, decide it yourself and carry on; report `STATUS: DONE`.'), 'planted opposite: a builder that settles the reading itself is rejected');
-  mustMatch(PLANNER, /never plan the narrow\s+reading/, 'the planner asks instead of planning the narrow reading');
-  mustMatch(UNDERSTAND, /Never settle a scope reading yourself/, 'the understand agent collects scope readings as questions');
+  // The builder's, planner's and understand agent's own sides (NeverShrinkScope_IsNotSelfAnswerableAnywhere_Agents)
+  // are in agents/__tests__/agent-text.test.js.
 });
 
 test('NeverShrinkScope_ReviewFindingsOnALineAreAlwaysFixed', () => {
@@ -172,22 +147,15 @@ test('OneGate_FeatureModeUsesTheSameGateFormat', () => {
 
 // ── 5. the closing check ───────────────────────────────────────────────
 
-test('ClosingCheck_AFreshAgentReadsTheDocumentAgainstTheCode', () => {
-  mustMatch(AUDIT_SKILL, /coverage-auditor-agent/, '/coverage-audit spawns the auditor');
-  mustMatch(AUDIT_SKILL, /Give it nothing else: not the coverage table's mapping, not plans/, 'the auditor is not given the plans');
-  mustMatch(AUDITOR, /^tools: Read, Glob, Grep, Bash$/m, 'the auditor cannot edit');
-  mustMatch(AUDITOR, /Anything under `tasks\/`/, 'the auditor never reads the story state');
-  mustMatch(AUDITOR, /Partly is never rounded up to Built/, 'Partly is never rounded up');
-  mustMatch(AUDIT_SKILL, /never self-answered, in any mode/, 'what becomes of a gap is the person\'s call');
-  mustMatch(AUDIT_SKILL, /source-lines\.js"? audit/, 'completion is checked by the script');
-});
+// ClosingCheck_AFreshAgentReadsTheDocumentAgainstTheCode reads /coverage-audit's and the auditor's own
+// files: it lives in skills/coverage-audit/__tests__/closing-check.probe.test.js and
+// agents/__tests__/agent-text.test.js (..._Auditor).
 
 test('ClosingCheck_RunsWhereTheLastItemCloses', () => {
   mustMatch(section(section(IMPLEMENT, '## Feature mode'), '### The closing check'), /coverage-audit[\s\S]{0,400}--building/, 'a Feature that completes the table runs it before the PR gate');
   mustMatch(IMPLEMENT, /\*\*The closing check \(only when this story completes a coverage table\)\.\*\*/, 'a single story that completes the table runs it');
-  mustMatch(section(SYNC, '## Step 6.3'), /\/coverage-audit/, '/sync-tracker runs it when the last item closes');
-  mustMatch(SYNC, /held: coverage lines open/, '/sync-tracker never closes an item whose lines are open');
+  // /sync-tracker's side is in skills/sync-tracker/__tests__/closing-check.probe.test.js and the
+  // installer's in install/__tests__/auditor-verified.test.js, both under this test's name.
   const required = readRequired().map((r) => `${r.kind} ${r.name}`);
   assert.ok(required.includes('skill coverage-audit'), 'the startup check requires /coverage-audit');
-  mustMatch(read('install', 'lib', 'updater.js'), /'agents\/coverage-auditor-agent\.md'/, 'the installer verifies the auditor');
 });

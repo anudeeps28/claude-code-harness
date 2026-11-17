@@ -10,14 +10,18 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
+// What the agents' files say (their `model:` line, tracker-helper) is asserted in agents/__tests__/agent-text.test.js
+// against the expected models below; what /debug and /coverage-audit say about their own Agent calls is asserted
+// in their own __tests__. A test of /implement reads only /implement, rules/ and (through interfaceOf) Interfaces.
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const OWN = path.join(__dirname, '..');
 // CRLF on a Windows checkout would break every pattern that spans a line end.
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
-const tryRead = (...p) => { try { return read(...p); } catch { return null; } };
+const read = (...p) => fs.readFileSync(path.join(OWN, ...p), 'utf8').replace(/\r\n/g, '\n');
+const readRule = (name) => fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8').replace(/\r\n/g, '\n');
 const flat = (s) => s.replace(/\s+/g, ' ');
 const { readRequired } = require('../bin/startup-check.js');
 
-const SKILL = read('skills', 'implement', 'SKILL.md');
+const SKILL = read('SKILL.md');
 const TABLE_HEADING = '## Which model each job runs on';
 
 function section(content, heading) {
@@ -72,8 +76,6 @@ const defaultRows = (rows) => {
 
 const realTable = () => parseTable(section(SKILL, TABLE_HEADING));
 
-// Built-in agents that are not files.
-const BUILT_IN = new Set(['Explore']);
 
 // Opus only where judgement is: understanding and researching, the Feature plan, the security,
 // architecture, acceptance and "made false" reviews, the coverage audit, and debugging.
@@ -171,13 +173,13 @@ test('Model_SkillFrontmatterIsSonnet', () => {
 
 // ── AC2 ───────────────────────────────────────────────────────────────
 
-// The set is derived, never listed: every agent /implement requires, plus every agent a skill that
-// /implement invokes spawns by name.
+// The set is derived, never listed: every agent /implement requires, plus the agent each skill that
+// /implement invokes spawns. A skill's own test (skills/<skill>/__tests__/agent-calls.probe.test.js) asserts
+// which agent its SKILL.md spawns and that every call passes its model; the pair is written here.
+const HANDED_OFF = { debug: 'debug-agent', 'coverage-audit': 'coverage-auditor-agent' };
 function derivedAgents() {
   const names = new Set(readRequired().filter((r) => r.kind === 'agent').map((r) => r.name));
-  for (const skill of ['debug', 'coverage-audit']) {
-    for (const m of read('skills', skill, 'SKILL.md').matchAll(/Spawn a \*\*`([a-z0-9-]+)`\*\*/g)) names.add(m[1]);
-  }
+  for (const agent of Object.values(HANDED_OFF)) names.add(agent);
   return names;
 }
 
@@ -224,12 +226,10 @@ test('Model_EveryAgentCallPassesItsModel', () => {
   assert.ok(!SKILL.includes('not a spawn)'), 'no "not a spawn" marker: a mention without a spawn verb needs none');
   const bad = callsWithoutModel(outside, table.rows);
   assert.deepStrictEqual(bad, [], `AC2: every Agent call must pass its model explicitly; these sentences do not: ${bad.join(' // ')}`);
-  // The other skills /implement hands off to spawn agents too.
-  for (const skill of ['debug', 'coverage-audit']) {
-    const t = read('skills', skill, 'SKILL.md');
-    assert.ok(spawnUnits(t).some((u) => SPAWN_VERB.test(u) && table.rows.some((r) => u.includes('`' + r.agent + '`'))), `companion: skills/${skill}/SKILL.md must spawn a table agent`);
-    const b = callsWithoutModel(t, table.rows);
-    assert.deepStrictEqual(b, [], `AC2: every Agent call in skills/${skill}/SKILL.md must pass its model; these do not: ${b.join(' // ')}`);
+  // The other skills /implement hands off to spawn agents too: each one's own test checks its own SKILL.md,
+  // against the model it expects for the agent. The table must say the same.
+  for (const [skill, agent] of Object.entries(HANDED_OFF)) {
+    assert.ok(table.rows.some((r) => r.agent === agent && r.model === 'opus'), `AC2: the table lists ${agent} (started by /${skill}) on opus`);
   }
 });
 
@@ -266,26 +266,21 @@ test('Model_FeaturePanelRowsMatchTheTable', () => {
 test('Model_EachAgentFileMatchesItsDefaultRow', () => {
   const planted = defaultRows(parseTable(PLANTED_TABLE).rows);
   assert.strictEqual(planted.get('story-builder'), 'opus', 'the default is the first row');
-  assert.notStrictEqual(fileModel(read('agents', 'story-builder.md')), planted.get('story-builder'), 'a table that says opus for the sonnet builder must disagree with its file');
+  // A hand-written pin of the table's default rows. The agent files are pinned in agents/__tests__/agent-text.test.js;
+  // the one comparison of file against table is scripts/__tests__/boundaries-models.test.js.
+  const EXPECTED_MODELS = {
+    'story-understand-agent': 'opus', 'implement-planner-agent': 'opus', Explore: 'opus', 'story-builder': 'sonnet',
+    'suite-runner': 'sonnet', 'story-reviewer': 'sonnet', 'evaluator-agent': 'opus', 'acceptance-test-agent': 'opus',
+    'architect-reviewer-agent': 'opus', 'security-reviewer-agent': 'opus', 'loosened-reviewer-agent': 'sonnet',
+    prover: 'sonnet', 'coverage-auditor-agent': 'opus', 'debug-agent': 'opus', 'story-pr-agent': 'sonnet', 'tracker-helper': 'haiku',
+  };
+  assert.notStrictEqual(EXPECTED_MODELS['story-builder'], planted.get('story-builder'), 'a table that says opus for the sonnet builder must disagree with the expected model');
 
   const table = realTable();
   assert.ok(table.rows.length > 0, 'AC3: the table must exist');
   const defaults = defaultRows(table.rows);
-  const drift = [];
-  let compared = 0;
-  for (const [agent, model] of defaults) {
-    const text = tryRead('agents', `${agent}.md`);
-    if (text === null) {
-      if (!BUILT_IN.has(agent)) drift.push(`${agent}: no agents/${agent}.md`);
-      continue;
-    }
-    compared++;
-    if (fileModel(text) !== model) drift.push(`${agent}: table says ${model}, file says ${fileModel(text)}`);
-  }
-  assert.ok(compared >= 10, `companion: at least 10 agent files must be compared (got ${compared})`);
-  assert.deepStrictEqual(drift, [], `AC3/AC6: agent models must match the table: ${drift.join('; ')}`);
+  assert.deepStrictEqual(Object.fromEntries(defaults), EXPECTED_MODELS, 'AC3/AC6: the table\'s default rows must say the models the agent files carry');
   for (const a of ['story-understand-agent', 'implement-planner-agent']) {
-    assert.strictEqual(fileModel(read('agents', `${a}.md`)), 'opus', `AC3: ${a} stays opus`);
     assert.strictEqual(defaults.get(a), 'opus', `AC3: the table says ${a} is opus`);
   }
 });
@@ -319,26 +314,8 @@ test('Model_OpusOnlyWhereJudgementIs', () => {
 
 // ── AC4 ───────────────────────────────────────────────────────────────
 
-const helperRunsGivenCommands = (t) => /\bonly\b[^.\n]*commands? (you are|it is|you were) given/i.test(flat(t)) || /runs?[^.\n]*\bthe given\b[^.\n]*commands?/i.test(flat(t));
-const helperReadsBack = (t) => /\bread[s]? (it |each one |the (item|card|file) )?back\b/i.test(flat(t));
-const helperNeverImprovises = (t) => /\bnever\b[^.\n]*\b(improvis|another command|other command|substitut)/i.test(flat(t));
-const AGENT_SENTENCE =
-  'Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).';
-
-test('TrackerHelper_HaikuRunsGivenCommandsReportsReadBack', () => {
-  const opposite = '---\nname: tracker-helper\nmodel: opus\n---\nThink up the best command for the job and run it. Trust the write; do not look at it again.';
-  assert.ok(!helperRunsGivenCommands(opposite) && !helperReadsBack(opposite) && !helperNeverImprovises(opposite), 'planted "improvise and trust" text must be rejected');
-
-  const t = tryRead('agents', 'tracker-helper.md');
-  assert.ok(t, 'AC4: agents/tracker-helper.md must exist');
-  assert.strictEqual(fileModel(t), 'haiku', 'AC4: tracker-helper runs on haiku');
-  assert.ok(helperRunsGivenCommands(t), 'AC4: it runs only the adapter commands it is given');
-  assert.ok(helperReadsBack(t), 'AC4: it reads back what it wrote and reports it');
-  assert.ok(helperNeverImprovises(t), 'AC4: it never improvises another command');
-  assert.ok(/trackers\/active/.test(t), 'AC4: it names the trackers/active adapter scripts');
-  assert.ok(flat(t).includes(AGENT_SENTENCE), 'it reports a STATUS line first');
-  assert.ok(/^tools:\s*.*\bBash\b/m.test(frontmatter(t)), 'it needs Bash to run the adapter commands');
-});
+// TrackerHelper_HaikuRunsGivenCommandsReportsReadBack reads tracker-helper's own file: it lives in
+// agents/__tests__/agent-text.test.js. The table's tracker-helper row is checked with the rest above.
 
 // every set-status.sh / create-issue.sh mention outside the Required-tools entry sits in a paragraph naming tracker-helper
 function movesWithoutHelper(text, script = 'set-status\\.sh') {
@@ -391,7 +368,7 @@ test('Retry_BlockedNeedingReasoningRelaunchesOnOpusOnce', () => {
   assert.ok(!retryOnOpus(OPPOSITE_RETRY), 'planted "never on opus, unchanged" must be rejected');
   assert.ok(!retryOnOpus('A BLOCKED job is relaunched.'), 'a bare relaunch must be rejected');
 
-  const rule = read('rules', 'agent-handoff.md');
+  const rule = readRule('agent-handoff.md');
   assert.ok(/more reasoning[^.\n]*relaunch[^.\n]*fresh[^.\n]*opus[^.\n]*told what the first attempt tried/i.test(flat(rule)), 'AC5: the rule says relaunch fresh on opus, told what the first attempt tried');
   assert.ok(retryOnOpus(SKILL), 'AC5: SKILL.md must say a BLOCKED job that needs more reasoning is relaunched once on opus, told what the first attempt tried');
   assert.ok(SKILL.includes('rules/agent-handoff.md'), 'AC5: and point at rules/agent-handoff.md');
@@ -437,7 +414,7 @@ test('Resume_OfAnUnapprovedFeaturePlanIsTheApproval', () => {
   assert.ok(!featureOk('When plan-approved: no in phase: planning, that resume is the approval, whether or not the gate was shown.'), 'planted approval without the gate-shown condition must be rejected');
   assert.ok(featureOk(section(SKILL, '### Resume a Feature')), 'Resume a Feature must approve only a shown gate, and show the gate again otherwise');
   assert.ok(/gate-shown=yes/.test(flat(section(SKILL, '### Plan the Feature'))), 'Plan the Feature must record gate-shown=yes when the gate is printed');
-  const script = read('skills', 'implement', 'bin', 'feature-state.js');
+  const script = read('bin', 'feature-state.js');
   assert.ok(/gate-shown'\] === 'yes'/.test(script) && script.includes("out('approve:") && script.includes("out('show-gate:"), 'feature-state.js resume prints approve only after a shown gate, else show-gate');
 });
 
