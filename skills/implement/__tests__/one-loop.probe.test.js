@@ -13,14 +13,19 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const exists = (...p) => fs.existsSync(path.join(REPO_ROOT, ...p));
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+// Whole-repo questions (no instruction file names a retired thing; hooks/ and scripts/ files are gone) are asked in
+// scripts/__tests__/boundaries-repo.test.js. Whether an agent or a skill folder is gone is read from the folder listing.
+const agentFiles = () => fs.readdirSync(path.join(REPO_ROOT, 'agents'));
+const skillFolders = () => fs.readdirSync(path.join(REPO_ROOT, 'skills'));
+const readOwn = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8').replace(/\r\n/g, '\n');
+const readRule = (name) => fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8').replace(/\r\n/g, '\n');
+const readExample = (name) => fs.readFileSync(path.join(REPO_ROOT, 'examples', name), 'utf8').replace(/\r\n/g, '\n');
 // assert.match dumps the whole haystack on failure; these keep the message and drop it.
 const must = (text, re, message) => assert.ok(re.test(text), message);
 const mustNot = (text, re, message) => assert.ok(!re.test(text), message);
 const flat = (t) => String(t).replace(/[*`]/g, '').replace(/\s+/g, ' ');
 
-const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
+const IMPLEMENT = readOwn('SKILL.md');
 
 // The text from `heading` to the next heading of the same or a higher level, ignoring ``` blocks.
 function section(content, heading) {
@@ -48,30 +53,6 @@ function between(content, from, to) {
   return b === -1 ? null : content.slice(a, b);
 }
 
-// Every markdown file the build skill and its agents are made of: agents/, rules/, skills/ (not
-// their tests), README.md and CONTRIBUTING.md. History files (CHANGELOG, ADRs, the retirement
-// inventory) are skipped because they say what used to be.
-function instructionFiles() {
-  const out = [];
-  const walk = (rel) => {
-    for (const e of fs.readdirSync(path.join(REPO_ROOT, rel), { withFileTypes: true })) {
-      const next = `${rel}/${e.name}`;
-      if (e.isDirectory()) { if (e.name !== '__tests__' && e.name !== 'node_modules') walk(next); continue; }
-      if (e.name.endsWith('.md')) out.push(next);
-    }
-  };
-  ['agents', 'rules', 'skills'].forEach(walk);
-  out.push('README.md', 'CONTRIBUTING.md');
-  return out;
-}
-
-function hitsIn(re, files = instructionFiles()) {
-  const hits = [];
-  for (const f of files) {
-    read(...f.split('/')).split('\n').forEach((line, i) => { if (re.test(line)) hits.push(`${f}:${i + 1}`); });
-  }
-  return hits;
-}
 
 // ── AC1: the standalone run is the story loop ─────────────────────────────────────────────────────
 
@@ -146,11 +127,7 @@ test('Standalone_PlanIsOneStorySection_NoTaskXml', () => {
   must(skill, /proof-check\.js"?[^\n]*--story <id>/, 'the proof check runs with --story <id>');
   must(skill, /slug/i, 'a plain description uses its slug as the id');
 
-  const planner = read('agents', 'implement-planner-agent.md');
-  assert.ok(noTaskXml(planner), 'the planner emits no task XML, waves or verify blocks');
-  mustNot(planner, /Execution Plan|must_fail/, 'the planner has no Execution Plan and no must_fail');
-  must(planner, /^## Plan format/m, 'the planner has one "Plan format" for a Feature and a single story');
-  must(flat(planner), /single story[^.]{0,160}one section|one section[^.]{0,160}single story/i, 'a single story is one section');
+  // What the planner's own file says is asserted in agents/__tests__/agent-text-one-loop.test.js.
 });
 
 // ── AC2: a bug is always test first, and its red line is recorded before the fix ──────────────────
@@ -162,7 +139,7 @@ test('Bug_FailingTestAndRedLineBeforeTheFix', () => {
   must(flat(loop), /verbatim[^.]{0,120}suite-runner|suite-runner[^.]{0,200}verbatim/i, 'the red line is the suite-runner\'s verbatim line, not the builder\'s own run');
   must(flat(IMPLEMENT), /a bug's first test reproduces the bug/i, 'a bug\'s first test reproduces the bug');
   assert.ok(!flat('a bug is fixed code first, then a test.').match(/bug's first test reproduces/i), 'planted opposite is rejected');
-  assert.ok(!exists('agents', 'story-executor-agent.md'), 'the text no longer sits in the executor\'s Step 3.5');
+  assert.ok(!agentFiles().includes('story-executor-agent.md'), 'the text no longer sits in the executor\'s Step 3.5');
 });
 
 // ── AC3: the flags work on the loop ───────────────────────────────────────────────────────────────
@@ -212,26 +189,15 @@ test('TestFirstMode_EveryStoryIsTestFirst', () => {
 test('Progress_OneTodoItemPerStory', () => {
   const onePerStory = (t) => /one TodoWrite item per story/i.test(flat(t)) && !/item per task/i.test(flat(t));
   assert.ok(!onePerStory('One TodoWrite item per task/step in the plan.'), 'planted opposite is rejected');
-  const rule = read('rules', 'progress-tracking.md');
+  const rule = readRule('progress-tracking.md');
   assert.ok(onePerStory(rule), 'progress-tracking.md: one TodoWrite item per story, plus the phases after it');
   mustNot(rule, /`<task>`|<verify>|\bwaves?\b|\(verified\)|reopened/, 'no per-task statuses or waves');
 });
 
 // ── AC4: the executor, the wave rules it needed and the plan-lint hook are retired ───────────────
 
-test('NothingNamesTheExecutor', () => {
-  const re = /story-executor-agent/;
-  assert.ok(re.test('spawn a story-executor-agent'), 'the pattern finds the name');
-  const files = instructionFiles();
-  assert.ok(files.length >= 20, `companion: at least 20 files were read (${files.length})`);
-  assert.deepEqual(hitsIn(re, files), [], 'no agent, rule, skill, README or CONTRIBUTING line names the executor');
-});
-
-test('MustFailAndWaves_NoLongerExistInTheInstructions', () => {
-  const files = instructionFiles();
-  assert.ok(files.length >= 20, `companion: at least 20 files were read (${files.length})`);
-  assert.deepEqual(hitsIn(/must_fail|parallel_group/, files), [], 'no must_fail or parallel_group in any instruction file');
-});
+// NothingNamesTheExecutor and MustFailAndWaves_NoLongerExistInTheInstructions scan every instruction file of
+// every module: they are in scripts/__tests__/boundaries-repo.test.js.
 
 // What a rule file about a shared working directory has to keep, and what it must have lost.
 function waveRuleProblems(text) {
@@ -252,8 +218,8 @@ function waveRuleProblems(text) {
 test('Executor_RetiredAndWaveRulesKeepOnlyWhatIsTrue', () => {
   const opposite = 'Wave agents run with `isolation: "worktree"` and a must_fail task runs alone in its wave.';
   assert.ok(waveRuleProblems(opposite).length >= 3, 'planted opposite text is rejected');
-  assert.ok(!exists('agents', 'story-executor-agent.md'), 'agents/story-executor-agent.md is deleted');
-  const rule = read('rules', 'wave-execution.md');
+  assert.ok(!agentFiles().includes('story-executor-agent.md'), 'agents/story-executor-agent.md is deleted');
+  const rule = readRule('wave-execution.md');
   assert.ok(rule.length > 500, 'companion: the rule file was read');
   // Planted: the real rule with the Feature-run exception sentence taken out.
   const withoutException = rule.replace(/A marker with a `feature:` key is a Feature run[^]*?counted as dirty for this check\./, '');
@@ -264,46 +230,27 @@ test('Executor_RetiredAndWaveRulesKeepOnlyWhatIsTrue', () => {
 });
 
 test('PlanLint_Retired', () => {
-  for (const f of [
-    ['hooks', 'plan-lint-check.js'], ['hooks', 'lib', 'plan-lint.js'],
-    ['hooks', '__tests__', 'plan-lint.test.js'], ['hooks', '__tests__', 'plan-lint-check.test.js'],
-    ['scripts', 'tdd-rig.js'],
-  ]) assert.ok(!exists(...f), `${f.join('/')} is deleted`);
-
-  const { buildSettings } = require('../../../install/lib/substitution.js');
-  const settings = JSON.stringify(buildSettings({ hooksUnix: '/h', sessionStartMsg: 'hi', workRoot: '', isGlobal: false }));
-  must(settings, /catalog-trigger\.js/, 'companion: the generated settings were read');
-  mustNot(settings, /plan-lint/, 'buildSettings registers no plan-lint hook');
-  must(read('examples', 'settings.json'), /catalog-trigger\.js/, 'companion: the example settings were read');
-  mustNot(read('examples', 'settings.json'), /plan-lint/, 'examples/settings.json has no plan-lint hook');
-  must(read('hooks', 'README.md'), /catalog-trigger\.js/, 'companion: the hooks README was read');
-  mustNot(read('hooks', 'README.md'), /plan-lint/, 'hooks/README.md has no plan-lint row');
+  // The hooks and scripts files that are gone are asserted in scripts/__tests__/boundaries-repo.test.js.
+  // The generated settings (install) and the hooks README (hooks) are asserted in those modules' own tests:
+  // install/__tests__/required-agents.test.js and hooks/__tests__/plan-lint-retired.test.js.
+  must(readExample('settings.json'), /catalog-trigger\.js/, 'companion: the example settings were read');
+  mustNot(readExample('settings.json'), /plan-lint/, 'examples/settings.json has no plan-lint hook');
 });
 
+// The story-pr-agent's own file is asserted in agents/__tests__/agent-text-one-loop.test.js.
 test('PrAgent_DraftsTheBodyOnly_TheLoopMakesTheCommits', () => {
-  const t = flat(read('agents', 'story-pr-agent.md'));
   assert.ok(/one commit per (completed )?task/i.test('One commit per completed task.'), 'the pattern finds the old rule');
-  assert.ok(t.length > 500, 'companion: the agent file was read');
-  mustNot(t, /one commit per (completed )?task/i, 'no "one commit per task"');
-  mustNot(t, /mark(s)? delivered tasks done/i, 'no "tasks done in the plan"');
 });
 
 // ── /troubleshoot is retired in this story (plan gate answer 4) ──────────────────────────────────
 
 test('Troubleshoot_SkillAndInvestigatorAreGone', () => {
-  assert.ok(exists('skills', 'debug', 'SKILL.md'), 'companion: /debug, where failures go instead, exists');
-  assert.ok(!exists('skills', 'troubleshoot'), 'skills/troubleshoot/ is deleted');
-  assert.ok(!exists('agents', 'troubleshoot-investigator.md'), 'agents/troubleshoot-investigator.md is deleted');
+  assert.ok(skillFolders().includes('debug'), 'companion: /debug, where failures go instead, exists');
+  assert.ok(!skillFolders().includes('troubleshoot'), 'skills/troubleshoot/ is deleted');
+  assert.ok(!agentFiles().includes('troubleshoot-investigator.md'), 'agents/troubleshoot-investigator.md is deleted');
 });
 
-test('Troubleshoot_NothingSendsWorkToIt', () => {
-  const re = /\/troubleshoot(?![\w-])|troubleshoot-investigator|skills\/troubleshoot/;
-  assert.ok(re.test('route behavioral gaps to `/troubleshoot`.'), 'the pattern finds a route to it');
-  assert.ok(!re.test('see TROUBLESHOOTING.md and /troubleshooting notes'), 'the pattern leaves the troubleshooting guide alone');
-  const files = instructionFiles();
-  assert.ok(files.length >= 20, `companion: at least 20 files were read (${files.length})`);
-  assert.deepEqual(hitsIn(re, files), [], 'no skill, agent, rule, README or CONTRIBUTING line names /troubleshoot or its investigator');
-});
+// Troubleshoot_NothingSendsWorkToIt scans every instruction file: it is in scripts/__tests__/boundaries-repo.test.js.
 
 test('Troubleshoot_E2eGateRoutesToDebugAndProverDiagnose', () => {
   const gate = (t) => {

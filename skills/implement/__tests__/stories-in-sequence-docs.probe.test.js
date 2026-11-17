@@ -10,7 +10,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+const strip = (text) => text.replace(/\r\n/g, '\n');
+// What this probe may read: /implement's own files, rules/, docs/ and the root documents. The installer's required
+// list (install/lib/updater.js) is asserted in install/__tests__/required-agents.test.js.
+const readOwn = (...p) => strip(fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8'));
+const readRule = (name) => strip(fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8'));
+const readDocs = (...p) => strip(fs.readFileSync(path.join(REPO_ROOT, 'docs', ...p), 'utf8'));
+const readRoot = {
+  readme: () => strip(fs.readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8')),
+  architecture: () => strip(fs.readFileSync(path.join(REPO_ROOT, 'ARCHITECTURE.md'), 'utf8')),
+  configure: () => strip(fs.readFileSync(path.join(REPO_ROOT, 'CONFIGURE.md'), 'utf8')),
+  changelog: () => strip(fs.readFileSync(path.join(REPO_ROOT, 'CHANGELOG.md'), 'utf8')),
+};
 
 // One level-2 section, from its heading to the next level-2 heading (fenced blocks are skipped over).
 function section(content, headingPrefix) {
@@ -54,7 +65,7 @@ test('Adr0005_RecordsTheDecisionAndWhy', () => {
   const file = adrFile('0005');
   assert.ok(file, 'docs/adr/0005-*.md must exist');
   assert.match(file, /stories-in-sequence/, 'ADR-0005 is about stories in sequence');
-  const adr = read('docs', 'adr', file);
+  const adr = readDocs('adr', file);
   assert.ok(adr.length > 300, 'the ADR was read');
   assert.ok(isAccepted(adr), 'ADR-0005 status is accepted');
   assert.ok(namesTokenCost(adr), 'it records the token cost as the reason');
@@ -68,7 +79,7 @@ test('Adr0002And0003_SupersededNotDeleted', () => {
   for (const n of ['0002', '0003']) {
     const file = adrFile(n);
     assert.ok(file, `docs/adr/${n}-*.md must still exist (never deleted)`);
-    const adr = read('docs', 'adr', file);
+    const adr = readDocs('adr', file);
     assert.ok(adr.length > 300, `${file} body is kept`);
     assert.ok(isSupersededByAdr0005(adr), `${file}: status line must be "superseded by ADR-0005 (2026-11-03)"`);
   }
@@ -118,7 +129,7 @@ test('Architecture_SectionsDescribeStoriesInSequence', () => {
   const renamed = ARCH_SECTIONS.map(([p]) => `${p}Something else\nclean\n`).join('\n');
   assert.equal(architectureProblems(renamed).length, ARCH_SECTIONS.length, 'planted renamed sections are reported missing');
 
-  const arch = read('ARCHITECTURE.md');
+  const arch = readRoot.architecture();
   assert.ok(arch.length > 5000, 'ARCHITECTURE.md was read');
   assert.deepStrictEqual(architectureProblems(arch), [], 'sections 1-5 and 8 must not describe story worktrees, runners, merge-tested or the width setting');
 
@@ -164,15 +175,15 @@ test('Rules_NoStoryWorktreeOrPerStoryLog', () => {
   for (const must of ['autonomous-mode.md', 'background-work.md', 'phase-markers.md', 'wave-execution.md', 'git-worktrees.md', 'agent-handoff.md']) {
     assert.ok(names.includes(must), `the scan found rules/${must}`);
   }
-  const files = names.map((f) => [`rules/${f}`, read('rules', f)]);
+  const files = names.map((f) => [`rules/${f}`, readRule(f)]);
   assert.ok(files.every(([, t]) => t.length > 200), 'every rule file was read');
   assert.deepStrictEqual(ruleProblems(files), []);
 
   // And what each must now say.
-  const wave = read('rules', 'wave-execution.md');
+  const wave = readRule('wave-execution.md');
   assert.match(wave, /Do not spawn them with `isolation: "worktree"`/, 'wave isolation is still named and forbidden');
-  assert.match(read('rules', 'git-worktrees.md'), /Feature worktree/, 'git-worktrees names the Feature worktree');
-  const auto = read('rules', 'autonomous-mode.md');
+  assert.match(readRule('git-worktrees.md'), /Feature worktree/, 'git-worktrees names the Feature worktree');
+  const auto = readRule('autonomous-mode.md');
   assert.match(auto, /Feature run[\s\S]{0,500}tasks\/features\/<fid>\/decisions-log\.md/, 'a Feature run keeps its log in tasks/features/<fid>/');
   assert.match(auto, /#<sid>:/, 'each line is prefixed with #<sid>:');
 });
@@ -250,7 +261,7 @@ test('ReadmeIndexChangelog_NewFeatureBuild', () => {
   assert.equal(featureEntry('## [Unreleased]\n\n- **Other: x**\n\n## [1.0.0]\n- **Feature #72: old**'), null,
     'planted: an entry only in a released section is not found');
 
-  const docs = [['README.md', read('README.md')], ['docs/index.html', read('docs', 'index.html')], ['CONFIGURE.md', read('CONFIGURE.md')]];
+  const docs = [['README.md', readRoot.readme()], ['docs/index.html', readDocs('index.html')], ['CONFIGURE.md', readRoot.configure()]];
   assert.ok(docs.every(([, t]) => t.length > 1000), 'every doc was read');
   const hits = proseProblems(docs);
   assert.deepStrictEqual(hits, [], `old Feature-build prose:\n${hits.join('\n')}`);
@@ -260,7 +271,7 @@ test('ReadmeIndexChangelog_NewFeatureBuild', () => {
   assert.deepStrictEqual(mermaidProblems(readme), [], 'README diagram shows the new build');
 
   // Only the Feature #72 changelog entry is checked; older ones are history.
-  const log = read('CHANGELOG.md');
+  const log = readRoot.changelog();
   const first = featureEntry(log);
   assert.ok(first, 'the Unreleased section has a "Feature #72" entry');
   assert.match(first, /one after another|in sequence/i, 'newest entry: stories one after another');
@@ -280,36 +291,17 @@ function tableAgents(skill) {
   return [...names];
 }
 
-function requiredList(updaterSource) {
-  const from = updaterSource.indexOf('const required = [');
-  const to = updaterSource.indexOf('];', from);
-  assert.ok(from > -1 && to > from, 'updater.js has verifyInstall required list');
-  // Comment lines hold apostrophes, so drop them before reading the quoted paths.
-  const body = updaterSource.slice(from, to).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
-  return [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
-}
-
-function missingFromRequired(agents, required) {
-  return agents.filter((a) => !required.includes(`agents/${a}.md`));
-}
-
 test('Installer_NewAgentsAndRuleRequired_RunnerRetired', () => {
-  // The check first, on a planted list that lacks an agent.
-  assert.deepStrictEqual(missingFromRequired(['prover', 'story-builder'], ['agents/prover.md']), ['story-builder'], 'a missing agent is reported');
-
-  const agents = tableAgents(read('skills', 'implement', 'SKILL.md'));
+  const agents = tableAgents(readOwn('SKILL.md'));
   for (const a of ['story-builder', 'story-reviewer', 'suite-runner', 'prover', 'tracker-helper', 'story-understand-agent', 'coverage-auditor-agent']) {
     assert.ok(agents.includes(a), `the table scan found ${a}`);
   }
   assert.ok(agents.length >= 15, `the table scan found the agents: ${agents.length}`);
-  const required = requiredList(read('install', 'lib', 'updater.js'));
-  assert.ok(required.includes('skills/implement/SKILL.md'), 'the required list was read');
-  assert.deepStrictEqual(missingFromRequired(agents, required), [], 'every agent in the model table must be in verifyInstall required');
-  assert.ok(required.includes('rules/agent-handoff.md'), 'rules/agent-handoff.md is required');
-
-  // The runner is retired, not required.
-  const { RETIRED_AGENTS } = require('../../../install/lib/updater.js');
-  assert.ok(RETIRED_AGENTS.includes('story-runner-agent.md'), 'story-runner-agent.md is in RETIRED_AGENTS');
-  assert.ok(!required.includes('agents/story-runner-agent.md'), 'story-runner-agent.md is not required');
+  // Every agent the table names is a real agent file (found by listing the folder).
+  const files = new Set(fs.readdirSync(path.join(REPO_ROOT, 'agents')));
+  assert.deepStrictEqual(agents.filter((a) => !files.has(`${a}.md`)), [], 'every agent in the model table is a file in agents/');
+  // The installer's own required list (verifyInstall) is read in install/__tests__/required-agents.test.js, which
+  // asserts that every agent file in agents/ is required unless it belongs to no /implement run; the planted-list
+  // check, the retired runner and rules/agent-handoff.md are asserted there too.
   assert.ok(!agents.includes('story-runner-agent'), 'the model table no longer lists the runner');
 });

@@ -11,7 +11,8 @@ const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 // CRLF on a Windows checkout would break every pattern that spans a line end.
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+const readRuleFile = (name) => fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8').replace(/\r\n/g, '\n');
+const readOwn = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8').replace(/\r\n/g, '\n');
 const flat = (s) => s.replace(/\s+/g, ' ');
 const { readRequired } = require('../bin/startup-check.js');
 
@@ -33,7 +34,7 @@ function section(content, heading) {
 }
 
 function readRule() {
-  try { return read('rules', 'agent-handoff.md'); } catch { return null; }
+  try { return readRuleFile('agent-handoff.md'); } catch { return null; }
 }
 
 // The table rows of the rule that name a status: the per-status predicates run against these only,
@@ -59,10 +60,6 @@ const noStatusIsConcerns = (t) =>
   /\b(no|without|missing)\b[^.\n]*status line[^.\n]*\b(counts as|treated as|is treated as)\b[^.\n]*DONE_WITH_CONCERNS/i.test(flat(t));
 // never relaunch the same brief unchanged on the same model
 const neverSameBriefSameModel = (t) => /\bnever\b[^.\n]*relaunch[^.\n]*same brief[^.\n]*same model[^.\n]*unchanged/i.test(flat(t));
-// the fixed sentence an agent file carries
-const AGENT_SENTENCE =
-  'Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).';
-const agentSaysStatusLine = (t) => flat(t).includes(AGENT_SENTENCE);
 // the main session never re-reads logs/transcript, re-runs commands, opens files (in that order)
 const neverReReads = (t) => {
   const sentences = flat(t).split(/(?<=\.)\s/);
@@ -92,8 +89,6 @@ const OPPOSITE_SKILL = [
   "The main session always re-reads the agent's logs and transcript, always re-runs its commands and always opens the files it wrote.",
   'It asks the agent to repeat the whole report.',
 ].join('\n');
-
-const OPPOSITE_AGENT = '## Your report\n\nYour report does not start with a status line; just write prose.\n';
 
 // ── AC1 ───────────────────────────────────────────────────────────────
 
@@ -139,20 +134,15 @@ test('Handoff_NoAgentIsRoutedByAResultBlock', () => {
 
 // ── AC3 / AC5 ─────────────────────────────────────────────────────────
 
-// The set is derived, never listed: every agent /implement requires, plus every agent a skill that
-// /implement invokes spawns by name.
+// The set is derived, never listed: every agent /implement requires (its "## Required tools" list names the
+// agents /debug and /coverage-audit spawn for it too). The sentence each agent file carries is asserted in
+// agents/__tests__/agent-text-handoff.test.js, because an agent's own text is checked there.
 function buildAgentSet() {
-  const names = new Set(readRequired().filter((r) => r.kind === 'agent').map((r) => r.name));
-  for (const skill of ['debug', 'coverage-audit']) {
-    const text = read('skills', skill, 'SKILL.md');
-    for (const m of text.matchAll(/Spawn a \*\*`([a-z0-9-]+)`\*\*/g)) names.add(m[1]);
-  }
-  return names;
+  return new Set(readRequired().filter((r) => r.kind === 'agent').map((r) => r.name));
 }
 
 test('Handoff_EveryAgentImplementStartsSaysItsReportStartsWithTheStatusLine', () => {
-  assert.ok(!agentSaysStatusLine(OPPOSITE_AGENT), 'planted agent text without the sentence must be rejected');
-
+  const boundaries = require('../../../scripts/lib/boundaries.js');
   const agents = buildAgentSet();
   assert.ok(agents.size >= 10, `the derived agent set must have at least 10 members (got ${agents.size}: ${[...agents].join(', ')})`);
   for (const name of ['story-understand-agent', 'implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent', 'loosened-reviewer-agent', 'coverage-auditor-agent', 'story-pr-agent', 'debug-agent', 'prover']) {
@@ -162,13 +152,11 @@ test('Handoff_EveryAgentImplementStartsSaysItsReportStartsWithTheStatusLine', ()
     assert.ok(!agents.has(gone), `the derived agent set must not include the retired ${gone}`);
   }
 
-  const missing = [];
+  // The agent's file is found through its Interface block (interfaceOf throws when the file is missing); the
+  // sentence in its body is asserted in agents/__tests__/agent-text-handoff.test.js.
   for (const name of agents) {
-    const file = path.join(REPO_ROOT, 'agents', `${name}.md`);
-    assert.ok(fs.existsSync(file), `agent file must exist: agents/${name}.md`);
-    if (!agentSaysStatusLine(read('agents', `${name}.md`))) missing.push(name);
+    assert.doesNotThrow(() => boundaries.interfaceOf(REPO_ROOT, `agents/${name}`), `agent file must exist: agents/${name}.md`);
   }
-  assert.deepStrictEqual(missing, [], `AC3/AC5: these agent files lack the status-line sentence: ${missing.join(', ')}`);
 });
 
 // ── AC4 ───────────────────────────────────────────────────────────────
@@ -177,9 +165,38 @@ test('Handoff_SkillActsOnTheShortResultAndNeverReReads', () => {
   assert.ok(!neverReReads(OPPOSITE_SKILL), 'planted "re-reads logs" text must be rejected');
   assert.ok(!asksNarrowerQuestion(OPPOSITE_SKILL), 'planted text without a narrower question must be rejected');
 
-  const skill = section(read('skills', 'implement', 'SKILL.md'), '## Work handed to agents');
+  const skill = section(readOwn('SKILL.md'), '## Work handed to agents');
   assert.ok(skill, 'AC4: SKILL.md must have a "## Work handed to agents" section');
   assert.ok(skill.includes('rules/agent-handoff.md'), 'AC4: the section must point at rules/agent-handoff.md');
   assert.ok(neverReReads(skill), "AC4: the section must say the main session never re-reads an agent's logs or transcript, re-runs its commands, or opens the files it wrote");
   assert.ok(asksNarrowerQuestion(skill), 'AC4: the section must say it asks one narrower question instead');
+});
+
+// ── AC1 / AC2 / AC5 (F2 story #6j2mgpH6529FcgJ2): the promise is read from the Interface blocks ────
+
+test("every agent's Interface Outputs starts with a STATUS line", () => {
+  const boundaries = require('../../../scripts/lib/boundaries.js');
+  const fixture = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'handoff-'));
+  try {
+    const block = (outputs) => `---\nname: x\nowner: shared\n---\n\n## Interface\n\n**Inputs:** a brief\n**Outputs:** ${outputs}\n**Callable parts:** none\n**Never breaks:** nothing\n\nSTATUS: DONE is in the body only.\n`;
+    fs.mkdirSync(path.join(fixture, 'agents'));
+    fs.writeFileSync(path.join(fixture, 'agents', 'good-agent.md'), block('Starts with the `STATUS:` line.'));
+    fs.writeFileSync(path.join(fixture, 'agents', 'bad-agent.md'), block('a free-text report'));
+    const planted = boundaries.checkAgentOutputs(fixture);
+    assert.equal(planted.length, 1, `exactly the agent without the promise is named, got ${JSON.stringify(planted)}`);
+    assert.ok(planted[0].includes('bad-agent.md'), 'the failure must name the agent whose Outputs lack STATUS:');
+  } finally {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
+
+  // The real agents this skill starts: the ones its own SKILL.md requires, never a list kept here. The check is the
+  // boundary family's own (checkAgentOutputs), asked about each required agent by name. The sweep over every agent
+  // in agents/ is its repo test (scripts/__tests__).
+  const names = readRequired().filter((r) => r.kind === 'agent').map((r) => r.name);
+  assert.ok(names.length >= 10, `the agents /implement requires were read (got ${names.length})`);
+  const problems = boundaries.checkAgentOutputs(REPO_ROOT);
+  for (const name of names) {
+    assert.doesNotThrow(() => boundaries.interfaceOf(REPO_ROOT, `agents/${name}`), `companion: agents/${name}.md exists`);
+    assert.deepStrictEqual(problems.filter((p) => p.startsWith(`agents/${name}.md:`)), [], `agents/${name} Interface Outputs must start with a STATUS line`);
+  }
 });

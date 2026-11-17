@@ -147,7 +147,10 @@ test('no reference to the old paths remains (AC20, AC22)', () => {
   try {
     out = execFileSync('git', ['grep', '-n', '-E', old, '--', '.',
       ':(exclude)install/lib/updater.js', ':(exclude)CHANGELOG.md', ':(exclude)install/__tests__/updater.test.js',
-      ':(exclude)tasks'], { cwd: repoRoot, encoding: 'utf8' });
+      // The frozen list of the titles and messages the reworked tests keep copies the updater test's own sentences.
+      ':(exclude)scripts/__tests__/probe-promises-rework-install.js',
+      // The updater test that compares the old file's base-release hash moved here (check 5), with its own sentences.
+      ':(exclude)scripts/__tests__/boundaries-repo.test.js', ':(exclude)tasks'], { cwd: repoRoot, encoding: 'utf8' });
   } catch (e) {
     if (e.status !== 1) throw e;
   }

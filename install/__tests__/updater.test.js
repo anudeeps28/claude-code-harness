@@ -390,16 +390,6 @@ test('Renamed_AnOldFileThatIsTheSourceWithItsPlaceholdersFilledInIsTheHarnessOwn
   }
 });
 
-test('Renamed_TheBaseReleaseHashOfHooksSecurityIsTheRealFilesHash', (t) => {
-  let base;
-  try {
-    base = execFileSync('git', ['show', '321f444:hooks/SECURITY.md'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] });
-  } catch { t.skip('the base release is not in this clone'); return; }
-  const entry = updater.RENAMED.find(([o]) => o === 'hooks/SECURITY.md');
-  assert.ok(entry && entry[2], 'hooks/SECURITY.md carries the hash of its base-release content');
-  assert.equal(entry[2], crypto.createHash('sha256').update(base).digest('hex'));
-});
-
 // ── through the installer: a removed call must turn these red ────────────────
 
 const REPO = path.resolve(__dirname, '..', '..');
@@ -419,10 +409,8 @@ const SUBSTITUTED_OLD = 'skills/local-test/examples/docker-compose-dotnet.yml';
 
 function installedProject() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'renamed-e2e-'));
-  const src = path.join(root, 'src');
-  for (const part of ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform', 'templates', 'VERSION', 'CHANGELOG.md']) {
-    if (fs.existsSync(path.join(REPO, part))) fs.cpSync(path.join(REPO, part), path.join(src, part), { recursive: true });
-  }
+  // The installer is handed the real repo as its source and reads it itself; this test checks only the output.
+  const src = REPO;
   const project = path.join(root, 'project');
   fs.mkdirSync(path.join(project, '.git'), { recursive: true });
   runInstallJs(['--yes', '--project', project, '--name', 'Tester', '--project-name', 'renamed', '--local', src], root);

@@ -11,7 +11,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+const strip = (text) => text.replace(/\r\n/g, '\n');
+const readOwn = (...p) => strip(fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8'));
+const readRule = (name) => strip(fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8'));
+const readDocs = (...p) => strip(fs.readFileSync(path.join(REPO_ROOT, 'docs', ...p), 'utf8'));
+const readArchitecture = () => strip(fs.readFileSync(path.join(REPO_ROOT, 'ARCHITECTURE.md'), 'utf8'));
 // Whitespace runs as one space and bold marks removed, so a wrapped phrase is one phrase.
 const flat = (t) => t.replace(/\*\*/g, '').replace(/\s+/g, ' ');
 
@@ -33,32 +37,15 @@ function slice(content, prefix) {
   return lines.slice(start, end).join('\n');
 }
 
-const SKILL = read('skills', 'implement', 'SKILL.md');
-const WAVE = read('rules', 'wave-execution.md');
-const WORKTREES = read('rules', 'git-worktrees.md');
-const PLANNER = read('agents', 'implement-planner-agent.md');
-// The agents that run build, test or Observe commands in a Feature run: every agent the SKILL's "Run the
-// stories" section names whose file gives it Bash and talks of build and tests. Derived, so a new such
-// agent is found here instead of being forgotten by a hand-kept list.
-const AGENTS = (() => {
-  // F73 #83: the story steps moved to "## The story loop", so the agents are named in either place.
-  const run = [slice(SKILL, '### Run the stories'), slice(SKILL, '## The story loop')].filter(Boolean).join('\n');
-  const named = [...new Set([...run.matchAll(/`([a-z][a-z-]+)`/g)].map((m) => m[1]))]
-    .filter((n) => fs.existsSync(path.join(REPO_ROOT, 'agents', `${n}.md`)));
-  const fromStories = named.filter((n) => {
-    const t = flat(read('agents', `${n}.md`));
-    return /^tools:.*\bBash\b/m.test(read('agents', `${n}.md`)) && /\bbuild\b/i.test(t) && /\btests?\b/i.test(t);
-  });
-  // F73 fix (A2): the review agents run the build and the tests too (the evaluator's Steps 2-3, the
-  // acceptance agent's Step 3). Any agent the SKILL names anywhere whose own steps say to run them is found here.
-  // Round 2 (F6): the feedback loop /debug and debug-agent run, and the architect reviewer's `Migrate
-  // forward:` command, are suite commands too, so the lock reaches them.
-  const RUNS = /Run the project (?:build|tests?)|<(?:build|test|unit test|integration test) command|\b(?:run|runs) the (?:build|tests?|test suite)\b|\bRun the feedback loop\b|`Migrate forward:` command/i;
-  const everyAgent = [...new Set([...SKILL.matchAll(/`([a-z][a-z-]+)`/g)].map((m) => m[1]))]
-    .filter((n) => fs.existsSync(path.join(REPO_ROOT, 'agents', `${n}.md`)))
-    .filter((n) => /^tools:.*\bBash\b/m.test(read('agents', `${n}.md`)) && RUNS.test(read('agents', `${n}.md`)));
-  return [...new Set([...fromStories, ...everyAgent])].sort();
-})();
+const SKILL = readOwn('SKILL.md');
+const WAVE = readRule('wave-execution.md');
+const WORKTREES = readRule('git-worktrees.md');
+// The agents the SKILL's "Shared test resources" paragraph gives the lock to, read from that paragraph (the one
+// this probe checks below). Whether they are the agents that run suites, by the agents' own text, is compared in
+// scripts/__tests__/boundaries-lock-agents.test.js: a new agent that runs a suite fails there until the
+// paragraph names it, so the paragraph cannot be forgotten.
+const { lockAgents } = require('./lock-paragraph.js');
+const AGENTS = lockAgents(SKILL, REPO_ROOT);
 
 // ── AC1: a Feature run's markers are not foreign work ────────────────
 
@@ -86,7 +73,7 @@ test('Sessions_FeatureMarkersAreNotForeignWork', () => {
   assert.ok(startup, 'wave-execution.md has "At skill startup"');
   assert.ok(featureMarkerNotForeign(startup), 'wave-execution.md: a `feature:` marker is not foreign work');
   assert.match(startup, /^- another story's `tasks\/stories\/<other-id>\/phase\.md` is fresh/m, 'the standalone bullet stays');
-  assert.match(read('rules', 'phase-markers.md'), /A marker written by an earlier run in this same directory is not foreign work/);
+  assert.match(readRule('phase-markers.md'), /A marker written by an earlier run in this same directory is not foreign work/);
 });
 
 // ── AC2: the claim runs first, and is never self-answered ────────────
@@ -155,8 +142,7 @@ test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
   const flatRun = flat(run);
   assert.match(flatRun, /Shared test resources/);
   assert.match(flatRun, /`verify-lock: global`/);
-  assert.equal(AGENTS.join(','), 'acceptance-test-agent,architect-reviewer-agent,debug-agent,evaluator-agent,prover,story-builder,suite-runner', 'the agents that run build, test, Observe, feedback-loop and migrate-forward commands are exactly these seven');
-  assert.equal(AGENTS.length, 7, 'companion: the derivation found seven, not none');
+  assert.ok(AGENTS.length >= 7, `companion: the paragraph names the agents that run suites, not none (got ${AGENTS.length}: ${AGENTS.join(', ')})`);
   assert.match(flatRun, /Test lock: node "<skill-dir>\/bin\/test-lock\.js" run --lock "<state>\/\.verify\.lock" --heartbeat "<state>\/features\/<fid>\/heartbeat" --/);
   assert.match(flatRun, /compound command[^.]*`a && b`[^.]*not wrapped[^.]*wrap each command/i, 'a compound command is not wrapped');
   assert.match(flatRun, /`per-story`\) passes none/, 'the default passes no lock');
@@ -166,31 +152,14 @@ test('Sessions_TestLockInTheBriefsAndInBuilderRunnerProver', () => {
   for (const name of AGENTS) assert.ok(shared[0].includes(`\`${name}\``), `the paragraph gives the lock to ${name}`);
   assert.match(shared[0], /`\/local-test` \(every level, e2e included\)/, 'and to /local-test, every level, e2e included');
   assert.match(shared[0], /`\/debug`/, 'and to /debug, whose feedback loop runs the suite');
-  // The skill that runs the feedback loop carries the same rule, in its own words.
-  const dbg = flat(read('skills', 'debug', 'SKILL.md'));
-  assert.match(dbg, /`Test lock:` prefix/, '/debug names the Test lock prefix');
-  assert.ok(/with it in front \(`<prefix> <command>`\)/.test(dbg), '/debug puts the prefix in front of each command');
-  assert.match(dbg, /compound command[^.]*`a && b`[^.]*not wrapped[^.]*wrap each/i);
-  assert.match(dbg, /never wrap a long-running start command[^.]*lock for the server's life/i);
+  // The skill that runs the feedback loop carries the same rule, in its own words: asserted in
+  // skills/debug/__tests__/test-lock-prefix.test.js.
   assert.match(flat(standaloneLock()), /`\/debug`/, 'the standalone paragraph passes the line to /debug too');
   const standalone = flat(slice(SKILL, '## The story loop') || '');
   assert.match(standalone, /Test lock:[\s\S]*every agent and skill that executes a suite/, 'the standalone paragraph passes it to every suite runner');
-  for (const name of AGENTS) {
-    const t = read('agents', `${name}.md`);
-    assert.match(t, /`Test lock:`/, `${name} names the Test lock prefix`);
-    assert.ok(prefixed(t), `${name} runs every build, test and Observe command with the prefix in front`);
-    assert.match(flat(t), /<prefix> <command>/, `${name} shows the shape`);
-    assert.match(flat(t), /compound command[^.]*`a && b`[^.]*(?:not|never) wrapped[^.]*wrap each/i, `${name}: a compound command is wrapped one command at a time`);
-    assert.match(flat(t), /(?:wait|waits) over 60 minutes \(exit 3\)[^.]*`STATUS: BLOCKED`[^.]*owner/i, `${name}: a lock wait over 60 minutes is BLOCKED with the owner`);
-    assert.match(flat(t), /never wrap a long-running start command[^.]*(?:"Start the app")?[^.]*lock for the server's life/i, `${name}: a long-running start command is never wrapped (A6)`);
-  }
-  // /local-test is a skill, not an agent: the same prefix rule, in its own words.
-  const lt = flat(read('skills', 'local-test', 'SKILL.md'));
-  assert.match(lt, /`Test lock:` prefix/, 'local-test names the Test lock prefix');
-  assert.ok(/with it in front \(`<prefix> <command>`\)/.test(lt), 'local-test puts the prefix in front of each command');
-  assert.match(lt, /every build, test and E2E command, at every level and in the e2e gate/, 'every level and the e2e gate');
-  assert.match(lt, /compound command[^.]*`a && b`[^.]*not wrapped[^.]*wrap each/i);
-  assert.match(lt, /never wrap a long-running start command[^.]*lock for the server's life/i, 'local-test: a long-running start command is never wrapped (A6)');
+  // Each agent's own file (the prefix, its shape, a compound command, the 60-minute wait, the start command) is
+  // asserted in agents/__tests__/agent-text-several-sessions.test.js, and /local-test's own words in
+  // skills/local-test/__tests__/test-lock-prefix.test.js.
   assert.ok(!/with it in front/.test('run the commands without a lock'), 'planted opposite is not accepted by the in-front check');
 });
 
@@ -201,7 +170,7 @@ test('Sessions_LongRunningStartCommandIsNeverWrapped', () => {
   assert.ok(never('Never wrap a long-running start command (the app\'s "Start the app"): it would hold the lock for the server\'s life.'), 'the claim itself is accepted');
   assert.ok(never(slice(SKILL, '### Run the stories')), 'SKILL Feature "Shared test resources"');
   assert.ok(never(slice(SKILL, '## The story loop')), 'SKILL standalone "Shared test resources"');
-  for (const a of ['story-builder', 'suite-runner', 'prover']) assert.ok(never(read('agents', `${a}.md`)), a);
+  // The agents' own files (story-builder, suite-runner, prover) are asserted in agents/__tests__/agent-text-several-sessions.test.js.
 });
 
 // ── AC5: the disk check is given the Feature ─────────────────────────
@@ -225,8 +194,7 @@ test('Sessions_NumberedFilesAreReserved', () => {
   assert.ok(claimsFree(plan), 'SKILL: a number free on the base branch and not named in another Feature\'s plan');
   assert.match(plan, /Reserves: ADR-<n>/);
   assert.match(flat(plan), /an ADR, a migration/);
-  assert.match(flat(PLANNER), /numbered file takes a number that no other `tasks\/features\/\*\/plan\.md` names/);
-  assert.match(PLANNER, /Reserves: <name>-<n>/);
+  // What the planner's own file says about numbered files is asserted in agents/__tests__/agent-text-several-sessions.test.js.
 });
 
 // ── AC1, AC2: the worktree rule ──────────────────────────────────────
@@ -254,7 +222,7 @@ test('Adr0006_OneSessionPerFeature_AcceptedWithWhy', () => {
   const dir = path.join(REPO_ROOT, 'docs', 'adr');
   const matches = fs.readdirSync(dir).filter((f) => /^0006-.*\.md$/.test(f));
   assert.equal(matches.length, 1, 'exactly one ADR-0006 file');
-  const t = read('docs', 'adr', matches[0]);
+  const t = readDocs('adr', matches[0]);
   assert.match(t, /^# ADR-0006 /m);
   assert.ok(accepted(t), 'ADR-0006 is accepted');
   const decision = slice(t, '## Decision');
@@ -269,12 +237,12 @@ test('Adr0006_OneSessionPerFeature_AcceptedWithWhy', () => {
 // ── the earlier ADRs and the architecture agree with ADR-0006 ────────
 
 test('Docs_EarlierAdrsAndArchitectureAgreeWithAdr0006', () => {
-  const adr = (prefix) => read('docs', 'adr', fs.readdirSync(path.join(REPO_ROOT, 'docs', 'adr')).find((f) => f.startsWith(prefix)));
+  const adr = (prefix) => readDocs('adr', fs.readdirSync(path.join(REPO_ROOT, 'docs', 'adr')).find((f) => f.startsWith(prefix)));
   assert.match(adr('0004-'), /^- \*\*Amended by ADR-0006 \(2026-11-04\):/m, 'ADR-0004 names the amendment');
   const a5 = flat(adr('0005-'));
   assert.doesNotMatch(a5, /not built yet/, 'ADR-0005 no longer says two Features at once is unbuilt');
   assert.match(a5, /one session per Feature/, 'ADR-0005 points to one session per Feature');
-  const row = read('ARCHITECTURE.md').split('\n').find((l) => /^\| 6 \| Verify lock/.test(l));
+  const row = readArchitecture().split('\n').find((l) => /^\| 6 \| Verify lock/.test(l));
   assert.ok(row, 'ARCHITECTURE.md has the verify lock row');
   // F73 fix (A7): the per-story lock is gone; the default takes no lock.
   assert.match(row, /default takes no lock/, 'the default takes no lock');

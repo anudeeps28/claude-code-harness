@@ -29,19 +29,20 @@ function mustMatch(content, re, message) {
   assert.ok(re.test(content), message);
 }
 
-function read(...parts) {
-  return fs.readFileSync(path.join(REPO_ROOT, ...parts), 'utf8').replace(/\r\n/g, '\n');
-}
+// This probe reads /implement's own files and rules/. What /tdd, the planner, the acceptance agent, the
+// tracker adapters, the hooks and the dogfood script say is asserted in their own modules' tests:
+// skills/tdd/__tests__/test-first-mode.test.js, agents/__tests__/agent-text-tdd-mode.test.js,
+// trackers/__tests__/type-line.test.js and hooks/__tests__/skill-shadowing-surfaced.test.js. The dogfood
+// script is used through the two exports its Interface lists.
+const readOwn = (...parts) => fs.readFileSync(path.join(__dirname, '..', ...parts), 'utf8').replace(/\r\n/g, '\n');
+const readRule = (name) => fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8').replace(/\r\n/g, '\n');
 
-const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
-const TDD_SKILL = read('skills', 'tdd', 'SKILL.md');
-const IMPLEMENT_PLANNER = read('agents', 'implement-planner-agent.md');
-const TEST_PHILOSOPHY = read('rules', 'test-philosophy.md');
+const IMPLEMENT = readOwn('SKILL.md');
+const TEST_PHILOSOPHY = readRule('test-philosophy.md');
 
-// One build skill and one planner since F7 (ADR-0001). The maps keep their names so each check below
-// reads the same as before; they now hold one file each.
+// One build skill since F7 (ADR-0001). The map keeps its name so each check below reads the same as before;
+// it now holds one file.
 const BOTH_SKILLS = { 'skills/implement/SKILL.md': IMPLEMENT };
-const BOTH_PLANNERS = { 'agents/implement-planner-agent.md': IMPLEMENT_PLANNER };
 
 function hardRules(content) {
   const idx = content.indexOf('## Hard rules');
@@ -95,36 +96,9 @@ test('D9_BugFixesAreTestFirstWithoutTheFlag', () => {
 // D10 — the tracker reports the item type
 // ---------------------------------------------------------------------------
 
-test('D10_EveryTrackerAdapterEmitsATypeLine', () => {
-  for (const tracker of ['ado', 'github', 'local', 'todoist']) {
-    const script = read('trackers', tracker, 'get-issue.sh');
-    mustMatch(
-      script,
-      /\*\*Type:\*\*/,
-      `trackers/${tracker}/get-issue.sh must emit a "**Type:**" line so the planner never guesses whether an item is a bug (D10)`
-    );
-  }
-});
-
-test('D10_PlannersReadTheTypeFromTheTrackerNotFromProse', () => {
-  for (const [name, content] of Object.entries(BOTH_PLANNERS)) {
-    mustMatch(
-      content,
-      /\bType:\B|tracker[^\n]*type|type[^\n]*tracker/i,
-      `${name} must take the item type from the tracker, not infer it from the description (D10)`
-    );
-  }
-});
-
-test('D10_AnUnknownTypeIsSafe', () => {
-  for (const [name, content] of Object.entries(BOTH_PLANNERS)) {
-    mustMatch(
-      content,
-      /unknown|empty|unavailable|cannot say|not set/i,
-      `${name} must state that an absent type behaves as today — only "bug" changes anything (D10)`
-    );
-  }
-});
+// The adapters' get-issue.sh (trackers) and the planner (agents) are asserted in trackers/__tests__/type-line.test.js
+// and agents/__tests__/agent-text-tdd-mode.test.js, under the same test names and messages:
+// D10_EveryTrackerAdapterEmitsATypeLine, D10_PlannersReadTheTypeFromTheTrackerNotFromProse and D10_AnUnknownTypeIsSafe.
 
 // ---------------------------------------------------------------------------
 // D11 — --quick does not skip test-first
@@ -142,32 +116,8 @@ test('D11_QuickDoesNotSkipTestFirst', () => {
 // D12 — /tdd stays and is kept in step
 // ---------------------------------------------------------------------------
 
-test('D12_TddSkillCrossReferencesTheMode', () => {
-  mustMatch(
-    TDD_SKILL,
-    /--tdd/,
-    'skills/tdd/SKILL.md must point at the --tdd mode so the two are kept in step, not allowed to drift (D12)'
-  );
-});
-
-test('D12_TddSkillStillStopsWhenATestPassesTooEarly', () => {
-  mustMatch(
-    TDD_SKILL,
-    /passed before writing any code|test passed/i,
-    'skills/tdd/SKILL.md already stops when a test passes before any code exists — that behaviour must survive (D12)'
-  );
-});
-
-// /tdd said what a real failure is by pointing at the executor's Step 3.5. The executor is gone; the
-// rules a test is written by are in the implement skill's reference.
-test('D12_TddSkillPointsAtTheTestRulesNotTheExecutor', () => {
-  mustMatch(
-    TDD_SKILL,
-    /skills\/implement\/reference\/test-rules\.md/,
-    'skills/tdd/SKILL.md must point at skills/implement/reference/test-rules.md for what a real failing test is'
-  );
-  assert.ok(!/story-executor-agent|Step 3\.5/.test(TDD_SKILL), 'skills/tdd/SKILL.md must not point at the retired executor or its Step 3.5');
-});
+// /tdd's own text (D12_TddSkillCrossReferencesTheMode, D12_TddSkillStillStopsWhenATestPassesTooEarly,
+// D12_TddSkillPointsAtTheTestRulesNotTheExecutor) is asserted in skills/tdd/__tests__/test-first-mode.test.js.
 
 // ---------------------------------------------------------------------------
 // The red is recorded; a fix after the build is test first
@@ -228,16 +178,9 @@ test('Resume_KeepsTheRunModeAndReentersAtTheSavedStep', () => {
 
 // A user-level skill silently shadows a project skill of the same name, so a dogfooding run can
 // execute a stale flow and report success.
-test('Run1_SkillShadowingIsDetectable', () => {
-  const lib = path.join(REPO_ROOT, 'hooks', 'lib', 'skill-shadowing.js');
-  assert.ok(fs.existsSync(lib), 'hooks/lib/skill-shadowing.js must exist — a user-level skill silently shadows a project skill of the same name, so a dogfooding run can execute a stale flow and report success');
-  const startMsg = read('hooks', 'session-start-msg.js');
-  mustMatch(
-    startMsg,
-    /skill-shadowing/,
-    'hooks/session-start-msg.js must surface the shadowing warning at session start — detection nobody sees is not detection'
-  );
-});
+// The hooks' own files (hooks/lib/skill-shadowing.js and hooks/session-start-msg.js) are asserted in
+// hooks/__tests__/skill-shadowing-surfaced.test.js, under the same test name and messages.
+// Run1_SkillShadowingIsDetectable
 
 // "Every finding that survives the ship test is registered" read as deferral in one clause and
 // blocker in the one above it.
@@ -254,7 +197,7 @@ test('Run1_ShipTestOutcomesAreUnambiguous', () => {
 // run must never have to work out for itself what a missing tool means — so the rule must say
 // plainly what happens and how to fix it.
 test('Run1_MissingChecklistToolHasAClearAnswer', () => {
-  const rule = read('rules', 'progress-tracking.md');
+  const rule = readRule('progress-tracking.md');
   mustMatch(rule, /has neither, the build skill stops at startup/i,
     'rules/progress-tracking.md must say plainly what a run does when the checklist tool is missing');
   mustMatch(rule, /CLAUDE_CODE_ENABLE_TODO_TOOLS=1/,
@@ -272,15 +215,17 @@ test('Run1_ThereIsACleanStopBeforeShipping', () => {
 // Same class as skill shadowing: what runs is not what we edit. `.claude/trackers/active/` was a
 // copy taken at install time, so adapter fixes were dead code from the harness's own point of view.
 test('Verify_DogfoodLinksTheAdapterDirsToo', () => {
-  const plan = read('scripts', 'dogfood-links.js');
+  // Through the export the scripts Interface lists (`planLinks`), not the script's text.
+  const { planLinks } = require('../../../scripts/dogfood-links.js');
+  const plan = planLinks({ tracker: 'local', codePlatform: 'github' }).map((l) => `${l.from} -> ${l.to}`).join('\n');
   mustMatch(
     plan,
-    /trackers\/active/,
+    /trackers\/active -> trackers\/local/,
     'scripts/dogfood-links.js must link trackers/active at the selected adapter — otherwise every edit to trackers/<name>/ is invisible to the running harness'
   );
   mustMatch(
     plan,
-    /code-platform\/active/,
+    /code-platform\/active -> code-platform\/github/,
     'scripts/dogfood-links.js must link code-platform/active for the same reason'
   );
 });
@@ -289,7 +234,7 @@ test('Verify_DogfoodLinksTheAdapterDirsToo', () => {
 // because the feature has not shipped. A security finding hit this and the reviewer argued with it.
 test('Verify_ShipTestHandlesNewlyIntroducedInputs', () => {
   mustMatch(
-    read('rules', 'deferrals.md'),
+    readRule('deferrals.md'),
     /NEW input|new input/,
     'rules/deferrals.md must handle a change that introduces a new input — nothing declares it yet, so every finding about it answers "No" vacuously and the rule certifies the defect as safe because the feature has not shipped'
   );
@@ -325,7 +270,7 @@ test('Final_NoShipIsFullyWired', () => {
 
 // "Fresh" gated a check that is explicitly NOT self-answerable under --autonomous, and was undefined.
 test('Final_FreshnessHasANumber', () => {
-  const markers = read('rules', 'phase-markers.md');
+  const markers = readRule('phase-markers.md');
   mustMatch(
     markers,
     /within the last \d+ minutes/i,
@@ -339,13 +284,8 @@ test('Final_FreshnessHasANumber', () => {
 });
 
 // An agent contract forbade what the orchestrating skill required of it.
-test('Final_AcceptanceAgentMayWriteItsOwnReport', () => {
-  mustMatch(
-    read('agents', 'acceptance-test-agent.md'),
-    /Writing your own report file is allowed/i,
-    'agents/acceptance-test-agent.md must permit writing acceptance.md — the skills require it as a handoff artifact and /improve-harness skips stories without it'
-  );
-});
+// (Final_AcceptanceAgentMayWriteItsOwnReport asserts the acceptance agent's own file: it is in
+// agents/__tests__/agent-text-tdd-mode.test.js.)
 
 // ---------------------------------------------------------------------------
 // Regression — nothing that already worked may quietly disappear

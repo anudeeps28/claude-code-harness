@@ -213,7 +213,7 @@ wording can slip past the check; the architect reviewer remains the backstop for
 
 ### What runs today
 
-Not every item above is enforced yet. `npm test` enforces today: agent owners, and that a skill launching an agent owns it or it is shared (item 3); every skill's
+Every item above is enforced: `npm test` runs all seven. It checks agent owners, and that a skill launching an agent owns it or it is shared (item 3); every skill's
 and agent's Interface block with its four parts; file pointers (item 2): a skill file another module points
 at is listed in its Callable parts, a path into a code module or an agent is a main file or one its
 Interface lists, and a path to a main file followed by a quoted or bold heading names `"Interface"`;
@@ -222,9 +222,9 @@ against that module's Interface (a code module's `README.md`, a skill's `SKILL.m
 lines and the ADRs cited in Interface blocks (item 7); and the architecture map's rows, kinds, private
 agents and links; the standard folder shape (item 4): every skill, agent and code module holds only
 the entries its shape allows; and the map's **Depends on** column (item 6) against imports, pointers, agent
-use and skill invocation; test locality (item 5), first half: a test reads only its own module, `rules/`, files of no module
-and other modules' Interface blocks (`interfaceOf`), bar the tests F2 story #6j2mgpH6529FcgJ2 still reworks (F2 is
-#6j2mgjrhw5VCqMMR; the plan lines, the builder's brief and the pre-PR docs check are F3, #6j2mgjwMgrvf3fwR).
+use and skill invocation; and test locality (item 5): every test reads only its own module, `rules/`, files of no module
+and other modules' Interface blocks (`interfaceOf`), with no test excused. The plan lines, the builder's brief and
+the pre-PR docs check are carried out by the build skills (F3, #6j2mgjwMgrvf3fwR), not by `npm test`.
 
 The boundary check lives in `scripts/__tests__/boundaries-*.test.js` (one file per check family), which
 `npm test` runs.

@@ -270,13 +270,13 @@ test('check 1 lets a skill require its own files (AC7)', () => {
 
 // ---- AC8 (FQ34): the repo-level test of each enforced numbered check is titled `check <n> — …` ----
 
-// n is the item's number in rules/modules.md "The boundary check". Check 5
-// (tests) arrives in a later story; this maps the checks enforced today to the file that tests each.
+// n is the item's number in rules/modules.md "The boundary check"; this maps each check to the file that tests it.
 const CHECK_TITLE_FILES = {
   1: 'boundaries-readmes.test.js',
   2: 'boundaries-pointers.test.js',
   3: 'boundaries-owners.test.js',
   4: 'boundaries-interface.test.js',
+  5: 'boundaries-tests.test.js',
   6: 'boundaries-context.test.js',
   7: 'boundaries-adrs.test.js',
 };

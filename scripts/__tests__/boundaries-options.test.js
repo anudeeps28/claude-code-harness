@@ -10,19 +10,16 @@ const { checkInterfaces, checkCallableParts, checkSkillUsage } = boundaries;
 // The word is assembled so that this file itself does not contain it.
 const WAITING_WORD = new RegExp('PEN' + 'DING', 'i');
 
-// Story #6j2mgp8CJ6mRHW32 (FQ21): boundaries-tests.test.js holds the list of tests that story #6j2mgpH6529FcgJ2
-// still has to rework, so it is the one file this guard does not read. Story 7 deletes the list and this skip.
-const SKIPPED = ['boundaries-tests.test.js'];
-
 test('no check takes a skip list (AC2, AC12)', () => {
-  assert.deepEqual(SKIPPED, ['boundaries-tests.test.js'], 'the guard skips exactly one file');
-  assert.ok(fs.existsSync(path.join(__dirname, SKIPPED[0])), 'the skipped file exists');
+  // No file is skipped: check 5's own test file is read like the others.
+  assert.ok(fs.existsSync(path.join(__dirname, 'boundaries-tests.test.js')), 'the check 5 test file exists');
   const tests = fs.readdirSync(__dirname)
-    .filter((f) => /^boundaries-.*\.test\.js$/.test(f) && !SKIPPED.includes(f))
+    .filter((f) => /^boundaries-.*\.test\.js$/.test(f))
     .map((f) => `scripts/__tests__/${f}`);
   const libs = fs.readdirSync(path.join(repoRoot, 'scripts', 'lib')).map((f) => `scripts/lib/${f}`);
   const files = [...tests, ...libs];
   assert.ok(tests.length >= 6 && libs.length >= 6, 'the test and lib files were found');
+  assert.ok(tests.includes('scripts/__tests__/boundaries-tests.test.js'), 'check 5\'s test file is among the files read');
   for (const rel of files) {
     const text = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
     assert.ok(text.length > 0, `${rel} was read`);

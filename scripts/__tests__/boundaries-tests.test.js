@@ -1,8 +1,8 @@
 'use strict';
 // Check 5 (rules/modules.md, "Tests check the interface"): a test file reads only its own module's files,
 // rules/, files that belong to no module, and other modules' ## Interface blocks (through interfaceOf).
-// Story #6j2mgp8CJ6mRHW32 writes the check; story #6j2mgpH6529FcgJ2 reworks the tests left on the list below
-// and deletes the list. The list lives in this file only (FQ21): the check keeps its (root, { exempt }) shape.
+// Story #6j2mgp8CJ6mRHW32 writes the check; story #6j2mgpH6529FcgJ2 reworks every test it found, so the check
+// runs over every test in the repo with no list and no filter: the check keeps its (root, { exempt }) shape.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -10,25 +10,9 @@ const path = require('node:path');
 const boundaries = require('../lib/boundaries.js');
 const { readInterface } = boundaries;
 const { PROMISES } = require('./probe-promises.js');
+// The frozen titles and messages of the 13 reworked tests, in two files so neither passes 800 lines.
+const REWORK_PROMISES = { ...require('./probe-promises-rework-install.js').PROMISES, ...require('./probe-promises-rework-skills.js').PROMISES };
 const { repoRoot, block, withBlock, inFixture } = require('./helpers.js');
-
-// The tests that still read another module's insides when story 6 ends. Story 7 reworks every one of them
-// and removes this list and its filter. A pending test that this story reworks is a defect (AC8).
-const PENDING_TESTS = Object.freeze([
-  'code-platform/__tests__/conformance.test.js',
-  'install/__tests__/linked-install.test.js',
-  'install/__tests__/non-interactive.test.js',
-  'install/__tests__/updater.test.js',
-  'skills/implement/__tests__/agent-handoff.probe.test.js',
-  'skills/implement/__tests__/feature-review.probe.test.js',
-  'skills/implement/__tests__/one-build-skill.probe.test.js',
-  'skills/implement/__tests__/one-loop.probe.test.js',
-  'skills/implement/__tests__/panel-fixes.probe.test.js',
-  'skills/implement/__tests__/several-sessions.probe.test.js',
-  'skills/implement/__tests__/stories-in-sequence-docs.probe.test.js',
-  'skills/implement/__tests__/tdd-mode.probe.test.js',
-  'skills/implement/__tests__/trustworthy-builds.probe.test.js',
-]);
 
 // The tests this story reworks or moves: none of them may read another module's insides (AC3, AC6, AC7).
 const REWORKED = Object.freeze(Object.keys(PROMISES));
@@ -40,7 +24,6 @@ function run(root, options) {
 }
 
 const inFile = (list, rel) => list.filter((p) => p.startsWith(`${rel}:`));
-const notPending = (list) => list.filter((p) => !PENDING_TESTS.some((f) => p.startsWith(`${f}:`)));
 const lineOf = (text, needle) => text.split('\n').findIndex((l) => l.includes(needle)) + 1;
 const src = (...lines) => lines.join('\n') + '\n';
 const HEAD3 = [
@@ -82,12 +65,12 @@ function problemsFor(files, options) {
 
 // ── The check on the repo ───────────────────────────────────────────────────────────────────────────
 
-test('check 5 — a test reads only its own module, rules and Interface blocks (AC3, AC5, AC8, AC9)', () => {
-  const problems = notPending(run(repoRoot));
-  assert.deepEqual(problems, []);
-  // Companion: the list is real, so the filter cannot hide an empty result.
-  assert.ok(PENDING_TESTS.length >= 10, 'the pending list names the tests story 7 reworks');
-  for (const rel of PENDING_TESTS) assert.ok(fs.existsSync(path.join(repoRoot, rel)), `${rel} is on the pending list but missing`);
+test('check 5 — a test reads only its own module, rules and Interface blocks (AC3, AC4, AC6)', () => {
+  // No filter, no list: every test in the repo is checked and every one passes (AC6).
+  assert.deepEqual(run(repoRoot), []);
+  // Companion: the check had tests to look at, among them every file frozen for the rework.
+  for (const rel of Object.keys(REWORK_PROMISES)) assert.ok(fs.existsSync(path.join(repoRoot, rel)), `${rel} is missing: a violator was deleted, not reworked`);
+  assert.equal(Object.keys(REWORK_PROMISES).length, 13, 'nine probes and four other tests were frozen');
 });
 
 test('check 5 — the nine reworked probes and the moved agent test read no other module (AC3, AC6, AC7, AC11)', () => {
@@ -98,14 +81,8 @@ test('check 5 — the nine reworked probes and the moved agent test read no othe
   assert.equal(REWORKED.length, 9, 'story 6 reworks nine probes');
 });
 
-test('check 5 — the pending list holds only what story 7 reworks (AC8, AC12)', () => {
-  assert.equal(new Set(PENDING_TESTS).size, PENDING_TESTS.length, 'a test is listed twice');
-  for (const rel of PENDING_TESTS) {
-    assert.ok(!REWORKED.includes(rel), `${rel} is reworked by story 6, so it cannot wait`);
-    assert.notEqual(rel, MOVED_FRONTMATTER, 'agent-frontmatter moves in story 6, so it cannot wait');
-    assert.ok(/^(hooks|trackers|code-platform|install|scripts|skills\/[a-z-]+)\/__tests__\/.+\.test\.js$/.test(rel), `${rel} is not a test file`);
-  }
-  // The list is not copied into the check: it takes the repo root and the exempt option only.
+test('check 5 takes the repo root and the exempt option only (AC8, AC12)', () => {
+  // No list is copied into the check: it takes the repo root and the exempt option only.
   assert.equal(typeof boundaries.checkTestReads, 'function', 'boundaries.js must export checkTestReads');
   assert.equal(boundaries.checkTestReads.length, 1, 'checkTestReads takes more than the repo root');
   assert.throws(() => boundaries.checkTestReads(repoRoot, { skip: ['x'] }), /skip/);
@@ -325,8 +302,8 @@ test('checks on an agent\'s own text live in agents/__tests__ (AC6, AC7)', () =>
   if (fs.existsSync(dir)) {
     for (const f of fs.readdirSync(dir)) assert.ok(f.endsWith('.js'), `agents/__tests__/${f} is not a .js file`);
   }
-  // No test outside agents/ reads an agent's body (those still on the pending list apart).
-  const reads = notPending(run(repoRoot)).filter((p) => /reads agents\//.test(p) && !p.startsWith('agents/'));
+  // No test outside agents/ reads an agent's body.
+  const reads = run(repoRoot).filter((p) => /reads agents\//.test(p) && !p.startsWith('agents/'));
   assert.deepEqual(reads, []);
 });
 
@@ -345,24 +322,36 @@ function lost(entry, texts) {
 // that module's tests, with its title and messages).
 const TWIN_DIRS = [
   'agents/__tests__',
-  'skills/local-test/__tests__',
-  'skills/plan-features/__tests__',
-  'skills/coverage-audit/__tests__',
-  'skills/sync-tracker/__tests__',
-  'skills/debug/__tests__',
+  'hooks/__tests__',
+  'trackers/__tests__',
+  'code-platform/__tests__',
   'install/__tests__',
+  ...fs.readdirSync(path.join(repoRoot, 'skills'))
+    .filter((d) => d !== 'implement' && fs.existsSync(path.join(repoRoot, 'skills', d, '__tests__')))
+    .map((d) => `skills/${d}/__tests__`),
 ];
 
-function twinTexts() {
+// The whole-repo questions (does any file name X, is this file gone) are asked in the boundary family, which
+// the rule lets read every module: scripts/__tests__/boundaries-repo.test.js.
+const REPO_QUESTIONS = 'scripts/__tests__/boundaries-repo.test.js';
+
+// The comparison of two modules' derivations, which only the boundary family may read both sides of.
+const LOCK_AGENTS = 'scripts/__tests__/boundaries-lock-agents.test.js';
+
+function twinTexts(except) {
+  return [REPO_QUESTIONS, LOCK_AGENTS].map((rel) => fs.readFileSync(path.join(repoRoot, rel), 'utf8')).concat(twinTextsInDirs(except));
+}
+
+function twinTextsInDirs(except) {
   return TWIN_DIRS.flatMap((rel) => {
     const dir = path.join(repoRoot, rel);
     return fs.existsSync(dir)
-      ? fs.readdirSync(dir).filter((f) => f.endsWith('.test.js')).map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
+      ? fs.readdirSync(dir).filter((f) => f.endsWith('.test.js') && `${rel}/${f}` !== except).map((f) => fs.readFileSync(path.join(dir, f), 'utf8'))
       : [];
   });
 }
 
-test('check 5 — reworked probes keep their promises (AC11)', () => {
+test('check 5 — reworked probes keep their promises (AC1, AC2, AC3, AC6)', () => {
   const twins = twinTexts();
   let titles = 0;
   let messages = 0;
@@ -378,9 +367,48 @@ test('check 5 — reworked probes keep their promises (AC11)', () => {
   assert.ok(messages >= 450, `the frozen list holds only ${messages} assertion messages`);
 });
 
+test('check 5 — the second nine probes and the four other tests keep their promises (AC3, AC6)', () => {
+  let titles = 0;
+  let messages = 0;
+  for (const [rel, entry] of Object.entries(REWORK_PROMISES)) {
+    const own = fs.readFileSync(path.join(repoRoot, rel), 'utf8');
+    // A title or message that now lives in another test file of the same name does not count: it is in the file or in a twin.
+    assert.deepEqual(lost(entry, [own, ...twinTexts(rel)]), [], `${rel} lost a title or an assertion message`);
+    titles += entry.titles.length;
+    messages += entry.messages.length;
+  }
+  assert.equal(Object.keys(REWORK_PROMISES).length, 13);
+  assert.ok(titles >= 190, `the frozen list holds only ${titles} titles`);
+  assert.ok(messages >= 780, `the frozen list holds only ${messages} assertion messages`);
+});
+
+test('check 5 — the STATUS promise is read from the agents\' Interface blocks, not their bodies (AC1, AC2, AC5)', () => {
+  const probe = fs.readFileSync(path.join(repoRoot, 'skills/implement/__tests__/agent-handoff.probe.test.js'), 'utf8');
+  assert.ok(/^test\(\s*(['"`])every agent's Interface Outputs starts with a STATUS line/m.test(probe), 'the probe must hold the Interface test');
+  assert.ok(/interfaceOf\(/.test(probe), 'the probe must read the agents through interfaceOf');
+  assert.ok(!/read\(\s*'agents'/.test(probe), 'the probe must not read an agent\'s body');
+  assert.ok(!/path\.join\(REPO_ROOT, 'agents'/.test(probe), 'the probe must not open agents/<name>.md');
+});
+
 test('check 5 — the promise check can fail: a dropped title or message is reported (AC11)', () => {
   const entry = { titles: ['Demo_FormatIsDefinedWithEveryKind'], messages: ['the read step must call ${s}'] };
   assert.deepEqual(lost(entry, ["test('Demo_FormatIsDefinedWithEveryKind', () => { assert.ok(x, `the read step must call ${s}`); });"]), []);
   assert.deepEqual(lost(entry, ["test('Demo_FormatIsDefinedWithEveryKind', () => { assert.ok(x); });"]), ['the read step must call ${s}']);
   assert.deepEqual(lost(entry, ['']), ['Demo_FormatIsDefinedWithEveryKind', 'the read step must call ${s}']);
+});
+
+// ── rules/modules.md "What runs today" ──────────────────────────────────────────────────────────────
+
+test('check 5 — what runs today names every item and defers none (AC7)', () => {
+  const text = fs.readFileSync(path.join(repoRoot, 'rules', 'modules.md'), 'utf8');
+  const start = text.indexOf('### What runs today');
+  assert.ok(start !== -1, 'rules/modules.md has a "What runs today" heading');
+  const end = text.indexOf('\n---', start);
+  const body = text.slice(start, end === -1 ? undefined : end).replace(/\s+/g, ' ');
+  for (const n of [1, 2, 3, 4, 5, 6, 7]) assert.ok(new RegExp(`\\(items? ${n}\\)|item ${n}\\b`).test(body), `"What runs today" does not name item ${n}`);
+  for (const later of [/arrive later/i, /come next/i, /not every item/i, /\bfirst half\b/i, /still reworks/i, /\bbar the tests\b/i, /not enforced yet/i]) {
+    assert.ok(!later.test(body), `"What runs today" still defers something: ${later}`);
+  }
+  // Companion: the check can fail on planted text that defers an item.
+  assert.ok(/arrive later/i.test('These arrive later.'), 'the check finds the sentence');
 });

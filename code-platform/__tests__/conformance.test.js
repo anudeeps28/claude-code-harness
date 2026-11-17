@@ -17,7 +17,8 @@ const { spawnSync } = require('node:child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const CODE_PLATFORM_DIR = path.join(REPO_ROOT, 'code-platform');
-const FIXTURES_BIN = path.join(REPO_ROOT, 'trackers', '__tests__', 'fixtures', 'bin');
+// This module's own stub `gh` (answers only the calls the github adapter makes), not the trackers module's.
+const FIXTURES_BIN = path.join(__dirname, 'fixtures', 'bin');
 
 const HAS_BASH = (() => {
   try {
