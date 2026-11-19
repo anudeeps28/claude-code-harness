@@ -2,7 +2,7 @@
 # Ralph loop runner for macOS/Linux. Bash port of ralph.ps1.
 #
 # Usage:
-#   ./ralph.sh [--max N] [--sleep N] [--prd PATH] [--progress PATH]
+#   ./.claude/skills/ralph-prd/bin/ralph.sh [--max N] [--sleep N] [--prd PATH] [--progress PATH]
 #
 # Defaults: --max 10  --sleep 2  --prd PRD.md  --progress progress.txt
 

@@ -98,8 +98,8 @@ when something other modules rely on breaks.
 **The carve-out.** A check that spans many modules lives in the boundary family and may read module
 bodies: `scripts/__tests__/boundaries-*.test.js`, with `scripts/lib/*` and `scripts/__tests__/helpers.js`.
 That includes the checks of the whole repo (`boundaries-repo`, `boundaries-lock-agents` and
-`boundaries-models`) and the frozen data files they use (`probe-promises*.js`). The rules above govern
-every other test.
+`boundaries-models`). The frozen data files those checks use (`probe-promises*.js`) read nothing, so
+they need no carve-out. The rules above govern every other test.
 
 ---
 

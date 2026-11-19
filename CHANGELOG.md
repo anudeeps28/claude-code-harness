@@ -426,7 +426,7 @@ Five stdin-driven hooks (Node ≥ 20, zero runtime deps), wired through `setting
   - **try/catch + uncaughtException + unhandledRejection handlers** — a crashed hook can't block Claude (fail-open, exit 0).
   - **Per-invocation metric** appended to `tasks/metrics.jsonl`: `{ts, hook, duration_ms, decision, rule?}`. Feeds `/improve-harness`.
   - **Errors logged to stderr as JSON** — `{error, hook, message}` — instead of swallowing silently.
-- See [hooks/SECURITY.md](hooks/SECURITY.md) for the explicit threat model: oversight gate, **not** a sandbox. Bypassable by base64 encoding, variable indirection, `$IFS` tricks, MCP tool surfaces.
+- See hooks/SECURITY.md (now the Security section of [hooks/README.md](hooks/README.md)) for the explicit threat model: oversight gate, **not** a sandbox. Bypassable by base64 encoding, variable indirection, `$IFS` tricks, MCP tool surfaces.
 
 ### Self-improvement loop
 
