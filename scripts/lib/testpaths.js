@@ -338,18 +338,18 @@ function fileContext(root, rel, files) {
 }
 
 // The calls that read a file or folder (fs.*, with or without `promises`), and the bare Sync names.
-const READ_CALL_RE = /(?<![\w$])(?:(?:fs|fsp|fs\.promises|promises)\.(?:readFileSync|readFile|readdirSync|readdir|existsSync|statSync|lstatSync|stat|lstat|readlinkSync|realpathSync|accessSync|access|openSync|opendirSync|createReadStream|copyFileSync|cpSync|globSync)|(?:readFileSync|readdirSync|existsSync|statSync))\s*\(/g;
-const PATH_CALL_RE = /(?<![\w$.])path\.(?:posix\.)?(?:join|resolve)\s*\(/g;
+const READ_CALL_SRC = /(?<![\w$])(?:(?:fs|fsp|fs\.promises|promises)\.(?:readFileSync|readFile|readdirSync|readdir|existsSync|statSync|lstatSync|stat|lstat|readlinkSync|realpathSync|accessSync|access|openSync|opendirSync|createReadStream|copyFileSync|cpSync|globSync)|(?:readFileSync|readdirSync|existsSync|statSync))\s*\(/;
+const PATH_CALL_SRC = /(?<![\w$.])path\.(?:posix\.)?(?:join|resolve)\s*\(/;
+// Each scan makes its own /g regexes: a shared one keeps its lastIndex between calls.
+const freshGlobal = (re) => new RegExp(re.source, 'g');
 
 // The local helpers that take a rest parameter (`const read = (...p) => fs.readFileSync(path.join(OWN, ...p))`):
 // [{ name, params, rest, body }]. A call to one is read with its literal arguments put in (see readsOf).
-const WRAPPER_RE = /(?<![\w$.])(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^()]*\.\.\.[^()]*)\)\s*=>\s*|(?<![\w$.])function\s+([A-Za-z_$][\w$]*)\s*\(([^()]*\.\.\.[^()]*)\)\s*(?=\{)/g;
+const WRAPPER_SRC = /(?<![\w$.])(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(([^()]*\.\.\.[^()]*)\)\s*=>\s*|(?<![\w$.])function\s+([A-Za-z_$][\w$]*)\s*\(([^()]*\.\.\.[^()]*)\)\s*(?=\{)/;
 
 function wrappersOf(code) {
   const out = [];
-  WRAPPER_RE.lastIndex = 0;
-  let m;
-  while ((m = WRAPPER_RE.exec(code))) {
+  for (const m of code.matchAll(freshGlobal(WRAPPER_SRC))) {
     const isArrow = m[1] !== undefined;
     const names = (isArrow ? m[2] : m[4]).split(',').map((x) => x.trim()).filter(Boolean);
     const end = m.index + m[0].length;
@@ -376,8 +376,7 @@ function wrapperReads(ctx, readsIn) {
   const reads = [];
   for (const w of wrappersOf(ctx.code)) {
     const re = new RegExp(`(?<![\\w$.])(?<!function\\s)${w.name.replace(/\$/g, '\\$')}\\s*\\(`, 'g');
-    let m;
-    while ((m = re.exec(ctx.code))) {
+    for (const m of ctx.code.matchAll(re)) {
       const open = m.index + m[0].length - 1;
       const end = closeOf(ctx.code, open);
       if (end === -1 || ctx.inString[m.index]) continue;
@@ -403,15 +402,13 @@ function scanReads(ctx) {
     const end = closeOf(ctx.code, open);
     return end === -1 ? '' : splitTop(ctx.code.slice(open + 1, end), ',')[0];
   };
-  for (const re of [READ_CALL_RE, PATH_CALL_RE]) {
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(ctx.code))) {
+  for (const isPath of [false, true]) {
+    for (const m of ctx.code.matchAll(freshGlobal(isPath ? PATH_CALL_SRC : READ_CALL_SRC))) {
       const open = m.index + m[0].length - 1;
-      const arg = re === PATH_CALL_RE ? ctx.code.slice(m.index, closeOf(ctx.code, open) + 1) : argOf(open);
+      const arg = isPath ? ctx.code.slice(m.index, closeOf(ctx.code, open) + 1) : argOf(open);
       if (!arg || ctx.inString[m.index]) continue;
       let value = evaluate(arg, ctx);
-      if (re === PATH_CALL_RE) {
+      if (isPath) {
         // A relative path.join('agents', x) is a fragment that is joined to a folder elsewhere.
         if (value.k === 'repo' && value.rel) continue;
       } else if (value.k === 'str') {
@@ -433,15 +430,13 @@ function literalRead(s) {
   return p === '..' || p.startsWith('../') ? UNKNOWN : { k: 'repo', p, full: true };
 }
 
-const REQUIRE_RE = /(?<![\w$.])(?:require(?:\.resolve)?|import)\s*\(/g;
+const REQUIRE_SRC = /(?<![\w$.])(?:require(?:\.resolve)?|import)\s*\(/;
 
 // Every require / require.resolve / import() in the file: [{ line, spec }] with the literal specifier,
 // or { line, value } when the argument is an expression (a name defined in the file, say).
 function requiresOf(ctx) {
   const out = [];
-  REQUIRE_RE.lastIndex = 0;
-  let m;
-  while ((m = REQUIRE_RE.exec(ctx.code))) {
+  for (const m of ctx.code.matchAll(freshGlobal(REQUIRE_SRC))) {
     if (ctx.inString[m.index]) continue;
     const open = m.index + m[0].length - 1;
     const end = closeOf(ctx.code, open);
@@ -455,4 +450,4 @@ function requiresOf(ctx) {
   return out;
 }
 
-module.exports = { maskCode, fileContext, readsOf, requiresOf, evaluate, lineOf };
+module.exports = { fileContext, readsOf, requiresOf };

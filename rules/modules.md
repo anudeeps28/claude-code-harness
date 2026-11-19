@@ -49,7 +49,8 @@ agents/<name>.md  frontmatter (with owner:), then ## Interface, then the body
   __tests__/
 ```
 
-Nothing else sits at the top of a module's folder. The boundary check enforces this shape.
+A code module may also hold a top-level script or folder (an adapter folder, say) that its README
+`## Interface` block names. Nothing else sits at the top of a module's folder. The boundary check enforces this shape.
 **Known exception:** `skills/frontend-design/` is a bundle of sub-skills, not one skill, and is
 exempt until it is reshaped.
 
@@ -86,15 +87,19 @@ A module's tests check its interface, so its insides can be rewritten freely and
 when something other modules rely on breaks.
 
 - **A test belongs to one module.** It may read that module's own files, other modules' `## Interface`
-  blocks, and `rules/`. Nothing else.
+  blocks, and `rules/`. It may also read files that belong to no module: the root docs (`README.md`,
+  `CHANGELOG.md`, `CONTRIBUTING.md`, ...), `CONTEXT.md`, `docs/`, `templates/` and `examples/`. Nothing else.
 - **Code modules** are tested through their exports and their scripts' arguments and output.
 - **Checks on an agent's own text** live in `agents/__tests__/`, so they break only when that agent is
   edited.
 - **A promise between modules** (for example "every review agent's report starts with a `STATUS:`
   line") is checked against the Interface blocks, because that is where the promise is written.
 
-The boundary check itself reads module bodies: that is its job, a carve-out from the rules above, which
-govern every other test.
+**The carve-out.** A check that spans many modules lives in the boundary family and may read module
+bodies: `scripts/__tests__/boundaries-*.test.js`, with `scripts/lib/*` and `scripts/__tests__/helpers.js`.
+That includes the checks of the whole repo (`boundaries-repo`, `boundaries-lock-agents` and
+`boundaries-models`) and the frozen data files they use (`probe-promises*.js`). The rules above govern
+every other test.
 
 ---
 
@@ -196,7 +201,7 @@ boundary automatically, it does.
 
 `scripts/__tests__/boundaries-*.test.js` runs inside `npm test`, so CI fails a PR that crosses a boundary. It checks:
 
-1. **Code imports** — a JS file imports from another module only what that module's README lists.
+1. **Code imports** — a JS file imports from another module only what that module's Interface lists (a code module's README, a skill's `SKILL.md`).
 2. **File pointers** — a skill, agent or rule names another module's main file (`SKILL.md`, the agent's
    `.md`, the `README.md`); a deeper file only when that module's Interface lists it.
 3. **Agent owners** — a skill uses only its own agents and `shared` ones.
@@ -213,7 +218,7 @@ wording can slip past the check; the architect reviewer remains the backstop for
 
 ### What runs today
 
-Every item above is enforced: `npm test` runs all seven. It checks agent owners, and that a skill launching an agent owns it or it is shared (item 3); every skill's
+Every item above is enforced: `npm test` runs all seven. Their limits are listed after this paragraph. It checks agent owners, and that a skill launching an agent owns it or it is shared (item 3); every skill's
 and agent's Interface block with its four parts; file pointers (item 2): a skill file another module points
 at is listed in its Callable parts, a path into a code module or an agent is a main file or one its
 Interface lists, and a path to a main file followed by a quoted or bold heading names `"Interface"`;
@@ -223,8 +228,15 @@ lines and the ADRs cited in Interface blocks (item 7); and the architecture map'
 agents and links; the standard folder shape (item 4): every skill, agent and code module holds only
 the entries its shape allows; and the map's **Depends on** column (item 6) against imports, pointers, agent
 use and skill invocation; and test locality (item 5): every test reads only its own module, `rules/`, files of no module
-and other modules' Interface blocks (`interfaceOf`), with no test excused. The plan lines, the builder's brief and
+and other modules' Interface blocks (`interfaceOf`); only the boundary family's own files (the carve-out above) read module bodies. The plan lines, the builder's brief and
 the pre-PR docs check are carried out by the build skills (F3, #6j2mgjwMgrvf3fwR), not by `npm test`.
+
+What the checks do not see, one sentence each:
+
+- Check 6 reads only JS requires and Markdown file pointers: not shell or PowerShell scripts, not a folder
+  linked by a literal path (`dogfood-links.js`), and not a code module's Markdown.
+- Check 5 does not see a read made by a child process.
+- The pointer scan skips Markdown files over 2 MB.
 
 The boundary check lives in `scripts/__tests__/boundaries-*.test.js` (one file per check family), which
 `npm test` runs.

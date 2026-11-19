@@ -315,20 +315,20 @@ Report which mode was used and where the PRD was written:
 
 ## Running the Ralph Loop
 
-Once `PRD.md` and `progress.txt` exist, execute the loop runner from this skill's `bin/` folder:
+Once `PRD.md` and `progress.txt` exist, run the loop runner from the project root; it sits in this skill's `bin/` folder (`.claude/skills/ralph-prd/bin/` in an installed project):
 
 **macOS / Linux:**
 ```bash
-./bin/ralph.sh                              # 10 iterations, defaults
-./bin/ralph.sh --max 25 --sleep 5           # custom budget
-./bin/ralph.sh --prd specs/PRD.md --progress specs/progress.txt
+./.claude/skills/ralph-prd/bin/ralph.sh                              # 10 iterations, defaults
+./.claude/skills/ralph-prd/bin/ralph.sh --max 25 --sleep 5           # custom budget
+./.claude/skills/ralph-prd/bin/ralph.sh --prd specs/PRD.md --progress specs/progress.txt
 ```
 
 **Windows / cross-platform PowerShell:**
 ```powershell
-./bin/ralph.ps1                             # 10 iterations, defaults
-./bin/ralph.ps1 -MaxIterations 25 -SleepSeconds 5
-./bin/ralph.ps1 -PrdPath specs/PRD.md -ProgressPath specs/progress.txt
+./.claude/skills/ralph-prd/bin/ralph.ps1                             # 10 iterations, defaults
+./.claude/skills/ralph-prd/bin/ralph.ps1 -MaxIterations 25 -SleepSeconds 5
+./.claude/skills/ralph-prd/bin/ralph.ps1 -PrdPath specs/PRD.md -ProgressPath specs/progress.txt
 ```
 
 Each iteration spawns a fresh `claude -p` instance that picks the first user story with unchecked `[ ]` acceptance criteria, implements it, runs the verify command from the criteria, and only commits if it passes. The loop terminates when Ralph emits `<promise>COMPLETE</promise>` or when `--max` is reached.

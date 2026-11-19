@@ -214,6 +214,25 @@ test('check 5 follows a local wrapper with a spread argument to its call sites (
   assert.deepEqual(inFile(problemsFor({ [file]: stays }), file), [], 'a wrapper call that stays in its own module is not a problem');
 });
 
+test('check 5 reports every read of a file with two wrappers and a read on one line, whatever the scan order', () => {
+  // The scan's regexes are made fresh on each call, so a wrapper call that is read through the
+  // scan again (wrapper -> scan) cannot move the place the outer scan resumes from.
+  const file = 'skills/a/__tests__/x.test.js';
+  const text = src(
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const OWN = path.resolve(__dirname);",
+    "const read = (...p) => fs.readFileSync(path.join(OWN, ...p), 'utf8');",
+    "const exists = (...p) => fs.existsSync(path.join(OWN, ...p));",
+    "read('..', '..', 'b', 'SKILL.md'); exists('..', '..', '..', 'agents', 'b.md'); fs.readFileSync('skills/b/bin/demo.js', 'utf8');",
+    "read('..', '..', 'b', 'bin', 'hidden.js');",
+  );
+  const mine = inFile(problemsFor({ [file]: text }), file);
+  for (const target of ['skills/b/SKILL.md', 'agents/b.md', 'skills/b/bin/demo.js', 'skills/b/bin/hidden.js']) {
+    assert.ok(mine.some((p) => p.includes(`reads ${target}`)), `${target} must be reported, got ${JSON.stringify(mine)}`);
+  }
+});
+
 test('check 5 checks a literal read that climbs out of the repo root (review finding 2)', () => {
   const file = 'skills/a/__tests__/x.test.js';
   const text = src("const fs = require('node:fs');", "fs.readFileSync('../../b/SKILL.md', 'utf8');");

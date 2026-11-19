@@ -37,7 +37,7 @@ Your skill instructions here...
 ```
 
 3. Put the four-part `## Interface` block (`**Inputs:**`, `**Outputs:**`, `**Callable parts:**`, `**Never breaks:**`, none empty) right after the frontmatter, as above. It is the module's contract; see `rules/modules.md`.
-4. Add supporting files in the same folder if needed (templates, scripts, reference docs). A file another module points at must be listed in Callable parts.
+4. Add supporting files in the same folder if needed, and only in the folders a skill may have: scripts in `bin/`, reference docs in `reference/`, files it copies or fills in in `templates/`, and tests in `__tests__/` (the shape check fails on anything else). A file another module points at must be listed in Callable parts.
 5. Add a `/your-skill` row to the Architecture map in `CONTEXT.md` (the first table; its Kind is `skill` and its Interface link is `skills/your-skill/SKILL.md#interface`)
 6. Add your skill to the table in `README.md`
 7. Run `npm test`: the boundary checks name any missing block part, map row or Callable parts entry
@@ -147,7 +147,8 @@ Your agent instructions here...
 2. Implement the **13-script contract** (same interface as `ado/`, `github/`, `todoist/`, and `local/`) — see the "Script interface" table in `trackers/README.md` for signatures and output formats. PR-review-thread scripts live in `code-platform/`, not here.
 3. Prove conformance: add your adapter to the loops in `trackers/__tests__/conformance.test.js` (CLI stub + fixtures + golden file, per `trackers/__tests__/README.md`) and get `npm run test:trackers` green
 4. Update the installer (`install/install.sh`) to offer your tracker as an option
-5. Emit a `**Type:**` line from `get-issue.sh` carrying the tracker's own word for the item (`Bug`, `Story`, …), or `Unknown` where the tracker has nothing to report — `--tdd` and the always-test-first rule for bug fixes read it. See `trackers/README.md`.
+5. Name the new folder in the adapter-folder sentence of `trackers/README.md` Callable parts. The shape check fails on a top-level folder that the Interface block does not name.
+6. Emit a `**Type:**` line from `get-issue.sh` carrying the tracker's own word for the item (`Bug`, `Story`, …), or `Unknown` where the tracker has nothing to report — `--tdd` and the always-test-first rule for bug fixes read it. See `trackers/README.md`.
 
 ---
 
@@ -159,10 +160,13 @@ the planner, `agents/story-builder.md`, `agents/suite-runner.md`, `rules/test-ph
 `skills/implement/reference/test-rules.md`. Two files disagreeing does not throw — it makes Claude pick
 one, and the loop works on some runs and not others. So:
 
-1. **Change the probes first.** `skills/implement/__tests__/one-loop.probe.test.js` pins the loop's
-   order and `tdd-mode.probe.test.js` the guarantees it keeps (a bug is test first, the red is
-   recorded, a fix after the build is test first). Edit them, watch them fail, then change the files.
-2. **Keep every file in step.** The probes list which ones.
+1. **Change the probes first.** `skills/implement/__tests__/one-loop.probe.test.js` pins what the
+   skill says about the loop's order and `tdd-mode.probe.test.js` what it says about the guarantees it
+   keeps (a bug is test first, the red is recorded, a fix after the build is test first). What the
+   agents say is pinned in `agents/__tests__/agent-text-one-loop.test.js` and
+   `agent-text-tdd-mode.test.js`. Edit the one that pins the text you change, watch it fail, then
+   change the files.
+2. **Keep every file in step.** The probes and the agent-text tests list which ones.
 3. **`bin/red-evidence.js` is the one mechanical check.** Its tests (`red-evidence.test.js`) prove it
    rejects a compile error and a test that never ran; run them when you touch the red-evidence format.
 4. **Run the loop on a throwaway project before shipping.** Install the harness into one and run
@@ -177,6 +181,7 @@ one, and the loop works on some runs and not others. So:
 2. Add the wiring to the settings.json template in `hooks/README.md`
 3. Update the installer to include the hook in generated settings
 4. Add your hook to the table in `README.md`
+5. Name the script in the `## Interface` block of `hooks/README.md` (Callable parts). The shape check fails on a top-level file that the Interface block does not name.
 
 ---
 

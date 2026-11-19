@@ -31,4 +31,4 @@ function lockAgents(skillText, root) {
   return [...new Set([...paragraph.matchAll(/`([a-z][a-z-]+)`/g)].map((m) => m[1]))].filter(isAgent).sort();
 }
 
-module.exports = { lockParagraph, lockAgents };
+module.exports = { lockAgents };
