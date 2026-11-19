@@ -18,7 +18,6 @@ const { runCheck, linkedDirs } = require('../lib/updater.js');
 
 const REPO = path.resolve(__dirname, '..', '..');
 const INSTALL_JS = path.join(REPO, 'install', 'install.js');
-const SOURCE_PARTS = ['skills', 'agents', 'hooks', 'rules', 'trackers', 'code-platform', 'templates', 'VERSION', 'CHANGELOG.md'];
 const LINKED = ['skills', 'agents', 'hooks', 'rules'];
 
 // HOME points into the test's temp root: an update writes its snapshot under ~/.claude and prunes
@@ -30,15 +29,10 @@ function runInstallJs(args, home) {
   });
 }
 
-// A private copy of the source, so a failing update can only damage the copy, never this repo.
-function makeSource(root) {
-  const src = path.join(root, 'src');
-  for (const part of SOURCE_PARTS) {
-    const from = path.join(REPO, part);
-    if (fs.existsSync(from)) fs.cpSync(from, path.join(src, part), { recursive: true });
-  }
-  return src;
-}
+// The installer is handed the real repo as its source (`--local`) and reads it itself; this test looks only at
+// the installed output in a temp project. The links do not point at the real repo: the installer's own copy-mode
+// install makes a private copy of the four dirs, and the links point there, so a regression in the updater's
+// linked-dir handling can only damage that copy. No link may resolve under the real repo.
 
 function hashTree(dir) {
   const h = crypto.createHash('sha256');
@@ -49,19 +43,26 @@ function hashTree(dir) {
   return h.digest('hex');
 }
 
-// Install normally, then turn the four static dirs into symlinks into `src`, as scripts/dogfood.js does.
+// The link target is the installer's own private copy of the source: a copy-mode enterprise install (every pack's
+// skills, as the real source holds) into a temp folder. A solo project is then installed and its four static dirs
+// turned into symlinks to that copy, as scripts/dogfood.js does with the source.
 function makeLinkedInstall() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'linked-install-'));
-  const src = makeSource(root);
+  const src = REPO;
+  const linkTarget = path.join(root, 'link-target');
   const project = path.join(root, 'project');
-  fs.mkdirSync(path.join(project, '.git'), { recursive: true });
+  const copyProject = path.join(root, 'copy');
+  for (const p of [project, copyProject]) fs.mkdirSync(path.join(p, '.git'), { recursive: true });
+  runInstallJs(['--yes', '--project', copyProject, '--pack', 'enterprise', '--name', 'Tester', '--project-name', 'copy', '--local', src], root);
   runInstallJs(['--yes', '--project', project, '--name', 'Tester', '--project-name', 'linked', '--local', src], root);
   const claudeDir = path.join(project, '.claude');
+  fs.mkdirSync(linkTarget);
   for (const d of LINKED) {
+    fs.renameSync(path.join(copyProject, '.claude', d), path.join(linkTarget, d));
     fs.rmSync(path.join(claudeDir, d), { recursive: true, force: true });
-    fs.symlinkSync(path.join('..', '..', 'src', d), path.join(claudeDir, d));
+    fs.symlinkSync(path.join(linkTarget, d), path.join(claudeDir, d));
   }
-  return { root, src, project, claudeDir };
+  return { root, src, project, claudeDir, linkTarget };
 }
 
 test('LinkedInstall_LinkedDirsNamesEverySymlinkedManagedDir', () => {
@@ -76,7 +77,7 @@ test('LinkedInstall_LinkedDirsNamesEverySymlinkedManagedDir', () => {
 });
 
 test('LinkedInstall_UpdateSucceedsAndLeavesTheSourceUntouched', () => {
-  const { root, src, project, claudeDir } = makeLinkedInstall();
+  const { root, src, project, claudeDir, linkTarget } = makeLinkedInstall();
   try {
     // An old manifest crossing into the modes era, with a todo.md the crossing archives.
     const manifestPath = path.join(claudeDir, '.harness-manifest.json');
@@ -87,15 +88,22 @@ test('LinkedInstall_UpdateSucceedsAndLeavesTheSourceUntouched', () => {
     fs.mkdirSync(path.join(project, 'tasks'), { recursive: true });
     fs.writeFileSync(path.join(project, 'tasks', 'todo.md'), '# mine\n');
 
-    const before = Object.fromEntries(LINKED.map((d) => [d, hashTree(path.join(src, d))]));
-    assert.ok(walk(path.join(src, 'skills'), { match: () => true }).length > 0, 'companion: the source copy has skills');
+    // The linked source is looked at through the links in the installed project (they lead to the private copy).
+    const before = Object.fromEntries(LINKED.map((d) => [d, hashTree(path.join(claudeDir, d))]));
+    assert.ok(LINKED.every((d) => fs.realpathSync(path.join(claudeDir, d)) === fs.realpathSync(path.join(linkTarget, d))),
+      'companion: the links lead to the private copy, not the real repo');
+    assert.ok(walk(path.join(claudeDir, 'skills'), { match: () => true }).length > 0, 'companion: the source copy has skills');
 
     const out = runInstallJs(['--update', '--project', project, '--source', src, '--local', src, '--yes'], root);
 
     for (const d of LINKED) {
-      assert.strictEqual(hashTree(path.join(src, d)), before[d], `source ${d}/ is unchanged by the update`);
+      assert.strictEqual(hashTree(path.join(claudeDir, d)), before[d], `source ${d}/ is unchanged by the update`);
       assert.ok(fs.lstatSync(path.join(claudeDir, d)).isSymbolicLink(), `.claude/${d} is still a link`);
     }
+    // Nothing the update could write lies under the real repo: every link and the project itself resolve elsewhere.
+    const underRepo = (p) => { const r = fs.realpathSync(p); const repo = fs.realpathSync(REPO); return r === repo || r.startsWith(repo + path.sep); };
+    for (const d of LINKED) assert.ok(!underRepo(path.join(claudeDir, d)), `.claude/${d} resolves outside the real repo`);
+    assert.ok(!underRepo(claudeDir), 'the installed .claude resolves outside the real repo');
     assert.match(out, /Linked:\s+skills/, 'the update says it left the linked dirs alone');
     // The source holds every pack's skills, so a linked solo install sees enterprise ones by design.
     assert.ok(fs.existsSync(path.join(claudeDir, 'skills', 'sprint-plan')), 'companion: an enterprise skill is visible through the link');
@@ -103,7 +111,7 @@ test('LinkedInstall_UpdateSucceedsAndLeavesTheSourceUntouched', () => {
     assert.doesNotMatch(out, /verification FAILED/, 'the linked install verifies clean');
 
     const after = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    const version = fs.readFileSync(path.join(src, 'VERSION'), 'utf8').trim();
+    const version = fs.readFileSync(path.join(REPO, 'VERSION'), 'utf8').trim();
     assert.strictEqual(after.harnessVersion, version, 'the manifest records the new version');
     assert.ok(!after.installedFiles.some((f) => LINKED.some((d) => f.startsWith(`${d}/`))),
       'files reached through a link are not recorded as installed copies');

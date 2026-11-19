@@ -2,118 +2,21 @@
 // agent prose, so a file that loses a sentence does not throw; this probe pins it. Content
 // predicates are tested twice: against planted text asserting the OPPOSITE (must be rejected) and
 // against the real file (the enforcement).
+//
+// What the story agents' own files say (their report line, tools, model and git rules) is asserted in
+// agents/__tests__/agent-text.test.js, under the same test names: a test of /implement may not read an
+// agent's file (rules/modules.md, "Tests check the interface"). This file keeps what /implement itself
+// carries: the test-rules reference.
 
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const OWN = path.join(__dirname, '..');
 // CRLF on a Windows checkout would break every pattern that spans a line end.
-const readFile = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+const readFile = (...p) => fs.readFileSync(path.join(OWN, ...p), 'utf8').replace(/\r\n/g, '\n');
 const flat = (s) => s.replace(/\s+/g, ' ');
-
-const AGENTS = ['story-builder', 'story-reviewer', 'suite-runner'];
-const readAgent = (name) => { try { return readFile('agents', `${name}.md`); } catch { return null; } };
-
-// ── predicates ────────────────────────────────────────────────────────
-
-const AGENT_SENTENCE =
-  'Your report starts with one line: `STATUS: DONE`, `STATUS: DONE_WITH_CONCERNS`, `STATUS: BLOCKED` or `STATUS: NEEDS_CONTEXT` (`rules/agent-handoff.md`).';
-const agentSaysStatusLine = (t) => flat(t).includes(AGENT_SENTENCE);
-
-// Every sentence that mentions git add / commit / push must start with "Do not" or "never".
-const gitMentions = (t) => flat(t).split(/(?<=[.!?])\s+|\n/).filter((s) => /\bgit (add|commit|push)\b/i.test(s));
-const gitOnlyForbidden = (t) => {
-  const s = gitMentions(t);
-  return s.length > 0 && s.every((x) => /^\W*(do not|never)\b/i.test(x.trim()));
-};
-const reportsTestNameCriterionAssertion = (t) =>
-  /per test[^.\n]*\bname\b[^.\n]*\b(AC|criterion)\b[^.\n]*assertion line it failed on/i.test(flat(t));
-const reReviewJudgesFixDiffOnly = (t) =>
-  /Re-review judges each open finding ADDRESSED or NOT ADDRESSED over the fix diff only/.test(flat(t));
-const suiteReturnsOnlySummary = (t) =>
-  /(^|\s)No passing test names, no logs\.(\s|$)/.test(flat(t)) &&
-  /Per failing test: its full name and its first error line/i.test(flat(t));
-const toolsLine = (t) => (t.match(/^tools:\s*(.*)$/m) || [])[1];
-const hasModel = (t, m) => new RegExp(`^model: ${m}$`, 'm').test(t);
-const trackerOnly = (t) => /\baz\b|ado-commands|work item|tasks\/build-commands\.md|journal/i.test(t);
-
-// ── planted opposites ─────────────────────────────────────────────────
-
-const OPPOSITE_BUILDER = 'When the tests are green, run git commit and then git push.\nNever skip the tests.';
-const OPPOSITE_TOOLS = 'tools: Read, Write, Edit, Glob, Grep, Bash';
-const OPPOSITE_ADO = 'Update the work item with az boards, then add a journal entry.';
-const OPPOSITE_AGENT = AGENT_SENTENCE.replace('starts with one line', 'may start with one line');
-const OPPOSITE_COUNT = 'Per test give its name, AC id and the assertion it passed on.';
-const OPPOSITE_REREVIEW =
-  'Re-review does not judge each open finding ADDRESSED or NOT ADDRESSED over the fix diff only; it reviews the whole story again';
-const OPPOSITE_SUITE =
-  'Per failing test: its full name and its first error line. No passing test names, no logs is not required: include the passing test names and the full log, not only the first error line.';
-
-// ── AC1 / AC2 ─────────────────────────────────────────────────────────
-
-test('Builder_ReportsTestsWithCriterionAndFailingAssertion_NeverCommits', () => {
-  assert.ok(!gitOnlyForbidden(OPPOSITE_BUILDER), 'planted "run git commit when green" must be rejected');
-  assert.ok(!reportsTestNameCriterionAssertion(OPPOSITE_COUNT), 'planted "assertion it passed on" must be rejected');
-
-  const t = readAgent('story-builder');
-  assert.ok(t, 'AC1: agents/story-builder.md must exist');
-  assert.ok(reportsTestNameCriterionAssertion(t), 'AC2: per test the report gives its name, its AC id and the assertion line it failed on');
-  assert.ok(gitMentions(t).length > 0, 'AC2: the file must say something about git add / commit / push');
-  assert.ok(gitOnlyForbidden(t), 'AC2: every git add / commit / push mention must sit in a sentence starting "Do not" or "never"');
-});
-
-// ── AC3 ───────────────────────────────────────────────────────────────
-
-test('Reviewer_EditsNothing_ReReviewIsAddressedOrNotOverTheFixDiff', () => {
-  assert.notStrictEqual(toolsLine(OPPOSITE_TOOLS), 'Read, Glob, Grep, Bash', 'planted write-capable tools must be rejected');
-  assert.ok(!reReviewJudgesFixDiffOnly(OPPOSITE_REREVIEW), 'planted "re-review the whole story" must be rejected');
-
-  const t = readAgent('story-reviewer');
-  assert.ok(t, 'AC3: agents/story-reviewer.md must exist');
-  assert.ok(/^tools: Read, Glob, Grep, Bash$/m.test(t), 'AC3: tools must be exactly Read, Glob, Grep, Bash');
-  for (const mode of ['Correctness', 'Rules and quality', 'Re-review', 'Cross-story']) {
-    assert.ok(t.includes(mode), `AC3: the reviewer must name the mode "${mode}"`);
-  }
-  assert.ok(reReviewJudgesFixDiffOnly(t), 'AC3: Re-review judges each open finding ADDRESSED or NOT ADDRESSED over the fix diff only');
-});
-
-// ── AC4 ───────────────────────────────────────────────────────────────
-
-test('SuiteRunner_ReturnsOnlyTheSummaryAndFirstErrorLine', () => {
-  assert.ok(!suiteReturnsOnlySummary(OPPOSITE_SUITE), 'planted "include names and the full log" must be rejected');
-
-  const t = readAgent('suite-runner');
-  assert.ok(t, 'AC4: agents/suite-runner.md must exist');
-  assert.ok(suiteReturnsOnlySummary(t), 'AC4: must say "No passing test names, no logs" and report each failing test\'s first error line');
-});
-
-// ── AC1 / AC5 ─────────────────────────────────────────────────────────
-
-test('StoryAgents_RunOnSonnetAndStartWithStatus', () => {
-  assert.ok(!hasModel('model: opus', 'sonnet'), 'planted opus model must be rejected');
-  assert.ok(!agentSaysStatusLine(OPPOSITE_AGENT), 'planted text without the sentence must be rejected');
-
-  for (const name of AGENTS) {
-    const t = readAgent(name);
-    assert.ok(t, `AC1: agents/${name}.md must exist`);
-    assert.ok(hasModel(t, 'sonnet'), `AC5: ${name} must have "model: sonnet"`);
-    assert.ok(agentSaysStatusLine(t), `AC1: ${name} must carry the STATUS-line sentence`);
-  }
-});
-
-// ── AC1 ───────────────────────────────────────────────────────────────
-
-test('StoryAgents_NoTrackerOnlySteps', () => {
-  assert.ok(trackerOnly(OPPOSITE_ADO), 'planted ADO line must be caught by the predicate');
-
-  for (const name of AGENTS) {
-    const t = readAgent(name);
-    assert.ok(t, `AC1: agents/${name}.md must exist`);
-    assert.ok(!trackerOnly(t), `AC1: ${name} must have no ADO / journal / build-commands steps`);
-  }
-});
 
 // ── Technical requirement: test-rules reference ───────────────────────
 
@@ -153,7 +56,7 @@ test('TestRules_CarriedAcross', () => {
   }
 
   let t = null;
-  try { t = readFile('skills', 'implement', 'reference', 'test-rules.md'); } catch { /* absent */ }
+  try { t = readFile('reference', 'test-rules.md'); } catch { /* absent */ }
   assert.ok(t, 'skills/implement/reference/test-rules.md must exist');
   const leads = leadIns(t);
   assert.ok(leads.length >= 9, `test-rules.md must carry at least 9 bold rules, found ${leads.length}`);

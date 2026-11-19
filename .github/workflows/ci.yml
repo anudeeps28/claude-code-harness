@@ -21,6 +21,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The SECURITY.md hash test in boundaries-repo reads git history; a shallow clone skips it.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

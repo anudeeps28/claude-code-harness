@@ -30,7 +30,7 @@ Read learnings from both scopes in **parallel**:
 2. **Global learnings** — `~/.claude/learnings/*.json`
 3. **Archived learnings** — `.claude/learnings/archived/*.json` and `~/.claude/learnings/archived/*.json`
 
-If no learnings exist in either scope, output `✅ No learnings recorded yet. Run /improve-harness to extract patterns from your session history.` and stop.
+If no learnings exist in either scope, output `✅ No learnings recorded yet. Next: /improve-harness — extracts patterns from your session history.` and stop.
 
 ---
 

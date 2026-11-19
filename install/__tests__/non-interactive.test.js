@@ -296,8 +296,9 @@ test('every roster role agent is installed and the old role agents are gone', ()
     }
   }
 
+  const sourceAgents = fs.readdirSync(path.join(REPO, 'agents'));
   for (const removed of REMOVED_ROLE_AGENTS) {
-    assert.ok(!fs.existsSync(path.join(REPO, 'agents', removed)), `${removed} must not exist in the repo source`);
+    assert.ok(!sourceAgents.includes(removed), `${removed} must not exist in the repo source`);
   }
 });
 
@@ -439,8 +440,15 @@ test('update migrates a pre-pack-filter solo install: prunes enterprise skills, 
     const claudeDir = path.join(dir, '.claude');
 
     // Regress to the pre-fix shape: enterprise skills present, story agents absent.
-    for (const skill of ENTERPRISE_ONLY_SKILLS) {
-      fs.cpSync(path.join(REPO, 'skills', skill), path.join(claudeDir, 'skills', skill), { recursive: true });
+    // The enterprise skills come from an enterprise install of the same source, not from the repo's folders.
+    const entDir = makeTempProject();
+    try {
+      runInstallJs(['--yes', '--project', entDir, '--pack', 'enterprise', ...LOCAL]);
+      for (const skill of ENTERPRISE_ONLY_SKILLS) {
+        fs.cpSync(path.join(entDir, '.claude', 'skills', skill), path.join(claudeDir, 'skills', skill), { recursive: true });
+      }
+    } finally {
+      fs.rmSync(entDir, { recursive: true, force: true });
     }
     // The executor is in the dropped list too (F73 #83): it shows an old install, but unlike the other
     // two it is retired, so the update must not bring it back.

@@ -10,9 +10,14 @@ const path = require('node:path');
 const iface = require('./interface.js');
 const { mdFiles, checkOptions } = require('./common.js');
 const pointers = require('./pointers.js');
+const headings = require('./headings.js');
 const readmes = require('./readmes.js');
 const adrs = require('./adrs.js');
 const context = require('./context.js');
+const agents = require('./agents.js');
+const shape = require('./shape.js');
+const depends = require('./depends.js');
+const tests = require('./tests.js');
 
 function checkOwners(root, options = {}) {
   checkOptions(options);
@@ -55,8 +60,17 @@ module.exports = {
   checkRulesTable,
   ...iface,
   ...pointers,
-  ...readmes,
+  ...headings,
+  CODE_MODULES: readmes.CODE_MODULES,
+  checkReadmes: readmes.checkReadmes,
+  requiredExports: readmes.requiredExports,
+  checkReadmeCallable: readmes.checkReadmeCallable,
   ...adrs,
+  ...agents,
+  ...shape,
+  checkDependsOn: depends.checkDependsOn,
+  checkTestReads: tests.checkTestReads,
+  interfaceOf: tests.interfaceOf,
   readArchitectureMap: context.readArchitectureMap,
   checkContextMap: context.checkContextMap,
 };

@@ -61,7 +61,7 @@ Coverage: [tasks/coverage/<doc-slug>.md, if any]
 
 ## Goal
 
-[Written by /implement in Phase 1.5, so a resumed run does not define it again.]
+[Written by /implement before its plan gate, so a resumed run does not define it again.]
 - **Demo:** [the ticket's `## Demo`, verbatim — or "none on the ticket; the plan writes one"]
 - **E2E modality:** [how the finished work is exercised end to end]
 - **Machine oracle?** [yes → automated gate / no → structured human acceptance]

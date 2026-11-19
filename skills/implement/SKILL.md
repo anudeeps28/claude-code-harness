@@ -8,9 +8,9 @@ model: sonnet
 ## Interface
 
 **Inputs:** `/implement <feature-id | #42 | task title | description>` with the flags `--standalone`, `--discuss`, `--research`, `--quick`, `--step`, `--auto`, `--full`, `--autonomous`, `--tdd`, `--no-ship`, `--rework <PR#> '<note>'` and `--resume <id|fid>`. Reads `tasks/stories/<id>/ticket.md`, `tasks/lessons.md` (or `tasks/notes.md` in the solo pack), `.claude/.harness-manifest.json`, and the saved state of a run being resumed.
-**Outputs:** `tasks/stories/<id>/{brief,plan,executor-state,phase,decisions-log}.md` and `tasks/stories/<id>/.tree-baseline`; for a Feature `tasks/features/<fid>/{brief,plan,test-strategy,feature-state,phase,decisions-log,prove-it,pr-body}.md`, `claim`, `stories.json` and `progress.log`. One commit per story, then the PR. It starts each agent with a brief that asks for a `STATUS:` line (`rules/agent-handoff.md`).
+**Outputs:** `tasks/stories/<id>/{brief,plan,executor-state,phase,decisions-log}.md` (`executor-state.md` holds the saved `step:` and `round:` a resume carries on from) and `tasks/stories/<id>/.tree-baseline`; for a Feature `tasks/features/<fid>/{brief,plan,test-strategy,feature-state,phase,decisions-log,prove-it,pr-body}.md`, `claim`, `stories.json` and `progress.log`. One commit per story, then the PR. It starts each agent with a brief that asks for a `STATUS:` line (`rules/agent-handoff.md`).
 **Callable parts:** `bin/worktree.js`, `bin/feature-state.js`, `bin/test-lock.js`, `bin/red-evidence.js`, `bin/source-lines.js`, `bin/demo.js`, `bin/observe-check.js`, `bin/proof-check.js`, `bin/claims-check.js`, `bin/pr-gate.js`, `bin/loosened-scan.js`, `bin/migration-check.js`, `reference/test-rules.md`.
-**Never breaks:** it is the one build skill (ADR-0001). Code is built in the work folder and state is written to the home folder's `tasks/`, never inside a worktree (ADR-0004). Stories are built one after another, one commit per story (ADR-0005). One session works one Feature (ADR-0006). It never pushes to main and never force-pushes. It asks its questions once, at the one plan gate. It never reads a requirement more narrowly than written.
+**Never breaks:** it is the one build skill (ADR-0001). Code is built in the work folder and state is written to the home folder's `tasks/`, never inside a worktree (ADR-0004). Stories are built one after another, one commit per story (ADR-0005). One session works one Feature (ADR-0006). It never pushes to main and never force-pushes. It asks its questions once, at the one plan gate. It never reads a requirement more narrowly than written. Every story is built test first: its tests are written from the criteria and seen to fail before its code is written. A stuck story's own paths go back to `HEAD` in the index and the tree before the next story starts. A standalone run asks before it checks out a branch in a home folder where `bin/feature-state.js live` reports a live Feature session.
 
 ---
 
@@ -387,8 +387,8 @@ reviews, the coverage audit, debugging), Sonnet for writing and running code and
 are a list, Haiku for tracker writes. This session runs on Sonnet (the `model:` in the frontmatter).
 **Every spawn states its model** (model: `<m>`, the row's model), because an agent that is spawned
 without one inherits this session's model. An agent may have several rows; its first row is its
-default and must equal the `model:` in its own file (`__tests__/model-per-job.probe.test.js` fails
-when they drift). A job that comes back BLOCKED and needs more reasoning is relaunched once on opus,
+default and must equal the `model:` in its own file (the boundary check's test
+`Model_AgentFilesAgreeWithTheTableDefaultRows` fails when they drift). A job that comes back BLOCKED and needs more reasoning is relaunched once on opus,
 told what the first attempt tried (`rules/agent-handoff.md`).
 
 Evidence for the frontmatter `model:`: the Claude Code docs, skills page, frontmatter table, say "The override applies for the rest of the current turn and isn't saved to settings". It holds for one turn only, so the Feature plan gate tells the person to approve by running `/implement --resume <fid>`, and the single-story gate tells them to run `/model sonnet` first. Checked against Claude Code 2.1.289 (`claude --version`).

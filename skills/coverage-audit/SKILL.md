@@ -20,7 +20,7 @@ between them; this is the one check that reads the document against the code at 
 **Triggers:** "audit coverage", "is the design doc fully built", "check the doc against the code",
 "closing check"
 
-**Called by:** `/implement` (a run that completes a coverage table, before its PR), `/sync-tracker`
+**Called by:** `/implement` (when a coverage table is complete, before its PR), `/sync-tracker`
 (when the last item a coverage table maps to closes), or a person at any time.
 
 ---
@@ -101,8 +101,8 @@ decides what the document delivers:
 
 A line mapped to a caller's own `--building` item is the caller's to fix: report it back as a failed
 criterion (`/implement` reopens and fixes it before its PR). When called from inside a run, list the
-other open lines for its PR body instead of asking mid-run; they are asked the next time a person
-runs this skill or `/sync-tracker`.
+other open lines for its PR body instead of asking mid-run; they are asked at the next audit or
+`/sync-tracker` pass.
 
 ---
 

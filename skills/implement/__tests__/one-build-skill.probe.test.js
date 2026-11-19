@@ -8,11 +8,16 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r/g, '');
-const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
+const strip = (text) => text.replace(/\r/g, '');
+// What this probe may read: /implement's own files, rules/, docs/, templates/ and the root documents.
+const readOwn = (...p) => strip(fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8'));
+const readRule = (name) => strip(fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8'));
+const readDocs = (...p) => strip(fs.readFileSync(path.join(REPO_ROOT, 'docs', ...p), 'utf8'));
+const readTemplate = (...p) => strip(fs.readFileSync(path.join(REPO_ROOT, 'templates', ...p), 'utf8'));
+const readReadme = () => strip(fs.readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8'));
+const IMPLEMENT = readOwn('SKILL.md');
 
 function mustMatch(content, re, message) { assert.ok(content && re.test(content), message); }
 
@@ -21,41 +26,22 @@ function mustMatch(content, re, message) { assert.ok(content && re.test(content)
 // references, so "/story" must start a word and be followed by an id, a flag, punctuation or the end.
 const RETIRED = /(?<![\w/])\/story(?![\w/-]| worktree| \d+ is)|\brun-tasks\b|story-plan-agent|skills\/story\//;
 
-// Files that may name them: history, the decision and its inventory, the installer code that removes
-// them and its tests, the one README line and the TROUBLESHOOTING note that say they were retired,
-// the phase-marker rule's back-compatibility line, and the probes that say what they replaced.
-const ALLOWED = [
-  /^CHANGELOG\.md$/, /^grill-summary\.md$/, /^\.planning\//, /^ARCHITECTURE\.md$/, /^docs\/adr\//,
-  /^docs\/story-retirement-inventory\.md$/,
-  /^install\/lib\/updater\.js$/, /^install\/__tests__\//,
-  /^README\.md$/, /^TROUBLESHOOTING\.md$/, /^rules\/phase-markers\.md$/,
-  /^skills\/implement\/__tests__\/(tdd-mode|one-build-skill)\.probe\.test\.js$/,
-];
-
-test('Retired_NoReferenceOutsideTheAllowedFiles', () => {
-  const files = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: REPO_ROOT, encoding: 'utf8' })
-    .stdout.split('\n').filter(Boolean)
-    .filter((f) => /\.(md|js|json|sh|html|yml|yaml)$/.test(f) && !f.startsWith('tasks/') && f !== 'feature-unit-grill-brief.md');
-  const hits = [];
-  for (const f of files) {
-    if (ALLOWED.some((re) => re.test(f)) || !fs.existsSync(path.join(REPO_ROOT, f))) continue;
-    read(f).split('\n').forEach((line, i) => { if (RETIRED.test(line)) hits.push(`${f}:${i + 1}: ${line.trim().slice(0, 120)}`); });
-  }
-  assert.deepStrictEqual(hits, [], `references to retired /story, /run-tasks or story-plan-agent:\n${hits.join('\n')}`);
-});
+// Whether any file anywhere still names them (Retired_NoReferenceOutsideTheAllowedFiles) is a whole-repo
+// question, asked in scripts/__tests__/boundaries-repo.test.js.
 
 test('Retired_TheSkillsAndAgentAreGone', () => {
+  const listing = { skills: fs.readdirSync(path.join(REPO_ROOT, 'skills')), agents: fs.readdirSync(path.join(REPO_ROOT, 'agents')) };
   for (const p of [['skills', 'story'], ['skills', 'run-tasks'], ['agents', 'story-plan-agent.md']]) {
-    assert.ok(!fs.existsSync(path.join(REPO_ROOT, ...p)), `${p.join('/')} must be removed`);
+    assert.ok(!listing[p[0]].includes(p[1]), `${p.join('/')} must be removed`);
   }
-  const allowedInReadme = read('README.md').split('\n').filter((l) => RETIRED.test(l));
+  const allowedInReadme = readReadme().split('\n').filter((l) => RETIRED.test(l));
   assert.ok(allowedInReadme.every((l) => /retired/i.test(l)), `README may name them only to say they were retired:\n${allowedInReadme.join('\n')}`);
 });
 
 // ── #62 the inventory ────────────────────────────────────────────────
 
 test('Inventory_EveryStoryPhaseAndAgentHasADecision', () => {
-  const inv = read('docs', 'story-retirement-inventory.md');
+  const inv = readDocs('story-retirement-inventory.md');
   for (const phase of ['Phase 1', 'Phase 1.5', 'Phase 2', 'Phase 3', 'Phase 3.5', 'Phase 3.6', 'Phase 3.7', 'Phase 4', 'Test-first mode', 'Autonomous mode']) {
     assert.ok(inv.includes(phase), `the inventory must cover /story ${phase}`);
   }
@@ -78,9 +64,7 @@ test('Pack_ImplementReadsItAndGatesTheEnterpriseSteps', () => {
   mustMatch(IMPLEMENT, /\*\*Enterprise only\*\*, when the ticket lists child tasks\] Child tasks/, 'one task per child task on enterprise');
   mustMatch(IMPLEMENT, /\*\*Enterprise only — the sprint file\.\*\*[\s\S]{0,300}Master Status Table/, 'the Feature PR updates the Master Status Table on enterprise');
   mustMatch(IMPLEMENT, /Pack: \[`enterprise` or `solo`\]/, 'the PR step passes the pack to story-pr-agent');
-  const pr = read('agents', 'story-pr-agent.md');
-  mustMatch(pr, /## Step 6 — Update sprint Master Status Table \(enterprise only\)[\s\S]{0,300}solo install, skip this\s+step entirely/, 'story-pr-agent skips the table on solo');
-  mustMatch(read('agents', 'implement-planner-agent.md'), /\*\*`Child tasks:`\*\*[\s\S]{0,300}per child task/, 'the planner knows the child-task rule (F73 #83: the plan has no task XML, so the rule no longer names a `<task>`)');
+  // What story-pr-agent and the planner say about the pack is asserted in agents/__tests__/agent-text-one-build-skill.test.js.
 });
 
 test('Moved_BehavioursThatWereOnlyInStory', () => {
@@ -93,14 +77,10 @@ test('Moved_BehavioursThatWereOnlyInStory', () => {
 
 test('Replacements_RosterAndInstallerKnowTheOneBuildSkill', () => {
   for (const pack of ['solo', 'enterprise']) {
-    const roster = JSON.parse(read('templates', `harness-roles.${pack}.json`));
+    const roster = JSON.parse(readTemplate(`harness-roles.${pack}.json`));
     assert.deepStrictEqual(roster.roles.builder.skills, ['implement'], `${pack} roster: the builder runs /implement`);
   }
-  const updater = read('install', 'lib', 'updater.js');
-  // Later retirements join the list (to-issues, 2026-10-06); story and run-tasks stay on it.
-  mustMatch(updater, /RETIRED_SKILLS = \['story', 'run-tasks'(, '[a-z-]+')*\]/, 'the updater lists the retired skills');
-  mustMatch(updater, /removeRetired\(target\);/, 'an update removes them');
-  mustMatch(read('install', 'install.js'), /removeRetired\(target\);/, 'an install over an old one removes them');
+  // The installer's own retirement list and its calls to removeRetired are asserted in install/__tests__/required-agents.test.js.
 });
 
 // ── #65 rules and docs ───────────────────────────────────────────────
@@ -111,18 +91,18 @@ test('Docs_AdrsAcceptedAndReadmeHasBothExamples', () => {
   assert.equal(adrs.length, 5, `ADRs 0001-0005 all exist: ${adrs.join(', ')}`);
   for (const f of adrs) {
     const superseded = /^000[23]-/.test(f);
-    mustMatch(read('docs', 'adr', f),
+    mustMatch(readDocs('adr', f),
       superseded ? /^- \*\*Status:\*\* superseded by ADR-0005/m : /^- \*\*Status:\*\* accepted/m,
       superseded ? `${f} is superseded by ADR-0005` : `${f} is accepted`);
   }
-  const readme = read('README.md');
+  const readme = readReadme();
   mustMatch(readme, /\*\*Building a Feature\.\*\*/, 'README shows a Feature build');
   mustMatch(readme, /\*\*Building a standalone item\.\*\*/, 'README shows a standalone build');
   // #69: the top diagram is Mermaid text, so it can be checked and kept current; it shows both builds.
   const top = readme.slice(0, readme.indexOf('## Why this exists'));
   mustMatch(top, /```mermaid[\s\S]*\/implement &lt;feature-id&gt;[\s\S]*\/implement #42 --standalone[\s\S]*```/, 'the top diagram shows the Feature and the standalone build');
   assert.doesNotMatch(top, /harness-flow\.png/, 'the old PNG diagram is gone');
-  mustMatch(read('CONFIGURE.md'), /## Building with `\/implement`/, 'CONFIGURE explains the build');
-  mustMatch(read('ARCHITECTURE.md'), /## Appendix: What building it taught us/, 'ARCHITECTURE records what building taught us');
-  assert.doesNotMatch(read('rules', 'progress-tracking.md'), /until F7 retires/, 'progress-tracking no longer waits on F7');
+  mustMatch(strip(fs.readFileSync(path.join(REPO_ROOT, 'CONFIGURE.md'), 'utf8')), /## Building with `\/implement`/, 'CONFIGURE explains the build');
+  mustMatch(strip(fs.readFileSync(path.join(REPO_ROOT, 'ARCHITECTURE.md'), 'utf8')), /## Appendix: What building it taught us/, 'ARCHITECTURE records what building taught us');
+  assert.doesNotMatch(readRule('progress-tracking.md'), /until F7 retires/, 'progress-tracking no longer waits on F7');
 });

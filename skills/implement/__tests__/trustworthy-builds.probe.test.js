@@ -11,11 +11,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8');
-const exists = (...p) => fs.existsSync(path.join(REPO_ROOT, ...p));
+const readOwn = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+const readRule = (name) => fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8');
+const readTemplate = (...p) => fs.readFileSync(path.join(REPO_ROOT, 'templates', ...p), 'utf8');
+// Whole-repo questions (does every required tool exist, does any file launch an old agent name) are asked in
+// scripts/__tests__/boundaries-repo.test.js. Whether an agent file exists is read from the folder listing.
+const agentExists = (name) => fs.readdirSync(path.join(REPO_ROOT, 'agents')).includes(name);
 
-const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
-const PROGRESS_RULE = read('rules', 'progress-tracking.md');
+const IMPLEMENT = readOwn('SKILL.md');
+const PROGRESS_RULE = readRule('progress-tracking.md');
 const { readRequired } = require('../bin/startup-check.js');
 
 // The text from `heading` to the next "## " heading, ignoring headings inside ``` code blocks
@@ -54,18 +58,8 @@ test('StartupCheck_EveryAdapterScriptNamedInImplementIsInTheRequiredList', () =>
   }
 });
 
-test('StartupCheck_EveryRequiredToolExistsInThisRepo', () => {
-  for (const r of readRequired()) {
-    const where = {
-      agent: ['agents', `${r.name}.md`],
-      skill: ['skills', r.name, 'SKILL.md'],
-      'tracker-script': ['trackers', 'local', r.name],
-      'code-platform-script': ['code-platform', 'github', r.name],
-    }[r.kind];
-    assert.ok(where, `unknown kind ${r.kind}`);
-    assert.ok(exists(...where), `Required tools lists ${r.kind} ${r.name}, which is not in the repo (${where.join('/')})`);
-  }
-});
+// StartupCheck_EveryRequiredToolExistsInThisRepo looks for files in agents, skills, trackers and code-platform:
+// it is in scripts/__tests__/boundaries-repo.test.js.
 
 // F73 #83: the executor and /troubleshoot (with its investigator) are retired, so the build skill no
 // longer requires them: a startup check that still wanted them would stop every run on a missing file.
@@ -196,8 +190,8 @@ test('DoneAfterReview_ProgressRuleNoLongerCompletesOnVerify', () => {
 // ── #27 never end a turn while background work runs ──────────────────
 
 test('BackgroundWork_RuleExistsWithItsOneException', () => {
-  assert.ok(exists('rules', 'background-work.md'), 'expected rules/background-work.md');
-  const rule = read('rules', 'background-work.md');
+  assert.ok(fs.existsSync(path.join(REPO_ROOT, 'rules', 'background-work.md')),'expected rules/background-work.md');
+  const rule = readRule('background-work.md');
   mustMatch(rule, /final summary|end (its|the) turn/i, 'the rule must forbid ending the turn early');
   mustMatch(rule, /exception/i, 'the rule must state its one exception');
 });
@@ -209,37 +203,22 @@ test('BackgroundWork_TheBuildSkillReferencesTheRule', () => {
 // ── #28 unambiguous names ─────────────────────────────────────────────
 
 test('Names_RoleAgentsAreRenamed', () => {
-  assert.ok(exists('agents', 'build-session.md'), 'expected agents/build-session.md');
-  assert.ok(exists('agents', 'review-session.md'), 'expected agents/review-session.md');
-  assert.ok(!exists('agents', 'builder.md'), 'agents/builder.md should be renamed');
-  assert.ok(!exists('agents', 'reviewer.md'), 'agents/reviewer.md should be renamed');
-  mustMatch(read('agents', 'build-session.md'), /^name: build-session$/m, 'build-session.md name: field');
-  mustMatch(read('agents', 'review-session.md'), /^name: review-session$/m, 'review-session.md name: field');
+  assert.ok(agentExists('build-session.md'), 'expected agents/build-session.md');
+  assert.ok(agentExists('review-session.md'), 'expected agents/review-session.md');
+  assert.ok(!agentExists('builder.md'), 'agents/builder.md should be renamed');
+  assert.ok(!agentExists('reviewer.md'), 'agents/reviewer.md should be renamed');
+  // The `name:` field of each renamed agent is asserted in agents/__tests__/agent-text-trustworthy-builds.test.js.
 });
 
 test('Names_RostersPointAtTheRenamedAgents', () => {
   for (const pack of ['solo', 'enterprise']) {
-    const roster = JSON.parse(read('templates', `harness-roles.${pack}.json`));
+    const roster = JSON.parse(readTemplate(`harness-roles.${pack}.json`));
     assert.equal(roster.roles.builder.agent, 'build-session', `${pack}: roles.builder.agent`);
     assert.equal(roster.roles.reviewer.agent, 'review-session', `${pack}: roles.reviewer.agent`);
   }
 });
 
-test('Names_NothingLaunchesTheOldAgentNames', () => {
-  const dirs = ['agents', 'skills', 'rules', 'templates'];
-  const offenders = [];
-  const walk = (d) => {
-    for (const e of fs.readdirSync(path.join(REPO_ROOT, d), { withFileTypes: true })) {
-      const rel = path.join(d, e.name);
-      if (e.isDirectory()) { if (e.name !== '__tests__' && e.name !== 'node_modules') walk(rel); continue; }
-      if (!/\.(md|json)$/.test(e.name)) continue;
-      const text = read(rel);
-      if (/--agent (builder|reviewer)\b|"agent": "(builder|reviewer)"/.test(text)) offenders.push(rel);
-    }
-  };
-  dirs.forEach(walk);
-  assert.deepEqual(offenders, [], `still launch the old agent names: ${offenders.join(', ')}`);
-});
+// Names_NothingLaunchesTheOldAgentNames scans every module's files: it is in scripts/__tests__/boundaries-repo.test.js.
 
 test('Names_BuiltInAgentsAreNamedAsBuiltIns', () => {
   mustMatch(IMPLEMENT, /built-in `Explore` agent/, 'the --research step must name Claude Code\'s built-in Explore agent');

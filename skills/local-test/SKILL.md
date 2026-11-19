@@ -8,7 +8,7 @@ argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev serve
 
 **Inputs:** `/local-test [1|2|3|e2e]` (level 1 = build and unit tests, 2 = plus integration, 3 = plus a dev server for manual testing, `e2e` = the story's e2e goal gate; default 2). Reads `tasks/lessons.md` (or `tasks/notes.md` in the solo pack) for the build, test and Observe commands; for `e2e` it reads `tasks/stories/<id>/brief.md` (the Goal) or `tasks/features/<fid>/test-strategy.md`.
 **Outputs:** no tasks/ files. A pass/fail report per level, or per acceptance criterion for the e2e gate (`NOT SET UP (fail)` when no E2E command is declared, `AWAITING HUMAN SIGN-OFF` for structured human acceptance). It reports back to its caller and never pauses for a human.
-**Callable parts:** none (the files in `examples/` are samples for a project's own `tasks/lessons.md`, and only the sample `examples/tasks/lessons.md` names them).
+**Callable parts:** none (the files in `templates/` are samples for a project's own `tasks/lessons.md`, and only the sample `examples/tasks/lessons.md` names them).
 **Never breaks:** it never modifies source code and never commits. It takes every command from `tasks/lessons.md` or `tasks/notes.md` and never guesses or hardcodes one. It never fixes a failure, only reports it to the caller. A missing e2e command is reported as NOT SET UP and counts as a fail, never as a pass or a skip.
 
 ---
@@ -19,7 +19,7 @@ argument-hint: Level (1=build+unit, 2=build+unit+integration, 3=Level2+dev serve
 
 ---
 
-You run local verification at the requested level. If no level is given, default to **Level 2**. `e2e` is a distinct capability (not a numeric level) — the goal gate `/implement` runs before its PR.
+You verify locally at the requested level. If no level is given, default to **Level 2**. `e2e` is a distinct capability (not a numeric level) — the goal gate `/implement` runs before its PR.
 
 **First:** Read `YOUR_PROJECT_ROOT/tasks/lessons.md` to find the project's test configuration. If `lessons.md` does not exist, read `YOUR_PROJECT_ROOT/tasks/notes.md` instead — solo projects store the same test commands there under the "Test Commands" section. All commands come from one of these two files — nothing is hardcoded.
 
@@ -68,7 +68,7 @@ The end-to-end gate for the current feature — the terminal check `/implement` 
    - **Domain-specific graded eval:** the project's eval runner (defined in the project's own skills/docs, not here).
    - **Structured human acceptance** (no machine oracle): there is no command to run — instead surface the ACTUAL behavior using each criterion's **Seen by** line (API response, log, screenshot, read-only query; never a raw prod DB read) and report it for a human sign-off. Show the **shape** of the evidence only — status codes, row counts, ids, field names — never row contents or response bodies, which on regulated projects can hold PHI/PII. Do NOT declare PASS yourself.
 3. **Run it and report** PASS/FAIL against each acceptance criterion (the criteria ARE the gate). For the human-acceptance case, report "AWAITING HUMAN SIGN-OFF" with the evidence shown, and wait: it never becomes PASS without the sign-off.
-4. **Never fix on failure** — report the failure back to the caller (`/implement` Phase 3 owns the diagnostic re-approach).
+4. **Never fix on failure** — report the failure back to the caller (the caller owns the diagnostic re-approach).
 
 **No command, no Demo: NOT SET UP.** If no `E2E command` is declared and the modality is not structured human acceptance, report **NOT SET UP** — never anything that reads as a pass or a skip. It counts as a **fail**: nobody has seen the Demo happen, so the item is not done. Name what is needed:
 

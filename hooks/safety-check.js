@@ -4,7 +4,7 @@
 // Even in --dangerously-skip-permissions mode, exit 2 + decision:deny
 // will prevent the tool call from executing.
 //
-// Threat model and bypass discussion: see hooks/SECURITY.md.
+// Threat model and bypass discussion: see the Security section of hooks/README.md.
 //
 // Two rule sets, applied based on tool name:
 //   - BASH_RULES: applied to Bash command strings

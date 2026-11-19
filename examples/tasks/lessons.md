@@ -136,9 +136,9 @@ Wait 3 minutes after uploading blobs — the Function App needs time to process.
 - Unit tests: `dotnet test --filter "Category!=Integration"`
 
 **Level 2 — Integration Tests (Docker emulators):**
-- Setup: `docker compose -f .claude/skills/local-test/examples/docker-compose-dotnet.yml up -d`
+- Setup: `docker compose -f .claude/skills/local-test/templates/docker-compose-dotnet.yml up -d`
 - Integration tests: `dotnet test --filter "Category=Integration"`
-- Cleanup: `docker compose -f .claude/skills/local-test/examples/docker-compose-dotnet.yml down`
+- Cleanup: `docker compose -f .claude/skills/local-test/templates/docker-compose-dotnet.yml down`
 
 **Level 3 — Dev Server:**
 - Dev server: `dotnet run --project src/YOUR_PROJECT_NAMESPACE.API/YOUR_PROJECT_NAMESPACE.API.csproj --urls http://localhost:5000`
@@ -149,7 +149,7 @@ Wait 3 minutes after uploading blobs — the Function App needs time to process.
 - Run a specific test: `dotnet test --filter "Name=MethodName"`
 
 **Custom test script (optional):**
-- Full-stack script (Level 2+ with Azure emulators + API + Functions + E2E smoke test): `powershell.exe -ExecutionPolicy Bypass -File .claude/skills/local-test/examples/local-test-dotnet.ps1`
+- Full-stack script (Level 2+ with Azure emulators + API + Functions + E2E smoke test): `powershell.exe -ExecutionPolicy Bypass -File .claude/skills/local-test/templates/local-test-dotnet.ps1`
 
 ---
 

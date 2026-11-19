@@ -82,7 +82,7 @@ Present the plan:
 | 3 | #35 | Refactor auth module | Large (12 files) | Blocked by #38 |
 | — | #29 | Migrate to new API | Large | Waiting on API v2 release |
 
-**Suggested next:** #38 — small bug fix, unblocks #35. Run `/implement #38` to start.
+**Suggested next:** #38 — small bug fix, unblocks #35. Next: `/implement #38`.
 
 ---
 

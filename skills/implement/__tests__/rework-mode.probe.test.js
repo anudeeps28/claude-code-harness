@@ -11,8 +11,12 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { interfaceOf } = require('../../../scripts/lib/boundaries.js');
+
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const SKILL_PATH = path.join(REPO_ROOT, 'skills', 'implement', 'SKILL.md');
+const SKILL_PATH = path.join(__dirname, '..', 'SKILL.md');
+// Another module is read through its Interface block, never its files (rules/modules.md).
+const codePlatformInterface = interfaceOf(REPO_ROOT, 'code-platform');
 
 const SKILL_MD = fs.readFileSync(SKILL_PATH, 'utf8');
 
@@ -73,10 +77,11 @@ test('ReworkSection_ReferencesOnlyScriptsThatExistOnDisk', () => {
   assert.ok(mentionedScripts.size > 0, 'Expected at least one .sh script mentioned in the Rework mode section');
 
   for (const script of mentionedScripts) {
-    const inGithubAdapter = fs.existsSync(path.join(REPO_ROOT, 'code-platform', 'github', script));
-    const inActiveAdapter = fs.existsSync(path.join(REPO_ROOT, '.claude', 'code-platform', 'active', script));
+    // The adapter scripts are code-platform's interface: its Callable parts name each one, so a script
+    // that is named there is one the module provides under code-platform/github/ and code-platform/active/.
+    const inCodePlatformInterface = codePlatformInterface.includes(script);
     assert.ok(
-      inGithubAdapter || inActiveAdapter,
+      inCodePlatformInterface,
       `Rework mode section mentions "${script}" but it does not exist under code-platform/github/ or .claude/code-platform/active/`
     );
   }

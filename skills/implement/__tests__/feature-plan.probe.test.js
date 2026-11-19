@@ -3,20 +3,22 @@
 // a story afterwards. Nothing parses this prose, so drift does not throw; this probe pins it. Every
 // content check is tested twice: against planted text saying the OPPOSITE (must be rejected, proving
 // the check can fail) and against the real files (the enforcement).
+//
+// What the planner's and the understand agent's own files say (the plan format, the Feature scope, and
+// that the story agents never plan) is asserted in agents/__tests__/agent-text.test.js: a test of
+// /implement may not read an agent's file (rules/modules.md, "Tests check the interface").
 
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const OWN = path.join(__dirname, '..');
 // CRLF on a Windows checkout would break every pattern that spans a line end.
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+const read = (...p) => fs.readFileSync(path.join(OWN, ...p), 'utf8').replace(/\r\n/g, '\n');
 const flat = (s) => s.replace(/\s+/g, ' ');
 
-const SKILL = read('skills', 'implement', 'SKILL.md');
-const UNDERSTAND = read('agents', 'story-understand-agent.md');
-const PLANNER = read('agents', 'implement-planner-agent.md');
+const SKILL = read('SKILL.md');
 
 function section(content, heading) {
   const lines = content.split('\n');
@@ -64,29 +66,6 @@ test('FeaturePlan_UnderstandAndPlannerOncePerFeatureOnOpus', () => {
   assert.ok(PLAN_FEATURE, 'SKILL.md must keep a "### Plan the Feature" section');
   assert.ok(onceOnOpus(PLAN_FEATURE, 'story-understand-agent'), 'AC1: Plan the Feature spawns story-understand-agent exactly once, model: `opus`, never per story');
   assert.ok(onceOnOpus(PLAN_FEATURE, 'implement-planner-agent'), 'AC1: Plan the Feature spawns implement-planner-agent exactly once, model: `opus`, never per story');
-});
-
-// ── AC2: the planner's Feature-plan mode ──────────────────────────────────────────────────────────
-
-const PARTS = ['Files', 'Tests to write first', 'Acceptance criteria and their proofs', 'Source requirements', 'Commands', 'Open questions'];
-const hasAllParts = (t) => PARTS.every((p) => t.includes(`**${p}:**`));
-const noTaskXml = (t) => /\bno task XML\b/i.test(flat(t)) || /\bno `?<task>`?/i.test(flat(t)) || /\bno <task> (xml|blocks?)/i.test(flat(t)) || /never[^.]*`?<task>`?/i.test(flat(t));
-
-test('FeaturePlan_PlanHoldsTheFivePartsPerStory', () => {
-  // F73 #83: "Feature-plan mode" became "Plan format", used for a Feature (many story sections) and
-  // for a single story (one section).
-  const mode = section(PLANNER, '## Plan format') || section(PLANNER, '## Feature-plan mode') || section(PLANNER, '### Feature-plan mode');
-  assert.ok(mode, 'AC2: agents/implement-planner-agent.md must have a "Plan format" (formerly "Feature-plan mode") section');
-
-  const plantedMissing = '## Story #<sid>\n**Files:**\n**Tests to write first:**\n**Commands:**\nWrite a `<task>` block per story.';
-  assert.ok(!hasAllParts(plantedMissing), 'planted section lacking proofs/source/questions must be rejected');
-  assert.ok(!noTaskXml(plantedMissing), 'planted "write a <task> block per story" must be rejected');
-
-  assert.ok(hasAllParts(mode), `AC2: Feature-plan mode names every per-story part: ${PARTS.join(', ')}`);
-  assert.ok(noTaskXml(mode), 'AC2: Feature-plan mode says there is no <task> XML');
-  for (const w of ['Proof:', 'Seen by:', 'Would lie if:']) assert.ok(mode.includes(w), `AC2: it names the ${w} line per criterion`);
-  assert.ok(/## Story #<sid>/.test(mode), 'AC2: one "## Story #<sid>" section per story');
-  assert.ok(/tasks\/features\/<fid>\/plan\.md/.test(mode), 'AC2: it writes tasks/features/<fid>/plan.md');
 });
 
 // ── AC3: the four checks run on the Feature plan, before the gate ─────────────────────────────────
@@ -138,8 +117,7 @@ test('FeaturePlan_GateListsEveryStorysQuestions_NothingReplans', () => {
 });
 
 // ── AC5: no planner call after the gate ───────────────────────────────────────────────────────────
-
-const PLANNER_NAME = 'implement-planner-agent';
+// The story agents' files are checked for it in agents/__tests__/agent-text.test.js.
 
 test('FeaturePlan_NoPlannerAfterTheGate', () => {
   const afterGate = [
@@ -158,36 +136,12 @@ test('FeaturePlan_NoPlannerAfterTheGate', () => {
   const runText = [...afterGate, section(SKILL, '## The story loop') || ''].join('\n');
   assert.ok(/node "<skill-dir>\/bin\/worktree\.js" feature/.test(runText), 'companion: the slice really holds Run the stories');
 
-  const others = ['story-builder.md', 'story-reviewer.md', 'suite-runner.md'].map((f) => read('agents', f));
-  assert.ok(others.length === 3 && others.every((t) => t.length > 200), 'companion: the three agent files were read');
-
   // The agent by name, or "a runner's planner" in prose: either starts a plan after the gate.
   const plans = (t) => /implement-planner-agent|\bplanner\b/i.test(t);
-  assert.ok(plans('Start the ' + PLANNER_NAME + ' for the story.'), 'planted planner call must be detected');
+  assert.ok(plans('Start the implement-planner-agent for the story.'), 'planted planner call must be detected');
   assert.ok(plans("Once a runner's planner has saved its plan"), 'planted prose planner mention must be detected');
   assert.ok(!plans('Start the story-builder for the story.'), 'companion: text with no planner is accepted');
-  const hits = [runText, ...others].filter(plans).length;
-  assert.strictEqual(hits, 0, `AC5: no planner call after the plan gate (found in ${hits} of the Feature run text, story-builder, story-reviewer, suite-runner)`);
-});
-
-// ── the understand agent's Feature scope ──────────────────────────────────────────────────────────
-
-const featureScopeOk = (t) => {
-  const s = flat(t);
-  return /every child (ticket|`?ticket\.md`?)/i.test(s)
-    && /tasks\/features\/<fid>\/brief\.md/.test(s)
-    && /points? (from )?1[-–—]10/i.test(s)
-    && /open question[^.]*recommended answer/i.test(s)
-    && !/\bonly the Feature\b[^.]*\bnever the children\b/i.test(s);
-};
-
-test('FeaturePlan_UnderstandAgentHasAFeatureScope', () => {
-  const planted = '## Feature scope\nReads only the Feature ticket, never the children. Writes the brief to tasks/features/<fid>/brief.md.';
-  assert.ok(!featureScopeOk(planted), 'planted "only the Feature, never the children" must be rejected');
-
-  const scope = section(UNDERSTAND, '## Feature scope') || section(UNDERSTAND, '### Feature scope');
-  assert.ok(scope, 'agents/story-understand-agent.md must have a "Feature scope" section');
-  assert.ok(featureScopeOk(scope), 'the Feature scope reads every child ticket plus the code, writes tasks/features/<fid>/brief.md, gives points 1-10 per story and every open question with a recommended answer');
+  assert.ok(!plans(runText), 'AC5: no planner call after the plan gate (found in the Feature run text)');
 });
 
 // ── from #75's review: whole tickets stay out of the Sonnet session ───────────────────────────────

@@ -6,8 +6,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { parse } = require('../../hooks/lib/frontmatter.js');
-const { listModules, readModule } = require('./interface.js');
-const { skillFolders, checkOptions, exemptSet } = require('./common.js');
+const { listModules, readModule, readInterface } = require('./interface.js');
+const { PATH_BOUNDARY, skillFolders, checkOptions, exemptSet, pointerSources } = require('./common.js');
 
 // Folders whose files may point at a skill's files. Tests (__tests__) are not pointers.
 const POINTER_DIRS = ['agents', 'rules', 'skills', 'hooks', 'install', 'templates', 'trackers', 'code-platform'];
@@ -110,4 +110,47 @@ function checkCallableParts(root, options = {}) {
   return problems;
 }
 
-module.exports = { buildPointerIndex, namedFiles, checkCallableParts };
+// Check 2, files of the code modules: a skill, agent or rule that names a file of a code module
+// (hooks, trackers, code-platform, install, scripts) names its README.md or a file that module's
+// Interface lists (Inputs or Callable parts). A skill's own deep files are checked by
+// checkCallableParts. For trackers and code-platform, `<module>/active/<x>` is the adapter script
+// `<x>`; a leading `.claude/` is ignored. A pointer into rules/ is never a problem (rules are not
+// modules, "A module may depend on any rule"), and a path with no file after it names nothing.
+const CODE_POINTER_MODULES = ['hooks', 'trackers', 'code-platform', 'install', 'scripts'];
+const FILE_POINTER_RE = new RegExp(
+  `${PATH_BOUNDARY}(?:\\.claude\\/)?((?:${CODE_POINTER_MODULES.join('|')})\\/[A-Za-z0-9_./*-]*)`, 'g');
+
+function checkFilePointers(root, options = {}) {
+  checkOptions(options);
+  const exe = exemptSet(options);
+  const problems = [];
+  const listed = new Map();
+  const interfaceText = (mod) => {
+    if (!listed.has(mod)) {
+      const file = path.join(root, mod, 'README.md');
+      const iface = fs.existsSync(file) ? readInterface(fs.readFileSync(file, 'utf8')) : null;
+      listed.set(mod, iface && iface.found ? `${iface.parts.inputs}\n${iface.parts.callable}` : '');
+    }
+    return listed.get(mod);
+  };
+  for (const { rel: by, lines } of pointerSources(root)) {
+    // An exempt skill (the frontend-design bundle) names its own relative `scripts/...` files.
+    if (by.startsWith('skills/') && exe.has(by.split('/')[1])) continue;
+    lines.forEach((line, i) => {
+      for (const m of line.matchAll(FILE_POINTER_RE)) {
+        const target = m[1].replace(/[.\-/]+$/, '');
+        if (m[1].endsWith('/') || m[1].includes('*')) continue; // a folder or a glob names no file
+        const mod = target.split('/')[0];
+        let file = target.slice(mod.length + 1);
+        if (!file || file === 'README.md') continue;
+        if ((mod === 'trackers' || mod === 'code-platform') && file.startsWith('active/')) file = file.slice('active/'.length);
+        if (!mentions(interfaceText(mod), file)) {
+          problems.push(`${by}:${i + 1}: points at ${target}, which ${mod} Interface does not list`);
+        }
+      }
+    });
+  }
+  return problems;
+}
+
+module.exports = { buildPointerIndex, namedFiles, checkCallableParts, checkFilePointers };

@@ -49,8 +49,19 @@ function buildSubstitutions(opts) {
   return subs;
 }
 
+// The files the installer fills placeholders into, by name.
+const isSubstituted = (file) => /\.(md|sh|js|json|yaml|yml)$/i.test(file);
+
+// The text of `file` as the installer leaves it: placeholders filled in when it is a file it substitutes.
+function substituteText(file, content, subs) {
+  if (!isSubstituted(file)) return content;
+  let out = content;
+  for (const [key, value] of subs) out = out.split(key).join(value);
+  return out;
+}
+
 function substituteInTree(dir, subs) {
-  const files = walk(dir, { match: (full) => /\.(md|sh|js|json|yaml|yml)$/i.test(full) });
+  const files = walk(dir, { match: isSubstituted });
   for (const file of files) substituteInFile(file, subs);
 }
 
@@ -156,6 +167,6 @@ function subsFromManifest(manifest, target) {
 }
 
 module.exports = {
-  toUnixPath, toWinPath, buildSubstitutions, substituteInTree, substituteInFile,
+  toUnixPath, toWinPath, buildSubstitutions, substituteInTree, substituteInFile, substituteText,
   buildSettings, buildManifest, subsFromManifest,
 };

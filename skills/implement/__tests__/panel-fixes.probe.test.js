@@ -9,7 +9,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8').replace(/\r\n/g, '\n');
+const strip = (text) => text.replace(/\r\n/g, '\n');
+const readOwn = (...p) => strip(fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8'));
+const readRule = (name) => strip(fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8'));
+const readDocs = (...p) => strip(fs.readFileSync(path.join(REPO_ROOT, 'docs', ...p), 'utf8'));
+const readTemplate = (...p) => strip(fs.readFileSync(path.join(REPO_ROOT, 'templates', ...p), 'utf8'));
+const readArchitecture = () => strip(fs.readFileSync(path.join(REPO_ROOT, 'ARCHITECTURE.md'), 'utf8'));
 const flat = (t) => t.replace(/\*\*/g, '').replace(/\s+/g, ' ');
 
 function slice(content, prefix) {
@@ -29,23 +34,11 @@ function slice(content, prefix) {
   return lines.slice(start, end).join('\n');
 }
 
-const SKILL = read('skills', 'implement', 'SKILL.md');
-const LOCAL_TEST = read('skills', 'local-test', 'SKILL.md');
-const PLANNER = read('agents', 'implement-planner-agent.md');
-const ADR = (prefix) => read('docs', 'adr', fs.readdirSync(path.join(REPO_ROOT, 'docs', 'adr')).find((f) => f.startsWith(prefix)));
+const SKILL = readOwn('SKILL.md');
+const ADR = (prefix) => readDocs('adr', fs.readdirSync(path.join(REPO_ROOT, 'docs', 'adr')).find((f) => f.startsWith(prefix)));
+// What /local-test's and the planner's own files say is asserted in skills/local-test/__tests__/goal-home.test.js
+// and agents/__tests__/agent-text-panel-fixes.test.js: a module's own text is checked in its own tests.
 
-// Every markdown file that is a live instruction: agents, skills, rules.
-function liveInstructions() {
-  const out = [];
-  const walk = (dir) => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) { if (e.name !== '__tests__' && e.name !== 'node_modules') walk(p); } else if (e.name.endsWith('.md')) out.push(p);
-    }
-  };
-  for (const d of ['agents', 'skills', 'rules']) walk(path.join(REPO_ROOT, d));
-  return out;
-}
 
 // ── A1: one home for a story's Goal ──────────────────────────────────
 
@@ -56,33 +49,15 @@ test('Goal_HasOneHome_BriefForAStory_TestStrategyForAFeature', () => {
       && /Feature id[^.]*`tasks\/features\/<fid>\/test-strategy\.md`/i.test(f);
   };
   assert.ok(!readsGoal('For a story id read `tasks/stories/<id>/test-strategy.md` and its Goal.'), 'planted opposite is rejected');
-  const e2e = slice(LOCAL_TEST, '### e2e');
-  assert.ok(e2e, 'local-test has an e2e section');
-  assert.ok(readsGoal(e2e), '/local-test e2e reads a story\'s Goal from brief.md and a Feature\'s from its test-strategy.md');
-
-  // The planner does not write a Goal block into the plan, and says where the Goal lives.
-  // Any line that opens with **Goal:** is a Goal block in the plan, filled or empty.
-  const hasGoalBlock = (t) => /^\s*\*\*Goal:\*\*/m.test(t);
-  assert.ok(hasGoalBlock('**Goal:** e2e through the API, gate: curl returns 200'), 'planted filled Goal line is caught');
-  assert.ok(hasGoalBlock('**Goal:**\n'), 'planted empty Goal line is caught');
-  assert.ok(!hasGoalBlock('Do not write a `**Goal:**` block.'), 'companion: a mention is not a block');
-  assert.ok(!hasGoalBlock(PLANNER), 'the planner writes no **Goal:** block');
-  assert.match(flat(PLANNER), /`tasks\/stories\/<id>\/brief\.md`[^.]*under "Goal"[^.]*`tasks\/features\/<fid>\/test-strategy\.md`/);
-  // The reviewers read it from there.
-  for (const a of ['acceptance-test-agent', 'evaluator-agent']) {
-    const t = flat(read('agents', `${a}.md`));
-    assert.match(t, /`tasks\/stories\/<id>\/brief\.md`[^.]*Goal|brief\.md[^.]*"Goal"/, `${a} reads the Goal from brief.md`);
-    assert.match(t, /`<state folder>\/features\/<fid>\/test-strategy\.md`/, `${a} reads a Feature's Goal from its test-strategy.md`);
-  }
+  assert.ok(readsGoal('For a story id read `tasks/stories/<id>/brief.md` and its Goal; for a Feature id read `tasks/features/<fid>/test-strategy.md`.'), 'companion: the check can pass');
+  // /local-test's e2e section is asserted in skills/local-test/__tests__/goal-home.test.js; the planner's and
+  // the reviewers' own files in agents/__tests__/agent-text-panel-fixes.test.js.
   // SKILL's standalone acceptance brief passes the brief.md path.
   const agent2 = SKILL.slice(SKILL.indexOf('**Agent 2 — Acceptance Tester:**'), SKILL.indexOf('**Agent 3 — Architect Reviewer:**'));
   assert.ok(agent2.length > 100, 'companion: the acceptance brief was found');
   assert.match(agent2, /Goal: YOUR_PROJECT_ROOT\/tasks\/stories\/<id>\/brief\.md/, 'the acceptance brief passes the brief.md path');
-  // No live instruction names a per-story test-strategy.md as a place to read or write.
-  const live = liveInstructions();
-  assert.ok(live.length > 30, 'companion: the scan found the live instructions');
-  const naming = live.filter((f) => /tasks\/stories\/<(?:id|sid)>\/test-strategy\.md/.test(fs.readFileSync(f, 'utf8')));
-  assert.deepEqual(naming.map((f) => path.relative(REPO_ROOT, f)), [], 'no live instruction names tasks/stories/<id>/test-strategy.md');
+  // That no live instruction anywhere names a per-story test-strategy.md is a whole-repo question, asked in
+  // scripts/__tests__/boundaries-repo.test.js.
 });
 
 // ── Round 2, item 2: a Feature's Goal has a writer (the planner) ─────
@@ -98,20 +73,14 @@ test('Goal_FeatureGoalIsWrittenByThePlanner_IntoTestStrategy_AndTheBriefTemplate
   assert.ok(writesGoal(step4), 'SKILL step 4 says the planner writes the Goal section');
   assert.match(flat(step4), /modality[^.]*concrete gate[^.]*seen/i, 'step 4 names what the Goal holds');
 
-  const goalSection = slice(PLANNER, '### Goal and proofs');
-  assert.ok(goalSection, 'the planner has a Goal and proofs section');
-  assert.ok(writesGoal(goalSection), 'the planner\'s Goal and proofs section says it writes the Goal for a Feature');
-  assert.doesNotMatch(flat(goalSection), /Read it from there/, 'the planner no longer reads a Feature Goal that nobody wrote');
-  const bullet = flat(PLANNER).match(/- `tasks\/features\/<fid>\/test-strategy\.md` [^]*?numbered `F\.<n>`/);
-  assert.ok(bullet, 'companion: the planner bullet on test-strategy.md was found');
-  assert.match(bullet[0], /opens with the Feature's `## Goal` section/, 'the planner bullet names the Goal section');
+  // The planner's own Goal and proofs section is asserted in agents/__tests__/agent-text-panel-fixes.test.js.
 
   // F15: the brief template has the Goal heading /implement writes, and the README describes brief.md truthfully.
-  const tpl = read('templates', 'tasks', 'stories', 'brief.template.md');
+  const tpl = readTemplate('tasks', 'stories', 'brief.template.md');
   const goalHeading = tpl.match(/^## Goal\n([\s\S]*?)(?=^## |$(?![\s\S]))/m);
   assert.ok(goalHeading, 'the brief template has a ## Goal heading');
   assert.match(flat(goalHeading[1]), /modality[\s\S]*concrete gate[\s\S]*seen/i);
-  const readme = read('templates', 'tasks', 'stories', 'README.md');
+  const readme = readTemplate('tasks', 'stories', 'README.md');
   const line = readme.split('\n').find((l) => /^├── brief\.md/.test(l));
   assert.ok(line, 'companion: the README line for brief.md was found');
   assert.doesNotMatch(line, /8-point/, 'the README no longer calls brief.md an 8-point brief');
@@ -139,14 +108,14 @@ test('Worktrees_CleanupSkipsAFeatureInProgressInAnotherSession', () => {
   assert.ok(!skips(planted), 'planted text that offers every worktree for removal is rejected');
   const plantedOld = '3. Skip a Feature worktree: when there is a fresh `claim.md`, or a `feature-state.md` whose phase is not `done`, say "Feature <fid> is in progress in another session, left alone". Remove it?';
   assert.ok(!skips(plantedOld), 'planted text that keeps the old claim.md / phase-not-done rule is rejected');
-  const section = slice(read('rules', 'git-worktrees.md'), '## Lifecycle');
+  const section = slice(readRule('git-worktrees.md'), '## Lifecycle');
   assert.ok(section, 'git-worktrees.md has the Lifecycle section');
   assert.ok(skips(section), 'a Feature worktree is skipped only when live says live; a not-live one is offered, saying so when unfinished');
   assert.match(flat(section), /never offered/i);
 });
 
 test('Worktrees_Terminal_FeatureIsDrivenFromAHomeFolderSession_StandaloneGetsItsOwn', () => {
-  const t = read('rules', 'git-worktrees.md');
+  const t = readRule('git-worktrees.md');
   const f = flat(t);
   const rightTerminal = (x) => /Feature worktree[^.]*driven from a session in the home folder[^.]*no terminal of its own/i.test(x)
     && /standalone[^.]*its own terminal/i.test(x);
@@ -173,7 +142,7 @@ test('Skill_StandaloneRunAsksWhenAFeatureSessionIsOpenInThisHomeFolder', () => {
   assert.ok(asks(before), 'a Feature that `feature-state.js live` calls live (30 minutes) makes a standalone run ask, (A) stop or (B) continue, never self-answered');
   // ADR-0006 and ARCHITECTURE say the same, not "built in its own worktree" flatly.
   const adr = flat(ADR('0006-'));
-  const arch = flat(read('ARCHITECTURE.md'));
+  const arch = flat(readArchitecture());
   for (const [name, t] of [['ADR-0006', adr], ['ARCHITECTURE', arch]]) {
     assert.match(t, /standalone (?:item|run)[^]{0,200}?`feature-state\.js live[^]{0,200}?asks? first/i, `${name}: a standalone run asks first when feature-state.js live says live`);
     assert.doesNotMatch(t, /fresh `claim\.md`/, `${name}: no longer reads a "fresh claim.md"`);
@@ -196,7 +165,7 @@ test('Docs_Adr0004AndAdr0005_AmendedForF73', () => {
 });
 
 test('Docs_Architecture_Row6_Section4_StoriesRow_DecisionsRow', () => {
-  const arch = read('ARCHITECTURE.md');
+  const arch = readArchitecture();
   const row6 = arch.split('\n').find((l) => /^\| 6 \| Verify lock/.test(l));
   assert.ok(row6, 'row 6 exists');
   const f6 = flat(row6);
@@ -222,7 +191,7 @@ test('Skill_WrittenReasons_LockTimeoutsOwnerAndRoot', () => {
   assert.ok(owner(slice(SKILL, '## The story loop')), 'the standalone "Shared test resources" says who tunes the waits');
   assert.ok(owner(slice(SKILL, '### Run the stories')), 'so does the Feature one');
   assert.match(flat(SKILL), /`--root` is always passed by the main session/);
-  assert.match(read('skills', 'implement', 'bin', 'test-lock.js'), /Who tunes them:[\s\S]*TEST_LOCK_TIMEOUT_MS/);
+  assert.match(readOwn('bin', 'test-lock.js'), /Who tunes them:[\s\S]*TEST_LOCK_TIMEOUT_MS/);
 });
 
 // ── Round 4: the plain-git writes that stay are exactly the ones the "go through worktree.js" paragraph lists ──

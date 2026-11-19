@@ -67,7 +67,7 @@ All tracker operations below go through `bash trackers/active/<script>.sh` — n
 **Tickets** — child items of the map, each one question sized to a single session, labelled `wayfinder:<type>`:
 
 - **research** (AFK) — a fact outside this repo blocks a decision. Resolved by a `/research` run; link the resulting `research.md` from the ticket.
-- **prototype** (HITL) — "how should it look/behave" is the question. Resolved via `/prototype`; link the `decision.md` comparison.
+- **prototype** (HITL) — "how should it look/behave" is the question. Resolved: run `/prototype`; link the `decision.md` comparison.
 - **grilling** (HITL) — the default: the human's judgment is the missing input. Resolved via `/grill-me`, one question at a time. Never answer the human's side yourself — a grilling that grills itself has broken the loop.
 - **task** (HITL or AFK) — manual work that must happen before a decision *can* be made (provision access, sign up for a service, move data). The one type that *does* rather than decides; it earns its place by unblocking a decision. Record what was done and any facts later tickets depend on.
 

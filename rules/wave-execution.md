@@ -117,7 +117,7 @@ recorded as evidence**, and never use a blanket `git checkout .` or `git stash`,
 work that is not this story's.
 
 The same holds for a **stuck** story: its own paths, new ones included, go back to `HEAD` in the index
-and the tree before the next story starts (`skills/implement/SKILL.md`, **Stuck stories**).
+and the tree before the next story starts (`skills/implement/SKILL.md`, "Interface": a stuck story's paths go back to `HEAD`).
 
 Three reasons this is not optional:
 
@@ -155,7 +155,7 @@ The same Feature open in two sessions is a different check, the claim (`feature-
 ADR-0006). A standalone run still builds in the folder it runs in, so the bullets above hold for it, and
 it asks one more thing first: `feature-state.js live --feature <fid>` for each Feature in `tasks/features/`;
 any that prints `live` means a Feature session is open in this home folder, and the run asks before it
-checks out a branch here (`skills/implement/SKILL.md`, "Before you start"; not self-answerable).
+checks out a branch here (`skills/implement/SKILL.md`, "Interface"; not self-answerable).
 
 **Show what was found and ask** — do not refuse outright and do not proceed silently. Dirty state is
 often the human's own scratch work, so the decision is theirs:

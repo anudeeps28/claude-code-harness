@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Stub `gh` for the code-platform conformance tests. Answers only the calls the github adapter makes:
+# the auth check, the repo owner and name, and the review-threads GraphQL query (returned already
+# shaped as the adapter's own output, since the real `gh` applies the adapter's --jq filter).
+
+set -e
+
+# Auth check.
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  if [ "$FIXTURE_AUTH" = "expired" ]; then
+    echo "Token has expired" >&2
+    exit 1
+  fi
+  echo "Logged in to github.com as testuser"
+  exit 0
+fi
+
+# Repo metadata.
+if [ "$1" = "repo" ] && [ "$2" = "view" ]; then
+  for arg in "$@"; do
+    case "$arg" in
+      ".owner.login") echo "testorg"; exit 0 ;;
+      ".name") echo "testrepo"; exit 0 ;;
+    esac
+  done
+  echo '{"owner":{"login":"testorg"},"name":"testrepo"}'
+  exit 0
+fi
+
+# The unresolved review threads of a PR.
+if [ "$1 $2" = "api graphql" ]; then
+  cat <<'JSON'
+[
+  {
+    "id": 555001,
+    "threadId": "PRRT_kwDOABCDEFG",
+    "file": "src/auth/login.ts",
+    "line": 42,
+    "content": "Consider extracting this into a helper.",
+    "author": "reviewer1"
+  },
+  {
+    "id": 555002,
+    "threadId": "PRRT_kwDOABCDEFH",
+    "file": "src/auth/login.ts",
+    "line": 88,
+    "content": "Missing error handling for the 401 case.",
+    "author": "reviewer2"
+  }
+]
+JSON
+  exit 0
+fi
+
+echo "gh stub: unexpected call: $*" >&2
+exit 1

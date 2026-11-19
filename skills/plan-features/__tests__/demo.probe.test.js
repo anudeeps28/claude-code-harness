@@ -127,8 +127,8 @@ test('CalledFromAnotherRun_NothingIsCreatedBeforeAPersonSaysYes', () => {
 });
 
 test('WithoutTheHarnessAdapter_AdoGoesThroughAz', () => {
-  mustMatch(section(SKILL, '## Hard input gate'), /references\/ado-commands\.md/, 'no adapter: ADO through the reference file');
-  const ref = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'plan-features', 'references', 'ado-commands.md'), 'utf8');
+  mustMatch(section(SKILL, '## Hard input gate'), /reference\/ado-commands\.md/, 'no adapter: ADO through the reference file');
+  const ref = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'plan-features', 'reference', 'ado-commands.md'), 'utf8');
   mustMatch(ref, /--relation-type predecessor/, 'the blocked-by edge is a predecessor link');
   mustMatch(ref, /CONTAINS 'no-CC\/SD'/, 'the CC/SD sweep query is there');
 });

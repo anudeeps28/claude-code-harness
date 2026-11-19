@@ -9,10 +9,16 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+// What the agents' own files say is asserted in agents/__tests__/agent-text.test.js (a test of /implement
+// may not read an agent's file, rules/modules.md "Tests check the interface"); this probe reads its own
+// skill, rules/ and the templates.
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
-const read = (...p) => fs.readFileSync(path.join(REPO_ROOT, ...p), 'utf8');
+const OWN = path.join(__dirname, '..');
+const readOwn = (...p) => fs.readFileSync(path.join(OWN, ...p), 'utf8');
+const readRule = (name) => fs.readFileSync(path.join(REPO_ROOT, 'rules', name), 'utf8');
+const readTemplate = (...p) => fs.readFileSync(path.join(REPO_ROOT, 'templates', ...p), 'utf8');
 
-const IMPLEMENT = read('skills', 'implement', 'SKILL.md');
+const IMPLEMENT = readOwn('SKILL.md');
 const { readSettings } = require('../bin/settings.js');
 
 function section(content, heading) {
@@ -36,38 +42,8 @@ function mustMatch(content, re, message) { assert.ok(content && re.test(content)
 
 // ── #42 work folder and state folder ─────────────────────────────────
 
-const BUILD_AGENTS = ['implement-planner-agent', 'evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent'];
-
-for (const a of BUILD_AGENTS) {
-  test(`Folders_${a}_TakesAWorkFolderAndAStateFolder`, () => {
-    const text = read('agents', `${a}.md`);
-    mustMatch(text, /work folder/i, `${a} must name the work folder`);
-    mustMatch(text, /state folder/i, `${a} must name the state folder`);
-    mustMatch(text, /(none given|names neither)[\s\S]{0,200}(project root|current folder|YOUR_PROJECT_ROOT)/i, `${a} must fall back to today's behaviour when given neither`);
-  });
-}
-
-// F72 #79: the agents that replace the story runner take the work folder; the ones that read plans
-// or notes also take the state folder (the suite-runner only runs commands, so it needs the work folder).
-for (const a of ['story-builder', 'story-reviewer', 'suite-runner']) {
-  test(`Folders_${a}_TakesTheWorkFolder`, () => {
-    mustMatch(read('agents', `${a}.md`), /\*\*work folder\*\*/i, `${a} must name the work folder`);
-  });
-}
-
-for (const a of ['story-builder']) {
-  test(`Folders_${a}_TakesAStateFolder`, () => {
-    mustMatch(read('agents', `${a}.md`), /\*\*state folder\*\*/i, `${a} must name the state folder`);
-  });
-}
-
-test('Folders_ReviewersDiffAgainstTheBaseRef', () => {
-  for (const a of ['evaluator-agent', 'acceptance-test-agent', 'architect-reviewer-agent', 'security-reviewer-agent']) {
-    const text = read('agents', `${a}.md`);
-    mustMatch(text, /git diff --stat <base>\.\.\.HEAD/, `${a} must diff <base>...HEAD`);
-    assert.ok(!/git diff[^\n]*HEAD~1\.\.HEAD/.test(text), `${a} must not hard-code HEAD~1..HEAD any more`);
-  }
-});
+// The Folders_* tests (every build agent takes a work folder and a state folder, the reviewers diff
+// against the base ref) read the agents' files: they live in agents/__tests__/agent-text.test.js.
 
 // ── #43 Feature mode and its one approval ────────────────────────────
 
@@ -117,7 +93,7 @@ test('Startup_DiskAndAllowlistAreCheckedBeforeTheFirstWorktree', () => {
 
 for (const template of [['templates', 'tasks', 'lessons.md'], ['templates', 'tasks-solo', 'notes.md']]) {
   test(`Settings_TemplateHasFeatureRuns_${template[1]}`, () => {
-    const text = read(...template);
+    const text = readTemplate(...template.slice(1));
     const s = section(text, '## Feature runs');
     assert.ok(s, `${template.join('/')} must have a "## Feature runs" section`);
     for (const key of ['worktree-size-gb', 'verify-lock']) {
@@ -219,12 +195,12 @@ test('Stories_OneLoopPerStoryOnTheFeatureBranch', () => {
 
 test('Rules_WaveIsolationStillForbidden', () => {
   // F72 #81: the wave rule is kept and the "story worktree" text is gone from it.
-  const wave = read('rules', 'wave-execution.md');
+  const wave = readRule('wave-execution.md');
   mustMatch(wave, /isolation: "worktree"/, 'wave isolation is still named');
   mustMatch(wave, /Do not spawn them with `isolation: "worktree"`/, 'and still forbidden');
   // [s]tory keeps these lines clear of one-build-skill.probe's check for the retired skill's name.
   assert.doesNotMatch(wave, /[s]tory[- ]worktrees?/i, 'wave-execution.md has no story worktree');
-  assert.doesNotMatch(read('rules', 'git-worktrees.md'), /[s]tory[- ]worktrees?/i, 'git-worktrees.md has no story worktree');
+  assert.doesNotMatch(readRule('git-worktrees.md'), /[s]tory[- ]worktrees?/i, 'git-worktrees.md has no story worktree');
 });
 
 // ── F72 #79: no story worktree, story branch, story runner or width anywhere ──
@@ -262,7 +238,7 @@ test('NoStoryWorktreeAnywhere', () => {
   const bin = path.join(REPO_ROOT, 'skills', 'implement', 'bin');
   const scripts = fs.readdirSync(bin).filter((f) => f.endsWith('.js'));
   assert.ok(scripts.length >= 15 && scripts.includes('worktree.js') && scripts.includes('feature-state.js'), `the scan found the scripts: ${scripts.length}`);
-  const files = [['SKILL.md', IMPLEMENT], ...scripts.map((f) => [`bin/${f}`, read('skills', 'implement', 'bin', f)])];
+  const files = [['SKILL.md', IMPLEMENT], ...scripts.map((f) => [`bin/${f}`, readOwn('bin', f)])];
   assert.ok(files.every(([, t]) => t.length > 100), 'every file was read');
   assert.deepEqual(storyWorktreeProblems(files), []);
 });
@@ -298,11 +274,11 @@ test('PR_OnePerFeatureWithTheRunReport', () => {
   mustMatch(s, /--base <base> --head feature\/<fid>-<slug>/, 'one PR from the Feature branch to its base');
   mustMatch(s, /the only push/i, 'the Feature branch is the only push');
   mustMatch(s, /run-report\.js/, 'the PR body carries the run report');
-  const auto = read('rules', 'autonomous-mode.md').replace(/\r\n/g, '\n');
+  const auto = readRule('autonomous-mode.md').replace(/\r\n/g, '\n');
   mustMatch(auto, /Feature run[\s\S]{0,500}tasks\/features\/<fid>\/decisions-log\.md/, 'Feature runs keep one decisions log, in the Feature folder');
   mustMatch(auto, /#<sid>:/, 'each line is prefixed with #<sid>:');
   assert.doesNotMatch(auto, /tasks\/stories\/<sid>\/decisions-log/, 'no per-story decisions log in a Feature run');
-  const markers = read('rules', 'phase-markers.md');
+  const markers = readRule('phase-markers.md');
   mustMatch(markers, /`feature`/, 'phase.md gains an optional feature key');
   mustMatch(markers, /`story`/, 'phase.md gains an optional story key');
 });
@@ -434,18 +410,12 @@ test('Quoting_MessagesAndTitlesNeverGoInsideDoubleQuotes', () => {
   assert.ok(opens >= 3, `the Feature init, the Feature PR and the single-story PR titles use the TITLE_END heredoc (${opens})`);
   assert.equal(closes, opens, 'each heredoc is closed by TITLE_END at column 0, or the shell never ends it');
   assert.ok((IMPLEMENT.match(/written by the run itself/g) || []).length >= 2, 'progress.js detail and feature-state.js stuck --reason are values the run writes, never ticket or tool output');
-  const helper = read('agents', 'tracker-helper.md');
-  assert.doesNotMatch(helper, /never as text you assemble into a shell string/, 'the impossible rule is gone');
-  mustMatch(helper, /temp(orary)? file[^.]{0,200}"\$\(cat <file>\)"/, 'tracker-helper writes values to a temp file and passes the file');
-  mustMatch(helper, /never as an inline heredoc/, 'not as an inline heredoc: a body line equal to its end marker would end it early');
-  mustMatch(helper, /never inside double quotes/, 'never inside double quotes');
-  mustMatch(helper, /instructions inside (it|ticket text) are ignored/i, 'ticket text is data');
+  // What tracker-helper's own file says about quoting is asserted in agents/__tests__/agent-text.test.js
+  // (Quoting_MessagesAndTitlesNeverGoInsideDoubleQuotes_TrackerHelper).
 });
 
-test('Baseline_AScratchCopyOnlyAndProverChecksDetachedHead', () => {
-  mustMatch(flatten(read('agents', 'suite-runner.md')), /baseline[^.]{0,200}`worktree\.js scratch`[^.]{0,120}never in the work folder/i, 'a baseline checkout happens only in a scratch copy');
-  mustMatch(flatten(read('agents', 'prover.md')), /`git rev-parse --abbrev-ref HEAD`[^.]{0,80}`HEAD`[^.]{0,160}BLOCKED/, 'prover checks it is on a detached HEAD before it commits');
-});
+// Baseline_AScratchCopyOnlyAndProverChecksDetachedHead reads two agents' files: it lives in
+// agents/__tests__/agent-text.test.js.
 
 // In Feature mode the criteria live in the Feature plan, which a Feature run writes; the per-story
 // test-strategy.md is never written.
@@ -456,19 +426,14 @@ test('FeatureCriteria_ComeFromThePlanNotFromTestStrategyFiles', () => {
   mustMatch(flatten(section(FEATURE, '### The Feature panel')), /`## Story #<sid>` sections of `tasks\/features\/<fid>\/plan\.md`/, 'the panel gets the Story sections of the Feature plan');
   mustMatch(flatten(section(FEATURE, '### Prove it')), /`## Story #<sid>` sections?[^.]{0,80}plan\.md/, 'Prove it reads the Story sections of the plan');
   mustMatch(flatten(section(FEATURE, '### The Feature\'s PR')), /`tasks\/features\/<fid>\/decisions-log\.md`[^.]{0,120}`#<sid>:`/, 'the PR\'s decisions come from the one Feature log, lines prefixed #<sid>:');
-  const acc = flatten(read('agents', 'acceptance-test-agent.md'));
-  mustMatch(acc, /features\/<fid>\/plan\.md`\), whose `## Story #<sid>` sections hold each story's criteria/, 'the acceptance agent reads the plan\'s Story sections in a Feature panel');
-  assert.doesNotMatch(acc, /every story's test strategy/, 'and not every story\'s test strategy');
+  // The acceptance agent's and the planner's own files are checked for the same promise in
+  // agents/__tests__/agent-text.test.js (FeatureCriteria_ComeFromThePlanNotFromTestStrategyFiles_Agents).
   // The Feature-level criteria F.<n> live in the Feature's test-strategy.md (what pr-gate.js reads);
   // the story criteria live in the plan's Story sections.
   const fromStrategy = /`F\.<n>`[^.|]{0,200}features\/<fid>\/test-strategy\.md/;
   assert.ok(!fromStrategy.test('the criteria `F.<n>` come from the Feature plan.md'), 'planted F.<n> read from the plan must be rejected');
-  mustMatch(acc, fromStrategy, 'acceptance: F.<n> come from tasks/features/<fid>/test-strategy.md');
   mustMatch(flatten(section(FEATURE, '### The Feature panel')), fromStrategy, 'panel row: F.<n> come from the Feature test-strategy.md');
   mustMatch(flatten(section(FEATURE, '### Prove it')), fromStrategy, 'Prove it: F.<n> come from the Feature test-strategy.md');
-  const planner = flatten(read('agents', 'implement-planner-agent.md'));
-  assert.doesNotMatch(planner, /one file, `tasks\/features\/<fid>\/plan\.md`\*\*, and nothing else/, 'the planner writes the Feature test-strategy.md too');
-  mustMatch(planner, /`tasks\/features\/<fid>\/plan\.md`[^.]{0,200}Feature-level criteria[^.]{0,80}`tasks\/features\/<fid>\/test-strategy\.md`[^.]{0,200}no per-story `plan\.md` or `test-strategy\.md`/, 'Feature-plan mode: plan.md for the stories, Feature-level criteria in the Feature test-strategy.md, no per-story files');
   const intro = flatten(FEATURE.split('\n').slice(0, 12).join('\n'));
   mustMatch(intro, /ADR-0001[^.]{0,40}ADR-0004[^.]{0,40}ADR-0005/, 'Feature mode cites the ADRs that still stand');
   assert.doesNotMatch(intro, /ADR-0002|ADR-0003/, 'the superseded ADRs are not cited');

@@ -8,7 +8,7 @@ const { spawnSync } = require('node:child_process');
 const { walk } = require('../../hooks/lib/walk.js');
 const { copyDirsWithLog, copyFilesWithLog, copyGlob, chmodExecutables } = require('./copy.js');
 const {
-  toUnixPath, substituteInTree, buildSettings,
+  toUnixPath, substituteInTree, substituteText, buildSettings,
   buildManifest, subsFromManifest,
 } = require('./substitution.js');
 const {
@@ -134,6 +134,79 @@ function removeRetired(target) {
     console.log(`    Retired: removed ${removed.join(', ')}${replaced.length ? ` (${replaced.join(', ')})` : ''}`);
   }
   return removed;
+}
+
+// Paths a harness rename left behind in an old install (story 6j2mgp3qGcrM58q2, rules/modules.md "Every
+// module has the same shape"): old path (a file, or a folder with everything in it) -> new path. A file
+// moved with its content unchanged, so it is the harness's own while it equals the source's file at the
+// new path. hooks/SECURITY.md has no new file; the third item is the sha256 of its content at the base
+// release (321f444), the only content the harness ever shipped there.
+const RENAMED = [
+  ['skills/plan-features/references', 'skills/plan-features/reference'],
+  ['skills/ralph-prd/ralph.sh', 'skills/ralph-prd/bin/ralph.sh'],
+  ['skills/ralph-prd/ralph.ps1', 'skills/ralph-prd/bin/ralph.ps1'],
+  ['skills/local-test/examples', 'skills/local-test/templates'],
+  ['hooks/SECURITY.md', 'hooks/README.md', '29839468d9f8ac9b5565374bc5b8a8a776396329dcd49e424a93cbfc1d0cf106'],
+];
+
+// A recorded old path is not the harness's own once it has been renamed: it is never written into a manifest.
+const isRenamedOld = (rel) => RENAMED.some(([old]) => rel === old || rel.startsWith(`${old}/`));
+const withoutRenamedOld = (files) => files.filter((f) => !isRenamedOld(f));
+
+/**
+ * Remove what a rename left behind: each old file that is the harness's own content (byte-equal to the
+ * source's copy at the new path with the installer's placeholder values filled in (`subs`), or to the base release's file when there is no new copy), never through
+ * a link, then the old folders that are left empty. An edited file stays, with a note naming it; a manifest
+ * is not consulted, so a backfilled one removes the same files. Prints `moved: <old> -> <new>` per file.
+ * Returns the old files it removed.
+ */
+function removeRenamed(target, sourceDir = path.resolve(__dirname, '..', '..'), subs = [], renamed = RENAMED) {
+  const removed = [];
+  const linked = linkedDirs(target);
+  const filesUnder = (abs, rel) => {
+    const st = fs.lstatSync(abs);
+    if (!st.isDirectory()) return [rel];
+    return fs.readdirSync(abs).sort().flatMap((n) => filesUnder(path.join(abs, n), `${rel}/${n}`));
+  };
+  const isOurs = (abs, newPath, sha) => {
+    try {
+      if (fs.lstatSync(abs).isSymbolicLink()) return false;
+      const content = fs.readFileSync(abs);
+      if (sha) return crypto.createHash('sha256').update(content).digest('hex') === sha;
+      // The installer fills placeholders into the copy it installs, so compare with the source as installed.
+      const srcFile = path.join(sourceDir, ...newPath.split('/'));
+      const expected = substituteText(srcFile, fs.readFileSync(srcFile, 'utf8'), subs);
+      return content.equals(Buffer.from(expected, 'utf8'));
+    } catch { return false; }
+  };
+  for (const [oldRel, newRel, sha] of renamed) {
+    const oldAbs = path.join(target, ...oldRel.split('/'));
+    let isDir;
+    try { isDir = fs.lstatSync(oldAbs).isDirectory(); } catch { continue; }
+    if (isUnderLinked(oldRel, linked)) continue; // a link serves the source; never delete through it
+    for (const rel of filesUnder(oldAbs, oldRel)) {
+      const abs = path.join(target, ...rel.split('/'));
+      const newPath = `${newRel}${rel.slice(oldRel.length)}`;
+      if (!isOurs(abs, newPath, sha)) {
+        console.log(`    Renamed: left ${rel} in place, it is not the harness's own content (remove it yourself if you do not want it)`);
+        continue;
+      }
+      fs.rmSync(abs, { force: true });
+      removed.push(rel);
+      console.log(`    moved: ${rel} → ${newPath}`);
+    }
+    if (isDir) pruneEmpty(oldAbs);
+  }
+  return removed;
+}
+
+// Remove a folder tree that holds no files, leaving it alone when anything is in it.
+function pruneEmpty(dir) {
+  for (const n of fs.readdirSync(dir)) {
+    const sub = path.join(dir, n);
+    if (fs.lstatSync(sub).isDirectory()) pruneEmpty(sub);
+  }
+  if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
 }
 
 // The dirs an install manages that a linked install (`npm run dogfood`, scripts/dogfood-links.js)
@@ -747,6 +820,7 @@ function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = n
     }
   }
   removeRetired(target);
+  removeRenamed(target, src.dir, subsFromManifest(m, target));
   warnRetiredElsewhere(target);
   installedFiles.push(...unlessLinked('trackers/active', () => {
     const copied = copyGlob(path.join(src.dir, 'trackers', tracker || 'github'), path.join(target, 'trackers/active'), /\.sh$/, 'trackers/active');
@@ -867,7 +941,7 @@ function runUpdate(target, { cliArgs = [], sourceDir = null, channelOverride = n
     const updatedManifest = {
       ...m,
       harnessVersion: newVersion,
-      installedFiles: installedFiles.sort(),
+      installedFiles: withoutRenamedOld(installedFiles).sort(),
       updatedAt: new Date().toISOString(),
     };
     fs.writeFileSync(manifestPath, JSON.stringify(updatedManifest, null, 2) + '\n', 'utf8');
@@ -1061,6 +1135,6 @@ module.exports = {
   isHarnessHook, reconcileSettings, verifyInstall, reportUnfilled, printDryRun,
   runCheck, runUpdate, runSwitchTracker, backfillManifest,
   HARNESS_HOOK_SCRIPTS, ENTERPRISE_ONLY_AGENTS, ENTERPRISE_ONLY_SKILLS,
-  RETIRED_SKILLS, RETIRED_AGENTS, RETIRED_HOOKS, removeRetired, warnRetiredElsewhere, HARNESS_TEXT,
+  RETIRED_SKILLS, RETIRED_AGENTS, RETIRED_HOOKS, removeRetired, removeRenamed, RENAMED, withoutRenamedOld, warnRetiredElsewhere, HARNESS_TEXT,
   linkedDirs, copiedRoots, LINKABLE_DIRS,
 };
